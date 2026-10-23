@@ -84,6 +84,26 @@ cd server && .venv/bin/python -m pytest -q
 
 ---
 
+## ⚠️ 部署前請先檢查（安全提醒）
+
+預設設定是為「自架在內網 NAS、只給自己和家人使用」設計的。若你要放到公網或給陌生人使用，請先改掉下列項目：
+
+| 項目 | 預設值 | 建議 |
+|---|---|---|
+| `CLURE_ALLOW_REGISTRATION` | `true`（開放註冊） | 建好自己的帳號後改成 `false`，避免陌生人註冊 |
+| `CLURE_FIRST_USER_ADMIN` | `true`（第一位註冊者是管理員） | 部署後第一時間自己先註冊，或預先設定 `CLURE_ADMIN_*` |
+| `POSTGRES_PASSWORD` | `change-me` | 若啟用 PostgreSQL，**務必**改成強密碼 |
+| `PROXY_ACCESS_TOKEN` | 空（不驗證） | 對外開放報價代理時請設定一串隨機權杖 |
+| `CLURE_COOKIE_SECURE` | `auto` | 對外服務請放在 HTTPS 反向代理後面 |
+
+另外：
+
+- `.env` 已被 `.gitignore` 排除，**請勿把自己的 `.env` 提交到 Git**。
+- `clure-nas.zip`／`clure-nas.tar.gz` 這類打包檔內含 `.env` 副本，也已排除，請勿上傳。
+- 發現安全問題請開 Issue（不要貼出密鑰或個資）。
+
+---
+
 ## NAS Docker 部署（掛載＋熱更新：覆蓋檔案即自動更新）
 
 | 檔案 | 用途 |
