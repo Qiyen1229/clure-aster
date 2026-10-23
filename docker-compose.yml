@@ -1,0 +1,161 @@
+# ─────────────────────────────────────────────────────────────
+# Clure 記帳 — NAS Docker 部署（掛載＋熱更新版）
+#
+#   第一次：  docker compose up -d
+#   之後更新：把新版檔案「拖曳覆蓋」到同一個資料夾即可，不必刪除專案或重建容器
+#     - 前端（src/、public/、index.html…）→ web-builder 自動重新建置，完成後 nginx 立即提供新版
+#     - 後端（server/app/、server/alembic/）→ uvicorn 熱重載，資料庫遷移自動執行
+#     - 套件清單（package-lock.json、server/requirements.txt）→ 自動重新安裝
+#     - 報價代理（proxy/）→ node --watch 自動重啟
+#   查看進度：docker compose logs -f web-builder api
+#
+#   ⚠ 資料都在 CLURE_DATA_PATH（預設 ./data）：覆蓋檔案時請保留這個資料夾，不要刪除。
+#   開啟 http://<NAS-IP>:9122（HTTPS 請由你的反向代理／Cloudflare 處理）
+# ─────────────────────────────────────────────────────────────
+name: clure
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
+services:
+  # 前端建置器：監看原始碼 → 自動 vite build → 寫入 clure-www 資料卷（建置成功才切換，失敗保留舊版）
+  web-builder:
+    image: node:20-alpine
+    container_name: clure-web-builder
+    restart: unless-stopped
+    working_dir: /app
+    command: ["node", "docker/web-watch.mjs"]
+    environment:
+      - TZ=${TZ:-Asia/Taipei}
+      - OUT_DIR=/srv/www
+      - POLL_MS=${CLURE_POLL_MS:-2000}
+      - SETTLE_MS=${CLURE_SETTLE_MS:-4000}
+      - RUN_TESTS=${CLURE_RUN_TESTS:-false}
+      - NODE_OPTIONS=--max-old-space-size=1024
+    volumes:
+      - ./:/app                              # 專案資料夾（覆蓋檔案即觸發重新建置）
+      - clure-node-modules:/app/node_modules  # 套件放在資料卷，不會被覆蓋、也不會出現在 NAS 資料夾
+      - clure-www:/srv/www                    # 建置結果（與 nginx 共用）
+    healthcheck:
+      test: ["CMD", "test", "-f", "/srv/www/current/index.html"]
+      interval: 10s
+      timeout: 3s
+      retries: 60          # 第一次建置（含安裝套件）可能需要幾分鐘
+      start_period: 30s
+    logging: *logging
+
+  # 網站：nginx 直接提供建置結果；/api 轉給後端、/proxy 轉給報價代理
+  web:
+    image: nginx:1.27-alpine
+    container_name: clure-web
+    restart: unless-stopped
+    ports:
+      - "${CLURE_PORT:-9122}:9122"
+    environment:
+      - TZ=${TZ:-Asia/Taipei}
+    volumes:
+      - clure-www:/srv/www:ro
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./docker/security-headers.conf:/etc/nginx/snippets/security-headers.conf:ro
+    depends_on:
+      web-builder:
+        condition: service_healthy
+      api:
+        condition: service_started
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9122/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    logging: *logging
+
+  # 後端 API（FastAPI）：帳號、跨裝置同步、管理員後台。原始碼掛載＋熱重載。只在內部網路開放。
+  api:
+    image: python:3.12-slim
+    container_name: clure-api
+    restart: unless-stopped
+    working_dir: /app
+    entrypoint: ["sh", "/entrypoint.sh"]
+    environment:
+      - TZ=${TZ:-Asia/Taipei}
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+      # 輪詢偵測檔案變更（NAS 共用資料夾、網路磁碟也能正確觸發熱重載）
+      - WATCHFILES_FORCE_POLLING=true
+      - WATCHFILES_POLL_DELAY_MS=1000
+      - CLURE_ENV=production
+      - CLURE_DATA_DIR=/data
+      - CLURE_TIMEZONE=${TZ:-Asia/Taipei}
+      - CLURE_JWT_SECRET=${CLURE_JWT_SECRET:-}
+      - CLURE_DATABASE_URL=${CLURE_DATABASE_URL:-}
+      - CLURE_COOKIE_SECURE=${CLURE_COOKIE_SECURE:-auto}
+      - CLURE_ALLOW_REGISTRATION=${CLURE_ALLOW_REGISTRATION:-true}
+      - CLURE_FIRST_USER_ADMIN=${CLURE_FIRST_USER_ADMIN:-true}
+      - CLURE_ADMIN_USERNAME=${CLURE_ADMIN_USERNAME:-}
+      - CLURE_ADMIN_EMAIL=${CLURE_ADMIN_EMAIL:-}
+      - CLURE_ADMIN_PASSWORD=${CLURE_ADMIN_PASSWORD:-}
+      - CLURE_LOG_LEVEL=${CLURE_LOG_LEVEL:-INFO}
+    volumes:
+      - ./server:/app:ro                          # 後端原始碼（覆蓋 .py 即熱重載）
+      - ./docker/api-entrypoint.sh:/entrypoint.sh:ro
+      - ${CLURE_DATA_PATH:-./data}/api:/data       # SQLite 資料庫、JWT 金鑰（持久化）
+      - clure-pyenv:/opt/venv                     # Python 套件
+    expose:
+      - "8000"
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=2)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 120s   # 第一次啟動需安裝套件
+    logging: *logging
+
+  # （選用）PostgreSQL：docker compose --profile postgres up -d
+  # 並在 .env 設定 CLURE_DATABASE_URL=postgresql+psycopg://clure:密碼@postgres:5432/clure
+  postgres:
+    image: postgres:16-alpine
+    container_name: clure-postgres
+    profiles: ["postgres"]
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=clure
+      - POSTGRES_USER=clure
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-change-me}
+    volumes:
+      - ${CLURE_DATA_PATH:-./data}/postgres:/var/lib/postgresql/data   # 資料庫檔案（持久化）
+    expose:
+      - "5432"
+    logging: *logging
+
+  # 股票報價代理（處理 CORS、快取、節流）。原始碼掛載，覆蓋後 node --watch 自動重啟。
+  quote-proxy:
+    image: node:22-alpine
+    container_name: clure-quote-proxy
+    restart: unless-stopped
+    working_dir: /app
+    user: node
+    command: ["node", "--watch", "--experimental-strip-types", "--no-warnings", "node-server.ts"]
+    environment:
+      - TZ=${TZ:-Asia/Taipei}
+      - PORT=9123
+      - ACCESS_TOKEN=${PROXY_ACCESS_TOKEN:-}
+    volumes:
+      - ./proxy:/app:ro
+    expose:
+      - "9123"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    logging: *logging
+
+volumes:
+  clure-www:          # 前端建置結果（可隨時刪除，會自動重建）
+  clure-node-modules: # 前端套件（可隨時刪除，會自動重裝）
+  clure-pyenv:        # 後端套件（可隨時刪除，會自動重裝）

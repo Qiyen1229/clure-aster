@@ -1,0 +1,27 @@
+node_modules
+dist
+.DS_Store
+*.local
+.env
+.wrangler
+
+# 環境變數(保留範本)
+.env.*
+!.env.example
+
+# 部署打包檔(內含 .env 副本)
+clure-nas.zip
+clure-nas.tar.gz
+
+# 執行期資料與快取
+data/*
+!data/api/
+data/api/*
+!data/api/.gitkeep
+.pytest_cache/
+.venv/
+__pycache__/
+*.log
+
+# 本機編輯器/工具設定
+.claude/

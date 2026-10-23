@@ -1,0 +1,22 @@
+# syntax=docker/dockerfile:1
+# ─────────────────────────────────────────────────────────────
+# Clure 記帳 PWA — 網站容器（多階段建置）
+#   1) node:20-alpine 建置靜態檔
+#   2) nginx:alpine 提供服務，容器內與對外皆使用 9122 埠
+# ─────────────────────────────────────────────────────────────
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY . .
+# 單元測試失敗就中止建置，確保核心計算正確才上線
+RUN npm test && npm run build
+
+FROM nginx:1.27-alpine
+LABEL org.opencontainers.image.title="clure-web" \
+      org.opencontainers.image.description="Clure 記帳 PWA（純前端，資料存在使用者裝置）"
+COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker/security-headers.conf /etc/nginx/snippets/security-headers.conf
+COPY --from=build /app/dist /srv/www/current
+EXPOSE 9122
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 CMD wget -qO- http://127.0.0.1:9122/healthz || exit 1

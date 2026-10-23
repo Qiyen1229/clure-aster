@@ -1,0 +1,113 @@
+# ─────────────────────────────────────────────────────────────
+# Clure 記帳 — 映像檔版部署（每次更新需重新建置映像檔）
+#   日常更新建議改用 docker-compose.yml（掛載＋熱更新，覆蓋檔案即自動生效）
+#   docker compose -f docker-compose.build.yml up -d --build
+#   開啟 http://<NAS-IP>:9122   （HTTPS 請由你的反向代理處理）
+# ─────────────────────────────────────────────────────────────
+name: clure
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+    image: clure-web:latest
+    container_name: clure-web
+    restart: unless-stopped
+    ports:
+      - "${CLURE_PORT:-9122}:9122"
+    environment:
+      - TZ=${TZ:-Asia/Taipei}
+    depends_on:
+      - quote-proxy
+      - api
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9122/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "2" }
+
+  # 後端 API（FastAPI）：註冊／登入、管理員資安後台。只在內部網路開放，由 web 的 nginx 以同源 /api/ 轉發。
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+      target: runtime
+    image: clure-api:latest
+    container_name: clure-api
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Asia/Taipei}
+      - CLURE_TIMEZONE=${TZ:-Asia/Taipei}
+      - CLURE_JWT_SECRET=${CLURE_JWT_SECRET:-}
+      - CLURE_DATABASE_URL=${CLURE_DATABASE_URL:-}
+      - CLURE_COOKIE_SECURE=${CLURE_COOKIE_SECURE:-auto}
+      - CLURE_ALLOW_REGISTRATION=${CLURE_ALLOW_REGISTRATION:-true}
+      - CLURE_FIRST_USER_ADMIN=${CLURE_FIRST_USER_ADMIN:-true}
+      - CLURE_ADMIN_USERNAME=${CLURE_ADMIN_USERNAME:-}
+      - CLURE_ADMIN_EMAIL=${CLURE_ADMIN_EMAIL:-}
+      - CLURE_ADMIN_PASSWORD=${CLURE_ADMIN_PASSWORD:-}
+      - CLURE_LOG_LEVEL=${CLURE_LOG_LEVEL:-INFO}
+    volumes:
+      - clure-data:/app/data   # SQLite 資料庫與自動產生的 JWT 金鑰
+    expose:
+      - "8000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # （選用）PostgreSQL：docker compose --profile postgres up -d
+  # 並在 .env 設定 CLURE_DATABASE_URL=postgresql+psycopg://clure:密碼@postgres:5432/clure
+  postgres:
+    image: postgres:16-alpine
+    container_name: clure-postgres
+    profiles: ["postgres"]
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=clure
+      - POSTGRES_USER=clure
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-change-me}
+    volumes:
+      - clure-pg:/var/lib/postgresql/data
+    expose:
+      - "5432"
+
+  # 股票報價代理（處理 CORS、快取、節流）。只在內部網路開放，由 web 容器的 nginx 以同源 /proxy/ 轉發。
+  quote-proxy:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.proxy
+    image: clure-quote-proxy:latest
+    container_name: clure-quote-proxy
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Asia/Taipei}
+      - PORT=9123
+      - ACCESS_TOKEN=${PROXY_ACCESS_TOKEN:-}
+    expose:
+      - "9123"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "2" }
+
+volumes:
+  clure-data:
+  clure-pg:

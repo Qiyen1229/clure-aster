@@ -1,0 +1,45 @@
+/// <reference lib="webworker" />
+/**
+ * Service Worker（Workbox injectManifest）
+ * - 預快取所有建置產物 → 完整離線可用
+ * - SPA 導覽一律回傳快取的 index.html
+ * - 不自動 skipWaiting：由前端顯示「有新版本，點擊更新」，使用者同意後才切換，避免資料寫到一半被換版
+ * - 匯率等外部 API 採 NetworkFirst，離線時使用最後一次結果
+ * - 之後階段：通知點擊（notificationclick）、推播（push）
+ */
+import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching';
+import { NavigationRoute, registerRoute } from 'workbox-routing';
+import { NetworkFirst, StaleWhileRevalidate } from 'workbox-strategies';
+import { ExpirationPlugin } from 'workbox-expiration';
+
+declare const self: ServiceWorkerGlobalScope & { __WB_MANIFEST: Array<{ url: string; revision: string | null }> };
+
+precacheAndRoute(self.__WB_MANIFEST);
+cleanupOutdatedCaches();
+
+registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html'), { denylist: [/^\/proxy\//, /^\/api\//] }));
+
+registerRoute(
+  ({ url }) => url.hostname === 'open.er-api.com' || url.pathname.includes('/currency-api'),
+  new NetworkFirst({ cacheName: 'fx', networkTimeoutSeconds: 6, plugins: [new ExpirationPlugin({ maxEntries: 20, maxAgeSeconds: 7 * 86400 })] }),
+);
+
+registerRoute(
+  ({ request }) => request.destination === 'image' && request.url.startsWith(self.location.origin),
+  new StaleWhileRevalidate({ cacheName: 'images', plugins: [new ExpirationPlugin({ maxEntries: 60 })] }),
+);
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') void self.skipWaiting();
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data as { url?: string } | undefined)?.url ?? '/';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      for (const c of list) if ('focus' in c) { void (c as WindowClient).navigate(url); return (c as WindowClient).focus(); }
+      return self.clients.openWindow(url);
+    }),
+  );
+});
