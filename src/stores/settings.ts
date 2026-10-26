@@ -4,6 +4,7 @@
  */
 import { create } from 'zustand';
 import { DEFAULT_SETTINGS, saveSetting, type Settings } from '@/db/repo/settings';
+import { setFontSizePreference } from '@/app/viewport';
 
 interface SettingsState extends Settings {
   ready: boolean;
@@ -17,11 +18,13 @@ export const useSettings = create<SettingsState>((set) => ({
   hydrate: (s) => {
     set({ ...s, ready: true });
     applyTheme(s);
+    setFontSizePreference(s.fontSize);
   },
   set: (key, value) => {
     set({ [key]: value } as Partial<SettingsState>);
     void saveSetting(key, value);
     applyTheme(useSettings.getState());
+    if (key === 'fontSize') setFontSizePreference(value as Settings['fontSize']);
   },
 }));
 

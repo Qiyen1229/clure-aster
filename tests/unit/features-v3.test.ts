@@ -196,3 +196,15 @@ describe('背景推播排程', () => {
     expect(after.some((i) => i.id === `daily:${today}`)).toBe(false);
   });
 });
+
+describe('文字大小設定', () => {
+  it('只屬於這台裝置：不進同步佇列', async () => {
+    const { saveSetting } = await import('@/db/repo/settings');
+    await db.delete();
+    await db.open();
+    await saveSetting('fontSize', 21);
+    await saveSetting('theme', 'dark');
+    expect(await db.sync_outbox.get('settings|"fontSize"')).toBeUndefined();
+    expect(await db.sync_outbox.get('settings|"theme"')).toBeDefined();
+  });
+});

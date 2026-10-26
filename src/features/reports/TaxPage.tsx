@@ -32,7 +32,8 @@ export default function TaxPage() {
       </header>
       <div style={{ marginBottom: 12 }}>
         <Segmented value={year} onChange={setYear} ariaLabel="所得年度"
-          options={[thisYear - 2, thisYear - 1, thisYear].map((y) => ({ value: String(y), label: `${y}（${y - 1911}年度）` }))} />
+          options={[thisYear - 2, thisYear - 1, thisYear].map((y) => ({ value: String(y), label: `${y} 年` }))} />
+        <p className="muted" style={{ fontSize: '0.8rem', margin: '6px 8px 0' }}>{Number(year) - 1911} 年度所得，{Number(year) - 1910} 年 5 月申報</p>
       </div>
       {base !== 'TWD' && <p className="card" style={{ fontSize: '0.85rem' }}>⚠️ 主幣別不是新台幣，金額以 {base} 計算，與台灣稅務級距比較時請自行換算。</p>}
       {!data || !sum ? <SkeletonRows n={4} /> : (

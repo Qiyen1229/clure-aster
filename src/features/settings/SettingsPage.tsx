@@ -19,6 +19,7 @@ import { Sheet } from '@/ui/Sheet';
 import { AUTH_ENABLED, useAuth } from '@/stores/auth';
 import { ChangePasswordForm } from '../auth/AuthPages';
 import { setEncryption, syncNow, unlockEncryption, useSync } from '@/services/sync';
+import { FONT_SIZES } from '@/app/viewport';
 
 const SYNC_TEXT = { off: '未啟用', idle: '已同步', syncing: '同步中…', offline: '離線，恢復連線後自動同步', error: '同步失敗', locked: '需要輸入加密密碼' } as const;
 
@@ -181,6 +182,23 @@ export default function SettingsPage() {
               <button key={a.key} className="swatch" style={{ ['--c' as string]: a.color }} aria-pressed={s.accent === a.key}
                 aria-label={a.name} title={a.name} onClick={() => s.set('accent', a.key)} />
             ))}
+          </div>
+        </div>
+        <div className="row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div className="row-main">
+              <div className="row-title">文字大小</div>
+              <div className="row-sub" style={{ whiteSpace: 'normal' }}>{s.fontSize === 'system' ? '跟隨 iPhone「設定 → 螢幕顯示與亮度 → 文字大小」' : '只套用在這台裝置'}</div>
+            </div>
+            <Switch checked={s.fontSize === 'system'} label="跟隨系統文字大小"
+              onChange={(v) => s.set('fontSize', v ? 'system' : FONT_SIZES[1].px)} />
+          </div>
+          {s.fontSize !== 'system' && (
+            <Segmented value={s.fontSize} onChange={(v) => s.set('fontSize', v)} ariaLabel="文字大小"
+              options={FONT_SIZES.map((f) => ({ value: f.px, label: f.label }))} />
+          )}
+          <div className="font-preview" aria-hidden="true">
+            <span>午餐・便當</span><span className="num">$120</span>
           </div>
         </div>
         <Row label="收支／漲跌顏色" sub={s.upColor === 'red' ? '紅漲綠跌（台股習慣）：收入與獲利為紅色' : '綠漲紅跌：收入與獲利為綠色'}>

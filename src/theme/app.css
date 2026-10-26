@@ -89,6 +89,9 @@
 
 /* ---------- 基礎 ---------- */
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+/* 全 App 不顯示捲軸（頁面、抽屜、清單、橫向列都一樣），捲動功能不變 */
+* { scrollbar-width: none; }
+*::-webkit-scrollbar { display: none; width: 0; height: 0; }
 html {
   font: -apple-system-body; /* iOS 動態字級 */
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang TC', 'Noto Sans TC', 'Microsoft JhengHei', sans-serif;
@@ -111,6 +114,18 @@ img { display: block; max-width: 100%; }
 .neg { color: var(--c-neg); }
 .accent { color: var(--accent-text); }
 .danger { color: var(--danger); }
+
+/* ---------- iPhone／主畫面 App ---------- */
+/* 控制項：點了立即反應（不等雙擊縮放判斷）、長按不會選取文字或跳出拷貝／分享選單。內容文字仍可選取複製 */
+button, a, label, summary, [role='button'], [role='tab'], [role='radio'], [role='switch'],
+.tab, .pill, .chip, .key, .pin-key, .cat-cell, .swatch, .widget, .fab {
+  touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+button img, a img, .cat-icon, .tab svg { -webkit-user-drag: none; }
+/* iOS 對小於 16px 的輸入框會在聚焦時自動放大畫面且不會縮回；觸控裝置一律至少 16px（優先於 .field input 等元件樣式） */
+@media (pointer: coarse) {
+  input, select, textarea { font-size: max(16px, 1rem) !important; }
+}
 
 /* ---------- App 外框 ---------- */
 .app { position: relative; min-height: 100dvh; padding-left: var(--safe-l); padding-right: var(--safe-r); }
@@ -246,9 +261,11 @@ a { color: inherit; text-decoration: none; }
 
 .field { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 16px; position: relative; background: var(--surface); }
 .list > .field + .field::before { content: ''; position: absolute; top: 0; left: 16px; right: 0; height: 0.5px; background: var(--sep); }
-.field label, .field .label { width: 92px; flex: none; color: var(--text); }
+/* 標籤依文字寬度；放不下時（大字級、長選項）值會換到下一行並佔滿整列，而不是被裁掉 */
+.field { flex-wrap: wrap; column-gap: 12px; row-gap: 0; }
+.field label, .field .label { width: auto; min-width: 4.5em; max-width: 100%; flex: 0 0 auto; color: var(--text); }
 .field input, .field select, .field textarea {
-  flex: 1; min-width: 0; min-height: 40px; border: 0; background: transparent; outline: none; text-align: right; font-size: 1rem;
+  flex: 1 1 10em; min-width: 10em; min-height: 40px; border: 0; background: transparent; outline: none; text-align: right; font-size: 1rem;
 }
 .field textarea { text-align: left; resize: none; }
 .field select { direction: rtl; }
@@ -270,10 +287,11 @@ a { color: inherit; text-decoration: none; }
 .switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .segmented {
-  position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+  position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr);
   background: var(--surface-2); border-radius: 10px; padding: 2px; min-height: 36px;
 }
-.segmented button { position: relative; z-index: 1; font-size: 0.88rem; font-weight: 500; border-radius: 8px; min-height: 32px; color: var(--text-2); transition: color 200ms; }
+.segmented button { position: relative; z-index: 1; font-size: 0.88rem; font-weight: 500; border-radius: 8px; min-height: 32px; color: var(--text-2); transition: color 200ms;
+  min-width: 0; padding: 4px 6px; line-height: 1.25; overflow-wrap: anywhere; } /* 大字級時選項文字在按鈕內換行，不溢出 */
 .segmented button[aria-pressed='true'] { color: var(--text); font-weight: 600; }
 .segmented .seg-thumb {
   position: absolute; top: 2px; bottom: 2px; border-radius: 8px; background: var(--bg-elev);
@@ -356,6 +374,12 @@ a { color: inherit; text-decoration: none; }
 .sheet-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 0 12px 8px; }
 .sheet-head h2 { flex: 1; text-align: center; margin: 0; font-size: 1.05rem; font-weight: 600; }
 .sheet-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 0 16px 16px; -webkit-overflow-scrolling: touch; }
+/* 系統鍵盤開啟時（app/viewport.ts 設定 --kb、--vvh 與 .kb-open）：抽屜貼齊鍵盤上緣、高度不超過可見範圍 */
+.sheet { bottom: var(--kb, 0px); }
+.kb-open .sheet { padding-bottom: 0; max-height: calc(var(--vvh, 100dvh) - var(--safe-t) - 12px); }
+.kb-open .sheet.full { height: calc(var(--vvh, 100dvh) - var(--safe-t) - 12px); }
+/* 打字時收起記帳面板的數字鍵盤與底部 Tab Bar，讓輸入框不被擋住 */
+.kb-open .keypad-dock, .kb-open .tabbar { display: none; }
 @keyframes sheet-in { from { transform: translateY(100%); } }
 @keyframes sheet-out { to { transform: translateY(100%); } }
 @keyframes fade-in { from { opacity: 0; } }
@@ -364,22 +388,24 @@ a { color: inherit; text-decoration: none; }
 /* ---------- 記帳面板 ---------- */
 .add-amount { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; padding: 6px 4px 10px; }
 .add-amount .expr { font-size: 0.85rem; color: var(--text-2); min-height: 1.2em; text-align: right; }
-.add-amount .value { font-size: 2.3rem; font-weight: 700; text-align: right; line-height: 1.1; word-break: break-all; }
+.add-amount .value { font-size: min(2.3rem, 10vw); font-weight: 700; text-align: right; line-height: 1.1; word-break: break-all; }
 .cur-btn { height: 32px; padding: 0 10px; border-radius: 16px; background: var(--surface-2); font-size: 0.85rem; font-weight: 600; flex: none; }
-.cat-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px 4px; margin: 0 -4px; }
+.cat-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px 4px; margin: 0 -4px; max-height: min(30dvh, 220px); overflow-y: auto; overscroll-behavior: contain; }
 .cat-cell { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; border-radius: 12px; font-size: 0.72rem; color: var(--text-2); min-height: 64px; }
 .cat-cell[aria-pressed='true'] { color: var(--text); background: var(--accent-soft); }
 .cat-cell[aria-pressed='true'] .cat-icon { box-shadow: 0 0 0 2px var(--accent); }
-.sub-row { display: flex; gap: 6px; overflow-x: auto; padding: 8px 2px; scrollbar-width: none; }
-.sub-row::-webkit-scrollbar { display: none; }
+.sub-row { display: flex; gap: 6px; overflow-x: auto; padding: 8px 2px; }
 .pill {
   flex: none; height: 34px; padding: 0 12px; border-radius: 17px; background: var(--surface-2);
   display: inline-flex; align-items: center; gap: 4px; font-size: 0.85rem; white-space: nowrap;
 }
 .pill[aria-pressed='true'] { background: var(--accent); color: var(--on-accent); }
-.meta-row { display: flex; gap: 6px; overflow-x: auto; padding: 8px 0; scrollbar-width: none; }
-.meta-row::-webkit-scrollbar { display: none; }
-.keypad-dock { position: sticky; bottom: 0; margin: 0 -16px; padding: 4px 16px 4px; background: var(--bg-elev); z-index: 2; }
+.meta-row { display: flex; gap: 6px; overflow-x: auto; padding: 8px 0; }
+/* 記帳面板：抽屜本身不捲動，上半部（.add-scroll）自己捲、數字鍵盤固定在底部 */
+.sheet-body:has(> .add-layout) { display: flex; flex-direction: column; overflow: hidden; padding-bottom: 0; }
+.add-layout { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.add-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin: 0 -16px; padding: 0 16px 8px; }
+.keypad-dock { flex: none; margin: 0 -16px; padding: 4px 16px 8px; background: var(--bg-elev); border-top: 0.5px solid var(--sep); }
 :root[data-theme='light'] .keypad-dock { background: var(--bg); }
 .keypad { display: grid; grid-template-columns: repeat(4, 1fr) 1.15fr; gap: 6px; padding-top: 6px; }
 .key {
@@ -391,6 +417,20 @@ a { color: inherit; text-decoration: none; }
 .key.fn { font-size: 1rem; color: var(--text-2); }
 .key.save { grid-row: span 2; background: var(--accent); color: var(--on-accent); font-size: 1.05rem; font-weight: 700; }
 .key svg { width: 24px; height: 24px; }
+/* 矮螢幕（iPhone SE、mini、橫向）：縮小分類格與鍵盤，讓備註欄不用捲動就看得到 */
+@media (max-height: 760px) {
+  .add-amount { padding: 0 4px 4px; }
+  .add-amount .value { font-size: min(2rem, 9vw); }
+  .add-layout .segmented { min-height: 32px; }
+  .add-layout .segmented button { min-height: 28px; }
+  .cat-cell { min-height: 52px; gap: 2px; padding: 3px 0; }
+  /* 兩列多一點：露出下一列的頂端，提示可以往下捲 */
+  .cat-grid { max-height: 128px; }
+  .cat-grid .cat-icon.sm { width: 28px; height: 28px; font-size: 14px; }
+  .key { min-height: 42px; }
+  .keypad { gap: 5px; padding-top: 2px; }
+  .sub-row, .meta-row { padding-top: 4px; padding-bottom: 4px; }
+}
 .thumbs { display: flex; gap: 8px; padding: 6px 0; }
 .thumb { position: relative; width: 64px; height: 64px; border-radius: 10px; overflow: hidden; background: var(--surface-2); flex: none; }
 .thumb img { width: 100%; height: 100%; object-fit: cover; }
@@ -439,7 +479,8 @@ a { color: inherit; text-decoration: none; }
 .bar { height: 8px; border-radius: 4px; background: var(--surface-3); overflow: hidden; }
 .bar > i { display: block; height: 100%; border-radius: 4px; background: var(--c, var(--accent)); transform-origin: left; animation: grow 700ms var(--ease) both; }
 @keyframes grow { from { transform: scaleX(0); } }
-.hero-num { font-size: 2.2rem; font-weight: 700; letter-spacing: -0.02em; }
+/* 大數字：窄螢幕或大字級時依螢幕寬度縮小（-$9,083,191.67 在 320px＋大字級也不會被裁），真的放不下才換行 */
+.hero-num { font-size: min(2.2rem, 10vw); font-weight: 700; letter-spacing: -0.02em; overflow-wrap: anywhere; }
 .swatches { display: flex; flex-wrap: wrap; gap: 10px; padding: 8px 0; }
 .swatch { width: 36px; height: 36px; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
 .swatch[aria-pressed='true'] { box-shadow: 0 0 0 2px var(--bg-elev), 0 0 0 4px var(--c); }
@@ -467,8 +508,7 @@ a { color: inherit; text-decoration: none; }
    ========================================================================== */
 
 /* 首頁小工具（橫向捲動卡片） */
-.widgets { display: flex; gap: 10px; overflow-x: auto; margin: 0 -16px 10px; padding: 2px 16px 6px; scroll-snap-type: x proximity; scroll-padding-inline: 16px; scrollbar-width: none; }
-.widgets::-webkit-scrollbar { display: none; }
+.widgets { display: flex; gap: 10px; overflow-x: auto; margin: 0 -16px 10px; padding: 2px 16px 6px; scroll-snap-type: x proximity; scroll-padding-inline: 16px; }
 .widget {
   flex: none; width: 168px; min-height: 92px; padding: 12px; border-radius: var(--radius); text-align: left; scroll-snap-align: start;
   background: color-mix(in srgb, var(--surface) 80%, transparent); border: 0.5px solid var(--glass-border); box-shadow: var(--shadow);
@@ -476,7 +516,9 @@ a { color: inherit; text-decoration: none; }
 }
 .widget:active { transform: scale(0.97); }
 .widget-title { font-size: 0.72rem; color: var(--text-2); font-weight: 600; margin-bottom: 2px; }
-.widget-value { font-size: 1.2rem; font-weight: 700; letter-spacing: -0.01em; }
+/* 小工具寬度固定 168px：以卡片寬度（cqi）限制字級，大金額縮小而不是超出卡片 */
+.widget { container-type: inline-size; }
+.widget-value { font-size: min(1.2rem, 14cqi); font-weight: 700; letter-spacing: -0.01em; overflow-wrap: anywhere; }
 .widget-sub { font-size: 0.75rem; color: var(--text-2); }
 
 /* 通知徽章 */
@@ -501,9 +543,13 @@ a { color: inherit; text-decoration: none; }
 
 /* 鎖定畫面與 PIN 鍵盤 */
 .lockscreen {
-  position: fixed; inset: 0; z-index: 300; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  position: fixed; inset: 0; z-index: 300; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
   padding: calc(var(--safe-t) + 24px) 24px calc(var(--safe-b) + 24px); background: var(--bg);
+  overflow-y: auto; overscroll-behavior: contain;
 }
+/* 置中但不裁切：內容比畫面高時改從頂端開始、可捲動（justify-content: center 會把頂端推出畫面外） */
+.lockscreen > :first-child { margin-top: auto; }
+.lockscreen > :last-child { margin-bottom: auto; }
 .pinpad { display: flex; flex-direction: column; align-items: center; gap: 24px; margin-top: 16px; }
 .pin-dots { display: flex; gap: 14px; }
 .pin-dots i { width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid var(--text-2); transition: background 120ms; }
@@ -514,17 +560,25 @@ a { color: inherit; text-decoration: none; }
 .pin-key { width: 76px; height: 76px; border-radius: 50%; background: var(--surface-2); font-size: 1.8rem; font-weight: 400; display: grid; place-items: center; transition: background 100ms; }
 .pin-key:active { background: var(--surface-3); }
 .pin-key:disabled { opacity: 0.4; }
+/* 小螢幕（iPhone SE 等）：縮小 PIN 鍵盤 */
+@media (max-height: 700px) {
+  .pinpad { gap: 16px; margin-top: 10px; }
+  .pin-keys { grid-template-columns: repeat(3, 66px); gap: 12px; }
+  .pin-key { width: 66px; height: 66px; font-size: 1.6rem; }
+}
 
 /* 年度回顧（Wrapped） */
 .wrapped {
   position: fixed; inset: 0; z-index: 100; color: #fff; display: flex; align-items: center; justify-content: center; overflow: hidden;
   padding: calc(var(--safe-t) + 48px) 28px calc(var(--safe-b) + 40px); transition: background 600ms ease; user-select: none; -webkit-user-select: none; outline: none;
 }
+/* 內容比畫面高時可捲動，不被裁切 */
+.wrapped { overflow-y: auto; align-items: flex-start; justify-content: flex-start; }
 .wrapped-progress { position: absolute; top: calc(var(--safe-t) + 12px); left: 16px; right: 16px; display: flex; gap: 4px; }
 .wrapped-progress i { flex: 1; height: 3px; border-radius: 2px; background: rgba(255, 255, 255, 0.3); transition: background 300ms; }
 .wrapped-progress i.on { background: #fff; }
 .wrapped-close { position: absolute; top: calc(var(--safe-t) + 24px); right: 12px; width: 44px; height: 44px; display: grid; place-items: center; color: #fff; z-index: 2; }
-.wrapped-slide { text-align: center; max-width: 520px; animation: wrap-in 600ms var(--ease) both; }
+.wrapped-slide { margin: auto; text-align: center; max-width: 520px; animation: wrap-in 600ms var(--ease) both; }
 .wrapped-emoji { font-size: 72px; margin-bottom: 20px; animation: pop 700ms var(--ease) both 100ms; }
 .wrapped-title { font-size: 1.15rem; opacity: 0.85; margin-bottom: 10px; }
 .wrapped-big { font-size: clamp(2.4rem, 11vw, 4.2rem); font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; word-break: break-word; }
@@ -701,3 +755,7 @@ button.row:active, a.row:active { transform: scale(0.985); transition-duration: 
 .autocat-chip { flex: none; white-space: nowrap; border: 0; border-radius: 999px; padding: 6px 10px; min-height: 32px; font: inherit; font-size: 0.78rem; font-weight: 600; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); cursor: pointer; animation: chip-in 0.2s ease-out; }
 @keyframes chip-in { from { opacity: 0; transform: scale(0.9); } }
 @media (prefers-reduced-motion: reduce) { .autocat-chip { animation: none; } }
+
+/* 設定 → 文字大小的預覽列 */
+.font-preview { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); font-size: 1rem; }
+.font-preview .num { font-weight: 600; }

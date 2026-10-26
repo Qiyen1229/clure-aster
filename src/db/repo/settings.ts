@@ -6,6 +6,8 @@ import type { DecimalsMode } from '@/domain/money';
 import type { ImportProfile } from '@/services/importer';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
+/** 文字大小：'system' 跟隨 iPhone「文字大小」設定，數字為根字級（px） */
+export type FontSizePref = 'system' | number;
 export type AccentKey = 'cyan' | 'blue' | 'indigo' | 'purple' | 'pink' | 'orange' | 'green' | 'gold';
 
 export type WidgetKey = 'today' | 'budget' | 'networth' | 'invest' | 'bills' | 'debts' | 'goals' | 'wishlist';
@@ -72,6 +74,8 @@ export interface Settings {
   locale: 'zh-TW' | 'en';
   baseCurrency: string;
   theme: ThemeMode;
+  /** 只屬於這台裝置（不同步）：手機與電腦常需要不同大小 */
+  fontSize: FontSizePref;
   accent: AccentKey;
   /** 'red'：紅漲綠跌（台股習慣，收入／獲利為紅）；'green'：綠漲紅跌 */
   upColor: 'red' | 'green';
@@ -118,6 +122,7 @@ export const DEFAULT_SETTINGS: Settings = {
   locale: 'zh-TW',
   baseCurrency: 'TWD',
   theme: 'system',
+  fontSize: 'system',
   accent: 'cyan',
   upColor: 'red',
   monthStartDay: 1,

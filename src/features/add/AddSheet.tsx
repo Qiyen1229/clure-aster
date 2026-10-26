@@ -465,7 +465,9 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
   return (
     <>
       <Sheet open={open} onClose={handleClose} title={title} right={right} full confirmClose={confirmClose}>
-        <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+        {/* 上半部可捲動、數字鍵盤固定在下方：內容永遠停在鍵盤上緣，不會被鍵盤蓋住 */}
+        <div className="add-layout">
+          <div className="add-scroll">
           {!editTransferId && !(editTxId && mode === 'adjust') && (
             <Segmented value={mode} onChange={(m) => {
               setMode(m);
@@ -532,7 +534,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
           {/* 分類 */}
           {(mode === 'expense' || mode === 'income') && (
             <>
-              <div className="cat-grid" role="radiogroup" aria-label="分類" style={{ maxHeight: 'min(30dvh, 220px)', overflowY: 'auto' }}>
+              <div className="cat-grid" role="radiogroup" aria-label="分類">
                 {tree.map(({ main }) => {
                   const active = selCat ? (selCat.id === main.id || selCat.parentId === main.id) : false;
                   return (
@@ -692,7 +694,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
             </div>
           )}
 
-          <div style={{ flex: 1 }} />
+          </div>
           <div className="keypad-dock">
             <Keypad onKey={onKey} onSubmit={() => void submit()} disabled={busy || !loaded}
               submitLabel={hasOperator(expr) ? '=' : editing ? '儲存' : '完成'} />

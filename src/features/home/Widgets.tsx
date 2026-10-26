@@ -89,7 +89,7 @@ export function Widgets() {
         const b = data.budget as Awaited<ReturnType<typeof computeBudgets>>[number] | undefined;
         return <Card key={k} title="今日可用" onClick={() => navigate('/plan?tab=budget')}>
           {b ? <>
-            <div className="widget-value num" style={{ fontSize: '1.45rem', color: b.status.todayLeft < 0 ? 'var(--danger)' : 'var(--accent-text)' }}>
+            <div className="widget-value num" style={{ fontSize: 'min(1.45rem, 16cqi)', color: b.status.todayLeft < 0 ? 'var(--danger)' : 'var(--accent-text)' }}>
               <Amount minor={b.status.todayLeft} currency={b.budget.currency} tone="none" opts={{ decimals: 0 }} />
             </div>
             <div className="bar" style={{ margin: '4px 0' }}><i style={{ width: `${Math.min(100, b.status.pct)}%`, ['--c' as string]: b.status.level === 'over' ? 'var(--danger)' : b.status.level === 'warn' ? 'var(--warning)' : 'var(--accent)' }} /></div>

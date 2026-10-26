@@ -23,8 +23,8 @@ export const SYNCED_TABLES = [
 export type SyncedTable = (typeof SYNCED_TABLES)[number];
 const SYNCED = new Set<string>(SYNCED_TABLES);
 
-/** 只屬於這台裝置的設定：App 鎖（PIN／Face ID）、通知權限、上次使用的帳戶、月曆收合狀態 */
-export const DEVICE_ONLY_SETTINGS = new Set(['lock', 'notify', 'lastAccountId', 'calendarCollapsed']);
+/** 只屬於這台裝置的設定：App 鎖（PIN／Face ID）、通知權限、上次使用的帳戶、月曆收合狀態、文字大小 */
+export const DEVICE_ONLY_SETTINGS = new Set(['lock', 'notify', 'lastAccountId', 'calendarCollapsed', 'fontSize']);
 
 export interface OutboxEntry {
   id: string;
