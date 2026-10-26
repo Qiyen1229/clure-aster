@@ -338,6 +338,18 @@ export default function ReportsPage() {
             <span className="row-main"><b>{range.start.slice(0, 4)} 年度回顧</b><br /><span style={{ opacity: 0.85, fontSize: '0.85rem' }}>看看這一年的錢都花到哪裡去了</span></span>
             <Icon name="chevronR" />
           </button>
+          <div className="list" style={{ marginTop: 12 }}>
+            <button className="row" onClick={() => navigate('/reports/fire')}>
+              <span aria-hidden="true" style={{ fontSize: 22 }}>🏝️</span>
+              <span className="row-main"><span className="row-title">財務自由試算</span><span className="row-sub" style={{ display: 'block' }}>依目前淨資產與儲蓄，模擬幾歲可以不用工作</span></span>
+              <Icon name="chevronR" className="row-chev" />
+            </button>
+            <button className="row" onClick={() => navigate('/reports/tax')}>
+              <span aria-hidden="true" style={{ fontSize: 22 }}>🧾</span>
+              <span className="row-main"><span className="row-title">投資稅務彙總</span><span className="row-sub" style={{ display: 'block' }}>股利合併／分開計稅比較、海外所得與最低稅負</span></span>
+              <Icon name="chevronR" className="row-chev" />
+            </button>
+          </div>
         </>
       )}
 

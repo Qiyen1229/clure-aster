@@ -13,7 +13,7 @@ import { Sheet } from '@/ui/Sheet';
 
 interface Stats {
   total_users: number; active_users: number; frozen_users: number; admins: number; active_today: number;
-  new_users_today: number; failed_logins_today: number; locked_accounts: number; db_size_bytes: number; db_engine: string;
+  new_users_today: number; failed_logins_today: number; locked_accounts: number; db_size_bytes: number; db_engine: string; warnings?: string[];
 }
 interface AdminUser {
   id: number; username: string; email: string; role: 'user' | 'admin'; is_active: boolean; created_at: string;
@@ -30,6 +30,7 @@ export const ACTION_LABEL: Record<string, string> = {
   'auth.refresh_reuse': '權杖重用（疑似遭竊）', 'auth.password_change': '變更密碼',
   'admin.user_list_view': '查看使用者列表', 'admin.audit_view': '查看審計日誌', 'admin.stats_view': '查看系統統計',
   'admin.cli_create_admin': '建立管理員（指令列）', 'admin.cli_delete_user': '刪除使用者（指令列）',
+  'sync.e2ee_on': '啟用端對端加密', 'sync.e2ee_off': '停用端對端加密', 'push.subscribe': '啟用背景推播',
   'admin.user_freeze': '凍結帳號', 'admin.user_unfreeze': '啟用帳號', 'admin.force_logout': '強制登出', 'admin.password_reset': '重設密碼',
 };
 
@@ -111,6 +112,13 @@ function Overview() {
   ];
   return (
     <>
+      {!!data.warnings?.length && (
+        <div className="card admin-warnings" role="alert">
+          <div className="row-title">⚠️ 部署設定提醒</div>
+          <ul>{data.warnings.map((w) => <li key={w}>{w}</li>)}</ul>
+          <p className="muted">修改 NAS 上的 .env 後執行 docker compose up -d 套用。</p>
+        </div>
+      )}
       <div className="admin-grid">
         {cards.map((c) => (
           <button key={c.k} className={`admin-stat${c.warn ? ' warn' : ''}`} onClick={() => c.to && navigate(c.to)} disabled={!c.to}>

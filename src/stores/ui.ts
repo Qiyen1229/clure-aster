@@ -18,6 +18,10 @@ export interface AddPrefill {
   date?: string;
   tagIds?: string[];
   projectId?: string;
+  /** 商家（例如電子發票的賣方名稱） */
+  merchant?: string;
+  /** 電子發票號碼 */
+  invoiceNo?: string;
 }
 
 export interface SnackItem {

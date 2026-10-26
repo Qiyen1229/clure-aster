@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
+from app.core.config import security_warnings
 from app.core.request_info import ClientInfo
 from app.core.security import utcnow
 from app.model import User
@@ -24,4 +25,5 @@ class StatsService:
         size, engine = self.stats.db_size()
         AuditService(self.db).record("admin.stats_view", client, actor_id=admin.id)
         self.db.commit()
-        return StatsOut(**counts, failed_logins_today=self.audit_repo.count_failed_logins_since(today_start), db_size_bytes=size, db_engine=engine)
+        return StatsOut(**counts, failed_logins_today=self.audit_repo.count_failed_logins_since(today_start), db_size_bytes=size, db_engine=engine,
+                        warnings=security_warnings())

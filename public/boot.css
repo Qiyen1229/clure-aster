@@ -1,0 +1,7 @@
+/* 首屏骨架：JS 載入前就有畫面，避免白屏（獨立檔案，CSP 不需允許 inline <style>） */
+html,body{margin:0;background:#000;color:#fff}
+@media (prefers-color-scheme: light){html,body{background:#F2F2F7;color:#000}}
+#boot{position:fixed;inset:0;display:grid;place-items:center}
+#boot img{width:88px;height:88px;border-radius:20px;animation:bp 1.4s ease-in-out infinite}
+@keyframes bp{50%{opacity:.55;transform:scale(.96)}}
+@media (prefers-reduced-motion: reduce){#boot img{animation:none}}

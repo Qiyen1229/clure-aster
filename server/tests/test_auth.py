@@ -142,3 +142,10 @@ def test_validation_error_never_echoes_password(api: Api) -> None:
     r = api.post("/api/auth/register", {"username": "ivan", "email": "bad", "password": "SuperSecret999"})
     assert r.status_code == 422
     assert "SuperSecret999" not in r.text
+
+
+def test_proxy_auth_check(api: Api) -> None:
+    # nginx auth_request：未登入 401、登入後 204
+    assert api.get("/api/auth/check").status_code == 401
+    api.register("carol")
+    assert api.get("/api/auth/check").status_code == 204

@@ -4,7 +4,7 @@
  */
 import Dexie, { type Table } from 'dexie';
 import type {
-  Account, Attachment, Budget, BudgetPeriod, Category, Debt, Dividend, ExchangeRate, Goal,
+  Account, Attachment, Budget, CategoryRule, BudgetPeriod, Category, Debt, Dividend, ExchangeRate, Goal,
   Installment, Person, PortfolioSnapshot, PriceCache, PriceHistory, Project, RecurringRule,
   Reminder, SavedFilter, SettingRow, Stock, StockTrade, Tag, Template, Transaction, Transfer, WatchItem, Wish,
 } from './types';
@@ -40,6 +40,7 @@ export class ClureDB extends Dexie {
   meta!: Table<SettingRow, string>;
   wishes!: Table<Wish, string>;
   sync_outbox!: Table<OutboxEntry, string>;
+  rules!: Table<CategoryRule, string>;
 
   constructor(name = 'clure') {
     super(name);
@@ -82,6 +83,14 @@ export class ClureDB extends Dexie {
     // v3：跨裝置同步的待上傳佇列
     this.version(3).stores({
       [OUTBOX]: 'id, at',
+    });
+    // v4：自動分類規則；帳目加上電子發票號碼索引（匯入時避免重複）
+    this.version(4).stores({
+      rules: 'id, priority, categoryId',
+      transactions:
+        'id, date, ts, type, accountId, categoryId, projectId, *tagIds, ' +
+        '[accountId+date], [categoryId+date], [projectId+date], ' +
+        'recurringRuleId, installmentId, transferId, stockTradeId, dividendId, deletedAt, invoiceNo',
     });
     this.use(syncTracking);
   }

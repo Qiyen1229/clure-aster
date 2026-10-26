@@ -6,13 +6,26 @@ import { lazy, Suspense, useEffect, useMemo, useRef } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { TabBar } from './app/TabBar';
 import { ActionSheetHost, PrivacyShield, SnackbarHost, UpdatePrompt } from './app/overlays';
-import { AddSheet } from './features/add/AddSheet';
 import HomePage from './features/home/HomePage';
 import { useSettings } from './stores/settings';
 import { useUI, type AddMode } from './stores/ui';
 import { SkeletonRows } from './ui/controls';
 import { LockScreen } from './app/LockScreen';
 import { installAutoLock } from './services/lock';
+
+// 記帳面板：第一次打開時才載入，App 閒置時預先下載（不佔首屏）
+const loadAddSheet = () => import('./features/add/AddSheet');
+const AddSheet = lazy(() => loadAddSheet().then((m) => ({ default: m.AddSheet })));
+function AddSheetHost() {
+  const used = useUI((s) => s.add.seq > 0);
+  useEffect(() => {
+    const w = window as Window & { requestIdleCallback?: (cb: () => void) => number };
+    const run = () => void loadAddSheet().catch(() => undefined);
+    if (w.requestIdleCallback) w.requestIdleCallback(run);
+    else setTimeout(run, 1500);
+  }, []);
+  return used ? <Suspense fallback={null}><AddSheet /></Suspense> : null;
+}
 
 const LedgerPage = lazy(() => import('./features/ledger/LedgerPage'));
 const AccountsPage = lazy(() => import('./features/accounts/AccountsPage'));
@@ -38,6 +51,10 @@ const BackupPage = lazy(() => import('./features/settings/BackupPage'));
 const ImportPage = lazy(() => import('./features/settings/ImportPage'));
 const HealthPage = lazy(() => import('./features/settings/HealthPage'));
 const WidgetsPage = lazy(() => import('./features/settings/WidgetsPage'));
+const RulesPage = lazy(() => import('./features/settings/RulesPage'));
+const InvoicePage = lazy(() => import('./features/settings/InvoicePage'));
+const FirePage = lazy(() => import('./features/reports/FirePage'));
+const TaxPage = lazy(() => import('./features/reports/TaxPage'));
 const AdminPage = lazy(() => import('./features/admin/AdminPage'));
 
 /** 不顯示底部 Tab Bar 的全螢幕頁面 */
@@ -189,6 +206,8 @@ export default function App() {
           <Route path="/plan/projects/:id" element={<ProjectDetailPage />} />
           <Route path="/reports/review/:year" element={<YearReview />} />
           <Route path="/reports/print" element={<PrintReport />} />
+          <Route path="/reports/fire" element={<FirePage />} />
+          <Route path="/reports/tax" element={<TaxPage />} />
           <Route path="/invest/stock/:id" element={<StockDetailPage />} />
           <Route path="/invest/watchlist" element={<WatchlistPage />} />
           <Route path="/invest/dividends" element={<DividendsPage />} />
@@ -201,12 +220,14 @@ export default function App() {
           <Route path="/settings/import" element={<ImportPage />} />
           <Route path="/settings/health" element={<HealthPage />} />
           <Route path="/settings/widgets" element={<WidgetsPage />} />
+          <Route path="/settings/rules" element={<RulesPage />} />
+          <Route path="/settings/invoice" element={<InvoicePage />} />
           <Route path="/admin/*" element={<AdminPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
       {!fullscreen && <TabBar />}
-      <AddSheet />
+      <AddSheetHost />
       <ActionSheetHost />
       <SnackbarHost />
       <UpdatePrompt />

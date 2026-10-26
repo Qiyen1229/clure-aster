@@ -11,7 +11,8 @@ import { checkPriceAlerts } from '@/db/repo/invest';
 import { refreshRatesIfStale } from './fx';
 import { refreshQuotes } from './quotes/registry';
 import { takeSnapshot } from './snapshots';
-import { marketState } from '@/domain/invest/market-hours';
+import { addTwHolidays, marketState, parseTwseHolidays } from '@/domain/invest/market-hours';
+import { getJson } from './quotes/http';
 import { useSettings } from '@/stores/settings';
 import { useUI } from '@/stores/ui';
 import { notify, runReminderChecks } from './notifications';
@@ -36,6 +37,20 @@ export async function updateAllQuotes(opts: { silent?: boolean } = {}) {
   return r;
 }
 
+const HOLIDAY_URL = 'https://openapi.twse.com.tw/v1/holidaySchedule/holidaySchedule';
+
+/** 台股休市日：快取在 meta（7 天），過期才向證交所更新；失敗時沿用快取與內建清單 */
+export async function loadTwHolidays(): Promise<void> {
+  const cached = (await db.meta.get('twHolidays'))?.value as { at: number; dates: string[] } | undefined;
+  if (cached?.dates) addTwHolidays(cached.dates);
+  if (cached && Date.now() - cached.at < 7 * 86400_000) return;
+  const rows = await getJson<{ Name?: string; Date?: string; Description?: string }[]>(HOLIDAY_URL, { retries: 1 });
+  const dates = parseTwseHolidays(rows);
+  if (!dates.length) return;
+  addTwHolidays(dates);
+  await db.meta.put({ key: 'twHolidays', value: { at: Date.now(), dates: [...new Set([...(cached?.dates ?? []), ...dates])] } });
+}
+
 let started = false;
 export async function runStartupTasks() {
   if (started) return;
@@ -51,9 +66,11 @@ export async function runStartupTasks() {
     useUI.getState().showSnack({ text: [created ? `已自動入帳 ${created} 筆週期／分期帳目` : '', pending ? `${pending} 筆待確認` : ''].filter(Boolean).join('，') });
   }
   await step('fx', () => refreshRatesIfStale(base));
+  await step('holidays', () => loadTwHolidays());
   await step('quotes', () => updateAllQuotes({ silent: true }));
   await step('snapshot', () => takeSnapshot());
   await step('reminders', () => runReminderChecks());
+  if (useSettings.getState().notify.push) await step('push', () => import('./push').then((m) => m.schedulePush()));
 }
 
 /**

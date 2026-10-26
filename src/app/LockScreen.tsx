@@ -1,5 +1,6 @@
 /**
  * 鎖定畫面：6 位數 PIN（連錯 5 次需等待 30 秒，之後倍增）＋ Face ID／Touch ID。
+ * 錯誤次數與等待時間存在 localStorage：重新整理或重開 App 不會歸零。
  */
 import { useEffect, useState } from 'react';
 import { useLock, verifyBiometric, verifyPin } from '@/services/lock';
@@ -37,13 +38,32 @@ export function PinPad({ onComplete, error, disabled }: { onComplete: (pin: stri
   );
 }
 
+const FAILS_KEY = 'clure.lock.fails';
+function loadFails(): { fails: number; until: number } {
+  try {
+    const v = JSON.parse(localStorage.getItem(FAILS_KEY) ?? '{}');
+    return { fails: Number(v.fails) || 0, until: Number(v.until) || 0 };
+  } catch { return { fails: 0, until: 0 }; }
+}
+function saveFails(fails: number, until: number) {
+  try {
+    if (!fails) localStorage.removeItem(FAILS_KEY);
+    else localStorage.setItem(FAILS_KEY, JSON.stringify({ fails, until }));
+  } catch { /* 私密瀏覽等情況無法儲存，退回記憶體計數 */ }
+}
+/** 第 n 次錯誤後需等待的毫秒數：前 4 次不用等，第 5 次起 30 秒、60 秒、120 秒…最長 1 小時 */
+export function lockoutMs(fails: number): number {
+  return fails < 5 ? 0 : Math.min(3600_000, 30_000 * 2 ** (fails - 5));
+}
+
 export function LockScreen() {
   const locked = useLock((s) => s.locked);
   const unlock = useLock((s) => s.unlock);
   const lock = useSettings((s) => s.lock);
   const [error, setError] = useState(false);
-  const [fails, setFails] = useState(0);
-  const [waitUntil, setWaitUntil] = useState(0);
+  const [fails, setFailsState] = useState(() => loadFails().fails);
+  const [waitUntil, setWaitUntil] = useState(() => loadFails().until);
+  const setFails = (f: number, until = 0) => { setFailsState(f); setWaitUntil(until); saveFails(f, until); };
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -67,10 +87,10 @@ export function LockScreen() {
       <PinPad error={error} disabled={waiting} onComplete={async (pin) => {
         if (await verifyPin(pin)) { setError(false); setFails(0); unlock(); return; }
         const f = fails + 1;
-        setFails(f);
+        const wait = lockoutMs(f);
+        setFails(f, wait ? Date.now() + wait : 0);
         setError(true);
         setTimeout(() => setError(false), 600);
-        if (f >= 5) setWaitUntil(Date.now() + 30000 * 2 ** (f - 5));
       }} />
       {lock.webauthn && <button className="btn tinted small" style={{ marginTop: 12 }} onClick={() => void bio()}>使用 Face ID／Touch ID</button>}
     </div>

@@ -12,8 +12,15 @@ import { fromMinor } from '@/domain/money';
 import { toCSV } from './csv';
 import { getSetting } from '@/db/repo/settings';
 import { buildXlsx } from './xlsx';
+import { DEVICE_ONLY_SETTINGS, OUTBOX } from '@/db/sync-tracking';
 
 const BACKUP_FORMAT = 1;
+/**
+ * 不放進備份、也不從備份還原的資料表：
+ * - meta：裝置 id、同步游標、資料庫擁有者等「這台裝置」的狀態；還原到別台裝置會讓同步漏資料或互相略過
+ * - sync_outbox：待上傳佇列，屬於產生它的那台裝置
+ */
+const DEVICE_STATE_TABLES = new Set(['meta', OUTBOX]);
 
 async function blobToB64(b: Blob): Promise<string> {
   const buf = new Uint8Array(await b.arrayBuffer());
@@ -28,6 +35,7 @@ function b64ToBlob(b64: string, type: string): Blob {
 export async function buildBackup(includePhotos = true): Promise<Blob> {
   const data: Record<string, unknown[]> = {};
   for (const t of db.tables) {
+    if (DEVICE_STATE_TABLES.has(t.name)) continue;
     if (t.name === 'attachments') {
       if (!includePhotos) continue;
       const rows = await t.toArray();
@@ -47,8 +55,10 @@ export async function restoreBackup(file: File, mode: 'replace' | 'merge'): Prom
   if (json.app !== 'clure' || !json.data) throw new Error('不是 Clure 的備份檔');
   if (json.schema > db.verno) throw new Error('備份檔來自較新版本，請先更新 App');
   let rows = 0, tables = 0;
-  const names = db.tables.map((t) => t.name);
-  await db.transaction('rw', db.tables, async () => {
+  const names = db.tables.map((t) => t.name).filter((n) => !DEVICE_STATE_TABLES.has(n));
+  // 這台裝置專屬的設定（App 鎖、Face ID 憑證、通知）維持現狀，不被備份檔覆蓋
+  const deviceSettings = await db.settings.bulkGet([...DEVICE_ONLY_SETTINGS]);
+  await db.transaction('rw', names.map((n) => db.table(n)), async () => {
     for (const name of names) {
       const list = json.data[name] as any[] | undefined;
       const table = db.table(name);
@@ -56,11 +66,15 @@ export async function restoreBackup(file: File, mode: 'replace' | 'merge'): Prom
       if (!list?.length) continue;
       const fixed = name === 'attachments'
         ? list.map((a) => ({ ...a, blob: b64ToBlob(a.blob, a.mime || 'image/jpeg'), thumb: b64ToBlob(a.thumb, 'image/jpeg') }))
-        : list;
+        : name === 'settings'
+          ? list.filter((r) => !DEVICE_ONLY_SETTINGS.has(String(r.key)))
+          : list;
       await table.bulkPut(fixed);
       rows += fixed.length;
       tables++;
     }
+    const keep = deviceSettings.filter((r): r is NonNullable<typeof r> => !!r);
+    if (keep.length) await db.settings.bulkPut(keep);
   });
   await recomputeBalances(true);
   await db.meta.put({ key: 'lastRestoreAt', value: Date.now() });

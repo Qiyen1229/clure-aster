@@ -8,10 +8,12 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
 import type { Account } from '@/db/types';
-import { ACCOUNT_TYPES, creditCardStatement, installmentReserved, reorderAccounts } from '@/db/repo/accounts';
+import { ACCOUNT_TYPES, creditCardStatement, installmentReserved, recordLoanPayment, reorderAccounts, updateAccount } from '@/db/repo/accounts';
+import { LOAN_KIND_LABEL, loanStatus } from '@/domain/loan';
+import { todayKey } from '@/domain/period';
 import { creditAvailability } from '@/domain/creditcard';
 import { resolveRate } from '@/services/fx';
-import { convertMinor } from '@/domain/money';
+import { convertMinor, formatMoney } from '@/domain/money';
 import { useAccounts } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
 import { useUI } from '@/stores/ui';
@@ -149,6 +151,69 @@ function CreditSub({ account }: { account: Account }) {
   return <> · 應繳 <Amount minor={Math.max(0, st.statementMinor)} currency={account.currency} tone="none" />（{st.cycle.dueDate.slice(5).replace('-', '/')}）· 可用 <Amount minor={a.availableMinor} currency={account.currency} tone="none" opts={{ compact: true }} /></>;
 }
 
+/** 貸款：每期應繳、應剩本金 vs 實際欠款、剩餘利息、還清日、記錄本期還款、攤還表 */
+function LoanPanel({ account }: { account: Account }) {
+  const loan = account.loan!;
+  const { list: accounts } = useAccounts();
+  const [from, setFrom] = useState(loan.payFromAccountId ?? '');
+  const [showAll, setShowAll] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const st = useMemo(() => loanStatus(loan, account.balanceMinor, todayKey()), [loan, account.balanceMinor]);
+  if (!st) return null;
+  const payers = accounts.filter((a) => !a.archived && !a.isLiability && a.currency === account.currency);
+  const fromId = from || payers[0]?.id || '';
+  const rows = showAll ? st.schedule : st.schedule.slice(Math.max(0, st.paidPeriods - 1), st.paidPeriods + 6);
+  const m = (v: number) => <Amount minor={v} currency={account.currency} tone="none" />;
+  return (
+    <>
+      <div className="section-title">{LOAN_KIND_LABEL[loan.kind]}・本息平均攤還</div>
+      <section className="card">
+        <div className="stat-grid">
+          <div className="stat"><div className="k">每期應繳</div><div className="v num">{m(st.paymentMinor)}</div></div>
+          <div className="stat"><div className="k">已繳期數</div><div className="v num">{st.paidPeriods} / {loan.termMonths}</div></div>
+          <div className="stat"><div className="k">應剩本金</div><div className="v num">{m(st.scheduledBalanceMinor)}</div></div>
+          <div className="stat"><div className="k">實際欠款</div><div className="v num">{m(st.actualBalanceMinor)}</div></div>
+          <div className="stat"><div className="k">剩餘利息（預估）</div><div className="v num">{m(st.remainingInterestMinor)}</div></div>
+          <div className="stat"><div className="k">預計還清</div><div className="v num">{st.payoffDate.slice(0, 7)}</div></div>
+        </div>
+        {st.prepaidMinor > 0 && <p className="muted" style={{ fontSize: '0.8rem', margin: '8px 0 0' }}>已比攤還表多還 {formatMoney(st.prepaidMinor, account.currency)} 本金，實際利息會更少。</p>}
+      </section>
+      {payers.length > 0 && st.actualBalanceMinor > 0 && (
+        <div className="list">
+          <div className="field">
+            <label htmlFor="loan-from">扣款帳戶</label>
+            <select id="loan-from" value={fromId} onChange={(e) => { setFrom(e.target.value); void updateAccount(account.id, { loan: { ...loan, payFromAccountId: e.target.value } }); }}>
+              {payers.map((a) => <option key={a.id} value={a.id}>{a.icon} {a.name}</option>)}
+            </select>
+          </div>
+          <button className="row accent" disabled={busy} onClick={async () => {
+            const date = st.next && st.next.date <= todayKey() ? st.next.date : todayKey();
+            if (!window.confirm(`記錄 ${date} 還款 ${formatMoney(st.paymentMinor, account.currency)}？本金以轉帳記入、利息記為支出。`)) return;
+            setBusy(true);
+            try {
+              const r = await recordLoanPayment(account.id, fromId, date, st.paymentMinor);
+              useUI.getState().showSnack({ text: `已記錄：本金 ${formatMoney(r.principalMinor, account.currency)}、利息 ${formatMoney(r.interestMinor, account.currency)}` });
+            } catch (e) { useUI.getState().showSnack({ text: (e as Error).message }); } finally { setBusy(false); }
+          }}>{busy ? '記錄中…' : '記錄本期還款'}</button>
+        </div>
+      )}
+      <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <span>攤還表</span>
+        <button className="accent" onClick={() => setShowAll((v) => !v)}>{showAll ? '收合' : `全部 ${st.schedule.length} 期`}</button>
+      </div>
+      <div className="list" style={{ marginBottom: 12 }}>
+        {rows.map((r) => (
+          <div key={r.no} className="row" style={r.date <= todayKey() ? { opacity: 0.55 } : undefined}>
+            <span className="num muted" style={{ width: 44 }}>#{r.no}</span>
+            <span className="row-main num">{r.date}</span>
+            <span className="num" style={{ fontSize: '0.85rem', textAlign: 'right' }}>本 {formatMoney(r.principalMinor, account.currency)}<br /><span className="muted">息 {formatMoney(r.interestMinor, account.currency)}</span></span>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 export function AccountDetailPage() {
   const navigate = useNavigate();
   const { id = '' } = useParams();
@@ -171,8 +236,8 @@ export function AccountDetailPage() {
       </header>
       <section className="card glass" style={{ textAlign: 'center' }}>
         <span className="cat-icon lg" style={{ ['--c' as string]: account.color, margin: '0 auto 8px' }}>{account.icon}</span>
-        <div className="muted" style={{ fontSize: '0.8rem' }}>{account.type === 'credit' ? '目前欠款' : '目前餘額'}</div>
-        <div className="hero-num num"><Amount minor={account.type === 'credit' ? -account.balanceMinor : account.balanceMinor} currency={account.currency} tone="none" animate /></div>
+        <div className="muted" style={{ fontSize: '0.8rem' }}>{account.type === 'credit' || account.loan ? '目前欠款' : '目前餘額'}</div>
+        <div className="hero-num num"><Amount minor={account.type === 'credit' || account.loan ? -account.balanceMinor : account.balanceMinor} currency={account.currency} tone="none" animate /></div>
         {account.credit && st && avail && (
           <div style={{ marginTop: 14, textAlign: 'left' }} aria-label="信用額度">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
@@ -210,6 +275,7 @@ export function AccountDetailPage() {
         </button>
         <button className="btn tinted small" style={{ flex: 1 }} onClick={() => openAdd({ mode: 'adjust', accountId: account.id })}>調整餘額</button>
       </div>
+      {account.loan && <LoanPanel account={account} />}
       <button className="row" style={{ borderRadius: 16 }} onClick={() => navigate(`/ledger?account=${account.id}`)}>
         <Icon name="list" /><span className="row-main">查看此帳戶所有帳目</span><Icon name="chevronR" className="row-chev" />
       </button>

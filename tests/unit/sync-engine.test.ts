@@ -15,10 +15,18 @@ function fakeServer() {
   type Rec = { table: string; key: string; updated_at: number; deleted: boolean; payload: unknown; seq: number; device: string };
   const recs = new Map<string, Rec>();
   let seq = 0;
+  const state = { purged: 0, clockAhead: 0, e2ee: null as null | Record<string, unknown> };
   const handle = async (url: string, init?: RequestInit) => {
     const u = new URL(url, 'http://x');
     const json = (b: unknown) => new Response(JSON.stringify(b), { status: 200, headers: { 'Content-Type': 'application/json' } });
-    if (u.pathname === '/api/sync/status') return json({ enabled: true, protocol_version: 2, records: recs.size, cursor: seq });
+    if (u.pathname === '/api/sync/status') return json({ enabled: true, protocol_version: 3, records: recs.size, cursor: seq, server_time: Date.now() + state.clockAhead, e2ee: state.e2ee });
+    if (u.pathname === '/api/sync/keys') {
+      if (init?.method === 'PUT') {
+        const b = JSON.parse(String(init.body));
+        state.e2ee = b.enabled ? { ...b, version: ((state.e2ee?.version as number) ?? 0) + 1 } : null;
+      }
+      return json(state.e2ee);
+    }
     if (u.pathname === '/api/sync/push') {
       const body = JSON.parse(String(init!.body));
       const rejected: unknown[] = [];
@@ -34,12 +42,18 @@ function fakeServer() {
     }
     if (u.pathname === '/api/sync/pull') {
       const since = Number(u.searchParams.get('since')), dev = u.searchParams.get('device_id');
+      if (since > 0 && since < state.purged) return json({ changes: [], cursor: since, has_more: false, reset: true });
       const rows = [...recs.values()].filter((r) => r.seq > since).sort((a, b) => a.seq - b.seq);
       return json({ changes: rows.filter((r) => r.device !== dev), cursor: rows.length ? rows.at(-1)!.seq : since, has_more: false });
     }
     return new Response('{}', { status: 404 });
   };
-  return { handle, recs };
+  /** 模擬伺服器清除墓碑：刪除紀錄消失，清除點設為目前游標 */
+  const purge = () => {
+    for (const [k, r] of recs) if (r.deleted) recs.delete(k);
+    state.purged = seq;
+  };
+  return { handle, recs, state, purge };
 }
 
 let server: ReturnType<typeof fakeServer>;
@@ -130,5 +144,95 @@ describe('跨裝置同步', () => {
     await useDevice('phone');
     await sync.syncNow(); // 手機的較早修改被拒，改套用伺服器版本
     expect((await db.categories.get('exp-food'))!.name).toBe('電腦改的（較晚）');
+  });
+
+  it('還原備份不會帶入其他裝置的同步狀態（裝置 id、游標、待上傳佇列）', async () => {
+    const { buildBackup, restoreBackup } = await import('@/services/backup');
+    await useDevice('phone');
+    await bootstrap();
+    const acc = await addAccount({ name: '錢包', icon: '', color: '', type: 'cash', currency: 'TWD', initialBalanceMinor: 0, includeInNetWorth: true, isLiability: false });
+    await addTransaction({ type: 'expense', accountId: acc.id, categoryId: 'exp-food', amountMinor: 100, currency: 'TWD', date: '2026-10-11', ts: 1, note: '早餐' });
+    await saveSetting('lock', { enabled: true, pinHash: 'phone' } as never);
+    await sync.syncNow();
+    const phoneDevice = (await db.meta.get('sync.deviceId'))!.value;
+    const blob = await buildBackup(false);
+    const parsed = JSON.parse(await blob.text());
+    expect(parsed.data.meta).toBeUndefined();
+    expect(parsed.data.sync_outbox).toBeUndefined();
+
+    await useDevice('laptop');
+    await sync.syncNow();
+    await bootstrap();
+    await saveSetting('lock', { enabled: false, pinHash: 'laptop' } as never);
+    const laptopDevice = (await db.meta.get('sync.deviceId'))!.value;
+    // 舊版備份檔可能含 meta：還原時也要略過
+    parsed.data.meta = [{ key: 'sync.deviceId', value: phoneDevice }, { key: 'sync.cursor', value: 999 }];
+    await restoreBackup(new File([JSON.stringify(parsed)], 'b.json'), 'replace');
+    expect((await db.meta.get('sync.deviceId'))!.value).toBe(laptopDevice);
+    expect((await db.meta.get('sync.cursor'))!.value).not.toBe(999);
+    expect(((await db.settings.get('lock'))!.value as { pinHash: string }).pinHash).toBe('laptop');
+    expect((await db.transactions.toArray()).map((t) => t.note)).toEqual(['早餐']);
+  });
+
+  it('墓碑已清除 → 完整重新同步，移除其他裝置已刪除的資料', async () => {
+    await useDevice('phone');
+    await bootstrap();
+    const acc = await addAccount({ name: '錢包', icon: '', color: '', type: 'cash', currency: 'TWD', initialBalanceMinor: 0, includeInNetWorth: true, isLiability: false });
+    const t1 = await addTransaction({ type: 'expense', accountId: acc.id, categoryId: 'exp-food', amountMinor: 100, currency: 'TWD', date: '2026-10-11', ts: 1, note: '要刪的' });
+    await addTransaction({ type: 'expense', accountId: acc.id, categoryId: 'exp-food', amountMinor: 200, currency: 'TWD', date: '2026-10-11', ts: 2, note: '留著' });
+    await sync.syncNow();
+    await useDevice('laptop');
+    await sync.syncNow();
+    await bootstrap();
+    await sync.syncNow();
+    // 手機很久沒開；電腦刪除後伺服器清掉了墓碑
+    await db.transactions.delete(t1.id);
+    await sync.syncNow();
+    server.purge();
+    await useDevice('phone');
+    await sync.syncNow();
+    expect((await db.transactions.toArray()).map((t) => t.note)).toEqual(['留著']);
+    expect((await db.accounts.get(acc.id))!.balanceMinor).toBe(-200);
+  });
+
+  it('裝置時鐘不準：以伺服器時間記錄變更時間', async () => {
+    const { syncClock } = await import('@/db/sync-tracking');
+    server.state.clockAhead = 3_600_000; // 伺服器比裝置快 1 小時（＝裝置慢 1 小時）
+    await useDevice('phone');
+    await bootstrap();
+    await sync.syncNow();
+    expect(syncClock() - Date.now()).toBeGreaterThan(3_500_000);
+    await updateCategory('exp-food', { name: '改' });
+    const entry = await db.sync_outbox.get('categories|"exp-food"');
+    expect(entry!.at - Date.now()).toBeGreaterThan(3_500_000);
+    server.state.clockAhead = 0;
+    await sync.syncNow();
+    expect(Math.abs(syncClock() - Date.now())).toBeLessThan(2000);
+  });
+
+  it('端對端加密：伺服器只存密文；新裝置輸入正確密碼才能同步', async () => {
+    await useDevice('phone');
+    await bootstrap();
+    const acc = await addAccount({ name: '秘密帳戶', icon: '', color: '', type: 'cash', currency: 'TWD', initialBalanceMinor: 0, includeInNetWorth: true, isLiability: false });
+    await addTransaction({ type: 'expense', accountId: acc.id, categoryId: 'exp-food', amountMinor: 9900, currency: 'TWD', date: '2026-10-11', ts: 1, note: '不能給別人看' });
+    await sync.syncNow();
+    await sync.setEncryption('correct horse battery');
+    const dump = JSON.stringify([...server.recs.values()].map((r) => r.payload));
+    expect(dump).not.toContain('不能給別人看');
+    expect(dump).not.toContain('秘密帳戶');
+    expect([...server.recs.values()].filter((r) => !r.deleted).every((r) => (r.payload as { $enc?: number }).$enc === 1)).toBe(true);
+
+    await useDevice('laptop');
+    await sync.syncNow();
+    expect(sync.useSync.getState().phase).toBe('locked');
+    expect(await db.transactions.count()).toBe(0);
+    expect(await sync.unlockEncryption('wrong password')).toBe(false);
+    expect(await sync.unlockEncryption('correct horse battery')).toBe(true);
+    expect(sync.useSync.getState().phase).toBe('idle');
+    expect((await db.transactions.toArray()).map((t) => t.note)).toEqual(['不能給別人看']);
+
+    // 停用後回到明文
+    await sync.setEncryption(null);
+    expect(JSON.stringify([...server.recs.values()].map((r) => r.payload))).toContain('不能給別人看');
   });
 });

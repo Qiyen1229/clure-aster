@@ -1,9 +1,11 @@
 /**
  * 新增／編輯帳戶：名稱、類型、幣別、期初餘額、是否計入淨資產、圖示顏色；
- * 信用卡另有額度、結帳日、繳款日。
+ * 信用卡另有額度、結帳日、繳款日；貸款另有種類、原始本金、年利率、期數、首次還款日（產生攤還表）。
  */
 import { useState } from 'react';
-import type { Account, AccountType } from '@/db/types';
+import type { Account, AccountType, LoanInfo } from '@/db/types';
+import { LOAN_KIND_LABEL } from '@/domain/loan';
+import { addMonths, todayKey } from '@/domain/period';
 import { ACCOUNT_TYPES, addAccount, deleteOrArchiveAccount, updateAccount } from '@/db/repo/accounts';
 import { CURRENCIES, currencyInfo, fromMinor, toMinor } from '@/domain/money';
 import { evaluate } from '@/domain/calc-expr';
@@ -31,6 +33,12 @@ function Inner({ onClose, account }: { onClose: () => void; account?: Account })
   const [statementDay, setStatementDay] = useState(account?.credit?.statementDay ?? 20);
   const [dueDay, setDueDay] = useState(account?.credit?.dueDay ?? 5);
   const [note, setNote] = useState(account?.note ?? '');
+  const [loanOn, setLoanOn] = useState(!!account?.loan);
+  const [loanKind, setLoanKind] = useState<LoanInfo['kind']>(account?.loan?.kind ?? 'mortgage');
+  const [loanPrincipal, setLoanPrincipal] = useState(account?.loan ? fromMinor(account.loan.principalMinor, account.currency).toString() : '');
+  const [loanApr, setLoanApr] = useState(account?.loan?.aprDec ?? '2.2');
+  const [loanTerm, setLoanTerm] = useState(String(account?.loan?.termMonths ?? 360));
+  const [loanFirst, setLoanFirst] = useState(account?.loan?.firstPaymentDate ?? addMonths(todayKey(), 1));
   const info = ACCOUNT_TYPES.find((t) => t.type === type)!;
   const isLiability = info.liability;
 
@@ -45,7 +53,12 @@ function Inner({ onClose, account }: { onClose: () => void; account?: Account })
       name: name.trim(), type, currency, icon: icon || info.icon, color, includeInNetWorth: include, isLiability,
       initialBalanceMinor: initialMinor, note,
       credit: type === 'credit' ? { limitMinor: toMinor(evaluate(limit || '0') ?? 0, currency), statementDay, dueDay } : undefined,
+      loan: type === 'loan' && loanOn ? {
+        kind: loanKind, principalMinor: toMinor(evaluate(loanPrincipal || '0') ?? 0, currency), aprDec: loanApr || '0',
+        termMonths: Math.max(1, Math.round(Number(loanTerm) || 1)), firstPaymentDate: loanFirst, payFromAccountId: account?.loan?.payFromAccountId,
+      } : undefined,
     };
+    if (input.loan && input.loan.principalMinor <= 0) { useUI.getState().showSnack({ text: '請輸入原始貸款金額' }); return; }
     try {
       if (account) await updateAccount(account.id, input);
       else await addAccount(input);
@@ -111,6 +124,34 @@ function Inner({ onClose, account }: { onClose: () => void; account?: Account })
               </select>
             </div>
           </div>
+        </>
+      )}
+
+      {type === 'loan' && (
+        <>
+          <div className="section-title">貸款攤還（房貸、車貸…）</div>
+          <div className="list">
+            <div className="field"><span className="label" style={{ flex: 1 }}>產生攤還表</span><Switch checked={loanOn} onChange={setLoanOn} label="產生攤還表" /></div>
+            {loanOn && (
+              <>
+                <div className="field">
+                  <label htmlFor="ln-kind">種類</label>
+                  <select id="ln-kind" value={loanKind} onChange={(e) => setLoanKind(e.target.value as LoanInfo['kind'])}>
+                    {(Object.keys(LOAN_KIND_LABEL) as LoanInfo['kind'][]).map((k) => <option key={k} value={k}>{LOAN_KIND_LABEL[k]}</option>)}
+                  </select>
+                </div>
+                <div className="field"><label htmlFor="ln-p">原始貸款金額</label><input id="ln-p" inputMode="decimal" value={loanPrincipal} onChange={(e) => setLoanPrincipal(e.target.value.replace(/[^0-9.]/g, ''))} placeholder="0" /></div>
+                <div className="field"><label htmlFor="ln-apr">年利率（%）</label><input id="ln-apr" inputMode="decimal" value={loanApr} onChange={(e) => setLoanApr(e.target.value.replace(/[^0-9.]/g, ''))} /></div>
+                <div className="field">
+                  <label htmlFor="ln-term">期數（月）</label>
+                  <input id="ln-term" inputMode="numeric" value={loanTerm} onChange={(e) => setLoanTerm(e.target.value.replace(/\D/g, ''))} />
+                  <span className="muted">{Number(loanTerm) ? `${(Number(loanTerm) / 12).toFixed(1)} 年` : ''}</span>
+                </div>
+                <div className="field"><label htmlFor="ln-first">第一期還款日</label><input id="ln-first" type="date" value={loanFirst} onChange={(e) => setLoanFirst(e.target.value)} /></div>
+              </>
+            )}
+          </div>
+          {loanOn && <p className="muted" style={{ fontSize: '0.8rem', margin: '-4px 8px 12px' }}>「目前欠款」填實際剩餘本金；原始金額與期數用來計算每期應繳與攤還表（本息平均攤還）。</p>}
         </>
       )}
 

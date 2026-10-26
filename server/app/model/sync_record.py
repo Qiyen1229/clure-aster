@@ -15,6 +15,7 @@ class SyncRecord(Base):
     __table_args__ = (
         UniqueConstraint("user_id", "table_name", "record_key", name="uq_sync_records_user_table_key"),
         Index("ix_sync_records_user_seq", "user_id", "seq"),
+        Index("ix_sync_records_user_deleted", "user_id", "deleted", "server_updated_at"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -38,3 +39,5 @@ class SyncState(Base):
 
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     last_seq: Mapped[int] = mapped_column(BigInteger, default=0)
+    # 已清除的墓碑中最大的 seq：游標早於此值的裝置需要完整重新同步
+    purged_seq: Mapped[int] = mapped_column(BigInteger, default=0)

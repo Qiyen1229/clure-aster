@@ -42,18 +42,36 @@ export function proxied(url: string): { url: string; headers: Record<string, str
 }
 
 /**
+ * NAS 的 /proxy/ 只允許已登入的使用者（nginx auth_request）。Access Token 過期時代理會回 401：
+ * 先透過帳號 API 刷新登入（/auth/me 會自動 refresh）再重試一次。同時多個請求只刷新一次。
+ */
+let refreshing: Promise<boolean> | null = null;
+async function refreshLogin(): Promise<boolean> {
+  refreshing ??= import('../api')
+    .then(({ api }) => api('/auth/me'))
+    .then(() => true, () => false)
+    .finally(() => setTimeout(() => { refreshing = null; }, 0));
+  return refreshing;
+}
+
+/**
  * 取得 JSON。direct=true 時直接呼叫（對方支援 CORS，例如 Finnhub），失敗再改走代理。
  */
 export async function getJson<T = any>(url: string, opts: { direct?: boolean; retries?: number; timeoutMs?: number } = {}): Promise<T> {
   const { direct = false, retries = 2, timeoutMs = 9000 } = opts;
   const host = new URL(url).host;
   let lastErr: unknown;
+  let reauthed = false;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       await throttle(host);
       const useDirect = direct && attempt === 0;
       const target = useDirect ? { url, headers: {} } : proxied(url);
-      const res = await fetchWithTimeout(target.url, { headers: target.headers }, timeoutMs);
+      let res = await fetchWithTimeout(target.url, { headers: target.headers }, timeoutMs);
+      if (res.status === 401 && !useDirect && !reauthed && target.url.startsWith('/')) {
+        reauthed = true;
+        if (await refreshLogin()) res = await fetchWithTimeout(target.url, { headers: target.headers }, timeoutMs);
+      }
       if (!res.ok) throw new HttpError(res.status, `HTTP ${res.status}`);
       const text = await res.text();
       return JSON.parse(text) as T;

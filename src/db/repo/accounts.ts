@@ -118,3 +118,33 @@ export async function installmentReserved(accountId: string): Promise<number> {
   const list = await db.installments.where('accountId').equals(accountId).filter((i) => i.status === 'active').toArray();
   return list.reduce((sum, i) => sum + i.schedule.filter((s) => !s.transactionId).reduce((a, s) => a + s.principalMinor, 0), 0);
 }
+
+/**
+ * 記錄一期貸款還款：本金以「轉帳」從扣款帳戶轉入貸款帳戶（減少欠款），利息記為扣款帳戶的支出（貸款利息）。
+ */
+export async function recordLoanPayment(loanAccountId: string, fromAccountId: string, date: string, paymentMinor: number): Promise<{ principalMinor: number; interestMinor: number }> {
+  const { splitPayment } = await import('@/domain/loan');
+  const { addTransfer, addTransaction } = await import('./ledger');
+  const loan = await db.accounts.get(loanAccountId);
+  if (!loan?.loan) throw new Error('不是貸款帳戶');
+  const from = await db.accounts.get(fromAccountId);
+  if (!from) throw new Error('請選擇扣款帳戶');
+  if (from.currency !== loan.currency) throw new Error('扣款帳戶與貸款幣別不同');
+  const part = splitPayment(loan.balanceMinor, loan.loan.aprDec, paymentMinor);
+  const ts = new Date(`${date}T09:00:00`).getTime();
+  if (part.principalMinor > 0) {
+    await addTransfer({ fromAccountId, toAccountId: loanAccountId, fromAmountMinor: part.principalMinor, toAmountMinor: part.principalMinor, feeMinor: 0, date, ts, note: `${loan.name} 還本` });
+  }
+  if (part.interestMinor > 0) {
+    // 房貸利息記在內建的「居住 › 房貸」，其他貸款記在「貸款利息」（第一次使用時建立）
+    const mortgage = loan.loan.kind === 'mortgage' ? await db.categories.get('exp-housing-mortgage') : undefined;
+    let cat = mortgage && !mortgage.archived ? mortgage : await db.categories.get('exp-loan_interest');
+    if (!cat) {
+      const now = Date.now();
+      cat = { id: 'exp-loan_interest', kind: 'expense', parentId: '', name: '貸款利息', icon: '🏦', color: '#64D2FF', sort: 90, archived: 0, createdAt: now, updatedAt: now };
+      await db.categories.put(cat);
+    }
+    await addTransaction({ type: 'expense', accountId: fromAccountId, categoryId: cat.id, amountMinor: part.interestMinor, currency: from.currency, date, ts, note: `${loan.name} 利息` });
+  }
+  return part;
+}

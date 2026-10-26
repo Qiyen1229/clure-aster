@@ -1,6 +1,6 @@
 /**
  * 市場狀態：盤前／盤中／已收盤／休市。以交易所時區判斷（Asia/Taipei、America/New_York、Asia/Hong_Kong）。
- * 台股休市日為內建清單（依政府公告，若有異動請更新 TW_HOLIDAYS）；美股假日以規則計算。
+ * 台股休市日：內建清單（離線備援）＋ 啟動時從證交所 OpenAPI 取得的最新行事曆（addTwHolidays）；美股假日以規則計算。
  */
 import type { Market } from '@/db/types';
 
@@ -19,6 +19,27 @@ export const TW_HOLIDAYS = new Set<string>([
   '2026-02-27', '2026-04-03', '2026-04-06', '2026-05-01', '2026-06-19', '2026-09-25', '2026-09-28', '2026-10-09',
   '2026-10-26', '2026-12-25',
 ]);
+
+/** 加入從證交所取得的休市日（YYYY-MM-DD） */
+export function addTwHolidays(dates: Iterable<string>): void {
+  for (const d of dates) if (/^\d{4}-\d{2}-\d{2}$/.test(d)) TW_HOLIDAYS.add(d);
+}
+
+/**
+ * 解析證交所 OpenAPI「市場開休市日期」（/v1/holidaySchedule/holidaySchedule）。
+ * 日期為民國年 yyyMMdd；「開始交易」「最後交易」那幾天照常交易，不算休市。
+ */
+export function parseTwseHolidays(rows: { Name?: string; Date?: string; Description?: string }[]): string[] {
+  const out: string[] = [];
+  for (const r of rows ?? []) {
+    const m = /^(\d{3})(\d{2})(\d{2})$/.exec(String(r.Date ?? '').trim());
+    if (!m) continue;
+    const text = `${r.Name ?? ''}${r.Description ?? ''}`;
+    if (/開始交易|最後交易|照常交易/.test(text) && !/無交易/.test(text)) continue;
+    out.push(`${Number(m[1]) + 1911}-${m[2]}-${m[3]}`);
+  }
+  return out;
+}
 
 interface ZonedParts { date: string; minutes: number; weekday: number }
 

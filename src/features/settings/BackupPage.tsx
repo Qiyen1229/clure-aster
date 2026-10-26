@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
+import { AUTH_ENABLED } from '@/stores/auth';
 import { exportBackup, exportCSV, exportXLSX, restoreBackup } from '@/services/backup';
 import { loadSettings } from '@/db/repo/settings';
 import { accountingMonth, todayKey } from '@/domain/period';
@@ -65,7 +66,7 @@ export default function BackupPage() {
             const f = e.target.files?.[0];
             e.target.value = '';
             if (!f) return;
-            if (mode === 'replace' && !window.confirm('完全取代會刪除這台裝置上目前所有資料，確定？')) return;
+            if (mode === 'replace' && !window.confirm(AUTH_ENABLED ? '完全取代會刪除目前所有資料，並同步到這個帳號的其他裝置，確定？' : '完全取代會刪除這台裝置上目前所有資料，確定？')) return;
             void run('restore', async () => {
               const r = await restoreBackup(f, mode);
               useSettings.getState().hydrate(await loadSettings());

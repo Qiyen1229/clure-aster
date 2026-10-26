@@ -8,7 +8,7 @@ import { markAllRead, notificationSupport, runReminderChecks } from '@/services/
 import { Sheet } from '@/ui/Sheet';
 import { EmptyState } from '@/ui/controls';
 
-const ICON: Record<string, string> = { daily_log: '✍️', card_due: '💳', budget: '🎯', subscription: '🔁', price_alert: '📈', backup: '💾' };
+const ICON: Record<string, string> = { daily_log: '✍️', card_due: '💳', budget: '🎯', subscription: '🔁', price_alert: '📈', backup: '💾', sync: '☁️', insight: '💡' };
 
 export function useUnreadCount() {
   return useLiveQuery(() => db.reminders.where('done').equals(0).count(), []) ?? 0;

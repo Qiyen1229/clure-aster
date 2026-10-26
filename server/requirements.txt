@@ -9,3 +9,4 @@ email-validator>=2.2,<3
 argon2-cffi>=23.1,<26
 pyjwt>=2.10,<3
 psycopg[binary]>=3.2,<4
+cryptography>=42,<47

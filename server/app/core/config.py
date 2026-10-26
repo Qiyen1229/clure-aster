@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     first_user_admin: bool = True  # 系統沒有任何使用者時，第一位註冊者成為管理員
     trust_proxy_headers: bool = True  # 位於 nginx 後方時讀取 X-Real-IP／X-Forwarded-For
 
+    # nginx 的 /proxy/ 報價代理是否只允許已登入的使用者（/api/auth/check）
+    proxy_require_login: bool = True
+
     auto_migrate: bool = True  # 啟動（含熱重載）時自動套用資料庫遷移
 
     timezone: str = "Asia/Taipei"  # 「今日」統計使用的時區
@@ -67,3 +70,18 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def security_warnings() -> list[str]:
+    """給管理員後台顯示的設定提醒。"""
+    s = get_settings()
+    out: list[str] = []
+    if s.allow_registration:
+        out.append("目前開放註冊：只給自己和家人使用時，建議在 .env 設定 CLURE_ALLOW_REGISTRATION=false")
+    if s.first_user_admin:
+        out.append("CLURE_FIRST_USER_ADMIN 仍為 true：已建立管理員後建議改為 false")
+    if "change-me" in s.database_url:
+        out.append("PostgreSQL 密碼仍是預設值 change-me")
+    if s.cookie_secure == "false":
+        out.append("Cookie 未強制 Secure：對外服務請放在 HTTPS 後面並設為 auto 或 true")
+    return out

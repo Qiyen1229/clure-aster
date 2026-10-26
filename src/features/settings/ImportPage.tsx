@@ -1,13 +1,24 @@
 /**
- * CSV 匯入精靈：① 選檔 ② 欄位對應（自動辨識 Moze）③ 預覽與檢查 ④ 匯入
+ * CSV 匯入精靈：① 選檔 ② 欄位對應（自動辨識 Moze、套用已存的銀行格式）③ 預覽與檢查（疑似重複、自動分類）④ 匯入
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { parseCSV } from '@/services/csv';
-import { autoMap, FIELD_LABELS, parseRows, planImport, runImport, type FieldKey, type ImportPlan, type Mapping } from '@/services/importer';
+import {
+  autoMap, enrichRows, FIELD_LABELS, headerSignature, parseRows, planImport, runImport, type FieldKey, type ImportPlan, type Mapping, type ParsedRow,
+} from '@/services/importer';
+import { uid } from '@/db/schema';
+import { categoryLabel, useAccounts, useCategories } from '@/app/hooks';
+import { SwitchField } from '@/ui/form';
 import { useSettings } from '@/stores/settings';
 import { useUI } from '@/stores/ui';
 import { Icon } from '@/ui/Icon';
+
+/** 帳戶名稱建議（匯入到既有帳戶） */
+function AccountNames() {
+  const { list } = useAccounts();
+  return <datalist id="import-accounts">{list.map((a) => <option key={a.id} value={a.name} />)}</datalist>;
+}
 
 export default function ImportPage() {
   const navigate = useNavigate();
@@ -20,9 +31,16 @@ export default function ImportPage() {
   const [defAccount, setDefAccount] = useState('匯入帳戶');
   const [plan, setPlan] = useState<ImportPlan | null>(null);
   const [busy, setBusy] = useState(false);
+  const [positiveIsExpense, setPositiveIsExpense] = useState(false);
+  const [skipDups, setSkipDups] = useState(true);
+  const [enriched, setEnriched] = useState<ParsedRow[]>([]);
+  const [profileName, setProfileName] = useState('');
+  const profiles = useSettings((s) => s.importProfiles);
+  const { map: catMap } = useCategories();
   const header = rows[0] ?? [];
   const body = rows.slice(1);
-  const parsed = useMemo(() => (step >= 2 ? parseRows(body, mapping, { currency: base, account: defAccount }) : []), [step, rows, mapping, base, defAccount]); // eslint-disable-line react-hooks/exhaustive-deps
+  const parsed = useMemo(() => enriched.filter((r) => !(skipDups && r.dup)), [enriched, skipDups]);
+  useEffect(() => { if (step === 2) void planImport(parsed).then(setPlan); }, [parsed, step]);
 
   const onFile = async (f: File) => {
     const buf = await f.arrayBuffer();
@@ -34,15 +52,40 @@ export default function ImportPage() {
     setRows(r);
     setFileName(f.name);
     const m = autoMap(r[0]);
-    setMapping(m.mapping);
+    const saved = useSettings.getState().importProfiles.find((p) => p.header === headerSignature(r[0]));
+    if (saved && !m.isMoze) {
+      setMapping(saved.mapping);
+      setDefAccount(saved.defAccount);
+      setPositiveIsExpense(saved.positiveIsExpense);
+      setProfileName(saved.name);
+      useUI.getState().showSnack({ text: `已套用格式「${saved.name}」` });
+    } else {
+      setMapping(m.mapping);
+      setProfileName('');
+    }
     setIsMoze(m.isMoze);
     setStep(1);
   };
 
   const preview = async () => {
-    if (mapping.date === undefined || mapping.amount === undefined) { useUI.getState().showSnack({ text: '至少要對應「日期」與「金額」' }); return; }
-    setStep(2);
-    setPlan(await planImport(parseRows(body, mapping, { currency: base, account: defAccount })));
+    const hasAmount = mapping.amount !== undefined || mapping.debit !== undefined || mapping.credit !== undefined;
+    if (mapping.date === undefined || !hasAmount) { useUI.getState().showSnack({ text: '至少要對應「日期」與「金額」（或支出／存入金額）' }); return; }
+    setBusy(true);
+    try {
+      setPlan(null);
+      setEnriched(await enrichRows(parseRows(body, mapping, { currency: base, account: defAccount }, { positiveIsExpense })));
+      setStep(2);
+    } finally { setBusy(false); }
+  };
+
+  const saveProfile = () => {
+    const name = profileName.trim() || window.prompt('格式名稱（例如：玉山信用卡）', fileName.replace(/\.csv$/i, ''))?.trim();
+    if (!name) return;
+    const sig = headerSignature(header);
+    const rest = profiles.filter((p) => p.header !== sig);
+    useSettings.getState().set('importProfiles', [...rest, { id: uid(), name, header: sig, mapping, defAccount, positiveIsExpense }]);
+    setProfileName(name);
+    useUI.getState().showSnack({ text: `已儲存格式「${name}」，下次匯入同樣欄位的檔案會自動套用` });
   };
 
   return (
@@ -59,6 +102,8 @@ export default function ImportPage() {
           <div className="card">
             <p style={{ marginTop: 0 }}><b>支援格式</b></p>
             <ul className="muted" style={{ paddingLeft: 20, fontSize: '0.9rem', lineHeight: 1.7 }}>
+              <li><b>銀行／信用卡對帳單</b>：網銀下載的 CSV；支出與存入分兩欄、民國年日期都支援，疑似重複的帳目會自動略過，沒有分類時依「自動分類規則」帶入</li>
+              <li><b>電子發票</b>：請改用「設定 → 電子發票匯入」</li>
               <li><b>Moze</b>：Moze →「設定 → 匯出資料 → CSV」，自動辨識所有欄位，轉出／轉入會自動配對成轉帳</li>
               <li>其他記帳 App 或 Excel 匯出的 CSV（UTF-8 或 Big5），下一步可手動對應欄位</li>
               <li>找不到的帳戶、分類、標籤會自動建立；匯入完成後自動重算所有帳戶餘額</li>
@@ -90,11 +135,16 @@ export default function ImportPage() {
               </div>
             ))}
             {mapping.account === undefined && (
-              <div className="field"><span className="label">預設帳戶</span><input value={defAccount} onChange={(e) => setDefAccount(e.target.value)} /></div>
+              <div className="field"><span className="label">匯入到帳戶</span><input value={defAccount} onChange={(e) => setDefAccount(e.target.value)} list="import-accounts" aria-label="匯入到帳戶" /></div>
+            )}
+            {mapping.type === undefined && mapping.amount !== undefined && (
+              <SwitchField label="正數代表支出" sub="信用卡帳單通常以正數表示消費、負數表示退款" checked={positiveIsExpense} onChange={setPositiveIsExpense} />
             )}
           </div>
-          <p className="muted" style={{ fontSize: '0.8rem', margin: '0 8px 12px' }}>沒有「類型」欄位時：負數金額視為支出、正數視為收入。</p>
-          <button className="btn" onClick={() => void preview()}>下一步：預覽</button>
+          <AccountNames />
+          <p className="muted" style={{ fontSize: '0.8rem', margin: '0 8px 12px' }}>沒有「類型」欄位時：負數金額視為支出、正數視為收入（可用上方開關反轉）。帳戶名稱與現有帳戶相同時直接記入，否則會建立新帳戶。</p>
+          {!isMoze && <button className="btn tinted" style={{ marginBottom: 8 }} onClick={saveProfile}>{profileName ? `更新格式「${profileName}」` : '把這個欄位對應存成格式'}</button>}
+          <button className="btn" disabled={busy} onClick={() => void preview()}>{busy ? '檢查中…' : '下一步：預覽'}</button>
         </>
       )}
 
@@ -104,8 +154,12 @@ export default function ImportPage() {
             <div className="stat-grid">
               <div className="stat"><div className="k">帳目</div><div className="v num">{plan.txs}</div></div>
               <div className="stat"><div className="k">轉帳</div><div className="v num">{plan.transfers}</div></div>
-              <div className="stat"><div className="k">略過</div><div className="v num">{plan.skipped + plan.errors.length}</div></div>
+              <div className="stat"><div className="k">略過</div><div className="v num">{plan.skipped + plan.errors.length + (skipDups ? enriched.filter((r) => r.dup && !r.error).length : 0)}</div></div>
             </div>
+            {enriched.some((r) => r.dup && !r.error) && (
+              <SwitchField label={`略過疑似重複（${enriched.filter((r) => r.dup && !r.error).length} 筆）`} sub="同帳戶、同金額、日期相差一天內已有帳目" checked={skipDups} onChange={setSkipDups} />
+            )}
+            {enriched.some((r) => r.autoCategoryId) && <p style={{ fontSize: '0.85rem' }}>🪄 {enriched.filter((r) => r.autoCategoryId).length} 筆依規則／過去記帳自動分類</p>}
             {plan.newAccounts.length > 0 && <p style={{ fontSize: '0.85rem' }}>將建立帳戶：{plan.newAccounts.join('、')}</p>}
             {plan.newCategories.length > 0 && <p style={{ fontSize: '0.85rem' }}>將建立分類：{plan.newCategories.slice(0, 12).join('、')}{plan.newCategories.length > 12 ? ` 等 ${plan.newCategories.length} 個` : ''}</p>}
             {plan.skipped > 0 && <p className="muted" style={{ fontSize: '0.8rem' }}>「應收／應付款項」類型 {plan.skipped} 列會略過，可在「分帳」手動建立。</p>}
@@ -122,7 +176,7 @@ export default function ImportPage() {
               <div key={r.line} className="row">
                 <div className="row-main">
                   <div className="row-title">{r.note || r.sub || r.main || '（無備註）'}</div>
-                  <div className="row-sub">{r.date} · {r.kind === 'transfer_out' ? `轉出 ${r.account}` : r.kind === 'transfer_in' ? `轉入 ${r.account}` : `${r.main}${r.sub ? ` › ${r.sub}` : ''} · ${r.account}`}</div>
+                  <div className="row-sub">{r.date} · {r.kind === 'transfer_out' ? `轉出 ${r.account}` : r.kind === 'transfer_in' ? `轉入 ${r.account}` : `${r.main ? `${r.main}${r.sub ? ` › ${r.sub}` : ''}` : r.autoCategoryId ? `🪄 ${categoryLabel(catMap, r.autoCategoryId)}` : '其他'} · ${r.account}`}{r.dup ? ` · ⚠️ 疑似重複（${r.dup}）` : ''}</div>
                 </div>
                 <span className="num">{r.kind === 'income' || r.kind === 'transfer_in' ? '+' : r.kind === 'adjust' ? '±' : '-'}{r.amount.abs().toString()} {r.currency}</span>
               </div>

@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request, Response
+from fastapi.responses import Response as PlainResponse
 from sqlalchemy.orm import Session
 
 from app.api.cookies import REFRESH_COOKIE, clear_auth_cookies, set_auth_cookies
 from app.api.deps import get_client, get_current_user, get_db, get_optional_user, login_account_limiter, login_ip_limiter, rate_limit, register_limiter
+from app.core.config import get_settings
 from app.core.request_info import ClientInfo
 from app.model import User
 from app.schema.auth import ChangePasswordRequest, LoginRequest, MessageResponse, RegisterRequest, UserPublic
@@ -63,3 +65,11 @@ def change_password(body: ChangePasswordRequest, request: Request, response: Res
     tokens = AuthService(db).change_password(user, body, client)
     _respond(response, request, tokens)
     return user
+
+
+@router.get("/check", status_code=204, summary="登入檢查（nginx auth_request 用）", include_in_schema=False)
+def check(user: User | None = Depends(get_optional_user)) -> PlainResponse:
+    """已登入（Access Token 有效）回 204，否則 401。關閉 proxy_require_login 時一律 204。"""
+    if user or not get_settings().proxy_require_login:
+        return PlainResponse(status_code=204)
+    return PlainResponse(status_code=401)

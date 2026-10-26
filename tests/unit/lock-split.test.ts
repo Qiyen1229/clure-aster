@@ -35,3 +35,11 @@ describe('分帳拆分', () => {
     expect(computeSplit(100000, { mode: 'custom', people: [{ name: 'A', amount: '1200' }] }, 'TWD').error).toBeTruthy();
   });
 });
+
+describe('PIN 錯誤等待時間', () => {
+  it('前 4 次不用等，第 5 次起 30 秒倍增，最長 1 小時', async () => {
+    const { lockoutMs } = await import('@/app/LockScreen');
+    expect([1, 4, 5, 6, 7].map(lockoutMs)).toEqual([0, 0, 30_000, 60_000, 120_000]);
+    expect(lockoutMs(20)).toBe(3600_000);
+  });
+});

@@ -4,9 +4,10 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, get_db
+from app.api.deps import get_client, get_current_user, get_db
+from app.core.request_info import ClientInfo
 from app.model import User
-from app.schema.sync import DEVICE_ID_PATTERN, SyncPullResponse, SyncPushRequest, SyncPushResponse, SyncStatus
+from app.schema.sync import DEVICE_ID_PATTERN, E2EEConfig, E2EEUpdate, SyncPullResponse, SyncPushRequest, SyncPushResponse, SyncStatus
 from app.service.sync_service import SyncService
 
 router = APIRouter(prefix="/api/sync", tags=["sync"])
@@ -31,3 +32,14 @@ def pull(
     db: Session = Depends(get_db),
 ) -> SyncPullResponse:
     return SyncService(db).pull(user, since, limit, device_id)
+
+
+@router.get("/keys", response_model=E2EEConfig | None, summary="端對端加密設定")
+def get_keys(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> E2EEConfig | None:
+    return SyncService(db).e2ee(user)
+
+
+@router.put("/keys", response_model=E2EEConfig | None, summary="啟用／停用／更換端對端加密")
+def put_keys(body: E2EEUpdate, user: User = Depends(get_current_user), client: ClientInfo = Depends(get_client),
+             db: Session = Depends(get_db)) -> E2EEConfig | None:
+    return SyncService(db).set_e2ee(user, body, client)

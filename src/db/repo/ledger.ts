@@ -21,6 +21,8 @@ export interface TxInput {
   date: string;
   ts: number;
   note?: string;
+  merchant?: string;
+  invoiceNo?: string;
   tagIds?: string[];
   projectId?: string;
   attachmentIds?: string[];
@@ -89,6 +91,8 @@ function toRow(id: string, input: TxInput, amounts: Awaited<ReturnType<typeof re
     date: input.date,
     ts: input.ts,
     note: input.note ?? '',
+    merchant: input.merchant || undefined,
+    invoiceNo: input.invoiceNo || undefined,
     tagIds: input.tagIds ?? [],
     projectId: input.projectId || undefined,
     attachmentIds: input.attachmentIds ?? [],

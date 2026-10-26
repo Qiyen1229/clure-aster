@@ -1,7 +1,9 @@
 /**
  * 通知設定：權限引導（iOS 需先加入主畫面、iOS 16.4+）、各類提醒開關、每日提醒時間、測試通知。
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { disablePush, enablePush, pushSupported, schedulePush, sendTestPush } from '@/services/push';
+import { AUTH_ENABLED } from '@/stores/auth';
 import { useNavigate } from 'react-router-dom';
 import { isIOS, notificationSupport, notify, requestPermission, runReminderChecks, type PermissionState } from '@/services/notifications';
 import { useSettings } from '@/stores/settings';
@@ -24,6 +26,16 @@ export default function NotificationsPage() {
   const n = s.notify;
   const set = (patch: Partial<NotifySettings>) => s.set('notify', { ...n, ...patch });
   const [perm, setPerm] = useState<PermissionState>(notificationSupport());
+  const [pushBusy, setPushBusy] = useState(false);
+  const snack = (text: string) => useUI.getState().showSnack({ text });
+  // 提醒設定變更後重新排程背景推播（停止輸入 1.5 秒後）
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    if (!n.push) return;
+    const t = setTimeout(() => void schedulePush().catch(() => undefined), 1500);
+    return () => clearTimeout(t);
+  }, [n]);
 
   const row = (label: string, key: keyof NotifySettings, sub?: string) => (
     <div className="field"><span className="label" style={{ flex: 1 }}>{label}{sub && <span className="row-sub" style={{ display: 'block' }}>{sub}</span>}</span>
@@ -60,6 +72,24 @@ export default function NotificationsPage() {
           }} />
         </div>
       </div>
+      {AUTH_ENABLED && (
+        <>
+          <div className="section-title">背景推播</div>
+          <div className="list">
+            <div className="field"><span className="label" style={{ flex: 1 }}>App 關閉時也提醒<span className="row-sub" style={{ display: 'block' }}>經你的伺服器發送：每日記帳、繳款、續約、心願、備份</span></span>
+              <Switch checked={n.push} label="背景推播" onChange={async (v) => {
+                setPushBusy(true);
+                try {
+                  if (v) { await enablePush(); setPerm(notificationSupport()); snack('已啟用背景推播'); }
+                  else { await disablePush(); snack('已關閉背景推播'); }
+                } catch (e) { snack((e as Error).message); } finally { setPushBusy(false); }
+              }} />
+            </div>
+            {n.push && <button className="row accent" disabled={pushBusy} onClick={() => void sendTestPush().then(snack, (e) => snack((e as Error).message))}>傳送測試推播</button>}
+            {!pushSupported() && <div className="row"><span className="row-main row-sub" style={{ whiteSpace: 'normal' }}>目前的瀏覽器無法使用背景推播（需 HTTPS；iPhone 需 iOS 16.4 以上並從主畫面開啟）。</span></div>}
+          </div>
+        </>
+      )}
       <div className="section-title">提醒項目</div>
       <div className="list">
         {row('每日記帳提醒', 'daily', '設定時間後若當天沒有記帳')}
@@ -78,7 +108,7 @@ export default function NotificationsPage() {
       }}>傳送測試通知</button>
       <button className="btn secondary" style={{ marginTop: 8 }} onClick={() => void runReminderChecks().then(() => useUI.getState().showSnack({ text: '已檢查所有提醒' }))}>立即檢查提醒</button>
       <p className="muted" style={{ fontSize: '0.78rem', margin: 8 }}>
-        限制說明：本 App 沒有伺服器，無法在關閉時主動推播。提醒會在「開啟 App」與「App 在前景」時檢查並發出；iOS 加入主畫面後，App 在背景短時間內仍可能收到。
+        沒開背景推播時，提醒只會在「開啟 App」與「App 在前景」時檢查並發出。背景推播由 App 每次開啟時預先排好接下來 14 天的提醒；預算與到價提醒需要即時資料，仍在 App 開啟時檢查。
       </p>
     </main>
   );

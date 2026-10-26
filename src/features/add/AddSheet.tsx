@@ -4,6 +4,7 @@
  * - 兩層分類、帳戶、日期時間、備註（語音輸入）、標籤、專案、收據照片、外幣與匯率
  * - 再記一筆（連續模式）、常用範本、複製上一筆
  * - 新增與編輯共用；儲存後提供「復原」
+ * - 自動分類：輸入備註時依「自動分類規則」與過去的記帳（商家記憶）帶入分類；手動選過分類就不再自動改
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -29,6 +30,7 @@ import { Keypad } from './Keypad';
 import { AccountPicker, CurrencyPicker, ProjectPicker, TagPicker } from './pickers';
 import { computeSplit, SplitSheet, type SplitState } from './SplitSheet';
 import { addDebts, addLoan, findOrCreatePerson, removeLoan } from '@/db/repo/plan';
+import { countRuleHit, suggestCategory, type CategorySuggestion } from '@/services/autocat';
 
 const MODES: { value: AddMode; label: string }[] = [
   { value: 'expense', label: '支出' },
@@ -94,6 +96,9 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
   const [viewer, setViewer] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
+  /** 使用者是否已手動選過分類（是的話不再自動分類） */
+  const catTouched = useRef(!!prefill?.categoryId);
+  const [autoCat, setAutoCat] = useState<(CategorySuggestion & { prev: string }) | null>(null);
   const saved = useRef(false);
   const subRowRef = useRef<HTMLDivElement>(null);
 
@@ -286,7 +291,9 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
           currency: mode === 'adjust' ? acc.currency : txCurrency,
           fxRateDec: needRate && mode !== 'adjust' ? fxRate || undefined : undefined,
           date, ts, note, tagIds, projectId, attachmentIds: atts.map((a) => a.id),
+          ...(editTxId ? {} : { merchant: prefill?.merchant, invoiceNo: prefill?.invoiceNo }),
         };
+        if (autoCat?.ruleId && autoCat.categoryId === catId) void countRuleHit(autoCat.ruleId).catch(() => undefined);
         const sp = mode === 'expense' && !editTxId && split.people.length ? computeSplit(amt, split, txCurrency) : null;
         if (sp?.error) { useUI.getState().showSnack({ text: sp.error }); return; }
         if (editTxId) await updateTransaction(editTxId, input);
@@ -332,8 +339,31 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
     if (row && el) row.scrollTo({ left: el.offsetLeft - row.clientWidth / 2 + el.clientWidth / 2, behavior: 'smooth' });
   }, [categoryId, mainOpen]);
 
+  // ── 自動分類：備註停止輸入 300ms 後查詢 ──
+  useEffect(() => {
+    if (editing || catTouched.current || (mode !== 'expense' && mode !== 'income')) return;
+    const text = note.trim();
+    if (text.length < 2) return;
+    let alive = true;
+    const t = setTimeout(() => {
+      void suggestCategory(text, kind).then((sug) => {
+        if (!alive || !sug || catTouched.current || !catMap.has(sug.categoryId)) return;
+        const c = catMap.get(sug.categoryId)!;
+        if (c.kind !== kind) return;
+        setCatByKind((cur) => {
+          if (cur[kind] !== sug.categoryId) setAutoCat({ ...sug, prev: cur[kind] });
+          return { ...cur, [kind]: sug.categoryId };
+        });
+        setMainOpen(c.parentId || c.id);
+        if (sug.tagIds.length) setTagIds((ids) => [...new Set([...ids, ...sug.tagIds.filter((x) => tagMap.has(x))])]);
+      }).catch(() => undefined);
+    }, 300);
+    return () => { alive = false; clearTimeout(t); };
+  }, [note, mode]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── 範本、複製上一筆 ──
   const applyTemplate = (t: Template) => {
+    catTouched.current = true;
     const p = t.payload;
     if (p.type && p.type !== 'transfer_fee') setMode(p.type);
     if (p.categoryId) {
@@ -364,6 +394,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
   const copyLast = async () => {
     const t = await lastTransaction();
     if (!t) { useUI.getState().showSnack({ text: '還沒有上一筆' }); return; }
+    catTouched.current = true;
     setMode(t.type === 'transfer_fee' ? 'expense' : t.type);
     setCatByKind((s) => ({ ...s, [t.type]: t.categoryId }));
     const c = catMap.get(t.categoryId);
@@ -506,7 +537,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
                   const active = selCat ? (selCat.id === main.id || selCat.parentId === main.id) : false;
                   return (
                     <button key={main.id} className="cat-cell" role="radio" aria-checked={active} aria-pressed={active}
-                      onClick={() => { setCatByKind((s) => ({ ...s, [kind]: main.id })); setMainOpen(main.id); }}>
+                      onClick={() => { catTouched.current = true; setAutoCat(null); setCatByKind((s) => ({ ...s, [kind]: main.id })); setMainOpen(main.id); }}>
                       <span className="cat-icon sm" style={{ ['--c' as string]: main.color }}>{main.icon}</span>
                       {main.name}
                     </button>
@@ -516,10 +547,10 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
               {mainTree && mainTree.subs.length > 0 && (
                 <div className="sub-row" role="radiogroup" aria-label="子分類" ref={subRowRef}>
                   <button className="pill" aria-pressed={categoryId === mainTree.main.id}
-                    onClick={() => setCatByKind((s) => ({ ...s, [kind]: mainTree.main.id }))}>全部{mainTree.main.name}</button>
+                    onClick={() => { catTouched.current = true; setAutoCat(null); setCatByKind((s) => ({ ...s, [kind]: mainTree.main.id })); }}>全部{mainTree.main.name}</button>
                   {mainTree.subs.map((s) => (
                     <button key={s.id} className="pill" aria-pressed={categoryId === s.id}
-                      onClick={() => setCatByKind((c) => ({ ...c, [kind]: s.id }))}>{s.icon} {s.name}</button>
+                      onClick={() => { catTouched.current = true; setAutoCat(null); setCatByKind((c) => ({ ...c, [kind]: s.id })); }}>{s.icon} {s.name}</button>
                   ))}
                 </div>
               )}
@@ -625,6 +656,18 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
             <input className="input" placeholder={mode === 'transfer' ? '備註（例如：提款）' : loan ? '備註（例如：代墊車資）' : '備註、店家…'} value={note}
               onChange={(e) => setNote(e.target.value)} maxLength={200} aria-label="備註"
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void submit(); } }} />
+            {autoCat && catByKind[kind] === autoCat.categoryId && (
+              <button className="autocat-chip" role="status"
+                aria-label={`已自動分類為「${catMap.get(autoCat.categoryId)?.name}」${autoCat.source === 'rule' ? '（規則）' : '（依過去記帳）'}，點擊還原`}
+                title={`依${autoCat.source === 'rule' ? '自動分類規則' : '過去記帳'}選了「${catMap.get(autoCat.categoryId)?.name}」，點擊還原`}
+                onClick={() => {
+                  catTouched.current = true;
+                  setCatByKind((c) => ({ ...c, [kind]: autoCat.prev }));
+                  const p = catMap.get(autoCat.prev);
+                  if (p) setMainOpen(p.parentId || p.id);
+                  setAutoCat(null);
+                }}>🪄 自動分類 ✕</button>
+            )}
             {SR && (
               <button className="icon-btn" onClick={listen} aria-label="語音輸入備註" aria-pressed={listening}
                 style={listening ? { background: 'var(--danger)', color: '#fff' } : undefined}>

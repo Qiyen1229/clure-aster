@@ -5,6 +5,14 @@
  *   帳戶, 幣種, 記錄類型, 主類別, 子類別, 金額, 手續費, 折扣, 名稱, 商家, 日期, 時間, 專案, 描述, 標籤, 對象
  * 記錄類型：支出／收入／轉出／轉入／餘額調整／應收款項／應付款項…；支出金額為負數。
  * 轉帳在 Moze 中以「轉出」「轉入」兩列表示，本工具會依日期、時間、金額配對成一筆轉帳。
+ *
+ * 銀行／信用卡對帳單：
+ * - 支出、存入分成兩欄（提款／存入、支出金額／收入金額）時對應到「支出金額」「存入金額」
+ * - 民國年日期（113/10/01、1131001）與 20241001 自動轉換
+ * - 信用卡帳單金額為正數代表消費時，勾選「正數代表支出」
+ * - 疑似重複：同帳戶、同金額、日期相差一天內的既有帳目（或同一張電子發票）預設略過
+ * - 沒有分類欄位時，依自動分類規則與商家記憶帶入分類
+ * - 欄位對應可存成「格式」，下次匯入同一家銀行的檔案自動套用
  */
 import Decimal from 'decimal.js';
 import { db, uid } from '@/db/schema';
@@ -13,26 +21,29 @@ import { recomputeBalances } from '@/db/repo/accounts';
 import { convertMinor, currencyInfo, toMinor } from '@/domain/money';
 import { resolveRate } from './fx';
 import { CATEGORY_COLORS } from '@/db/seed/categories';
+import { suggestCategory } from './autocat';
 
-export type FieldKey = 'date' | 'time' | 'type' | 'amount' | 'currency' | 'account' | 'toAccount' | 'main' | 'sub' | 'note' | 'merchant' | 'tags' | 'project' | 'fee' | 'desc';
+export type FieldKey = 'date' | 'time' | 'type' | 'amount' | 'debit' | 'credit' | 'currency' | 'account' | 'toAccount' | 'main' | 'sub' | 'note' | 'merchant' | 'tags' | 'project' | 'fee' | 'desc';
 
 export const FIELD_LABELS: Record<FieldKey, string> = {
-  date: '日期 *', time: '時間', type: '類型', amount: '金額 *', currency: '幣別', account: '帳戶 *', toAccount: '轉入帳戶',
+  date: '日期 *', time: '時間', type: '類型', amount: '金額 *', debit: '支出金額', credit: '存入金額', currency: '幣別', account: '帳戶 *', toAccount: '轉入帳戶',
   main: '主分類', sub: '子分類', note: '名稱／備註', merchant: '商家', tags: '標籤', project: '專案', fee: '手續費', desc: '描述',
 };
 
 const ALIASES: Record<FieldKey, string[]> = {
-  date: ['日期', 'date', '交易日期'],
-  time: ['時間', 'time'],
+  date: ['日期', 'date', '交易日期', '交易日', '消費日', '消費日期', '帳務日期', '入帳日', '入帳日期'],
+  time: ['時間', 'time', '交易時間'],
   type: ['記錄類型', '類型', 'type', '收支'],
-  amount: ['金額', 'amount', '價格'],
+  amount: ['金額', 'amount', '價格', '新臺幣金額', '新台幣金額', '台幣金額', '臺幣金額', '消費金額', '交易金額'],
+  debit: ['支出', '提款', '支出金額', '提款金額', '支出(元)', '轉出金額', 'debit', 'withdrawal'],
+  credit: ['存入', '收入', '存入金額', '收入金額', '存入(元)', '轉入金額', 'credit', 'deposit'],
   currency: ['幣種', '幣別', 'currency'],
   account: ['帳戶', 'account', '付款帳戶', '轉出帳戶'],
   toAccount: ['轉入帳戶', 'to account', 'toaccount'],
   main: ['主類別', '主分類', '分類', 'category'],
   sub: ['子類別', '子分類', 'subcategory'],
-  note: ['名稱', '備註', 'note', 'memo', '項目'],
-  merchant: ['商家', 'merchant', '店家'],
+  note: ['名稱', '備註', 'note', 'memo', '項目', '摘要', '說明', '交易說明', '消費明細', '交易摘要', '帳單說明', '交易內容'],
+  merchant: ['商家', 'merchant', '店家', '特店名稱', '商店名稱', '交易對象'],
   tags: ['標籤', 'tags', 'tag'],
   project: ['專案', 'project'],
   fee: ['手續費', 'fee'],
@@ -69,6 +80,11 @@ export interface ParsedRow {
   project: string;
   fee: Decimal;
   error?: string;
+  /** 疑似與既有帳目重複 */
+  dup?: string;
+  /** 自動分類結果（沒有分類欄位時） */
+  autoCategoryId?: string;
+  merchant?: string;
 }
 
 /** 年月日是否為真實存在的日期 */
@@ -82,10 +98,19 @@ function validYMD(y: number, m: number, d: number): boolean {
  * 前兩段都 ≤ 12 時無法分辨，依美式 MM/DD/YYYY；第一段 > 12 則判定為 DD/MM/YYYY。不存在的日期回傳 null。
  */
 export function normDate(s: string): string | null {
-  const t = s.trim().replace(/[年月]/g, '/').replace(/日/, '');
+  const t = s.trim().replace(/[年月]/g, '/').replace(/日/, '').replace(/^民國/, '');
   const fmt = (y: number, m: number, d: number) => (validYMD(y, m, d) ? `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` : null);
   const m = t.match(/^(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})/);
   if (m) return fmt(+m[1], +m[2], +m[3]);
+  // 民國年：113/10/01、113.10.1
+  const roc = t.match(/^(\d{2,3})[/.-](\d{1,2})[/.-](\d{1,2})(?!\d)/);
+  if (roc && +roc[1] < 200) return fmt(+roc[1] + 1911, +roc[2], +roc[3]);
+  // 連續數字：20241001、1131001（民國）
+  const compact = t.match(/^(\d{7,8})(?!\d)/);
+  if (compact) {
+    const v = compact[1];
+    return v.length === 8 ? fmt(+v.slice(0, 4), +v.slice(4, 6), +v.slice(6, 8)) : fmt(+v.slice(0, 3) + 1911, +v.slice(3, 5), +v.slice(5, 7));
+  }
   const m2 = t.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})/);
   if (m2) {
     const a = +m2[1], b = +m2[2], y = +m2[3];
@@ -106,12 +131,30 @@ function normType(s: string, signed: Decimal): ParsedRow['kind'] {
   return signed.isNegative() ? 'expense' : t ? 'expense' : 'income';
 }
 
-export function parseRows(rows: string[][], mapping: Mapping, defaults: { currency: string; account: string }): ParsedRow[] {
+const num = (raw: string): Decimal | null => {
+  const t = raw.replace(/[,\s$NT＄元]/g, '').replace(/^\((.*)\)$/, '-$1');
+  if (!t) return null;
+  try { const d = new Decimal(t); return d.isNaN() ? null : d; } catch { return null; }
+};
+
+export interface ParseOptions {
+  /** 信用卡帳單：金額為正數代表消費（支出） */
+  positiveIsExpense?: boolean;
+}
+
+export function parseRows(rows: string[][], mapping: Mapping, defaults: { currency: string; account: string }, opts: ParseOptions = {}): ParsedRow[] {
   const get = (r: string[], k: FieldKey) => (mapping[k] !== undefined ? (r[mapping[k]!] ?? '').trim() : '');
+  const split = mapping.amount === undefined && (mapping.debit !== undefined || mapping.credit !== undefined);
   return rows.map((r, i) => {
-    const rawAmt = get(r, 'amount').replace(/[,\s$NT＄]/g, '');
     let signed: Decimal;
-    try { signed = new Decimal(rawAmt || 'x'); } catch { signed = new Decimal(NaN); }
+    if (split) {
+      // 支出、存入分兩欄：存入 − 支出
+      const d = num(get(r, 'debit')), c = num(get(r, 'credit'));
+      signed = d === null && c === null ? new Decimal(NaN) : (c ?? new Decimal(0)).abs().minus((d ?? new Decimal(0)).abs());
+    } else {
+      signed = num(get(r, 'amount')) ?? new Decimal(NaN);
+      if (opts.positiveIsExpense && mapping.type === undefined && !signed.isNaN()) signed = signed.negated();
+    }
     const date = normDate(get(r, 'date'));
     const note = [get(r, 'note'), get(r, 'merchant') && get(r, 'merchant') !== get(r, 'note') ? `@${get(r, 'merchant')}` : '', get(r, 'desc')].filter(Boolean).join(' ');
     let fee: Decimal;
@@ -121,9 +164,11 @@ export function parseRows(rows: string[][], mapping: Mapping, defaults: { curren
       amount: signed.isNaN() ? new Decimal(0) : signed.abs(), signed, currency: (get(r, 'currency') || defaults.currency).toUpperCase(),
       account: get(r, 'account') || defaults.account, toAccount: get(r, 'toAccount'), main: get(r, 'main'), sub: get(r, 'sub'),
       note, tags: get(r, 'tags').split(/[|,，、#\s]+/).map((x) => x.trim()).filter(Boolean), project: get(r, 'project'), fee,
+      merchant: get(r, 'merchant') || undefined,
     };
     if (!date) row.error = '日期格式無法辨識';
     else if (signed.isNaN()) row.error = '金額不是數字';
+    else if (signed.isZero() && row.kind !== 'adjust') row.error = '金額為 0';
     else if (!row.account) row.error = '缺少帳戶';
     if (row.kind === 'adjust') row.amount = signed; // 調整保留正負
     return row;
@@ -131,6 +176,8 @@ export function parseRows(rows: string[][], mapping: Mapping, defaults: { curren
 }
 
 export interface ImportPlan {
+  /** 疑似重複（預設略過）的列數 */
+  dups: number;
   txs: number;
   transfers: number;
   skipped: number;
@@ -173,6 +220,7 @@ export async function planImport(rows: ParsedRow[]): Promise<ImportPlan> {
   }
   const { pairs, orphanIns } = pairTransfers(rows);
   return {
+    dups: rows.filter((r) => r.dup && !r.error).length,
     txs: rows.filter((r) => !r.error && ['expense', 'income', 'adjust'].includes(r.kind)).length + orphanIns.length + pairs.filter((p) => !p.in && !p.out.toAccount).length,
     transfers: pairs.filter((p) => p.in || p.out.toAccount).length,
     skipped: rows.filter((r) => r.kind === 'skip').length,
@@ -249,7 +297,7 @@ export async function runImport(rows: ParsedRow[], base: string): Promise<{ txs:
     txs.push({
       id: uid(), type, accountId: acc.id, categoryId, amountMinor: amt, currency: r.currency, ...a,
       baseAmountMinor: type === 'adjust' ? a.baseAmountMinor : Math.abs(a.baseAmountMinor),
-      date: r.date, ts: ts(r), note: r.note, tagIds: tagIds(r.tags), projectId: projectId(r.project), attachmentIds: [],
+      date: r.date, ts: ts(r), note: r.note, merchant: r.merchant, tagIds: tagIds(r.tags), projectId: projectId(r.project), attachmentIds: [],
       excludeFromStats: type === 'adjust', createdAt: now, updatedAt: now,
     });
   };
@@ -257,7 +305,7 @@ export async function runImport(rows: ParsedRow[], base: string): Promise<{ txs:
   for (const r of rows) {
     if (r.error || r.kind === 'skip' || r.kind === 'transfer_in' || r.kind === 'transfer_out') continue;
     if (r.kind === 'adjust') mkTx(r, 'adjust', 'sys-adjust');
-    else mkTx(r, r.kind, category(r.kind, r.main, r.sub));
+    else mkTx(r, r.kind, !r.main && r.autoCategoryId ? r.autoCategoryId : category(r.kind, r.main, r.sub));
     if (r.fee.gt(0) && (r.kind === 'expense' || r.kind === 'income')) {
       mkTx({ ...r, amount: r.fee, note: `${r.note} 手續費`.trim() }, 'expense', 'exp-tax-bankfee');
     }
@@ -297,3 +345,61 @@ export async function runImport(rows: ParsedRow[], base: string): Promise<{ txs:
   await recomputeBalances(true);
   return { txs: txs.filter((t) => !t.transferId).length, transfers: trs.length };
 }
+
+/**
+ * 匯入前的準備（會讀資料庫）：
+ * - 沒有分類的支出／收入：依自動分類規則與商家記憶帶入
+ * - 疑似重複：同一個帳戶（依名稱）已有「同金額、日期相差 1 天內」的帳目
+ * 回傳新的陣列（不修改原本的列）。
+ */
+export async function enrichRows(rows: ParsedRow[]): Promise<ParsedRow[]> {
+  const accounts = await db.accounts.toArray();
+  const accByName = new Map(accounts.map((a) => [a.name, a]));
+  const dates = rows.filter((r) => r.date).map((r) => r.date).sort();
+  const existing = dates.length
+    ? (await db.transactions.where('date').between(shiftDate(dates[0], -1), shiftDate(dates[dates.length - 1], 1), true, true).toArray()).filter((t) => !t.deletedAt)
+    : [];
+  const byAccount = new Map<string, Transaction[]>();
+  for (const t of existing) byAccount.set(t.accountId, [...(byAccount.get(t.accountId) ?? []), t]);
+  const used = new Set<string>();
+  const out: ParsedRow[] = [];
+  for (const r of rows) {
+    const row = { ...r };
+    if (!row.error && (row.kind === 'expense' || row.kind === 'income')) {
+      if (!row.main) {
+        const text = [row.merchant, row.note].filter(Boolean).join(' ');
+        const sug = text ? await suggestCategory(text, row.kind) : null;
+        if (sug) row.autoCategoryId = sug.categoryId;
+      }
+      const acc = accByName.get(row.account);
+      if (acc) {
+        const amt = toMinor(row.amount, row.currency);
+        const hit = (byAccount.get(acc.id) ?? []).find((t) => !used.has(t.id) && t.type === row.kind && t.amountMinor === amt
+          && t.currency === row.currency && Math.abs(dayDiff(t.date, row.date)) <= 1);
+        if (hit) { used.add(hit.id); row.dup = `${hit.date} ${hit.note || ''}`.trim(); }
+      }
+    }
+    out.push(row);
+  }
+  return out;
+}
+
+function shiftDate(d: string, n: number): string {
+  const x = new Date(`${d}T00:00:00Z`);
+  x.setUTCDate(x.getUTCDate() + n);
+  return x.toISOString().slice(0, 10);
+}
+function dayDiff(a: string, b: string): number {
+  return (Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) / 86400000;
+}
+
+/** 欄位對應「格式」：以標題列辨識同一家銀行的檔案 */
+export interface ImportProfile {
+  id: string;
+  name: string;
+  header: string;
+  mapping: Mapping;
+  defAccount: string;
+  positiveIsExpense: boolean;
+}
+export const headerSignature = (header: string[]) => header.map((h) => h.trim()).join('|');

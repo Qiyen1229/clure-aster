@@ -5,7 +5,7 @@
  * - SPA 導覽一律回傳快取的 index.html
  * - 不自動 skipWaiting：由前端顯示「有新版本，點擊更新」，使用者同意後才切換，避免資料寫到一半被換版
  * - 匯率等外部 API 採 NetworkFirst，離線時使用最後一次結果
- * - 之後階段：通知點擊（notificationclick）、推播（push）
+ * - 背景推播（push）：顯示伺服器排定的提醒；點擊通知開啟對應頁面（notificationclick）
  */
 import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
@@ -31,6 +31,14 @@ registerRoute(
 
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') void self.skipWaiting();
+});
+
+self.addEventListener('push', (event) => {
+  let msg: { title?: string; body?: string; url?: string; tag?: string } = {};
+  try { msg = event.data?.json() ?? {}; } catch { msg = { body: event.data?.text() }; }
+  event.waitUntil(self.registration.showNotification(msg.title || 'Clure 記帳', {
+    body: msg.body ?? '', icon: '/icons/icon-192.png', badge: '/icons/favicon-32.png', tag: msg.tag, data: { url: msg.url || '/' },
+  }));
 });
 
 self.addEventListener('notificationclick', (event) => {

@@ -59,3 +59,5 @@ class StatsOut(BaseModel):
     locked_accounts: int
     db_size_bytes: int
     db_engine: str
+    # 部署設定提醒（開放註冊、預設密碼等）
+    warnings: list[str] = []

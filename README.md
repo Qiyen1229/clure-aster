@@ -7,7 +7,7 @@
 - 已知限制：[docs/KNOWN_LIMITS.md](docs/KNOWN_LIMITS.md)
 - 報價代理部署：[proxy/README.md](proxy/README.md)
 
-> **進度：階段 1–5 ＋ v1.1（帳號系統、管理員資安後台、信用額度、股利行事曆、今日可用、心願清單）完成 ✅**
+> **進度：階段 1–5 ＋ v1.1（帳號系統、管理員資安後台、信用額度、股利行事曆、今日可用、心願清單）＋ v1.2（端對端加密同步、電子發票、銀行對帳單匯入、自動分類、財務自由試算、背景推播、稅務彙總與貸款攤還）完成 ✅**　變更紀錄見 [CHANGELOG.md](CHANGELOG.md)
 
 - 帳號系統設計：[docs/AUTH_DESIGN.md](docs/AUTH_DESIGN.md)　跨裝置同步設計：[docs/SYNC.md](docs/SYNC.md)
 
@@ -38,6 +38,32 @@
 | 本機資料隔離 | 每個帳號獨立的 IndexedDB；首次登入可把舊資料歸到帳號；離線時曾登入的裝置可繼續使用 |
 | 跨裝置同步 | 帳目、分類、預算、投資、設定自動同步到自架伺服器；新裝置登入直接取得全部資料（不再出現首次設定）；變更約 1 秒內上傳，其他裝置 15 秒內收到（背景 60 秒）；離線記的帳恢復連線後自動上傳；同一筆兩邊都改時以較晚的修改為準。設定 → 帳號 → 跨裝置同步 可看狀態、立即同步 |
 | 動態效果 | 頁面依方向滑入（分頁左右、進入／返回下一層）、清單與卡片依序進場、按鈕按壓回彈、選取時彈跳、Tab 圖示彈跳＋指示點；尊重系統「減少動態效果」 |
+
+---
+
+## v1.2 新功能
+
+| 功能 | 說明 |
+|---|---|
+| 端對端加密同步 | 設定 → 帳號 → 端對端加密：以另設的加密密碼在裝置上加密後才上傳，伺服器與管理員都無法讀取帳目內容；新裝置需輸入加密密碼才能同步 |
+| 電子發票 | 設定 → 電子發票：拍紙本發票左側 QR Code 直接帶入金額、日期、品名；匯入財政部手機條碼載具消費明細 CSV（自動分類、跳過已記過的發票號碼與作廢發票） |
+| 銀行／信用卡對帳單匯入 | CSV 匯入支援支出／存入分欄、民國年日期、信用卡「正數為支出」；疑似重複（同帳戶、同金額、日期差 1 天內）預設略過；欄位對應可存成「格式」，下次自動套用 |
+| 自動分類規則＋商家記憶 | 設定 → 自動分類規則：關鍵字（包含／完全相同／正規表示式）→ 分類＋標籤；沒有規則時依過去同樣文字最常用的分類。記帳輸入備註時自動帶入（可一鍵還原），並建議可建立的規則 |
+| 財務自由試算 | 報表 → 財務自由試算：依淨資產、近 12 個月收支、報酬與通膨假設跑 1,000 次蒙地卡羅模擬，看各年齡達成機率與退休資產能否撐到老 |
+| 背景推播 | 設定 → 通知與提醒 → 背景推播：App 關閉時也會收到每日記帳、信用卡繳款、訂閱續約、心願冷靜期、備份提醒（Web Push，經你的伺服器發送） |
+| 投資稅務彙總 | 報表 → 投資稅務彙總：國內股利合併／分開計稅比較（8.5% 可抵減、上限 8 萬）、二代健保、海外所得與最低稅負（基本稅額）估算 |
+| 貸款攤還 | 「借貸」帳戶可設定房貸／車貸的本金、利率、期數：每期應繳、應剩本金 vs 實際欠款、剩餘利息、還清日、一鍵記錄本期還款（本金轉帳＋利息支出） |
+
+### v1.2 修正與優化
+
+- 備份／還原不再帶入其他裝置的同步狀態（裝置 id、游標、待上傳佇列）與 App 鎖、通知設定
+- 同步以伺服器時間校正裝置時鐘；伺服器截斷過於未來的時間；刪除紀錄保留 90 天後清除，太久沒開的裝置自動完整重新同步
+- 同步批次讀寫、無變更時只發一個請求；同步失敗寫入提醒中心
+- 登入頻率限制改存資料庫（重啟不歸零）；PIN 錯誤次數重新整理也不歸零
+- NAS 的 `/proxy/` 報價代理只允許已登入的使用者；代理權杖只接受標頭；CSP 移除 `*.workers.dev` 萬用字元並禁止 inline `<style>`
+- 管理員後台與後端日誌提示危險的部署設定（開放註冊、預設密碼…）
+- 台股休市日改從證交所 OpenAPI 自動取得
+- 首屏載入縮小約 15%（移除未使用的 i18n、記帳面板延後載入、第三方套件獨立快取）
 
 ---
 
@@ -77,10 +103,11 @@ cd server && .venv/bin/python -m pytest -q
 
 | 指令 | 說明 |
 |---|---|
-| `npm test` | 前端單元測試（97 項：金額、計算機、期間、帳目與餘額一致性、預算、週期、分期、分帳、平均成本、FIFO、台股費稅、XIRR、市場時間、報表、CSV／Excel、Moze 匯入、PIN、「其他」子分類、應收應付、同步變更追蹤、兩台裝置同步） |
+| `npm test` | 前端單元測試（117 項：金額、計算機、期間、帳目與餘額一致性、預算、週期、分期、分帳、平均成本、FIFO、台股費稅、XIRR、市場時間、報表、CSV／Excel、Moze 與銀行對帳單匯入、PIN、「其他」子分類、應收應付、同步變更追蹤、兩台裝置同步、端對端加密、備份還原、自動分類、電子發票、財務自由、稅務、貸款、推播排程） |
 | `npm run build` | 型別檢查＋正式建置到 `dist/` |
 | `npm run preview` | 以正式建置在 http://localhost:9122 預覽（Service Worker 生效、含 `/proxy`） |
 | `npm run icons` | 由 `assets/icon.svg` 重新產生所有圖標與 iOS 啟動畫面 |
+| `npm run pack:nas` | 產生 NAS 更新用的 `clure-nas.zip`（**不含 `.env` 與 `data/`**，解壓覆蓋不會動到你的設定與資料庫） |
 
 ---
 
@@ -93,13 +120,14 @@ cd server && .venv/bin/python -m pytest -q
 | `CLURE_ALLOW_REGISTRATION` | `true`（開放註冊） | 建好自己的帳號後改成 `false`，避免陌生人註冊 |
 | `CLURE_FIRST_USER_ADMIN` | `true`（第一位註冊者是管理員） | 部署後第一時間自己先註冊，或預先設定 `CLURE_ADMIN_*` |
 | `POSTGRES_PASSWORD` | `change-me` | 若啟用 PostgreSQL，**務必**改成強密碼 |
-| `PROXY_ACCESS_TOKEN` | 空（不驗證） | 對外開放報價代理時請設定一串隨機權杖 |
+| `PROXY_ACCESS_TOKEN` | 空（不驗證） | NAS 版的 `/proxy/` 已要求登入；若另外把報價代理對外開放（例如 Cloudflare Worker、直接開 9123 埠）請設定一串隨機權杖 |
 | `CLURE_COOKIE_SECURE` | `auto` | 對外服務請放在 HTTPS 反向代理後面 |
 
 另外：
 
 - `.env` 已被 `.gitignore` 排除，**請勿把自己的 `.env` 提交到 Git**。
-- `clure-nas.zip`／`clure-nas.tar.gz` 這類打包檔內含 `.env` 副本，也已排除，請勿上傳。
+- `npm run pack:nas` 產生的 `clure-nas.zip` 不含 `.env`；舊版手動打包的檔案可能含有 `.env` 副本，請勿上傳。
+- 管理員後台「系統總覽」會列出目前的危險設定。
 - 發現安全問題請開 Issue（不要貼出密鑰或個資）。
 
 ---
@@ -139,7 +167,13 @@ docker compose logs -f web-builder api
 
 ### 之後更新版本：直接拖曳覆蓋
 
-把新版檔案**覆蓋**到同一個資料夾即可，不必刪除資料夾、不必刪除或重建 Docker 專案：
+**你的資料在哪裡**：NAS 專案資料夾裡的 `data/api/`（`clure.db`、`clure.db-wal`、`clure.db-shm`、`jwt_secret`、`vapid_private.pem`），或 `.env` 中 `CLURE_DATA_PATH` 指定的位置。各裝置的瀏覽器也各有一份完整帳目。更新前建議先複製一份 `data/` 資料夾。
+
+1. 在電腦上執行 `npm run pack:nas` 產生 `clure-nas.zip`（不含 `.env` 與 `data/`）。
+2. 把 zip 解壓縮後**覆蓋**到 NAS 上同一個資料夾（**不要先刪除資料夾**）。`data/` 與 `.env` 不在 zip 裡，會原封不動。
+3. 若 `.env.example` 有新增設定（例如 `CLURE_PROXY_REQUIRE_LOGIN`），可手動加到 `.env`；不加則使用預設值。
+
+覆蓋後會自動套用，不必刪除或重建 Docker 專案：
 
 | 你覆蓋的檔案 | 自動發生的事 | 大約時間 |
 |---|---|---|
@@ -164,6 +198,7 @@ docker compose logs -f web-builder api
 - 使用 PostgreSQL：`.env` 設定 `CLURE_DATABASE_URL=postgresql+psycopg://clure:密碼@postgres:5432/clure`，啟動時加 `--profile postgres`；資料存在 `CLURE_DATA_PATH/postgres`。
 - 資料備份：備份 `CLURE_DATA_PATH` 整個資料夾即可（SQLite 資料庫含所有帳號與同步的帳目）。
 - 若有設定 `PROXY_ACCESS_TOKEN`，到 App「設定 → 股票資料源與 API Key → 代理權杖」填入同樣的值。
+- 背景推播的 VAPID 金鑰自動產生在 `CLURE_DATA_PATH/api/vapid_private.pem`；刪除它會讓所有裝置需要重新開啟推播。
 - HTTPS 請用你的反向代理／Cloudflare 指向這個埠（Cookie 會自動加上 Secure）。
 
 ### 從舊版（映像檔版）換到熱更新版
@@ -238,10 +273,10 @@ https://你的網址/add?type=expense&amount=120&category=food-lunch&note=便當
 ```
 src/
   domain/        純函式（全部有單元測試）：money、calc-expr、period、ledger、budget、recurrence、
-                 installment、debt、goal、reports、creditcard、invest/{position,fees-tw,xirr,market-hours}
+                 installment、debt、goal、reports、creditcard、rules、fire、tax、loan、invest/{position,fees-tw,xirr,market-hours}
   db/            Dexie schema、types、repo（ledger、accounts、categories、plan、invest、settings）、seed
   services/      fx、quotes/{http,providers,registry,search}、portfolio、snapshots、networth、startup、
-                 notifications、lock、backup、csv、xlsx、importer、health、attachments
+                 notifications、push、lock、backup、csv、xlsx、importer、einvoice、autocat、tax、sync、e2ee、health、attachments
   features/      home、add、ledger、accounts、plan、reports、invest、settings、search、onboarding
   ui/ app/ theme/ i18n/ stores/
 proxy/           報價代理核心＋Cloudflare Worker＋Node 入口

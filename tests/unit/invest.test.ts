@@ -141,3 +141,16 @@ describe('市場狀態', () => {
     expect(marketState('US', new Date('2026-10-12T15:00:00Z'))).toBe('open'); // 11:00 ET
   });
 });
+
+describe('台股休市日（證交所 OpenAPI）', () => {
+  it('民國年轉換、排除開始／最後交易日', async () => {
+    const { parseTwseHolidays } = await import('@/domain/invest/market-hours');
+    expect(parseTwseHolidays([
+      { Name: '中華民國開國紀念日', Date: '1160101', Description: '依規定放假1日。' },
+      { Name: '國曆新年開始交易日', Date: '1160104', Description: '國曆新年開始交易。' },
+      { Name: '農曆春節前最後交易日', Date: '1160203', Description: '' },
+      { Name: '市場無交易，僅辦理結算交割作業', Date: '1160204', Description: '' },
+      { Name: '壞資料', Date: 'x' },
+    ])).toEqual(['2027-01-01', '2027-02-04']);
+  });
+});

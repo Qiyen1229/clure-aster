@@ -110,3 +110,42 @@ def test_deleting_user_removes_sync_data(api: Api) -> None:
         db.delete(db.scalars(select(User)).first())
         db.flush()
         assert db.scalar(select(func.count(SyncRecord.id))) == 0
+
+
+def test_status_reports_server_time_and_clamps_future_clock(api: Api) -> None:
+    import time
+
+    api.register("alice")
+    st = api.get("/api/sync/status").json()
+    assert abs(st["server_time"] - int(time.time() * 1000)) < 60_000
+    far = int(time.time() * 1000) + 10 * 365 * 86400 * 1000  # 裝置時鐘快了 10 年
+    push(api, DEV_A, [change("t1", far, note="快")])
+    rec = pull(api, 0, DEV_B).json()["changes"][0]
+    assert rec["updated_at"] < far - 86400 * 1000
+    # 時鐘正常的另一台裝置之後的修改仍然可以覆蓋
+    r = push(api, DEV_B, [change("t1", int(time.time() * 1000) + 1000, note="正常")]).json()
+    assert r["accepted"] == 1
+
+
+def test_tombstone_purge_requires_reset(api: Api) -> None:
+    from datetime import timedelta
+
+    from app import db as dbmod
+    from app.core.security import utcnow
+    from app.model import SyncRecord, User
+    from app.service.sync_service import SyncService
+
+    api.register("alice")
+    push(api, DEV_A, [change("t1", 1000, note="a"), change("t2", 1000, note="b")])
+    push(api, DEV_A, [{"table": "transactions", "key": '"t1"', "updated_at": 2000, "deleted": True, "payload": None}])
+    for s in dbmod.session_scope():
+        for r in s.query(SyncRecord).filter(SyncRecord.deleted.is_(True)):
+            r.server_updated_at = utcnow() - timedelta(days=200)
+        s.flush()
+        user = s.query(User).one()
+        assert SyncService(s).purge_if_due(user, force=True) == 1
+    # 游標早於清除點的裝置 → reset；從頭（since=0）或已看過的裝置正常
+    assert pull(api, 1, DEV_B).json()["reset"] is True
+    full = pull(api, 0, DEV_B).json()
+    assert full["reset"] is False and [c["key"] for c in full["changes"]] == ['"t2"']
+    assert pull(api, 3, DEV_B).json()["reset"] is False

@@ -1,6 +1,7 @@
 """FastAPI 應用程式進入點。"""
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -9,7 +10,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from app.api import admin, auth, health, sync
+from app.api import admin, auth, health, push, sync
 from app.api.cookies import CSRF_COOKIE, CSRF_HEADER, set_csrf_cookie
 from app.core.config import get_settings
 from app.core.logging import mask_email, setup_logging
@@ -86,18 +87,46 @@ def run_migrations() -> None:
     log.info("資料庫結構已是最新版本")
 
 
+def warn_insecure_defaults() -> None:
+    """啟動時檢查危險的預設值，並寫進日誌（docker compose logs api 可看到）。"""
+    s = get_settings()
+    if s.env != "production":
+        return
+    from sqlalchemy import func, select
+
+    for db in session_scope():
+        users = int(db.scalar(select(func.count(User.id))) or 0)
+        if s.allow_registration and users > 0:
+            log.warning("⚠ 已有 %s 位使用者但仍開放註冊（CLURE_ALLOW_REGISTRATION=true）；只給自己和家人使用時請改為 false", users)
+        if s.first_user_admin and users == 0:
+            log.warning("⚠ 系統還沒有使用者：第一位註冊的人會成為管理員，請立刻自己先註冊，或設定 CLURE_ADMIN_* 並把 CLURE_FIRST_USER_ADMIN 設為 false")
+    if "change-me" in s.database_url:
+        log.warning("⚠ 資料庫密碼仍是預設的 change-me，請更改 POSTGRES_PASSWORD")
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     setup_logging(get_settings().log_level)
     run_migrations()
     bootstrap_admin()
+    try:
+        warn_insecure_defaults()
+    except Exception:  # noqa: BLE001 — 只是提醒，不影響啟動
+        log.debug("略過安全檢查", exc_info=True)
+    task = None
+    if get_settings().env != "test":
+        from app.service.push_service import push_loop
+
+        task = asyncio.create_task(push_loop())
     yield
+    if task:
+        task.cancel()
 
 
 def create_app() -> FastAPI:
     s = get_settings()
     app = FastAPI(
-        title="Clure API", version="1.1.0", lifespan=lifespan,
+        title="Clure API", version="1.2.0", lifespan=lifespan,
         docs_url="/api/docs" if s.env != "production" else None, redoc_url=None, openapi_url="/api/openapi.json" if s.env != "production" else None,
     )
 
@@ -130,7 +159,7 @@ def create_app() -> FastAPI:
         log.exception("未處理的錯誤 path=%s", request.url.path, exc_info=exc)
         return JSONResponse({"detail": "伺服器發生錯誤，請稍後再試"}, status_code=500)
 
-    for r in (health.router, auth.router, admin.router, sync.router):
+    for r in (health.router, auth.router, admin.router, sync.router, push.router):
         app.include_router(r)
     return app
 

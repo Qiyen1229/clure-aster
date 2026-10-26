@@ -3,7 +3,6 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import AuthGate from './app/AuthGate';
 import './theme/app.css';
-import './i18n';
 import { applyTheme } from './stores/settings';
 import { DEFAULT_SETTINGS } from './db/repo/settings';
 

@@ -3,6 +3,7 @@
  */
 import { db } from '../schema';
 import type { DecimalsMode } from '@/domain/money';
+import type { ImportProfile } from '@/services/importer';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type AccentKey = 'cyan' | 'blue' | 'indigo' | 'purple' | 'pink' | 'orange' | 'green' | 'gold';
@@ -62,6 +63,8 @@ export interface NotifySettings {
   priceAlert: boolean;
   backup: boolean;
   backupDays: number;
+  /** 背景推播（Web Push，經自架伺服器；App 關閉時也會提醒） */
+  push: boolean;
 }
 
 export interface Settings {
@@ -87,6 +90,27 @@ export interface Settings {
   invest: InvestSettings;
   lock: LockSettings;
   notify: NotifySettings;
+  /** CSV／對帳單匯入的欄位對應格式 */
+  importProfiles: ImportProfile[];
+  /** 財務自由試算的假設 */
+  fire: FireSettings;
+  /** 稅務彙總：綜合所得淨額（不含股利，元）等 */
+  tax: { netIncome: number };
+}
+
+export interface FireSettings {
+  birthYear: number;
+  retireAge: number;
+  endAge: number;
+  returnPct: number;
+  volPct: number;
+  inflationPct: number;
+  swrPct: number;
+  /** 0 = 依近 12 個月記帳自動估算 */
+  annualExpense: number;
+  annualSaving: number;
+  /** 起始資產；0 = 使用目前淨資產（有房貸等不用於退休的資產負債時可改填可投資資產） */
+  startAssets: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -122,8 +146,11 @@ export const DEFAULT_SETTINGS: Settings = {
   lock: { enabled: false, pinHash: '', salt: '', iterations: 210000, webauthn: null, autoLockSec: 60 },
   notify: {
     enabled: false, daily: true, dailyTime: '21:00', cardDue: true, cardDueDays: 3, budget: true, subscription: true,
-    priceAlert: true, backup: true, backupDays: 14,
+    priceAlert: true, backup: true, backupDays: 14, push: false,
   },
+  importProfiles: [],
+  fire: { birthYear: 1995, retireAge: 55, endAge: 90, returnPct: 6, volPct: 15, inflationPct: 2, swrPct: 4, annualExpense: 0, annualSaving: 0, startAssets: 0 },
+  tax: { netIncome: 0 },
 };
 
 export async function getSetting<K extends keyof Settings>(key: K): Promise<Settings[K]> {

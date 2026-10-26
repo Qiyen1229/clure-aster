@@ -6,7 +6,7 @@
  *   GET /health                        → ok
  * 安全：
  *   - 白名單網域，杜絕被當成任意開放代理
- *   - 選用 ACCESS_TOKEN（請求帶 x-clure-token 標頭或 ?token=）
+ *   - 選用 ACCESS_TOKEN（請求帶 x-clure-token 標頭；不接受網址參數，避免權杖出現在存取日誌）
  *   - 每個 IP 每分鐘 120 次的簡易速率限制
  *   - 不記錄任何請求內容（API Key 會出現在目標網址的查詢字串中）
  */
@@ -45,6 +45,14 @@ function ttlFor(url: URL): number {
   return 30;
 }
 
+/** 定長比較，避免以回應時間猜測權杖 */
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 const hits = new Map<string, { n: number; reset: number }>();
 function rateLimited(ip: string, limit = 120): boolean {
   const now = Date.now();
@@ -80,8 +88,8 @@ export async function handle(req: Request, env: ProxyEnv, opts: { ip?: string; c
   if (path !== '/fetch') return json(404, { error: 'not found' }, env);
 
   if (env.ACCESS_TOKEN) {
-    const token = req.headers.get('x-clure-token') ?? u.searchParams.get('token');
-    if (token !== env.ACCESS_TOKEN) return json(401, { error: 'invalid token' }, env);
+    const token = req.headers.get('x-clure-token') ?? '';
+    if (!safeEqual(token, env.ACCESS_TOKEN)) return json(401, { error: 'invalid token' }, env);
   }
   if (rateLimited(opts.ip ?? 'anon')) return json(429, { error: 'too many requests' }, env);
 

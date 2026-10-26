@@ -15,9 +15,9 @@ from app.model import ROLE_ADMIN, User
 from app.service.auth_service import AuthService
 
 _settings = get_settings()
-login_ip_limiter = RateLimiter(_settings.login_rate_limit_per_minute * 4)  # 同一 IP 嘗試多個帳號
-login_account_limiter = RateLimiter(_settings.login_rate_limit_per_minute)  # 同一 IP＋帳號：每分鐘 5 次
-register_limiter = RateLimiter(_settings.register_rate_limit_per_minute)
+login_ip_limiter = RateLimiter(_settings.login_rate_limit_per_minute * 4, name="login-ip")  # 同一 IP 嘗試多個帳號
+login_account_limiter = RateLimiter(_settings.login_rate_limit_per_minute, name="login-acct")  # 同一 IP＋帳號：每分鐘 5 次
+register_limiter = RateLimiter(_settings.register_rate_limit_per_minute, name="register")
 
 
 def get_db() -> Iterator[Session]:

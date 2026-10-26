@@ -1,7 +1,9 @@
 """同步資料存取：版本紀錄的查詢與寫入、使用者游標的保留。"""
 from __future__ import annotations
 
-from sqlalchemy import func, select, tuple_, update
+from datetime import datetime
+
+from sqlalchemy import delete, func, select, tuple_, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -52,6 +54,19 @@ class SyncRepository:
     def changes_since(self, user_id: int, since: int, limit: int) -> list[SyncRecord]:
         stmt = select(SyncRecord).where(SyncRecord.user_id == user_id, SyncRecord.seq > since)
         return list(self.db.scalars(stmt.order_by(SyncRecord.seq).limit(limit)))
+
+    def purged_seq(self, user_id: int) -> int:
+        return int(self.db.scalar(select(SyncState.purged_seq).where(SyncState.user_id == user_id)) or 0)
+
+    def purge_tombstones(self, user_id: int, before: datetime) -> int:
+        """刪除早於 before 的刪除紀錄（墓碑），並記下清除點；回傳清除筆數。"""
+        cond = (SyncRecord.user_id == user_id, SyncRecord.deleted.is_(True), SyncRecord.server_updated_at < before)
+        top = self.db.scalar(select(func.max(SyncRecord.seq)).where(*cond))
+        if top is None:
+            return 0
+        n = self.db.execute(delete(SyncRecord).where(*cond)).rowcount or 0
+        self.db.execute(update(SyncState).where(SyncState.user_id == user_id, SyncState.purged_seq < top).values(purged_seq=top))
+        return int(n)
 
     def count(self, user_id: int) -> int:
         return int(self.db.scalar(select(func.count(SyncRecord.id)).where(SyncRecord.user_id == user_id)) or 0)

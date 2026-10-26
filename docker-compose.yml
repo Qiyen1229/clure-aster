@@ -100,6 +100,7 @@ services:
       - CLURE_ADMIN_EMAIL=${CLURE_ADMIN_EMAIL:-}
       - CLURE_ADMIN_PASSWORD=${CLURE_ADMIN_PASSWORD:-}
       - CLURE_LOG_LEVEL=${CLURE_LOG_LEVEL:-INFO}
+      - CLURE_PROXY_REQUIRE_LOGIN=${CLURE_PROXY_REQUIRE_LOGIN:-true}
     volumes:
       - ./server:/app:ro                          # 後端原始碼（覆蓋 .py 即熱重載）
       - ./docker/api-entrypoint.sh:/entrypoint.sh:ro

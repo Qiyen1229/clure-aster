@@ -1,7 +1,7 @@
 {
   "name": "clure",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite --port 9122 --host",
@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "icons": "node scripts/gen-icons.mjs"
+    "icons": "node scripts/gen-icons.mjs",
+    "pack:nas": "sh scripts/pack-nas.sh"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.14.14",
@@ -22,6 +23,7 @@
     "echarts": "^5.6.0",
     "fflate": "^0.8.3",
     "i18next": "^23.16.8",
+    "jsqr": "^1.4.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-i18next": "^15.7.4",

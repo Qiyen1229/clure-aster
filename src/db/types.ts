@@ -29,6 +29,20 @@ export interface BrokerageInfo {
   settlementAccountId?: string;
 }
 
+/** 貸款（房貸、車貸…）：用來產生攤還表、記錄每期還款 */
+export interface LoanInfo {
+  kind: 'mortgage' | 'car' | 'personal' | 'student' | 'other';
+  /** 原始貸款本金（帳戶幣別最小單位） */
+  principalMinor: number;
+  /** 年利率（%） */
+  aprDec: string;
+  termMonths: number;
+  /** 第一期還款日 */
+  firstPaymentDate: string;
+  /** 預設扣款帳戶 */
+  payFromAccountId?: string;
+}
+
 export interface Account extends BaseRow {
   name: string;
   icon: string;
@@ -42,6 +56,7 @@ export interface Account extends BaseRow {
   isLiability: boolean;
   credit?: CreditCardInfo;
   brokerage?: BrokerageInfo;
+  loan?: LoanInfo;
   sort: number;
   archived: 0 | 1;
   groupId?: string;
@@ -82,6 +97,8 @@ export interface Transaction extends BaseRow {
   ts: number;
   note: string;
   merchant?: string;
+  /** 電子發票號碼（例如 AB12345678），匯入時用來避免重複 */
+  invoiceNo?: string;
   tagIds: string[];
   projectId?: string;
   attachmentIds: string[];
@@ -388,13 +405,26 @@ export interface WatchItem extends BaseRow {
 
 export interface Reminder {
   id: string;
-  kind: 'daily_log' | 'card_due' | 'budget' | 'subscription' | 'price_alert' | 'backup';
+  kind: 'daily_log' | 'card_due' | 'budget' | 'subscription' | 'price_alert' | 'backup' | 'sync' | 'insight';
   refId: string;
   dueAt: number;
   done: 0 | 1;
   notifiedAt?: number;
   title: string;
   body: string;
+}
+
+/** 自動分類規則（見 domain/rules.ts） */
+export interface CategoryRule extends BaseRow {
+  keyword: string;
+  match: 'contains' | 'equals' | 'regex';
+  kind: CategoryKind | 'any';
+  categoryId: string;
+  tagIds?: string[];
+  priority: number;
+  enabled: boolean;
+  /** 命中次數（統計用） */
+  hits: number;
 }
 
 export interface SettingRow {

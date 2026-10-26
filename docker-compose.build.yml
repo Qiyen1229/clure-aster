@@ -58,6 +58,7 @@ services:
       - CLURE_ADMIN_EMAIL=${CLURE_ADMIN_EMAIL:-}
       - CLURE_ADMIN_PASSWORD=${CLURE_ADMIN_PASSWORD:-}
       - CLURE_LOG_LEVEL=${CLURE_LOG_LEVEL:-INFO}
+      - CLURE_PROXY_REQUIRE_LOGIN=${CLURE_PROXY_REQUIRE_LOGIN:-true}
     volumes:
       - clure-data:/app/data   # SQLite 資料庫與自動產生的 JWT 金鑰
     expose:

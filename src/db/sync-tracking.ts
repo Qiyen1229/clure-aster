@@ -18,7 +18,7 @@ export const OUTBOX = 'sync_outbox';
 export const SYNCED_TABLES = [
   'accounts', 'categories', 'transactions', 'transfers', 'templates', 'budgets', 'budget_periods', 'projects', 'tags',
   'saved_filters', 'recurring_rules', 'installments', 'people', 'debts', 'goals', 'exchange_rates', 'stocks',
-  'stock_trades', 'dividends', 'watchlist', 'portfolio_snapshots', 'wishes', 'settings',
+  'stock_trades', 'dividends', 'watchlist', 'portfolio_snapshots', 'wishes', 'settings', 'rules',
 ] as const;
 export type SyncedTable = (typeof SYNCED_TABLES)[number];
 const SYNCED = new Set<string>(SYNCED_TABLES);
@@ -48,6 +48,16 @@ export function markRemote(tx: Transaction): void {
 /** 把交易標記為「預設資料」：仍會上傳，但優先順序最低（變更時間 0） */
 export function markBaseline(tx: Transaction): void {
   baselineTrans.add(coreTrans(tx));
+}
+
+/** 本機時鐘與伺服器時鐘的差（ms）；由同步引擎在每次同步時校正，避免裝置時間不準造成「最後寫入者勝」誤判 */
+let clockOffset = 0;
+export function setClockOffset(ms: number): void {
+  clockOffset = Number.isFinite(ms) ? ms : 0;
+}
+/** 以伺服器時間為準的「現在」 */
+export function syncClock(): number {
+  return Date.now() + clockOffset;
 }
 
 let listener: (() => void) | null = null;
@@ -93,7 +103,7 @@ export const syncTracking: Middleware<DBCore> = {
             }
             const res = await table.mutate(req);
             const keys = req.type === 'deleteRange' ? rangeKeys : keysOf(table, req, res.results);
-            const at = baselineTrans.has(req.trans) ? 0 : Date.now();
+            const at = baselineTrans.has(req.trans) ? 0 : syncClock();
             const entries: OutboxEntry[] = [];
             keys.forEach((key, i) => {
               if (key === undefined || key === null || res.failures?.[i]) return;

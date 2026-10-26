@@ -1,8 +1,8 @@
 /**
  * 提醒與通知。
- * 平台限制（誠實說明）：本 App 沒有後端，因此不使用需要伺服器的 Web Push；
- * 所有提醒在「開啟 App 時」與「App 在前景時」檢查，並透過 Service Worker 的 showNotification 顯示系統通知
+ * 提醒在「開啟 App 時」與「App 在前景時」檢查，並透過 Service Worker 的 showNotification 顯示系統通知
  * （iOS 16.4+ 需先「加入主畫面」並允許通知）。不支援或未授權時，提醒會顯示在 App 內的提醒中心（鈴鐺）。
+ * 啟用帳號系統時，另可開啟背景推播（services/push.ts）：由自架伺服器在 App 關閉時送出預先排好的提醒。
  */
 import { db } from '@/db/schema';
 import type { Reminder } from '@/db/types';

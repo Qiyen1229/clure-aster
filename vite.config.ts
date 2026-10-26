@@ -41,7 +41,21 @@ export default defineConfig({
   // /api 轉給本機 FastAPI（cd server && .venv/bin/uvicorn app.main:app --port 8000）
   server: { port: 9122, strictPort: true, proxy: { '/api': { target: process.env.CLURE_API_URL ?? 'http://127.0.0.1:8000', changeOrigin: false } } },
   preview: { port: 9122, strictPort: true, proxy: { '/api': { target: process.env.CLURE_API_URL ?? 'http://127.0.0.1:8000', changeOrigin: false } } },
-  build: { target: 'es2020', sourcemap: false },
+  build: {
+    target: 'es2020',
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        // 第三方套件拆成獨立 chunk：App 更新時這些檔名不變，瀏覽器與 Service Worker 不必重新下載
+        manualChunks(id: string) {
+          if (!id.includes('node_modules')) return undefined;
+          if (/[\\/]node_modules[\\/](react|react-dom|scheduler|react-router|react-router-dom|@remix-run|use-sync-external-store|zustand)[\\/]/.test(id)) return 'vendor-react';
+          if (/[\\/]node_modules[\\/](dexie|dexie-react-hooks|decimal\.js|date-fns)[\\/]/.test(id)) return 'vendor-data';
+          return undefined;
+        },
+      },
+    },
+  },
   plugins: [
     clureProxy(),
     react(),

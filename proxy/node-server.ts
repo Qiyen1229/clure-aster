@@ -23,4 +23,7 @@ createServer(async (req, res) => {
     res.writeHead(500, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ error: String(e) }));
   }
-}).listen(port, () => console.log(`clure-quote-proxy listening on :${port}`));
+}).listen(port, () => {
+  console.log(`clure-quote-proxy listening on :${port}`);
+  if (!env.ACCESS_TOKEN) console.warn('⚠ 未設定 ACCESS_TOKEN：經 NAS 的 nginx 存取時需先登入 App（auth_request），但若把 9123 埠直接對外，任何人都能使用這個代理');
+});
