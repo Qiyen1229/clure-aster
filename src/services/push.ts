@@ -2,7 +2,7 @@
  * 背景推播（Web Push）：App 關閉時也能收到提醒。
  *
  * 伺服器不知道你的帳目內容（可能已端對端加密），因此由 App 在每次開啟時算好「接下來 14 天」的提醒時間
- * （每日記帳、信用卡繳款、訂閱續約、心願冷靜期、備份），整批交給伺服器排程；伺服器到點只負責送出。
+ * （每日記帳、信用卡繳款、訂閱續約、心願冷靜期、備份、週報／月報），整批交給伺服器排程；伺服器到點只負責送出。
  * 啟用端對端加密時，推播文字不含金額與名稱。
  * 限制：iPhone 需 iOS 16.4 以上、加入主畫面，且網站需 HTTPS；到價提醒需要即時報價，仍只在 App 開啟時檢查。
  */
@@ -105,6 +105,20 @@ export async function upcomingPushItems(days = 14, now = Date.now()): Promise<Pu
   for (const w of await db.wishes.where('decideAt').belowOrEqual(addDays(today, days)).toArray()) {
     if (w.status !== 'waiting') continue;
     add({ id: `wish:${w.id}:${w.decideAt}`, at: at(w.decideAt, '09:00'), title: priv ? '🧊 心願冷靜期結束' : `🧊 你還想買「${w.name}」嗎？`, body: '冷靜期結束了，決定買或放棄吧！', url: '/plan?tab=wish' });
+  }
+  // 週報／月報：伺服器只負責送出，內容不含金額（推播排好時那一週還沒結束）；點開後在 App 內看完整摘要
+  if (cfg.weekly || cfg.monthly) {
+    const { periodStartsWithin } = await import('./summary');
+    if (cfg.weekly) {
+      for (const d of periodStartsWithin('week', today, days)) {
+        add({ id: `weekly:${d}`, at: at(d, '09:00'), title: '📊 上週摘要出爐', body: '花了多少、和前一週比、哪一類變多了？點開看看', url: '/reports/summary?unit=week' });
+      }
+    }
+    if (cfg.monthly) {
+      for (const d of periodStartsWithin('month', today, days)) {
+        add({ id: `monthly:${d}`, at: at(d, '09:00'), title: '📅 上個月的月報出爐', body: '收支、儲蓄率、分類變化一次看', url: '/reports/summary?unit=month' });
+      }
+    }
   }
   if (cfg.backup) {
     const last = (await db.meta.get('lastBackupAt'))?.value as number | undefined;

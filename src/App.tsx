@@ -55,7 +55,11 @@ const RulesPage = lazy(() => import('./features/settings/RulesPage'));
 const InvoicePage = lazy(() => import('./features/settings/InvoicePage'));
 const FirePage = lazy(() => import('./features/reports/FirePage'));
 const TaxPage = lazy(() => import('./features/reports/TaxPage'));
+const CashflowPage = lazy(() => import('./features/reports/CashflowPage'));
+const SummaryPage = lazy(() => import('./features/reports/SummaryPage'));
 const AdminPage = lazy(() => import('./features/admin/AdminPage'));
+const InboxPage = lazy(() => import('./features/inbox/InboxPage'));
+const WhatsNewSheet = lazy(() => import('./features/onboarding/Highlights').then((m) => ({ default: m.WhatsNewSheet })));
 
 /** 不顯示底部 Tab Bar 的全螢幕頁面 */
 const FULLSCREEN = [/^\/onboarding/, /^\/reports\/review/, /^\/reports\/print/];
@@ -101,6 +105,7 @@ function AddDeepLink() {
         date: date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : undefined,
         tagIds: tagIds.length ? tagIds : undefined,
         projectId: project?.id,
+        quickText: p.get('text')?.slice(0, 300) || undefined,
       });
       navigate('/', { replace: true });
     })();
@@ -208,6 +213,8 @@ export default function App() {
           <Route path="/reports/print" element={<PrintReport />} />
           <Route path="/reports/fire" element={<FirePage />} />
           <Route path="/reports/tax" element={<TaxPage />} />
+          <Route path="/reports/cashflow" element={<CashflowPage />} />
+          <Route path="/reports/summary" element={<SummaryPage />} />
           <Route path="/invest/stock/:id" element={<StockDetailPage />} />
           <Route path="/invest/watchlist" element={<WatchlistPage />} />
           <Route path="/invest/dividends" element={<DividendsPage />} />
@@ -222,12 +229,14 @@ export default function App() {
           <Route path="/settings/widgets" element={<WidgetsPage />} />
           <Route path="/settings/rules" element={<RulesPage />} />
           <Route path="/settings/invoice" element={<InvoicePage />} />
+          <Route path="/inbox" element={<InboxPage />} />
           <Route path="/admin/*" element={<AdminPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
       {!fullscreen && <TabBar />}
       <AddSheetHost />
+      {onboarded && !fullscreen && <Suspense fallback={null}><WhatsNewSheet /></Suspense>}
       <ActionSheetHost />
       <SnackbarHost />
       <UpdatePrompt />

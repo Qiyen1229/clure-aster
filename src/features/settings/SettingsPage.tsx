@@ -266,7 +266,8 @@ export default function SettingsPage() {
       <div className="section-title">資料</div>
       <div className="list">
         <Row label="備份、匯入與匯出" sub="JSON 完整備份／還原、CSV、Excel、PDF、銀行對帳單與 Moze 匯入" onClick={() => navigate('/settings/backup')} />
-        <Row label="電子發票" sub="掃描紙本發票 QR Code、匯入手機條碼載具消費明細" onClick={() => navigate('/settings/invoice')} />
+        {AUTH_ENABLED && <Row label="自動記帳收件匣" sub="Apple Pay 付款、銀行刷卡簡訊、對 Siri 說一句話，透過 iPhone 捷徑自動記帳" onClick={() => navigate('/inbox')} />}
+        <Row label="電子發票" sub="手機條碼載具自動記帳、掃描紙本發票 QR Code、匯入消費明細" onClick={() => navigate('/settings/invoice')} />
         {sample ? (
           <Row label="清除範例資料" sub="只會刪除範例帳戶與帳目，不影響你自己的資料">
             <button className="btn small danger" disabled={busy === 'sample'} onClick={() => run('sample', async () => {

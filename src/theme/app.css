@@ -759,3 +759,97 @@ button.row:active, a.row:active { transform: scale(0.985); transition-duration: 
 /* 設定 → 文字大小的預覽列 */
 .font-preview { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); font-size: 1rem; }
 .font-preview .num { font-weight: 600; }
+
+/* ---------- 一句話記帳（記帳面板最上方） ---------- */
+.quick-bar {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; margin: 2px 0 8px; padding: 0 12px;
+  border-radius: 12px; background: var(--accent-soft); color: var(--accent-text); font-size: 0.9rem; font-weight: 600; text-align: left;
+}
+.quick-bar .row-main { flex: none; }
+.quick-bar-eg { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; text-align: right; font-size: 0.8rem; }
+.quick-panel { margin: 2px 0 10px; padding: 10px; border-radius: 14px; background: var(--surface-2); display: flex; flex-direction: column; gap: 8px; }
+.quick-input { display: flex; gap: 8px; align-items: flex-end; }
+.quick-input textarea {
+  flex: 1; min-width: 0; resize: none; border: 0; border-radius: 10px; padding: 8px 10px; background: var(--surface);
+  color: var(--text); font: inherit; font-size: 16px; line-height: 1.4; outline: none;
+}
+.quick-input textarea:focus { box-shadow: 0 0 0 2px var(--accent); }
+.quick-actions { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+.quick-hint { margin: 0 2px; font-size: 0.8rem; color: var(--warning); }
+.quick-examples { display: flex; gap: 6px; overflow-x: auto; }
+.quick-examples .pill { background: var(--surface); }
+.quick-list { margin: 0; }
+.quick-list .row-sub { display: block; }
+
+/* ---------- 收件匣 ---------- */
+.inbox-banner {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; margin: 4px 0 8px; padding: 0 14px;
+  border-radius: var(--radius); background: var(--accent-soft); color: var(--text); font-size: 0.9rem; text-align: left;
+}
+.inbox-banner b { color: var(--accent-text); }
+.inbox-intro summary, .inbox-guides summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; list-style: none; }
+.inbox-intro summary::-webkit-details-marker, .inbox-guides summary::-webkit-details-marker { display: none; }
+.inbox-intro summary::after, .inbox-guides summary::after { content: '›'; margin-left: auto; color: var(--text-3); font-size: 1.2rem; transition: transform 0.2s ease; }
+.inbox-intro[open] summary::after, .inbox-guides details[open] summary::after { transform: rotate(90deg); }
+.inbox-steps { list-style: none; padding: 0; margin: 10px 0; display: flex; flex-direction: column; gap: 10px; }
+.inbox-steps li { display: flex; gap: 10px; align-items: flex-start; font-size: 0.88rem; }
+.inbox-steps li > span { flex: none; width: 36px; height: 36px; border-radius: 10px; background: var(--surface-2); display: grid; place-items: center; font-size: 1.1rem; }
+.inbox-row { flex-wrap: wrap; row-gap: 6px; }
+.inbox-row .row-sub { display: block; white-space: normal; }
+.inbox-actions { display: flex; gap: 6px; width: 100%; justify-content: flex-end; }
+.inbox-actions .pill { height: 32px; }
+.accent-pill { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+.inbox-token code, .inbox-guides code { font-size: 0.8rem; word-break: break-all; background: var(--surface-2); padding: 1px 5px; border-radius: 6px; }
+.copy-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 0.5px solid var(--sep); }
+.copy-row .label { flex: none; width: 52px; font-size: 0.8rem; color: var(--text-2); }
+.copy-row code { flex: 1; min-width: 0; }
+.inbox-guides { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.inbox-guides details { margin: 0; }
+.inbox-guides ol { padding-left: 20px; font-size: 0.88rem; line-height: 1.55; }
+.inbox-guides li + li { margin-top: 4px; }
+.inbox-guides p { font-size: 0.8rem; margin-bottom: 0; }
+.inbox-fields { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.inbox-fields td { padding: 6px 4px; border-top: 0.5px solid var(--sep); vertical-align: top; }
+.inbox-fields td:first-child { width: 88px; }
+
+/* ---------- 現金流預測 ---------- */
+.cash-warn { border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent); background: color-mix(in srgb, var(--danger) 8%, var(--surface)); }
+.cash-warn p { margin: 6px 0 0; font-size: 0.88rem; }
+
+/* ---------- 週報／月報 ---------- */
+.sum-nav { display: flex; align-items: center; justify-content: space-between; margin: 8px 0; }
+.sum-nav b { font-size: 1rem; }
+.sum-hero .k { font-size: 0.8rem; }
+.sum-hero > .v { font-size: 2rem; font-weight: 700; letter-spacing: -0.02em; }
+.sum-chip { display: inline-block; margin-top: 4px; padding: 3px 10px; border-radius: 999px; font-size: 0.8rem; font-weight: 600; }
+.sum-chip.good { color: var(--success); background: color-mix(in srgb, var(--success) 14%, transparent); }
+.sum-chip.bad { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.sum-insights { margin: 8px 0 0; padding-left: 20px; font-size: 0.9rem; line-height: 1.6; }
+.sum-bar { position: relative; display: block; height: 6px; margin: 6px 0 2px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+.sum-bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--accent); }
+.sum-bar i.prev { background: none; border-right: 2px solid var(--text-3); border-radius: 0; }
+
+/* ---------- 用問的查帳 ---------- */
+.ask-examples { display: flex; flex-wrap: wrap; gap: 8px; }
+.ask-answer { background: var(--accent-soft); }
+.ask-text { margin: 0; font-size: 1rem; font-weight: 600; line-height: 1.5; }
+.ask-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.ask-chips .chip { font-size: 0.75rem; padding: 3px 8px; border-radius: 999px; background: var(--surface); }
+
+/* ---------- 特色功能卡片（導覽、新功能介紹） ---------- */
+.feat-track { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 -24px; padding: 4px 24px 8px; scroll-padding: 0 24px; overscroll-behavior-x: contain; }
+.sheet .feat-track { margin: 0 -16px; padding: 4px 16px 8px; scroll-padding: 0 16px; }
+.feat-card {
+  flex: none; width: 84%; max-width: 340px; scroll-snap-align: start; display: flex; flex-direction: column; gap: 8px;
+  padding: 18px; border-radius: var(--radius-l); background: var(--surface); box-shadow: var(--shadow);
+}
+.feat-card h2 { margin: 0; font-size: 1.15rem; }
+.feat-card p { margin: 0; color: var(--text-2); font-size: 0.9rem; line-height: 1.55; flex: 1; }
+.feat-card .btn { align-self: flex-start; }
+.feat-icon { width: 52px; height: 52px; border-radius: 14px; background: var(--accent-soft); display: grid; place-items: center; font-size: 1.6rem; }
+.feat-where { font-size: 0.78rem; color: var(--text-3); }
+.try-box textarea {
+  width: 100%; resize: none; border: 0; border-radius: 12px; padding: 10px 12px; background: var(--surface); color: var(--text);
+  font: inherit; font-size: 16px; line-height: 1.4; outline: none; box-shadow: var(--shadow); margin-bottom: 8px;
+}
+.try-box textarea:focus { box-shadow: 0 0 0 2px var(--accent); }

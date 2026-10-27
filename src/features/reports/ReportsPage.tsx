@@ -339,6 +339,16 @@ export default function ReportsPage() {
             <Icon name="chevronR" />
           </button>
           <div className="list" style={{ marginTop: 12 }}>
+            <button className="row" onClick={() => navigate('/reports/summary?unit=week')}>
+              <span aria-hidden="true" style={{ fontSize: 22 }}>📊</span>
+              <span className="row-main"><span className="row-title">週報／月報</span><span className="row-sub" style={{ display: 'block' }}>上週、上個月花了多少，和前一期比哪裡變多了</span></span>
+              <Icon name="chevronR" className="row-chev" />
+            </button>
+            <button className="row" onClick={() => navigate('/reports/cashflow')}>
+              <span aria-hidden="true" style={{ fontSize: 22 }}>🔮</span>
+              <span className="row-main"><span className="row-title">現金流預測</span><span className="row-sub" style={{ display: 'block' }}>未來 30～180 天的錢夠不夠用、哪天哪個帳戶會不夠付卡費</span></span>
+              <Icon name="chevronR" className="row-chev" />
+            </button>
             <button className="row" onClick={() => navigate('/reports/fire')}>
               <span aria-hidden="true" style={{ fontSize: 22 }}>🏝️</span>
               <span className="row-main"><span className="row-title">財務自由試算</span><span className="row-sub" style={{ display: 'block' }}>依目前淨資產與儲蓄，模擬幾歲可以不用工作</span></span>

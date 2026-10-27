@@ -36,14 +36,17 @@ export async function requestPermission(): Promise<PermissionState> {
   return r as PermissionState;
 }
 
-/** 顯示通知（系統通知 + 寫入提醒中心）；同一個 id 只會通知一次 */
-export async function notify(title: string, body: string, url = '/', kind: NotifyKind = 'daily_log', dedupeId?: string) {
+/**
+ * 顯示通知（系統通知 + 寫入提醒中心）；同一個 id 只會通知一次。
+ * system=false：只寫入提醒中心（背景推播已經送過系統通知時，避免重複跳出）
+ */
+export async function notify(title: string, body: string, url = '/', kind: NotifyKind = 'daily_log', dedupeId?: string, opts: { system?: boolean } = {}) {
   const id = dedupeId ?? `${kind}:${title}:${todayKey()}`;
   if (await db.reminders.get(id)) return;
   const row: Reminder = { id, kind, refId: url, dueAt: Date.now(), done: 0, notifiedAt: Date.now(), title, body };
   await db.reminders.put(row);
   const { notify: cfg } = useSettings.getState();
-  if (!cfg.enabled || notificationSupport() !== 'granted') return;
+  if (opts.system === false || !cfg.enabled || notificationSupport() !== 'granted') return;
   try {
     const reg = await navigator.serviceWorker.ready;
     await reg.showNotification(title, { body, icon: '/icons/icon-192.png', badge: '/icons/favicon-32.png', tag: id, data: { url } });
@@ -108,6 +111,21 @@ export async function runReminderChecks(now = new Date()) {
     if (w.status !== 'waiting') continue;
     await notify(`🧊 你還想買「${w.name}」嗎？`, `冷靜期${w.decideAt <= today ? '已結束' : '明天結束'}，${formatMoney(w.priceMinor, w.currency)}。決定買或放棄吧！`,
       '/plan?tab=wish', 'subscription', `wish:${w.id}:${w.decideAt}`);
+  }
+
+  // 週報／月報：新的一週（月）開始那天 9 點後，摘要上一週（月）；有開背景推播時系統通知已由伺服器送出
+  for (const unit of ['week', 'month'] as const) {
+    if (!(unit === 'week' ? cfg.weekly : cfg.monthly)) continue;
+    const { summaryRange, loadSummary } = await import('./summary');
+    const curStart = summaryRange(unit, today).range.start;
+    if (now.getTime() < new Date(`${curStart}T09:00:00`).getTime()) continue;
+    const id = `${unit === 'week' ? 'weekly' : 'monthly'}:${curStart}`;
+    if (await db.reminders.get(id)) continue;
+    const sum = await loadSummary(unit, addDays(curStart, -1));
+    if (!sum.count) continue;
+    const label = unit === 'week' ? '上週' : `${Number(sum.range.start.slice(5, 7))} 月`;
+    await notify(`${unit === 'week' ? '📊' : '📅'} ${label}花了 ${formatMoney(sum.expense, s.baseCurrency, { decimals: 0 })}`,
+      sum.insights.slice(0, 2).join(' '), `/reports/summary?unit=${unit}&date=${sum.range.start}`, 'insight', id, { system: !cfg.push });
   }
 
   // 備份提醒

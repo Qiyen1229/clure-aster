@@ -65,6 +65,10 @@ export interface NotifySettings {
   priceAlert: boolean;
   backup: boolean;
   backupDays: number;
+  /** 每週摘要（週一早上：上週花了多少、和前一週比） */
+  weekly: boolean;
+  /** 每月摘要（每月 1 日早上：上個月的收支、分類變化） */
+  monthly: boolean;
   /** 背景推播（Web Push，經自架伺服器；App 關閉時也會提醒） */
   push: boolean;
 }
@@ -102,6 +106,19 @@ export interface Settings {
   tax: { netIncome: number };
   /** 電子發票：手機條碼載具與記帳方式 */
   einvoice: EinvoiceSettings;
+  /** 自動記帳收件匣（iPhone 捷徑：Apple Pay、簡訊、Siri） */
+  inbox: InboxSettings;
+  /** 已看過哪一版的「新功能介紹」（隨帳號同步，換裝置不會再跳一次） */
+  seenWhatsNew: string;
+}
+
+export interface InboxSettings {
+  /** 金額看得懂的項目開啟 App 時直接記帳（否則全部放在收件匣等確認） */
+  autoBook: boolean;
+  /** 判斷不出帳戶時記到這個帳戶 */
+  defaultAccountId: string;
+  /** Apple Pay 卡片名稱 → 帳戶（確認記帳時自動學習） */
+  cardMap: Record<string, string>;
 }
 
 export interface EinvoiceSettings {
@@ -164,12 +181,14 @@ export const DEFAULT_SETTINGS: Settings = {
   lock: { enabled: false, pinHash: '', salt: '', iterations: 210000, webauthn: null, autoLockSec: 60 },
   notify: {
     enabled: false, daily: true, dailyTime: '21:00', cardDue: true, cardDueDays: 3, budget: true, subscription: true,
-    priceAlert: true, backup: true, backupDays: 14, push: false,
+    priceAlert: true, backup: true, backupDays: 14, weekly: true, monthly: true, push: false,
   },
   importProfiles: [],
   fire: { birthYear: 1995, retireAge: 55, endAge: 90, returnPct: 6, volPct: 15, inflationPct: 2, swrPct: 4, annualExpense: 0, annualSaving: 0, startAssets: 0 },
   tax: { netIncome: 0 },
   einvoice: { cardNo: '', verifyCode: '', defaultAccountId: '', autoSync: true },
+  inbox: { autoBook: false, defaultAccountId: '', cardMap: {} },
+  seenWhatsNew: '',
 };
 
 export async function getSetting<K extends keyof Settings>(key: K): Promise<Settings[K]> {

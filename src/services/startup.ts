@@ -1,7 +1,7 @@
 /**
  * 開啟 App 時的補算任務（依序、不阻塞首屏）：
  *  ① 週期帳目到期展開 ② 分期期數入帳 ③ 匯率（>12h）④ 股價更新 ⑤ 到價提醒
- *  ⑥ 每日快照補齊 ⑦ 本地提醒（帳單、預算、訂閱、備份）
+ *  ⑥ 每日快照補齊 ⑦ 本地提醒（帳單、預算、訂閱、備份、週報／月報）⑧ 電子發票載具 ⑨ 收件匣
  * 盤中且畫面可見時，每 N 秒自動刷新股價（useQuoteAutoRefresh）。
  */
 import { useEffect } from 'react';
@@ -77,6 +77,11 @@ export async function runStartupTasks() {
     if (r && (r.created || r.matched)) {
       useUI.getState().showSnack({ text: `電子發票：新記 ${r.created} 筆${r.matched ? `、對到 ${r.matched} 筆手動記帳` : ''}${r.usedDefault ? `（${r.usedDefault} 筆記到預設帳戶）` : ''}` });
     }
+  });
+  // 自動記帳收件匣（iPhone 捷徑送來的 Apple Pay、簡訊、Siri）
+  await step('inbox', async () => {
+    const r = await (await import('./inbox')).processInboxOnStartup();
+    if (r?.booked) useUI.getState().showSnack({ text: `收件匣：自動記下 ${r.booked} 筆${r.pending ? `，${r.pending} 筆待確認` : ''}` });
   });
 }
 

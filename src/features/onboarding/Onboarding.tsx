@@ -1,5 +1,5 @@
 /**
- * 首次使用引導：歡迎（本機資料聲明）→ 主幣別 → 外觀 → 第一個帳戶 → 範例資料。
+ * 首次使用引導：歡迎（本機資料聲明）→ 主幣別 → 外觀 → 第一個帳戶 → 特色功能 → 試試一句話記帳 → 範例資料。
  */
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -11,6 +11,7 @@ import { evaluate } from '@/domain/calc-expr';
 import { useSettings } from '@/stores/settings';
 import { Segmented } from '@/ui/controls';
 import { ACCENTS } from '../settings/SettingsPage';
+import { FeatureCards, TryQuickEntry, WHATS_NEW_VERSION } from './Highlights';
 
 export default function Onboarding() {
   const s = useSettings();
@@ -20,7 +21,7 @@ export default function Onboarding() {
   const [accType, setAccType] = useState<AccountType>('cash');
   const [balance, setBalance] = useState('');
   const [busy, setBusy] = useState(false);
-  const STEPS = 5;
+  const STEPS = 7;
 
   const finish = async (withSample: boolean) => {
     setBusy(true);
@@ -34,6 +35,8 @@ export default function Onboarding() {
         });
       }
       if (withSample) await loadSampleData();
+      // 導覽已經介紹過新功能，不用再跳「新功能」
+      s.set('seenWhatsNew', WHATS_NEW_VERSION);
       s.set('onboarded', true);
       navigate('/', { replace: true });
     } finally {
@@ -124,6 +127,26 @@ export default function Onboarding() {
       )}
 
       {step === 4 && (
+        <>
+          <h1>幾個你會喜歡的功能</h1>
+          <p>左右滑動看看。之後都可以在設定或報表裡找到。</p>
+          <FeatureCards />
+          <div className="grow" />
+          <button className="btn" onClick={next}>下一步</button>
+        </>
+      )}
+
+      {step === 5 && (
+        <>
+          <h1>試試一句話記帳</h1>
+          <p>不用一格一格選，打一句話就好。金額、日期、分類都會自動判斷。</p>
+          <TryQuickEntry accountName={accName} currency={s.baseCurrency} />
+          <div className="grow" />
+          <button className="btn" style={{ marginTop: 16 }} onClick={next}>下一步</button>
+        </>
+      )}
+
+      {step === 6 && (
         <>
           <h1>要先看看範例嗎？</h1>
           <p>載入 90 天的示範帳目，快速體驗月曆、列表與報表。範例資料可在「設定 → 資料」一鍵清除，不影響你自己的帳。</p>

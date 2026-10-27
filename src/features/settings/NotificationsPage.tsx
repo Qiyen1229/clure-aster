@@ -76,7 +76,7 @@ export default function NotificationsPage() {
         <>
           <div className="section-title">背景推播</div>
           <div className="list">
-            <div className="field"><span className="label" style={{ flex: 1 }}>App 關閉時也提醒<span className="row-sub" style={{ display: 'block' }}>經你的伺服器發送：每日記帳、繳款、續約、心願、備份</span></span>
+            <div className="field"><span className="label" style={{ flex: 1 }}>App 關閉時也提醒<span className="row-sub" style={{ display: 'block' }}>經你的伺服器發送：每日記帳、繳款、續約、心願、週報月報、備份</span></span>
               <Switch checked={n.push} label="背景推播" onChange={async (v) => {
                 setPushBusy(true);
                 try {
@@ -99,6 +99,8 @@ export default function NotificationsPage() {
         {row('預算警示', 'budget', '達到警示門檻或超支時')}
         {row('訂閱與週期帳目', 'subscription', '續約前提醒、待確認項目')}
         {row('到價提醒', 'priceAlert', '觀察清單中設定的價格')}
+        {row('每週摘要', 'weekly', '每週第一天早上：上週花了多少、和前一週比')}
+        {row('每月月報', 'monthly', '每月第一天早上：收支、儲蓄率、哪一類變多了')}
         {row('備份提醒', 'backup')}
         {n.backup && <div className="field"><span className="label">每隔</span><select value={n.backupDays} onChange={(e) => set({ backupDays: Number(e.target.value) })}>{[7, 14, 30, 60].map((d) => <option key={d} value={d}>{d} 天</option>)}</select></div>}
       </div>

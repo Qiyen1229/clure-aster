@@ -10,6 +10,7 @@ import { ACCOUNT_TYPES, addAccount, deleteOrArchiveAccount, updateAccount } from
 import { CURRENCIES, currencyInfo, fromMinor, toMinor } from '@/domain/money';
 import { evaluate } from '@/domain/calc-expr';
 import { CATEGORY_COLORS } from '@/db/seed/categories';
+import { useAccounts } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
 import { useUI } from '@/stores/ui';
 import { Sheet } from '@/ui/Sheet';
@@ -32,6 +33,8 @@ function Inner({ onClose, account }: { onClose: () => void; account?: Account })
   const [limit, setLimit] = useState(account?.credit ? fromMinor(account.credit.limitMinor, account.currency).toString() : '');
   const [statementDay, setStatementDay] = useState(account?.credit?.statementDay ?? 20);
   const [dueDay, setDueDay] = useState(account?.credit?.dueDay ?? 5);
+  const [autoPay, setAutoPay] = useState(account?.credit?.autoPayAccountId ?? '');
+  const { list: allAccounts } = useAccounts();
   const [note, setNote] = useState(account?.note ?? '');
   const [loanOn, setLoanOn] = useState(!!account?.loan);
   const [loanKind, setLoanKind] = useState<LoanInfo['kind']>(account?.loan?.kind ?? 'mortgage');
@@ -52,7 +55,7 @@ function Inner({ onClose, account }: { onClose: () => void; account?: Account })
     const input = {
       name: name.trim(), type, currency, icon: icon || info.icon, color, includeInNetWorth: include, isLiability,
       initialBalanceMinor: initialMinor, note,
-      credit: type === 'credit' ? { limitMinor: toMinor(evaluate(limit || '0') ?? 0, currency), statementDay, dueDay } : undefined,
+      credit: type === 'credit' ? { limitMinor: toMinor(evaluate(limit || '0') ?? 0, currency), statementDay, dueDay, autoPayAccountId: autoPay || undefined } : undefined,
       loan: type === 'loan' && loanOn ? {
         kind: loanKind, principalMinor: toMinor(evaluate(loanPrincipal || '0') ?? 0, currency), aprDec: loanApr || '0',
         termMonths: Math.max(1, Math.round(Number(loanTerm) || 1)), firstPaymentDate: loanFirst, payFromAccountId: account?.loan?.payFromAccountId,
@@ -123,7 +126,15 @@ function Inner({ onClose, account }: { onClose: () => void; account?: Account })
                 {Array.from({ length: 31 }, (_, i) => <option key={i} value={i + 1}>每月 {i + 1} 日</option>)}
               </select>
             </div>
+            <div className="field">
+              <label htmlFor="cc-pay">扣繳帳戶</label>
+              <select id="cc-pay" value={autoPay} onChange={(e) => setAutoPay(e.target.value)}>
+                <option value="">（未設定）</option>
+                {allAccounts.filter((a) => ['bank', 'cash', 'epay', 'stored'].includes(a.type) && a.currency === currency).map((a) => <option key={a.id} value={a.id}>{a.icon} {a.name}</option>)}
+              </select>
+            </div>
           </div>
+          <p className="muted" style={{ fontSize: '0.78rem', margin: '4px 8px 0' }}>扣繳帳戶用在「現金流預測」：繳款日從這個帳戶扣卡費。</p>
         </>
       )}
 

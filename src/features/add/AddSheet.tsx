@@ -31,6 +31,8 @@ import { AccountPicker, CurrencyPicker, ProjectPicker, TagPicker } from './picke
 import { computeSplit, SplitSheet, type SplitState } from './SplitSheet';
 import { addDebts, addLoan, findOrCreatePerson, removeLoan } from '@/db/repo/plan';
 import { countRuleHit, suggestCategory, type CategorySuggestion } from '@/services/autocat';
+import type { ResolvedDraft } from '@/services/quickentry';
+import { QuickEntry } from './QuickEntry';
 
 const MODES: { value: AddMode; label: string }[] = [
   { value: 'expense', label: '支出' },
@@ -315,7 +317,10 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
         }
       }
       if (account) settings.set('lastAccountId', account.id);
-      if (!editing && settings.continuousAdd) {
+      if (prefill?.inboxId && !editing) {
+        void import('@/services/inbox').then((m) => m.finishInboxItem(prefill.inboxId!, { card: prefill.inboxCard, accountId: account?.id })).catch(() => undefined);
+      }
+      if (!editing && settings.continuousAdd && !prefill?.inboxId) {
         // 再記一筆：保留分類／帳戶／日期，清空金額與備註
         atts.forEach((a) => URL.revokeObjectURL(a.url));
         reset();
@@ -407,6 +412,26 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
     setPicker(null);
   };
 
+  // ── 一句話記帳：把解析結果帶入面板 ──
+  const applyDraft = (d: ResolvedDraft) => {
+    setMode(d.kind);
+    setExpr(String(d.amount));
+    setDate(d.date);
+    if (accMap.has(d.accountId)) setAccountId(d.accountId);
+    if (d.kind === 'transfer' && d.toAccountId) setToAccountId(d.toAccountId);
+    setCurrency(d.currency && d.currency !== accMap.get(d.accountId)?.currency ? d.currency : '');
+    setFxRate('');
+    if (d.categoryId && catMap.has(d.categoryId)) {
+      const c = catMap.get(d.categoryId)!;
+      catTouched.current = true;
+      setAutoCat(null);
+      setCatByKind((s) => ({ ...s, [c.kind]: c.id }));
+      setMainOpen(c.parentId || c.id);
+    }
+    setNote(d.note);
+    if (d.tagIds.length) setTagIds((ids) => [...new Set([...ids, ...d.tagIds.filter((x) => tagMap.has(x))])]);
+  };
+
   // ── 照片 ──
   const onPhoto = async (files: FileList | null) => {
     if (!files?.length) return;
@@ -468,6 +493,14 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
         {/* 上半部可捲動、數字鍵盤固定在下方：內容永遠停在鍵盤上緣，不會被鍵盤蓋住 */}
         <div className="add-layout">
           <div className="add-scroll">
+          {!editing && (
+            <QuickEntry initialText={prefill?.quickText} accMap={accMap} catMap={catMap} onApply={applyDraft}
+              onBooked={() => {
+                saved.current = true;
+                if (prefill?.inboxId) void import('@/services/inbox').then((m) => m.finishInboxItem(prefill.inboxId!, {})).catch(() => undefined);
+                onClose();
+              }} />
+          )}
           {!editTransferId && !(editTxId && mode === 'adjust') && (
             <Segmented value={mode} onChange={(m) => {
               setMode(m);

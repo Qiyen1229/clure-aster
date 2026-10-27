@@ -17,6 +17,7 @@ import { Calendar } from './Calendar';
 import { Widgets } from './Widgets';
 import { RemindersSheet, useUnreadCount } from './RemindersSheet';
 import { LedgerRow } from '../ledger/LedgerRow';
+import { useInboxCount } from '@/services/inbox';
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -27,6 +28,7 @@ export default function HomePage() {
   const dateInput = useRef<HTMLInputElement>(null);
   const [remindersOpen, setRemindersOpen] = useState(false);
   const unread = useUnreadCount();
+  const inboxCount = useInboxCount((s) => s.n);
 
   const sel = fromDateKey(selected);
   const year = sel.getFullYear();
@@ -91,6 +93,14 @@ export default function HomePage() {
 
       <button className="cal-handle" aria-label={calendarCollapsed ? '展開月曆' : '收合月曆'} aria-expanded={!calendarCollapsed}
         onClick={() => set('calendarCollapsed', !calendarCollapsed)} />
+
+      {inboxCount > 0 && (
+        <button className="inbox-banner" onClick={() => navigate('/inbox')}>
+          <span aria-hidden="true">📥</span>
+          <span className="row-main">收件匣有 <b>{inboxCount}</b> 筆待確認</span>
+          <Icon name="chevronR" size={18} />
+        </button>
+      )}
 
       <Widgets />
 
