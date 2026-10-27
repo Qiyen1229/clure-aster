@@ -208,3 +208,39 @@ describe('文字大小設定', () => {
     expect(await db.sync_outbox.get('settings|"theme"')).toBeDefined();
   });
 });
+
+describe('電子發票記帳：帳戶判斷與對到手動記帳', () => {
+  it('規則指定帳戶 → 商家記憶 → 預設帳戶；手動記過的補上發票號碼', async () => {
+    const { importInvoices } = await import('@/services/einvoice');
+    const { todayKey, addDays } = await import('@/domain/period');
+    await db.delete();
+    await db.open();
+    await bootstrap();
+    invalidateAutocat();
+    const mk = (name: string) => addAccount({ name, icon: '', color: '', type: 'bank', currency: 'TWD', initialBalanceMinor: 0, includeInNetWorth: true, isLiability: false });
+    const cash = await mk('現金'), pay = await mk('全支付'), card = await mk('信用卡');
+    const d = (n: number) => addDays(todayKey(), n);
+    await saveRule({ keyword: '全聯', match: 'contains', kind: 'expense', categoryId: 'exp-shopping-daily', accountId: pay.id, priority: 100, enabled: true });
+    // 過去在星巴克都用信用卡
+    for (let i = 0; i < 3; i++) await addTransaction({ type: 'expense', accountId: card.id, categoryId: 'exp-food-drink', amountMinor: 15000, currency: 'TWD', date: d(-20 - i), ts: i, note: '星巴克' });
+    // 手動記過的 7-11 85 元（沒有發票號碼）
+    const manual = await addTransaction({ type: 'expense', accountId: cash.id, categoryId: 'exp-food', amountMinor: 8500, currency: 'TWD', date: d(-1), ts: 9, note: '早餐' });
+    invalidateAutocat();
+    const inv = (number: string, sellerName: string, amount: number, date: string) => ({ number, date, amount, sellerId: '', sellerName, status: '已確認', items: [] });
+    const r = await importInvoices([
+      inv('AA00000001', '全聯實業', 356, d(-2)),
+      inv('AA00000002', '星巴克 信義', 150, d(-2)),
+      inv('AA00000003', '統一超商', 85, d(0)),
+      inv('AA00000004', '不知名小店', 60, d(-3)),
+    ], { defaultAccountId: cash.id });
+    expect(r).toMatchObject({ created: 3, matched: 1, skipped: 0, usedDefault: 1 });
+    const all = await db.transactions.toArray();
+    const by = (n: string) => all.find((t) => t.invoiceNo === n)!;
+    expect(by('AA00000001')).toMatchObject({ accountId: pay.id, categoryId: 'exp-shopping-daily' });
+    expect(by('AA00000002')).toMatchObject({ accountId: card.id, categoryId: 'exp-food-drink' });
+    expect(by('AA00000003').id).toBe(manual.id); // 對到手動記帳，不新增
+    expect(by('AA00000004').accountId).toBe(cash.id);
+    // 再匯入一次全部略過
+    expect((await importInvoices([inv('AA00000001', '全聯實業', 356, d(-2))], { defaultAccountId: cash.id })).skipped).toBe(1);
+  });
+});

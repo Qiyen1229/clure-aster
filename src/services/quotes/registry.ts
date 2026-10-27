@@ -25,6 +25,15 @@ function ok(id: string) { breaker.delete(id); }
 
 export interface RefreshResult { updated: number; failed: Stock[]; sources: Set<string>; errors: string[] }
 
+/** 把各資料源的錯誤整理成一句使用者看得懂的原因 */
+export function describeQuoteErrors(errors: string[]): string {
+  if (!errors.length) return '所有資料源皆失敗';
+  if (errors.some((e) => /HTTP 401/.test(e))) return '報價代理拒絕存取：請重新整理或重新登入；若有設定代理權杖，請確認與 NAS 上的 PROXY_ACCESS_TOKEN 相同';
+  if (errors.some((e) => /Failed to fetch|NetworkError|Load failed|無法連線/.test(e))) return '無法連到報價代理：若代理網址不是同源的 /proxy，請確認網址正確且已加入 CSP 的 connect-src';
+  if (errors.every((e) => /HTTP 429/.test(e))) return '資料源暫時限流（429），請稍後再試或在設定中填入 Finnhub／Twelve Data API Key';
+  return errors[0];
+}
+
 let inflight: Promise<RefreshResult> | null = null;
 
 /** 更新多檔報價（同時間只會有一個更新在跑） */

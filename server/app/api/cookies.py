@@ -11,7 +11,10 @@ ACCESS_COOKIE = "clure_access"
 REFRESH_COOKIE = "clure_refresh"
 CSRF_COOKIE = "csrf_token"
 CSRF_HEADER = "x-csrf-token"
-ACCESS_PATH = "/api"
+# Access Token 需要送到 /api 與 /proxy（nginx auth_request 以它判斷報價代理的登入狀態），因此用整個網站路徑。
+# 1.2.1 以前是 /api：登入、刷新、登出時一併刪除舊路徑的 Cookie，避免同名 Cookie 並存。
+ACCESS_PATH = "/"
+LEGACY_ACCESS_PATH = "/api"
 REFRESH_PATH = "/api/auth"
 
 
@@ -30,6 +33,7 @@ def _max_age(exp: datetime) -> int:
 def set_auth_cookies(response: Response, request: Request, *, access: str, access_exp: datetime, refresh: str, refresh_exp: datetime) -> None:
     s = get_settings()
     secure = is_secure(request)
+    response.delete_cookie(ACCESS_COOKIE, path=LEGACY_ACCESS_PATH, httponly=True, secure=secure, samesite=s.cookie_samesite)
     response.set_cookie(ACCESS_COOKIE, access, max_age=_max_age(access_exp), path=ACCESS_PATH, httponly=True, secure=secure, samesite=s.cookie_samesite)
     response.set_cookie(REFRESH_COOKIE, refresh, max_age=_max_age(refresh_exp), path=REFRESH_PATH, httponly=True, secure=secure, samesite=s.cookie_samesite)
 
@@ -38,6 +42,7 @@ def clear_auth_cookies(response: Response, request: Request) -> None:
     s = get_settings()
     secure = is_secure(request)
     response.delete_cookie(ACCESS_COOKIE, path=ACCESS_PATH, httponly=True, secure=secure, samesite=s.cookie_samesite)
+    response.delete_cookie(ACCESS_COOKIE, path=LEGACY_ACCESS_PATH, httponly=True, secure=secure, samesite=s.cookie_samesite)
     response.delete_cookie(REFRESH_COOKIE, path=REFRESH_PATH, httponly=True, secure=secure, samesite=s.cookie_samesite)
 
 

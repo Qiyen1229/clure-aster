@@ -15,6 +15,7 @@ export interface RuleLike {
   kind: CategoryKind | 'any';
   categoryId: string;
   tagIds?: string[];
+  accountId?: string;
   priority: number;
   enabled?: boolean;
 }

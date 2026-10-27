@@ -11,6 +11,7 @@ import { formatMoney } from '@/domain/money';
 import { usePortfolio, fmtShares, type Holding } from '@/services/portfolio';
 import { snapshotSeries } from '@/services/networth';
 import { updateAllQuotes } from '@/services/startup';
+import { describeQuoteErrors } from '@/services/quotes/registry';
 import { useSettings } from '@/stores/settings';
 import { useUI } from '@/stores/ui';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
@@ -46,7 +47,7 @@ export default function InvestTab() {
     setBusy(true);
     try {
       const r = await updateAllQuotes();
-      if (r) useUI.getState().showSnack({ text: r.failed.length ? `已更新 ${r.updated} 檔，${r.failed.length} 檔失敗` : `已更新 ${r.updated} 檔（${[...r.sources].join('、')}）` });
+      if (r) useUI.getState().showSnack({ text: r.failed.length ? `已更新 ${r.updated} 檔，${r.failed.length} 檔失敗：${describeQuoteErrors(r.errors)}` : `已更新 ${r.updated} 檔（${[...r.sources].join('、')}）`, duration: r.failed.length ? 7000 : undefined });
     } finally { setBusy(false); }
   };
 

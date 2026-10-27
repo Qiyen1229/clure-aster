@@ -1,5 +1,5 @@
 /**
- * 自動分類服務：讀取規則與近一年的帳目，提供 suggestCategory()。
+ * 自動分類服務：讀取規則與近一年的帳目，提供 suggestCategory()、suggestAccount()。
  * 商家記憶索引快取 5 分鐘（記帳時每次打字都會查，不必每次讀整張表）；規則有變更時呼叫 invalidateAutocat()。
  */
 import { db, uid } from '@/db/schema';
@@ -14,7 +14,7 @@ export interface CategorySuggestion {
   ruleId?: string;
 }
 
-let cache: { at: number; rules: CategoryRule[]; memory: MemoryIndex } | null = null;
+let cache: { at: number; rules: CategoryRule[]; memory: MemoryIndex; accounts: MemoryIndex } | null = null;
 const TTL = 5 * 60 * 1000;
 
 export function invalidateAutocat(): void {
@@ -24,16 +24,25 @@ export function invalidateAutocat(): void {
 async function load() {
   if (cache && Date.now() - cache.at < TTL) return cache;
   const since = addDays(todayKey(), -365);
-  const [rules, txs, cats] = await Promise.all([
+  const [rules, txs, cats, accs] = await Promise.all([
     db.rules.toArray(),
     db.transactions.where('date').aboveOrEqual(since).toArray(),
     db.categories.toArray(),
+    db.accounts.toArray(),
   ]);
   const live = new Set(cats.filter((c) => !c.archived && !c.deletedAt).map((c) => c.id));
-  const items = txs
-    .filter((t) => !t.deletedAt && (t.type === 'expense' || t.type === 'income') && live.has(t.categoryId) && !t.stockTradeId && !t.dividendId)
-    .flatMap((t) => [t.merchant, t.note].filter((x): x is string => !!x?.trim()).map((text) => ({ text, categoryId: t.categoryId, kind: t.type as CategoryKind, ts: t.ts })));
-  cache = { at: Date.now(), rules: rules.filter((r) => !r.deletedAt && live.has(r.categoryId)), memory: buildMemory(items) };
+  const liveAcc = new Set(accs.filter((a) => !a.archived && !a.deletedAt).map((a) => a.id));
+  const usable = txs.filter((t) => !t.deletedAt && (t.type === 'expense' || t.type === 'income') && !t.stockTradeId && !t.dividendId);
+  const texts = (t: (typeof usable)[number]) => [t.merchant, t.note].filter((x): x is string => !!x?.trim());
+  const items = usable.filter((t) => live.has(t.categoryId))
+    .flatMap((t) => texts(t).map((text) => ({ text, categoryId: t.categoryId, kind: t.type as CategoryKind, ts: t.ts })));
+  // 帳戶記憶：同一個商家通常用哪個帳戶付款（沿用分類記憶的索引結構，categoryId 欄位放帳戶 id）
+  const accItems = usable.filter((t) => liveAcc.has(t.accountId))
+    .flatMap((t) => texts(t).map((text) => ({ text, categoryId: t.accountId, kind: t.type as CategoryKind, ts: t.ts })));
+  cache = {
+    at: Date.now(), rules: rules.filter((r) => !r.deletedAt && live.has(r.categoryId)),
+    memory: buildMemory(items), accounts: buildMemory(accItems),
+  };
   return cache;
 }
 
@@ -45,6 +54,18 @@ export async function suggestCategory(text: string, kind: CategoryKind): Promise
   if (r) return { categoryId: r.categoryId, tagIds: r.tagIds ?? [], source: 'rule', ruleId: r.id };
   const c = recallCategory(memory, text, kind);
   return c ? { categoryId: c, tagIds: [], source: 'memory' } : null;
+}
+
+/**
+ * 判斷帳戶：規則有指定帳戶 → 過去同一個商家最常用的帳戶 → 沒有則回傳 undefined（由呼叫端套用預設帳戶）
+ */
+export async function suggestAccount(text: string, kind: CategoryKind = 'expense'): Promise<{ accountId: string; source: 'rule' | 'memory' } | undefined> {
+  if (!text.trim()) return undefined;
+  const { rules, accounts } = await load();
+  const r = matchRule(rules.filter((x) => x.accountId), text, kind);
+  if (r?.accountId) return { accountId: r.accountId, source: 'rule' };
+  const a = recallCategory(accounts, text, kind);
+  return a ? { accountId: a, source: 'memory' } : undefined;
 }
 
 /** 規則被採用時累計命中次數（不影響排序，只給設定頁參考） */

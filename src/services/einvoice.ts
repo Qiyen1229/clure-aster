@@ -13,6 +13,8 @@ export interface InvoiceItem { name: string; qty?: number; price?: number; amoun
 export interface Invoice {
   number: string;
   date: string;
+  /** 發票時間 HH:mm:ss（載具查詢才有） */
+  time?: string;
   /** 總金額（含稅，元） */
   amount: number;
   sellerId: string;
@@ -148,24 +150,65 @@ export async function existingInvoiceNos(numbers: string[]): Promise<Set<string>
   return new Set(rows.filter((t) => !t.deletedAt).map((t) => t.invoiceNo!));
 }
 
-/** 批次把發票記成支出：分類依自動分類規則／商家記憶，找不到則記「其他支出」 */
-export async function importInvoices(list: Invoice[], accountId: string, currency: string): Promise<number> {
-  const [{ addTransaction }, { suggestCategory }, { toMinor }] = await Promise.all([
-    import('@/db/repo/ledger'), import('./autocat'), import('@/domain/money'),
+export interface InvoiceImportResult {
+  /** 新增的帳目 */
+  created: number;
+  /** 對到手動記過的帳目（補上發票號碼與商家，不重複記帳） */
+  matched: number;
+  /** 已記過、作廢或金額為 0 而略過 */
+  skipped: number;
+  /** 用到預設帳戶的張數（無法判斷付款帳戶） */
+  usedDefault: number;
+}
+
+/**
+ * 批次把發票記成支出：
+ * - 已記過的發票號碼、作廢發票略過
+ * - 手動記過同一筆（同金額、日期相差 1 天內、還沒有發票號碼的支出）→ 補上發票號碼與商家，不重複記帳
+ * - 帳戶：自動分類規則指定的帳戶 → 過去同一商家最常用的帳戶 → 預設帳戶
+ * - 分類：自動分類規則與商家記憶，找不到則記「其他支出」
+ */
+export async function importInvoices(list: Invoice[], opts: { defaultAccountId: string }): Promise<InvoiceImportResult> {
+  const [{ db }, { addTransaction }, { suggestAccount, suggestCategory }, { toMinor }] = await Promise.all([
+    import('@/db/schema'), import('@/db/repo/ledger'), import('./autocat'), import('@/domain/money'),
   ]);
+  const accounts = new Map((await db.accounts.toArray()).filter((a) => !a.archived && !a.deletedAt).map((a) => [a.id, a]));
+  const fallback = accounts.get(opts.defaultAccountId) ?? [...accounts.values()].find((a) => !a.isLiability) ?? [...accounts.values()][0];
+  if (!fallback) throw new Error('請先新增帳戶');
   const done = await existingInvoiceNos(list.map((i) => i.number));
-  let n = 0;
-  for (const inv of list) {
-    if (done.has(inv.number) || isVoided(inv) || !(inv.amount > 0)) continue;
+  const res: InvoiceImportResult = { created: 0, matched: 0, skipped: 0, usedDefault: 0 };
+  const dates = list.map((i) => i.date).sort();
+  const shift = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
+  const manual = dates.length
+    ? (await db.transactions.where('date').between(shift(dates[0], -1), shift(dates[dates.length - 1], 1), true, true).toArray())
+      .filter((t) => !t.deletedAt && t.type === 'expense' && !t.invoiceNo)
+    : [];
+  const used = new Set<string>();
+  for (const inv of [...list].sort((a, b) => a.date.localeCompare(b.date))) {
+    if (done.has(inv.number) || isVoided(inv) || !(inv.amount > 0)) { res.skipped++; continue; }
     const note = invoiceNote(inv) || inv.sellerName;
-    const sug = await suggestCategory([inv.sellerName, note].filter(Boolean).join(' '), 'expense');
+    const text = [inv.sellerName, note].filter(Boolean).join(' ');
+    // 已手動記過：同金額（任一帳戶幣別相同）、日期相差 1 天內
+    const hit = manual.find((t) => !used.has(t.id) && Math.abs(Date.parse(t.date) - Date.parse(inv.date)) <= 86400000
+      && t.amountMinor === toMinor(inv.amount, t.currency));
+    if (hit) {
+      used.add(hit.id);
+      await db.transactions.update(hit.id, { invoiceNo: inv.number, merchant: hit.merchant || inv.sellerName || undefined, note: hit.note || note, updatedAt: Date.now() });
+      done.add(inv.number);
+      res.matched++;
+      continue;
+    }
+    const acc = await suggestAccount(text, 'expense');
+    const account = (acc && accounts.get(acc.accountId)) || fallback;
+    if (account === fallback && !(acc && accounts.has(acc.accountId))) res.usedDefault++;
+    const sug = await suggestCategory(text, 'expense');
     await addTransaction({
-      type: 'expense', accountId, categoryId: sug?.categoryId ?? 'exp-other_exp', amountMinor: toMinor(inv.amount, currency), currency,
-      date: inv.date, ts: new Date(`${inv.date}T12:00:00`).getTime(), note, merchant: inv.sellerName || undefined, invoiceNo: inv.number,
-      tagIds: sug?.tagIds ?? [],
+      type: 'expense', accountId: account.id, categoryId: sug?.categoryId ?? 'exp-other_exp', amountMinor: toMinor(inv.amount, account.currency),
+      currency: account.currency, date: inv.date, ts: new Date(`${inv.date}T${/^\d{2}:\d{2}/.test(inv.time ?? '') ? inv.time!.slice(0, 5) : '12:00'}:00`).getTime(),
+      note, merchant: inv.sellerName || undefined, invoiceNo: inv.number, tagIds: sug?.tagIds ?? [],
     });
     done.add(inv.number);
-    n++;
+    res.created++;
   }
-  return n;
+  return res;
 }

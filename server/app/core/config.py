@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     # nginx 的 /proxy/ 報價代理是否只允許已登入的使用者（/api/auth/check）
     proxy_require_login: bool = True
 
+    # 財政部電子發票應用 API（手機條碼載具自動記帳）：需向財政部申請 AppID；自 112 年起僅受理通過 ISO 27001 等認證的企業組織
+    einvoice_app_id: str = ""
+    einvoice_api_key: str = ""
+    einvoice_api_base: str = "https://api.einvoice.nat.gov.tw"
+
     auto_migrate: bool = True  # 啟動（含熱重載）時自動套用資料庫遷移
 
     timezone: str = "Asia/Taipei"  # 「今日」統計使用的時區

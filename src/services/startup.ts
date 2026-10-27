@@ -9,7 +9,7 @@ import { db } from '@/db/schema';
 import { processInstallments, processRecurring } from '@/db/repo/plan';
 import { checkPriceAlerts } from '@/db/repo/invest';
 import { refreshRatesIfStale } from './fx';
-import { refreshQuotes } from './quotes/registry';
+import { describeQuoteErrors, refreshQuotes } from './quotes/registry';
 import { takeSnapshot } from './snapshots';
 import { addTwHolidays, marketState, parseTwseHolidays } from '@/domain/invest/market-hours';
 import { getJson } from './quotes/http';
@@ -32,7 +32,7 @@ export async function updateAllQuotes(opts: { silent?: boolean } = {}) {
   for (const h of hits) await notify(h.title, h.body, h.url, 'price_alert');
   await takeSnapshot().catch(() => undefined);
   if (!opts.silent && r.failed.length) {
-    useUI.getState().showSnack({ text: `${r.failed.length} 檔報價更新失敗，顯示最後一次價格` });
+    useUI.getState().showSnack({ text: `${r.failed.length} 檔報價更新失敗，顯示最後一次價格（${describeQuoteErrors(r.errors)}）`, duration: 7000 });
   }
   return r;
 }
@@ -71,6 +71,13 @@ export async function runStartupTasks() {
   await step('snapshot', () => takeSnapshot());
   await step('reminders', () => runReminderChecks());
   if (useSettings.getState().notify.push) await step('push', () => import('./push').then((m) => m.schedulePush()));
+  // 手機條碼載具自動記帳（伺服器有財政部 AppID、使用者設定了載具時）
+  await step('carrier', async () => {
+    const r = await (await import('./carrier')).syncCarrier();
+    if (r && (r.created || r.matched)) {
+      useUI.getState().showSnack({ text: `電子發票：新記 ${r.created} 筆${r.matched ? `、對到 ${r.matched} 筆手動記帳` : ''}${r.usedDefault ? `（${r.usedDefault} 筆記到預設帳戶）` : ''}` });
+    }
+  });
 }
 
 /**

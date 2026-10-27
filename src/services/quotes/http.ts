@@ -42,13 +42,13 @@ export function proxied(url: string): { url: string; headers: Record<string, str
 }
 
 /**
- * NAS 的 /proxy/ 只允許已登入的使用者（nginx auth_request）。Access Token 過期時代理會回 401：
- * 先透過帳號 API 刷新登入（/auth/me 會自動 refresh）再重試一次。同時多個請求只刷新一次。
+ * NAS 的 /proxy/ 只允許已登入的使用者（nginx auth_request）。代理回 401 時（Access Token 過期，
+ * 或還留著 1.2.1 以前只送往 /api 的舊 Cookie），直接刷新權杖取得新的 Cookie 再重試一次。同時多個請求只刷新一次。
  */
 let refreshing: Promise<boolean> | null = null;
 async function refreshLogin(): Promise<boolean> {
   refreshing ??= import('../api')
-    .then(({ api }) => api('/auth/me'))
+    .then(({ api }) => api('/auth/refresh', { method: 'POST' }))
     .then(() => true, () => false)
     .finally(() => setTimeout(() => { refreshing = null; }, 0));
   return refreshing;

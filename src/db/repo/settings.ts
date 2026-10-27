@@ -100,6 +100,19 @@ export interface Settings {
   fire: FireSettings;
   /** 稅務彙總：綜合所得淨額（不含股利，元）等 */
   tax: { netIncome: number };
+  /** 電子發票：手機條碼載具與記帳方式 */
+  einvoice: EinvoiceSettings;
+}
+
+export interface EinvoiceSettings {
+  /** 手機條碼（/ 開頭 8 碼） */
+  cardNo: string;
+  /** 手機條碼驗證碼（用來向財政部查詢；啟用端對端加密時同步內容會加密） */
+  verifyCode: string;
+  /** 無法依規則或過去記帳判斷帳戶時，記到這個帳戶 */
+  defaultAccountId: string;
+  /** 開啟 App 時自動抓取新發票並記帳（伺服器需設定財政部 AppID） */
+  autoSync: boolean;
 }
 
 export interface FireSettings {
@@ -156,6 +169,7 @@ export const DEFAULT_SETTINGS: Settings = {
   importProfiles: [],
   fire: { birthYear: 1995, retireAge: 55, endAge: 90, returnPct: 6, volPct: 15, inflationPct: 2, swrPct: 4, annualExpense: 0, annualSaving: 0, startAssets: 0 },
   tax: { netIncome: 0 },
+  einvoice: { cardNo: '', verifyCode: '', defaultAccountId: '', autoSync: true },
 };
 
 export async function getSetting<K extends keyof Settings>(key: K): Promise<Settings[K]> {

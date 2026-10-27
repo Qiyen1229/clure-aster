@@ -421,6 +421,8 @@ export interface CategoryRule extends BaseRow {
   kind: CategoryKind | 'any';
   categoryId: string;
   tagIds?: string[];
+  /** 選填：同時指定帳戶（例如「全聯」→ 全支付）；電子發票、對帳單匯入時用來判斷記到哪個帳戶 */
+  accountId?: string;
   priority: number;
   enabled: boolean;
   /** 命中次數（統計用） */

@@ -11,7 +11,7 @@ import { addWatch, removeWatch } from '@/db/repo/invest';
 import { MARKET_STATE_LABEL, marketState } from '@/domain/invest/market-hours';
 import { formatMoney } from '@/domain/money';
 import { usePortfolio, fmtShares } from '@/services/portfolio';
-import { fetchHistory, refreshQuotes, setManualPrice } from '@/services/quotes/registry';
+import { describeQuoteErrors, fetchHistory, refreshQuotes, setManualPrice } from '@/services/quotes/registry';
 import type { Bar, HistoryRange } from '@/services/quotes/providers';
 import { useSettings } from '@/stores/settings';
 import { useUI } from '@/stores/ui';
@@ -81,7 +81,7 @@ export default function StockDetailPage() {
   const refresh = async () => {
     setBusy(true);
     const r = await refreshQuotes([stock]).finally(() => setBusy(false));
-    useUI.getState().showSnack({ text: r.updated ? `已更新（${[...r.sources].join('、')}）` : `更新失敗：${r.errors[0] ?? '所有資料源皆失敗'}，可手動輸入現價` });
+    useUI.getState().showSnack({ text: r.updated ? `已更新（${[...r.sources].join('、')}）` : `更新失敗：${describeQuoteErrors(r.errors)}。也可以手動輸入現價` });
   };
 
   return (

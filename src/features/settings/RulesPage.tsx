@@ -7,12 +7,12 @@ import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
 import type { CategoryKind, CategoryRule } from '@/db/types';
-import { categoryLabel, useCategories, useTags } from '@/app/hooks';
+import { categoryLabel, useAccounts, useCategories, useTags } from '@/app/hooks';
 import { deleteRule, ruleCandidates, saveRule } from '@/services/autocat';
 import { ruleMatches } from '@/domain/rules';
 import { useUI } from '@/stores/ui';
 import { EmptyState, Segmented } from '@/ui/controls';
-import { CategoryField, SelectField, SwitchField, TextField } from '@/ui/form';
+import { AccountField, CategoryField, SelectField, SwitchField, TextField } from '@/ui/form';
 import { Icon } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
 
@@ -24,6 +24,7 @@ export default function RulesPage() {
   const navigate = useNavigate();
   const { all: cats, map: catMap } = useCategories();
   const { list: tags } = useTags();
+  const { list: accounts, map: accMap } = useAccounts();
   const rules = useLiveQuery(() => db.rules.orderBy('priority').toArray(), []) ?? [];
   const [draft, setDraft] = useState<Draft | null>(null);
   const [test, setTest] = useState('');
@@ -48,7 +49,7 @@ export default function RulesPage() {
         <button className="icon-btn" aria-label="新增規則" onClick={() => setDraft(blank())}><Icon name="plus" /></button>
       </header>
       <p className="muted" style={{ margin: '0 8px 12px', fontSize: '0.85rem' }}>
-        記帳時輸入的備註、匯入帳單與電子發票的商家名稱符合規則，就自動帶入分類。沒有規則時，會參考你過去同樣文字最常用的分類。
+        記帳時輸入的備註、匯入帳單與電子發票的商家名稱符合規則，就自動帶入分類；規則也可以指定帳戶，電子發票會記到該帳戶。沒有規則時，會參考你過去同樣文字最常用的分類與帳戶。
       </p>
 
       {rules.length === 0 ? (
@@ -59,7 +60,7 @@ export default function RulesPage() {
             <button key={r.id} className="row" onClick={() => setDraft({ ...r })} style={r.enabled ? undefined : { opacity: 0.5 }}>
               <div className="row-main">
                 <div className="row-title">「{r.keyword}」→ {categoryLabel(catMap, r.categoryId)}</div>
-                <div className="row-sub">{MATCH_LABEL[r.match]} · {r.kind === 'any' ? '支出與收入' : r.kind === 'expense' ? '支出' : '收入'} · 優先 {r.priority}{r.hits ? ` · 已套用 ${r.hits} 次` : ''}{r.tagIds?.length ? ` · ${r.tagIds.length} 個標籤` : ''}</div>
+                <div className="row-sub">{MATCH_LABEL[r.match]} · {r.kind === 'any' ? '支出與收入' : r.kind === 'expense' ? '支出' : '收入'} · 優先 {r.priority}{r.hits ? ` · 已套用 ${r.hits} 次` : ''}{r.tagIds?.length ? ` · ${r.tagIds.length} 個標籤` : ''}{r.accountId && accMap.get(r.accountId) ? ` · 帳戶：${accMap.get(r.accountId)!.name}` : ''}</div>
               </div>
               <Icon name="chevronR" className="row-chev" />
             </button>
@@ -108,6 +109,7 @@ export default function RulesPage() {
               </div>
               <CategoryField value={draft.categoryId} onChange={(v) => setDraft({ ...draft, categoryId: v })} categories={cats}
                 kind={draft.kind === 'income' ? 'income' : draft.kind === 'expense' ? 'expense' : catMap.get(draft.categoryId)?.kind ?? 'expense'} allowEmpty emptyLabel="請選擇" />
+              <AccountField label="指定帳戶" value={draft.accountId ?? ''} onChange={(v) => setDraft({ ...draft, accountId: v || undefined })} accounts={accounts} allowEmpty emptyLabel="不指定" />
               <SelectField label="優先順序" value={draft.priority} onChange={(v) => setDraft({ ...draft, priority: v })}
                 options={[{ value: 10, label: '最高' }, { value: 50, label: '高' }, { value: 100, label: '一般' }, { value: 200, label: '低' }]} />
               <SwitchField label="啟用" checked={draft.enabled} onChange={(v) => setDraft({ ...draft, enabled: v })} />
