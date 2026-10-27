@@ -406,8 +406,11 @@ function segment(text: string): Segment[] {
       continue;
     }
     // 有標記的金額優先：「咖啡 2 杯 NT$120」只算 120；同一段有多個無標記金額時才拆成多筆
+    // 有標記的金額優先：標記「前面」沒標記的數字多半是數量或卡號末四碼，忽略；
+    // 標記「後面」又說了一筆夠大的（「早餐 100 塊 手搖飲 230」）視為另一筆
     const marked = amounts.filter((a) => a.marked);
-    const list = marked.length && marked.length < amounts.length ? marked : amounts;
+    const lastMarked = marked.length ? marked[marked.length - 1].index : -1;
+    const list = marked.length && marked.length < amounts.length ? amounts.filter((a) => a.marked || (a.index > lastMarked && a.value >= 10)) : amounts;
     let from = 0;
     list.forEach((a, i) => {
       const end = a.index + a.length;

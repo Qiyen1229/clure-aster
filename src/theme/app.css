@@ -188,6 +188,7 @@ button img, a img, .cat-icon, .tab svg { -webkit-user-drag: none; }
   transition: transform 180ms var(--ease), box-shadow 300ms ease;
 }
 .fab:active { transform: scale(0.9); }
+.fab.pressing { transform: scale(1.08); box-shadow: 0 0 0 2px var(--accent), 0 0 0 8px color-mix(in srgb, var(--accent) 25%, transparent), 0 6px 22px color-mix(in srgb, var(--accent) 55%, transparent); }
 .fab.is-logo { box-shadow: 0 0 0 1px var(--glass-border), var(--shadow); }
 .fab-layer {
   position: absolute; inset: 0; display: grid; place-items: center;
@@ -826,6 +827,38 @@ button.row:active, a.row:active { transform: scale(0.985); transition-duration: 
 .oneclick-fallback summary, .inbox-advanced summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; font-size: 0.85rem; }
 .oneclick-fallback p { font-size: 0.8rem; display: flex; flex-wrap: wrap; gap: 6px; }
 .inbox-advanced .inbox-token { margin: 10px 0 0; padding: 0; box-shadow: none; background: none; }
+
+/* ---------- 語音記帳彈窗 ---------- */
+.voice { display: flex; flex-direction: column; gap: 10px; padding-bottom: 4px; }
+.voice-wave {
+  width: 100%; height: 148px; display: block; border-radius: 18px;
+  background: radial-gradient(120% 140% at 50% 50%, #12183f 0%, #080b22 55%, #04060f 100%);
+  box-shadow: inset 0 0 0 1px rgba(139, 92, 246, 0.25);
+}
+.voice-status { margin: -4px 0 0; text-align: center; font-size: 0.85rem; color: var(--text-2); min-height: 1.2em; }
+.voice-box { display: flex; gap: 8px; align-items: flex-end; background: var(--surface-2); border-radius: 16px; padding: 8px 8px 8px 12px; }
+.voice-box textarea {
+  flex: 1; min-width: 0; resize: none; border: 0; background: transparent; outline: none; color: var(--text);
+  font: inherit; font-size: 1.1rem; line-height: 1.45; padding: 4px 0;
+}
+.voice-kb { flex: none; background: var(--surface); }
+.voice-kb[aria-pressed='true'] { background: var(--accent-soft); color: var(--accent-text); }
+.voice-preview { margin-bottom: 0; }
+.voice-actions { display: flex; align-items: center; justify-content: space-between; padding: 6px 12px 0; }
+.voice-side {
+  width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); color: var(--text);
+}
+.voice-side.ok { background: var(--accent); color: var(--on-accent); }
+.voice-side:disabled { opacity: 0.35; }
+.voice-side:active, .voice-mic:active { transform: scale(0.94); }
+.voice-mic {
+  width: 76px; height: 76px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--surface-2); color: var(--accent-text); transition: background 160ms ease, color 160ms ease, transform 120ms ease;
+}
+.voice-mic.on { background: var(--danger); color: #fff; animation: voice-pulse 1.6s ease-out infinite; }
+.voice-mic:disabled { opacity: 0.35; }
+@keyframes voice-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 45%, transparent); } 100% { box-shadow: 0 0 0 22px transparent; } }
+@media (prefers-reduced-motion: reduce) { .voice-mic.on { animation: none; } }
 
 /* ---------- 設定頁 ---------- */
 .set-group { margin-bottom: 4px; }

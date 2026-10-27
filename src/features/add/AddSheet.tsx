@@ -528,7 +528,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
         <div className="add-layout">
           <div className="add-scroll">
           {!editing && (
-            <QuickEntry initialText={prefill?.quickText} autoListen={prefill?.quickVoice} accMap={accMap} catMap={catMap} onApply={applyDraft}
+            <QuickEntry initialText={prefill?.quickText} accMap={accMap} catMap={catMap} onApply={applyDraft}
               onBooked={() => {
                 saved.current = true;
                 if (prefill?.inboxId) void import('@/services/inbox').then((m) => m.finishInboxItem(prefill.inboxId!, {})).catch(() => undefined);

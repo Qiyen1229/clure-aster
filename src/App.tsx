@@ -12,6 +12,7 @@ import { useUI, type AddMode } from './stores/ui';
 import { SkeletonRows } from './ui/controls';
 import { LockScreen } from './app/LockScreen';
 import { installAutoLock } from './services/lock';
+import { useVoice } from './services/voice';
 
 // 記帳面板：第一次打開時才載入，App 閒置時預先下載（不佔首屏）
 const loadAddSheet = () => import('./features/add/AddSheet');
@@ -25,6 +26,15 @@ function AddSheetHost() {
     else setTimeout(run, 1500);
   }, []);
   return used ? <Suspense fallback={null}><AddSheet /></Suspense> : null;
+}
+
+const VoiceSheet = lazy(() => import('./features/home/VoiceSheet').then((m) => ({ default: m.VoiceSheet })));
+/** 語音彈窗：第一次開啟時才載入畫面程式（引擎在 services/voice，手勢裡就能同步開始辨識） */
+function VoiceHost() {
+  const used = useRef(false);
+  const open = useVoice((s) => s.open);
+  if (open) used.current = true;
+  return used.current ? <Suspense fallback={null}><VoiceSheet /></Suspense> : null;
 }
 
 const LedgerPage = lazy(() => import('./features/ledger/LedgerPage'));
@@ -236,6 +246,7 @@ export default function App() {
       </Suspense>
       {!fullscreen && <TabBar />}
       <AddSheetHost />
+      <VoiceHost />
       {onboarded && !fullscreen && <Suspense fallback={null}><WhatsNewSheet /></Suspense>}
       <ActionSheetHost />
       <SnackbarHost />

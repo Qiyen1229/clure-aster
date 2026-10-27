@@ -122,6 +122,11 @@ describe('備註與分類辨識', () => {
     expect(one('領薪水 5萬2 存到台新')).toMatchObject({ kind: 'income', categoryId: 'salary', note: '' });
     expect(one('收到小明還款 500')).toMatchObject({ kind: 'income', note: '小明還款' });
   });
+  it('有標記的金額後面又說了一筆：兩筆都記', () => {
+    const list = parseEntries('今天早餐科學麵100塊 手搖飲230', ctx);
+    expect(list.map((x) => [x.amount, x.categoryId, x.note])).toEqual([[100, 'breakfast', '科學麵'], [230, 'drink', '']]);
+    expect(parseEntries('咖啡 2 NT$120', ctx).map((x) => x.amount)).toEqual([120]);
+  });
   it('一句多筆各自判斷', () => {
     const list = parseEntries('早餐蛋餅 60 手搖飲 55 晚餐 200', ctx);
     expect(list.map((x) => [x.amount, x.categoryId, x.note])).toEqual([[60, 'breakfast', '蛋餅'], [55, 'drink', ''], [200, 'dinner', '']]);

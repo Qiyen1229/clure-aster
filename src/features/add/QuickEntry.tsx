@@ -12,23 +12,20 @@ import { todayKey } from '@/domain/period';
 import { bookDrafts, draftsFromText, type ResolvedDraft } from '@/services/quickentry';
 import { deleteTransactions, deleteTransfers } from '@/db/repo/ledger';
 import { snackUndo, useUI } from '@/stores/ui';
+import { speechRecognition } from '@/services/voice';
 import { Icon } from '@/ui/Icon';
 
 const EXAMPLES = ['昨天午餐 150 刷玉山卡', '早餐 60 午餐 120 飲料 55', '計程車兩百三', '領薪水 5萬2'];
 
-export function speechRecognition(): (new () => any) | undefined {
-  return (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-}
 
-export function QuickEntry({ initialText, autoListen, accMap, catMap, onApply, onBooked }: {
+export function QuickEntry({ initialText, accMap, catMap, onApply, onBooked }: {
   initialText?: string;
-  autoListen?: boolean;
   accMap: Map<string, Account>;
   catMap: Map<string, Category>;
   onApply: (d: ResolvedDraft) => void;
   onBooked: () => void;
 }) {
-  const [open, setOpen] = useState(!!initialText || !!autoListen);
+  const [open, setOpen] = useState(!!initialText);
   const [text, setText] = useState(initialText ?? '');
   const [drafts, setDrafts] = useState<ResolvedDraft[]>([]);
   const [hint, setHint] = useState('');
@@ -59,12 +56,6 @@ export function QuickEntry({ initialText, autoListen, accMap, catMap, onApply, o
 
   useEffect(() => { if (initialText) void run(initialText); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (open && !initialText) inputRef.current?.focus(); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (!autoListen) return;
-    if (SR) listen();
-    else setHint('這個瀏覽器沒有語音辨識：請按鍵盤上的麥克風（聽寫）說出來，再按「帶入」');
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   const listen = () => {
     if (!SR) return;
     const rec = new SR();
