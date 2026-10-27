@@ -30,7 +30,8 @@ import { Keypad } from './Keypad';
 import { AccountPicker, CurrencyPicker, ProjectPicker, TagPicker } from './pickers';
 import { computeSplit, SplitSheet, type SplitState } from './SplitSheet';
 import { addDebts, addLoan, findOrCreatePerson, removeLoan } from '@/db/repo/plan';
-import { countRuleHit, suggestCategory, type CategorySuggestion } from '@/services/autocat';
+import { countRuleHit, recentNoteSuggestions, suggestCategory, type CategorySuggestion } from '@/services/autocat';
+import type { NoteSuggestion } from '@/domain/notesuggest';
 import type { ResolvedDraft } from '@/services/quickentry';
 import { QuickEntry } from './QuickEntry';
 
@@ -375,6 +376,29 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
     }, 300);
     return () => { alive = false; clearTimeout(t); };
   }, [note, mode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── 最近常記：備註欄下方列出過去同名的備註，點一下帶入金額、分類、帳戶、標籤 ──
+  const [noteSugs, setNoteSugs] = useState<NoteSuggestion[]>([]);
+  useEffect(() => {
+    if (editing || (mode !== 'expense' && mode !== 'income')) { setNoteSugs([]); return; }
+    let alive = true;
+    const t = setTimeout(() => {
+      void recentNoteSuggestions(note, mode, txCurrency).then((r) => { if (alive) setNoteSugs(r); }).catch(() => undefined);
+    }, 150);
+    return () => { alive = false; clearTimeout(t); };
+  }, [note, mode, txCurrency, editing]); // eslint-disable-line react-hooks/exhaustive-deps
+  const applyNoteSuggestion = (sg: NoteSuggestion) => {
+    catTouched.current = true;
+    setAutoCat(null);
+    const c = catMap.get(sg.categoryId);
+    if (c && c.kind === kind && !c.archived) { setCatByKind((cur) => ({ ...cur, [c.kind]: c.id })); setMainOpen(c.parentId || c.id); }
+    const acc = accMap.get(sg.accountId);
+    if (acc && !acc.archived && acc.currency === txCurrency) setAccountId(acc.id);
+    if (!expr) setExpr(fromMinor(sg.amountMinor, sg.currency).toString());
+    setNote(sg.note);
+    if (sg.tagIds.length) setTagIds((ids) => [...new Set([...ids, ...sg.tagIds.filter((x) => tagMap.has(x))])]);
+    navigator.vibrate?.(8);
+  };
 
   // ── 範本、複製上一筆 ──
   const applyTemplate = (t: Template) => {
@@ -726,6 +750,24 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
               </label>
             )}
           </div>
+          {(() => {
+            // 已經選好、且金額也填了的那筆就不必再列出
+            const list = noteSugs.filter((x) => !(expr && x.note.toLowerCase() === note.trim().toLowerCase()));
+            if (!list.length || (mode !== 'expense' && mode !== 'income') || editing) return null;
+            return (
+              <div className="sub-row note-sugs" aria-label={note.trim() ? '相似的過去備註' : '最近常記'}>
+                {list.map((x) => {
+                  const c = catMap.get(x.categoryId);
+                  return (
+                    <button key={x.note} className="pill" onClick={() => applyNoteSuggestion(x)}
+                      aria-label={`${x.note}，${formatMoney(x.amountMinor, x.currency)}，${c?.name ?? ''}`}>
+                      <span aria-hidden="true">{c?.icon ?? '🕘'}</span> {x.note} <span className="faint num">{formatMoney(x.amountMinor, x.currency)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })()}
           {atts.length > 0 && (
             <div className="thumbs">
               {atts.map((a) => (

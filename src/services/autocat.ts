@@ -5,6 +5,7 @@
 import { db, uid } from '@/db/schema';
 import type { CategoryKind, CategoryRule } from '@/db/types';
 import { addDays, todayKey } from '@/domain/period';
+import { rankNoteSuggestions, type NoteSuggestion } from '@/domain/notesuggest';
 import { buildMemory, matchRule, recallCategory, type MemoryIndex } from '@/domain/rules';
 
 export interface CategorySuggestion {
@@ -102,4 +103,10 @@ export async function ruleCandidates(limit = 8): Promise<{ text: string; categor
     out.push({ text, categoryId: top[0], kind, count: total });
   }
   return out.sort((a, b) => b.count - a.count).slice(0, limit);
+}
+
+/** 記帳面板的「最近常記」：讀最近 800 筆帳目（IndexedDB 本機讀取，很快） */
+export async function recentNoteSuggestions(query: string, type: 'expense' | 'income', currency: string): Promise<NoteSuggestion[]> {
+  const txs = await db.transactions.orderBy('ts').reverse().limit(800).toArray();
+  return rankNoteSuggestions(txs, query, { type, currency });
 }

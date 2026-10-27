@@ -762,6 +762,8 @@ button.row:active, a.row:active { transform: scale(0.985); transition-duration: 
 .font-preview .num { font-weight: 600; }
 
 /* ---------- 一句話記帳（記帳面板最上方） ---------- */
+.note-sugs { margin: -2px 0 6px; }
+.note-sugs .pill { max-width: 70vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .quick-bar {
   display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; margin: 2px 0 8px; padding: 0 12px;
   border-radius: 12px; background: var(--accent-soft); color: var(--accent-text); font-size: 0.9rem; font-weight: 600; text-align: left;
