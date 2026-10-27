@@ -299,7 +299,17 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
         const sp = mode === 'expense' && !editTxId && split.people.length ? computeSplit(amt, split, txCurrency) : null;
         if (sp?.error) { useUI.getState().showSnack({ text: sp.error }); return; }
         if (editTxId) await updateTransaction(editTxId, input);
-        else {
+        else if (sp && split.payer !== undefined) {
+          // 別人先付：不動我的帳戶，只記一筆「我欠先付的人」我的份額；還款時才記為支出（分類沿用這筆的分類）
+          if (sp.myShare <= 0) { useUI.getState().showSnack({ text: '你的份額是 0，不用記這筆' }); return; }
+          const payer = await findOrCreatePerson(split.payer);
+          const debtIds = await addDebts([{
+            personId: payer.id, direction: 'i_owe_them', amountMinor: sp.myShare, currency: txCurrency, categoryId: catId,
+            groupId: crypto.randomUUID(), date, note: note || catMap.get(catId)?.name || '分帳',
+          }]);
+          setSplit({ mode: split.mode, people: [] });
+          snackUndo(`已記下欠 ${payer.name} ${formatMoney(sp.myShare, txCurrency)}（還款時記為支出）`, async () => { await db.debts.bulkDelete(debtIds); });
+        } else {
           const tx = await addTransaction(sp ? { ...input, split: { myShareMinor: sp.myShare, debtIds: [] } } : input);
           if (sp) {
             // 其他人各產生一筆「對方欠我」

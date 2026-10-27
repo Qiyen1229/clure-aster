@@ -81,7 +81,7 @@ export async function runStartupTasks() {
   // 自動記帳收件匣（iPhone 捷徑送來的 Apple Pay、簡訊、Siri）
   await step('inbox', async () => {
     const r = await (await import('./inbox')).processInboxOnStartup();
-    if (r?.booked) useUI.getState().showSnack({ text: `收件匣：自動記下 ${r.booked} 筆${r.pending ? `，${r.pending} 筆待確認` : ''}` });
+    if (r?.booked || r?.merged) useUI.getState().showSnack({ text: `收件匣：自動記下 ${r.booked} 筆${r.merged ? `、合併 ${r.merged} 筆重複通知` : ''}${r.pending ? `，${r.pending} 筆待確認` : ''}` });
   });
 }
 

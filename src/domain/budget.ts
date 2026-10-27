@@ -90,3 +90,51 @@ export function todayAllowance(remainingBeforeToday: number, spentToday: number,
   const todayBudget = Math.max(0, Math.floor(remainingBeforeToday / daysLeftInclToday));
   return { todayBudget, todayLeft: todayBudget - spentToday, spentToday };
 }
+
+export interface Projection {
+  projected: number;
+  /** history：依過去幾期「同一天之後」的花費節奏；pace：目前平均速度（沒有可參考的歷史） */
+  basis: 'history' | 'pace';
+}
+
+/**
+ * 預估期末花費。
+ * 平均速度（已花 ÷ 已過天數 × 總天數）會高估月初就繳房租的人、低估月底才爆發的人，
+ * 所以有歷史時改用「已花 ＋ 過去幾期在同一天之後平均又花了多少」。
+ * history：過去每一期的每日支出（index 0 ＝ 該期第一天，由近到遠皆可）。
+ */
+export function projectSpend(spent: number, elapsedDays: number, totalDays: number, history: number[][]): Projection {
+  const pace = elapsedDays > 0 ? Math.round((spent / elapsedDays) * totalDays) : spent;
+  const usable = history.filter((h) => h.some((v) => v > 0));
+  if (!usable.length || elapsedDays >= totalDays) return { projected: elapsedDays >= totalDays ? spent : pace, basis: 'pace' };
+  const tails = usable.map((h) => {
+    // 期間長度不同（28／31 天）時，依比例對應到同一個相對位置
+    const from = Math.min(h.length, Math.round((elapsedDays / totalDays) * h.length));
+    return h.slice(from).reduce((a, v) => a + v, 0) * (totalDays - elapsedDays) / Math.max(1, h.length - from);
+  });
+  const avgTail = tails.reduce((a, v) => a + v, 0) / tails.length;
+  return { projected: Math.round(spent + avgTail), basis: 'history' };
+}
+
+export interface BudgetSuggestion {
+  /** 過去各月的支出（有資料的月份） */
+  months: number[];
+  avgMinor: number;
+  suggestedMinor: number;
+}
+
+/** 建議額度：過去平均再留 5% 緩衝，進位到好記的整數（金額單位：1 元 ＝ 100） */
+export function suggestAmount(avgMinor: number): number {
+  const major = avgMinor / 100;
+  if (major <= 0) return 0;
+  const step = major < 2000 ? 100 : major < 20000 ? 500 : 1000;
+  return Math.max(step, Math.ceil((major * 1.05) / step) * step) * 100;
+}
+
+/** 由過去幾個月的支出算建議；沒有任何花費的月份不納入平均 */
+export function suggestBudget(monthTotals: number[]): BudgetSuggestion | null {
+  const months = monthTotals.filter((v) => v > 0);
+  if (!months.length) return null;
+  const avgMinor = Math.round(months.reduce((a, v) => a + v, 0) / months.length);
+  return { months, avgMinor, suggestedMinor: suggestAmount(avgMinor) };
+}

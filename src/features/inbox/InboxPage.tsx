@@ -13,7 +13,7 @@ import { shortDate } from '@/domain/nlp';
 import { todayKey } from '@/domain/period';
 import { deleteTransactions, deleteTransfers } from '@/db/repo/ledger';
 import {
-  ackInbox, bookInboxEntries, createToken, ensureLink, forgetLink, hookUrl, listTokens, loadInbox, revokeToken, savedLink,
+  ackInbox, bookInboxEntries, mergeDuplicate, createToken, ensureLink, forgetLink, hookUrl, listTokens, loadInbox, revokeToken, savedLink,
   canImportByUrl, openShortcutImport, shortcutFileUrl, SHORTCUTS, SOURCE_LABEL, useInboxCount,
   type InboxEntry, type InboxToken,
 } from '@/services/inbox';
@@ -60,7 +60,8 @@ export default function InboxPage() {
   }, []);
 
   const firstTime = tokens !== null && tokens.length === 0 && !entries?.length;
-  const ready = entries?.filter((e) => e.drafts.length) ?? [];
+  // 「全部記帳」不含很可能重複的：那些請一則一則確認
+  const ready = entries?.filter((e) => e.drafts.length && e.dup?.level !== 'strong') ?? [];
 
   const book = async (list: InboxEntry[]) => {
     setBusy(true);
@@ -72,6 +73,13 @@ export default function InboxPage() {
       });
       await reload();
     } catch (e) { snack((e as Error).message); } finally { setBusy(false); }
+  };
+
+  const merge = async (e: InboxEntry) => {
+    try {
+      if (await mergeDuplicate(e)) snack('已合併，沒有重複記帳');
+      await reload();
+    } catch (err) { snack((err as Error).message); }
   };
 
   const skip = async (e: InboxEntry) => {
@@ -208,11 +216,28 @@ export default function InboxPage() {
                       <span className="row-sub">{src.icon} {shortDate(d.date, today)} · {c?.name ?? '轉帳'} · {acc?.name ?? '?'}{e.item.card ? `（${e.item.card}）` : ''}</span>
                     </span>
                     <span className={`num ${d.kind === 'income' ? 'pos' : 'neg'}`}>{formatMoney(toMinor(d.amount, cur), cur)}</span>
+                    {i === e.drafts.length - 1 && e.dup && (
+                      <p className={`inbox-dup ${e.dup.level}`} role="note">
+                        {e.dup.level === 'strong' ? '⚠️ 很可能重複：' : 'ℹ️ 金額相同：'}
+                        {e.dup.from === 'ledger' ? `帳本裡已有 ${e.dup.label}` : `和 ${e.dup.label}是同一次消費？`}
+                      </p>
+                    )}
                     {i === e.drafts.length - 1 && (
                       <span className="inbox-actions">
-                        <button className="pill accent-pill" disabled={busy} onClick={() => void book([e])}>記帳</button>
-                        <button className="pill" onClick={() => edit(e)}>編輯</button>
-                        <button className="pill" onClick={() => void skip(e)}>略過</button>
+                        {e.dup?.level === 'strong' ? (
+                          <>
+                            <button className="pill accent-pill" onClick={() => void merge(e)}>合併（不重複記）</button>
+                            <button className="pill" disabled={busy} onClick={() => void book([e])}>仍要記帳</button>
+                            <button className="pill" onClick={() => edit(e)}>編輯</button>
+                          </>
+                        ) : (
+                          <>
+                            <button className="pill accent-pill" disabled={busy} onClick={() => void book([e])}>記帳</button>
+                            {e.dup && <button className="pill" onClick={() => void merge(e)}>合併</button>}
+                            <button className="pill" onClick={() => edit(e)}>編輯</button>
+                            <button className="pill" onClick={() => void skip(e)}>略過</button>
+                          </>
+                        )}
                       </span>
                     )}
                   </div>

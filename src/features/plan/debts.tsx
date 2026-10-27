@@ -89,8 +89,23 @@ function PersonDebts({ personId, debts }: { personId: string; debts: Debt[] }) {
     })();
     return () => { alive = false; };
   }, [accounts.list.length, loanTxId, touched]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 這個人的淨額（各幣別）：應收與應付互相抵銷後，實際要收或要付多少
+  const netByCur = new Map<string, number>();
+  for (const d of open) netByCur.set(d.currency, (netByCur.get(d.currency) ?? 0) + (d.direction === 'they_owe_me' ? d.amountMinor : -d.amountMinor));
+  const both = open.some((d) => d.direction === 'they_owe_me') && open.some((d) => d.direction === 'i_owe_them');
   return (
     <>
+      {open.length > 0 && (
+        <div className="card" style={{ marginBottom: 12 }}>
+          {[...netByCur].map(([cur, v]) => (
+            <div key={cur} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <span>{v === 0 ? '互相抵銷，剛好打平' : v > 0 ? '淨額：對方還我' : '淨額：我還對方'}</span>
+              {v !== 0 && <Amount minor={Math.abs(v)} currency={cur} tone={v > 0 ? 'pos' : 'neg'} className="num" />}
+            </div>
+          ))}
+          {both && <p className="muted" style={{ fontSize: '0.78rem', margin: '6px 0 0' }}>應收與應付可以一起結清，只需要轉淨額那一筆。</p>}
+        </div>
+      )}
       <div className="list">
         <AccountField label="結清入帳到" value={settleAcc} onChange={(v) => { setTouched(true); setSettleAcc(v); }} accounts={accounts.list} allowEmpty emptyLabel="只標記結清，不記帳" />
       </div>

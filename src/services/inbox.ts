@@ -10,8 +10,11 @@
  */
 import { create } from 'zustand';
 import { api } from './api';
-import { extractDate, findAccounts, findAmounts, parseEntries, toHalfWidth, type DraftEntry } from '@/domain/nlp';
-import { toDateKey, todayKey } from '@/domain/period';
+import { extractDate, findAccounts, findAmounts, parseEntries, shortDate, toHalfWidth, type DraftEntry } from '@/domain/nlp';
+import { findDuplicate, type DupCandidate } from '@/domain/dedupe';
+import { formatMoney, toMinor } from '@/domain/money';
+import { addDays, toDateKey, todayKey } from '@/domain/period';
+import { db } from '@/db/schema';
 import { useSettings } from '@/stores/settings';
 import { AUTH_ENABLED, useAuth } from '@/stores/auth';
 import { bookDrafts, fallbackAccount, parseContext, resolveDraft, type ResolvedDraft } from './quickentry';
@@ -27,10 +30,25 @@ export interface InboxRaw {
   created_at: string;
 }
 
+/** 這則可能和已有的帳目、或收件匣裡的另一則是同一次消費 */
+export interface InboxDup {
+  /** strong：同一天且商家相近或同帳戶；weak：只有金額相同、日期相差 1 天內 */
+  level: 'strong' | 'weak';
+  /** ledger：已經記在帳本裡；inbox：收件匣裡另一則（例如 Apple Pay 與簡訊通知同一筆付款） */
+  from: 'ledger' | 'inbox';
+  txId?: string;
+  inboxId?: number;
+  /** 顯示用：「今天 全聯 $120」「Apple Pay 那筆」 */
+  label: string;
+  /** 不同來源、15 分鐘內、同一天：幾乎確定是同一筆付款，自動入帳時直接合併 */
+  certain?: boolean;
+}
+
 export interface InboxEntry {
   item: InboxRaw;
   /** 解析出的帳目（Siri 一句話可能有多筆）；空陣列代表看不懂金額，需要手動記 */
   drafts: ResolvedDraft[];
+  dup?: InboxDup;
 }
 
 export interface InboxToken { id: number; name: string; hint: string; created_at: string; last_used_at: string | null }
@@ -194,11 +212,81 @@ export async function draftsFromItem(it: InboxRaw, ctx: Ctx, fallback: string): 
   return out;
 }
 
+const createdMs = (it: InboxRaw) => {
+  const t = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(it.created_at) ? it.created_at : `${it.created_at}Z`).getTime();
+  return Number.isNaN(t) ? 0 : t;
+};
+
+/**
+ * 標出可能重複的項目：先和收件匣裡較早的一則比（Apple Pay 與銀行簡訊常常通知同一筆付款），
+ * 再和帳本裡前後一天的帳目比（電子發票載具、手動記帳）。只標記，不刪除。
+ * 一則只標一個最像的；只處理「一則一筆」的項目（Siri 多筆的不比對）。
+ */
+export async function markDuplicates(entries: InboxEntry[], today = todayKey()): Promise<void> {
+  const single = entries.filter((e) => e.drafts.length === 1 && e.drafts[0].kind !== 'transfer');
+  if (!single.length) return;
+  const accounts = new Map((await db.accounts.toArray()).map((a) => [a.id, a]));
+  const probeOf = (e: InboxEntry) => {
+    const d = e.drafts[0];
+    const cur = d.currency ?? accounts.get(d.accountId)?.currency ?? 'TWD';
+    return { cur, p: { date: d.date, amountMinor: toMinor(d.amount, cur), currency: cur, accountId: d.accountId, text: `${e.item.merchant} ${d.note}` } };
+  };
+  const ordered = [...single].sort((a, b) => a.item.id - b.item.id);
+  const dates = ordered.map((e) => e.drafts[0].date).sort();
+  const rows = await db.transactions.where('date').between(addDays(dates[0], -1), addDays(dates[dates.length - 1], 1), true, true)
+    .filter((t) => !t.deletedAt && !t.categoryId.startsWith('sys-') && (t.type === 'expense' || t.type === 'income')).toArray();
+  const ledger = new Map(rows.map((t) => [t.id, t]));
+  const ledgerCands = (kind: string): DupCandidate[] => rows.filter((t) => t.type === kind)
+    .map((t) => ({ id: t.id, date: t.date, amountMinor: t.amountMinor, currency: t.currency, accountId: t.accountId, text: `${t.merchant ?? ''} ${t.note}` }));
+  const exp = ledgerCands('expense');
+  const inc = ledgerCands('income');
+
+  for (let i = 0; i < ordered.length; i++) {
+    const e = ordered[i];
+    const { cur, p } = probeOf(e);
+    // 收件匣內：較早的、來源不同的另一則
+    const earlier = ordered.slice(0, i).filter((o) => o.drafts[0].kind === e.drafts[0].kind).map((o) => {
+      const q = probeOf(o);
+      return { id: String(o.item.id), ...q.p };
+    });
+    const inboxHit = findDuplicate(p, earlier);
+    if (inboxHit) {
+      const other = ordered.find((o) => String(o.item.id) === inboxHit.id)!;
+      const sameDay = other.drafts[0].date === e.drafts[0].date;
+      const close = Math.abs(createdMs(e.item) - createdMs(other.item)) <= 15 * 60_000;
+      e.dup = {
+        level: inboxHit.level === 'strong' || (sameDay && close) ? 'strong' : 'weak', from: 'inbox', inboxId: other.item.id,
+        label: `${SOURCE_LABEL[other.item.source]?.label ?? '另一則'} 那筆`, certain: other.item.source !== e.item.source && sameDay && close,
+      };
+      continue;
+    }
+    const hit = findDuplicate(p, e.drafts[0].kind === 'income' ? inc : exp);
+    if (hit) {
+      const t = ledger.get(hit.id)!;
+      e.dup = { level: hit.level, from: 'ledger', txId: t.id, label: `${shortDate(t.date, today)} ${t.merchant || t.note || '已記的帳'} ${formatMoney(t.amountMinor, cur)}` };
+    }
+  }
+}
+
 export async function loadInbox(): Promise<InboxEntry[]> {
   const [items, ctx, fallback] = await Promise.all([fetchInbox(), parseContext(), fallbackAccount()]);
   const out: InboxEntry[] = [];
   for (const item of items) out.push({ item, drafts: await draftsFromItem(item, ctx, fallback).catch(() => []) });
+  await markDuplicates(out, ctx.today).catch(() => undefined);
   return out;
+}
+
+/** 「合併」：這則其實是已經記過的那筆，只補上缺少的商家，然後從收件匣移除（不新增帳目） */
+export async function mergeDuplicate(e: InboxEntry): Promise<boolean> {
+  const removed = await ackInbox([e.item.id]);
+  if (!removed.length) return false;
+  if (e.dup?.from === 'ledger' && e.dup.txId) {
+    const t = await db.transactions.get(e.dup.txId);
+    const merchant = e.item.merchant || e.drafts[0]?.note;
+    if (t && !t.deletedAt && !t.merchant && merchant) await db.transactions.update(t.id, { merchant: merchant.slice(0, 60), updatedAt: Date.now() });
+    learnCard(e.item.card, t?.accountId);
+  }
+  return true;
 }
 
 /** 記住「這張卡 → 這個帳戶」 */
@@ -209,9 +297,9 @@ export function learnCard(card: string | undefined, accountId: string | undefine
   s.set('inbox', { ...s.inbox, cardMap: { ...s.inbox.cardMap, [card]: accountId } });
 }
 
-/** 一次記下多則；先認領再記帳，回傳記了幾筆與「復原」用的 id */
-export async function bookInboxEntries(entries: InboxEntry[]) {
-  const ok = entries.filter((e) => e.drafts.length);
+/** 一次記下多則；先認領再記帳，回傳記了幾筆與「復原」用的 id。skipDuplicates：很可能重複的留在收件匣等你確認 */
+export async function bookInboxEntries(entries: InboxEntry[], opts: { skipDuplicates?: boolean } = {}) {
+  const ok = entries.filter((e) => e.drafts.length && !(opts.skipDuplicates && e.dup?.level === 'strong'));
   const claimed = new Set(await ackInbox(ok.map((e) => e.item.id)));
   const mine = ok.filter((e) => claimed.has(e.item.id));
   const res = await bookDrafts(mine.flatMap((e) => e.drafts));
@@ -226,13 +314,20 @@ export async function finishInboxItem(id: string, opts: { card?: string; account
 }
 
 /** 開啟 App 時：開啟「自動入帳」就直接記下看得懂的項目，其餘留在收件匣 */
-export async function processInboxOnStartup(): Promise<{ booked: number; pending: number } | null> {
+export async function processInboxOnStartup(): Promise<{ booked: number; pending: number; merged: number } | null> {
   if (!AUTH_ENABLED) return null;
   const entries = await loadInbox();
-  if (!entries.length) return { booked: 0, pending: 0 };
-  if (!useSettings.getState().inbox.autoBook) return { booked: 0, pending: entries.length };
-  const r = await bookInboxEntries(entries);
-  const pending = entries.length - entries.filter((e) => e.drafts.length).length;
+  if (!entries.length) return { booked: 0, pending: 0, merged: 0 };
+  if (!useSettings.getState().inbox.autoBook) return { booked: 0, pending: entries.length, merged: 0 };
+  // 不同來源、同一時間、同金額（Apple Pay 與簡訊通知同一筆付款）：幾乎確定重複，直接合併
+  let merged = 0;
+  const rest: InboxEntry[] = [];
+  for (const e of entries) {
+    if (e.dup?.certain && (await mergeDuplicate(e).catch(() => false))) merged++;
+    else rest.push(e);
+  }
+  const r = await bookInboxEntries(rest, { skipDuplicates: true });
+  const pending = rest.filter((e) => !e.drafts.length || e.dup?.level === 'strong').length;
   useInboxCount.getState().set(pending);
-  return { booked: r.count, pending };
+  return { booked: r.count, pending, merged };
 }

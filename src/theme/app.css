@@ -797,6 +797,8 @@ button.row:active, a.row:active { transform: scale(0.985); transition-duration: 
 .inbox-steps li > span { flex: none; width: 36px; height: 36px; border-radius: 10px; background: var(--surface-2); display: grid; place-items: center; font-size: 1.1rem; }
 .inbox-row { flex-wrap: wrap; row-gap: 6px; }
 .inbox-row .row-sub { display: block; white-space: normal; }
+.inbox-dup { width: 100%; margin: 0; font-size: 0.8rem; line-height: 1.4; color: var(--text-2); }
+.inbox-dup.strong { color: var(--warning); }
 .inbox-actions { display: flex; gap: 6px; width: 100%; justify-content: flex-end; }
 .inbox-actions .pill { height: 32px; }
 .accent-pill { background: var(--accent); color: var(--on-accent); font-weight: 600; }

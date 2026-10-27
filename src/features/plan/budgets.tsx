@@ -6,13 +6,13 @@ import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
 import type { Budget } from '@/db/types';
-import { computeBudgets, deleteBudget, saveBudget, type BudgetView } from '@/db/repo/plan';
+import { computeBudgets, createSuggestedBudgets, deleteBudget, saveBudget, suggestBudgets, type BudgetView } from '@/db/repo/plan';
 import { fromMinor, toMinor } from '@/domain/money';
 import { evaluate } from '@/domain/calc-expr';
 import { todayKey } from '@/domain/period';
 import { useCategories, useProjects } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
-import { useUI } from '@/stores/ui';
+import { snackUndo, useUI } from '@/stores/ui';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { AmountField, CategoryField, DateField, SelectField, SwitchField, TextField } from '@/ui/form';
 import { Sheet } from '@/ui/Sheet';
@@ -24,13 +24,28 @@ export default function BudgetSection() {
   const tick = useLiveQuery(() => db.transactions.count(), []);
   const budgets = useLiveQuery(() => db.budgets.toArray(), []);
   const views = useLiveQuery(() => computeBudgets(), [tick, budgets, monthStartDay]);
+  const base = useSettings((s) => s.baseCurrency);
+
+  /** 依過去 3 個完整月份的實際支出：建立每月總預算與花費最多的 5 個分類（可復原） */
+  const suggestAll = async () => {
+    const sug = await suggestBudgets();
+    if (!sug.total) { useUI.getState().showSnack({ text: '還沒有足夠的歷史帳目（需要至少一個完整月份的支出）' }); return; }
+    const ids = await createSuggestedBudgets(sug, base);
+    if (!ids.length) { useUI.getState().showSnack({ text: '這些預算都已經有了' }); return; }
+    snackUndo(`已依過去 ${sug.monthsUsed} 個月的花費建立 ${ids.length} 個預算`, async () => { for (const id of ids) await deleteBudget(id); });
+  };
 
   return (
     <>
       <SectionHead title="預算" onAdd={() => setEdit('new')} />
       {!views ? <SkeletonRows /> : views.length === 0 ? (
-        <EmptyState emoji="🎯" title="還沒有預算" text="先設定一個「每月總預算」，再為容易超支的分類（飲食、購物）各設一個。"
-          action={<button className="btn small" onClick={() => setEdit('new')}>建立預算</button>} />
+        <EmptyState emoji="🎯" title="還沒有預算" text="先設定一個「每月總預算」，再為容易超支的分類（飲食、購物）各設一個。有過去幾個月的帳目，可以直接依實際花費建立。"
+          action={(
+            <span style={{ display: 'inline-flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+              <button className="btn small" onClick={() => void suggestAll()}>依過去花費建立</button>
+              <button className="btn small secondary" onClick={() => setEdit('new')}>自己設定</button>
+            </span>
+          )} />
       ) : views.map((v) => <BudgetCard key={v.budget.id} v={v} onEdit={() => setEdit(v.budget)} />)}
       {budgets && budgets.some((b) => !b.active) && (
         <>
@@ -86,8 +101,12 @@ function BudgetCard({ v, onEdit }: { v: BudgetView; onEdit: () => void }) {
           </div>
         </div>
       ) : null}
-      {s.level !== 'over' && s.projected > s.limit && s.spent > 0 && (
-        <p style={{ margin: '8px 0 0', fontSize: '0.8rem', color: 'var(--warning)' }}>⚠️ 依目前速度，期末預估花費 <Amount minor={s.projected} currency={b.currency} tone="none" opts={{ decimals: 0 }} />，可能超支</p>
+      {s.level !== 'over' && s.spent > 0 && s.daysLeft > 0 && (
+        <p style={{ margin: '8px 0 0', fontSize: '0.8rem', color: v.projection.projected > s.limit ? 'var(--warning)' : 'var(--text-2)' }}>
+          {v.projection.projected > s.limit ? '⚠️ ' : ''}{v.projection.basis === 'history' ? '依過去幾期的花費節奏' : '依目前速度'}，期末預估{' '}
+          <Amount minor={v.projection.projected} currency={b.currency} tone="none" opts={{ decimals: 0 }} />
+          {v.projection.projected > s.limit ? '，可能超支' : `，預計剩 ${fromMinor(s.limit - v.projection.projected, b.currency).toFixed(0)}`}
+        </p>
       )}
       {s.level === 'over' && <p style={{ margin: '8px 0 0', fontSize: '0.8rem', color: 'var(--danger)' }}>已超出預算 <Amount minor={-s.remaining} currency={b.currency} tone="none" /></p>}
     </button>
@@ -116,6 +135,9 @@ function BudgetForm({ budget, onClose }: { budget?: Budget; onClose: () => void 
   const [rollover, setRollover] = useState(budget?.rollover ?? false);
   const [alert, setAlert] = useState(String(budget?.alertPercents?.[0] ?? 80));
   const [active, setActive] = useState(budget ? !!budget.active : true);
+  // 依過去 3 個完整月份的支出給建議（只有「總預算」或大分類有；子分類沒有）
+  const sug = useLiveQuery(() => suggestBudgets(), []);
+  const hint = !sug ? null : categoryId === '' ? sug.total : (cats.map.get(categoryId)?.parentId ? null : sug.byCategory.find((x) => x.categoryId === categoryId)?.suggestion ?? null);
 
   const save = async () => {
     const v = evaluate(amount || '0');
@@ -145,6 +167,12 @@ function BudgetForm({ budget, onClose }: { budget?: Budget; onClose: () => void 
         <TextField label="警示門檻 %" value={alert} onChange={(v) => setAlert(v.replace(/\D/g, ''))} inputMode="numeric" />
         {budget && <SwitchField label="啟用" checked={active} onChange={setActive} />}
       </div>
+      {hint && periodType === 'month' && (
+        <p className="muted" style={{ fontSize: '0.82rem', margin: '0 4px 12px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span>過去 {hint.months.length} 個月平均每月 {fromMinor(hint.avgMinor, base).toFixed(0)}，建議 {fromMinor(hint.suggestedMinor, base).toFixed(0)}</span>
+          <button className="pill" onClick={() => setAmount(fromMinor(hint.suggestedMinor, base).toString())}>套用建議</button>
+        </p>
+      )}
       <button className="btn" onClick={() => void save()}>儲存</button>
       {budget && (
         <button className="btn danger" style={{ marginTop: 10 }} onClick={async () => {

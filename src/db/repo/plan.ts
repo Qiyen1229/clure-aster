@@ -8,12 +8,14 @@ import type {
   Budget, Debt, Goal, Installment, Person, Project, RecurringRule, SavedFilter, Transaction, TxFilter, Wish,
 } from '../types';
 import { addTransaction, deleteTransactions, type TxInput } from './ledger';
-import { budgetPeriod, budgetStatus, periodsUntil, rolloverChain, type BudgetStatus } from '@/domain/budget';
+import {
+  budgetPeriod, budgetStatus, periodsUntil, projectSpend, rolloverChain, suggestBudget, type BudgetStatus, type BudgetSuggestion, type Projection,
+} from '@/domain/budget';
 import { nextAfter, occurrences } from '@/domain/recurrence';
 import { buildSchedule, periodTotal } from '@/domain/installment';
 import { statAmount } from '@/domain/ledger';
 import { convertMinor } from '@/domain/money';
-import { todayKey, type Range } from '@/domain/period';
+import { accountingMonth, addDays, eachDay, todayKey, type Range } from '@/domain/period';
 import { resolveRate } from '@/services/fx';
 import { getSetting } from './settings';
 
@@ -55,12 +57,33 @@ async function categoryChildren(): Promise<Map<string, Set<string>>> {
   return map;
 }
 
+/** 這個預算前 3 期每一天的支出（由近到遠）；預估期末花費用 */
+async function pastDaily(b: Budget, current: Range, match: (t: Transaction) => boolean, opts: { monthStartDay: number; weekStart: 0 | 1 }): Promise<number[][]> {
+  const ranges: Range[] = [];
+  let cursor = current.start;
+  for (let k = 0; k < 3; k++) {
+    const r = budgetPeriod(b, addDays(cursor, -1), opts);
+    ranges.push(r);
+    cursor = r.start;
+  }
+  const txs = (await db.transactions.where('date').between(ranges[ranges.length - 1].start, ranges[0].end, true, true).toArray()).filter(match);
+  return ranges.map((r) => {
+    const days = eachDay(r);
+    const idx = new Map(days.map((d, n) => [d, n]));
+    const daily = new Array<number>(days.length).fill(0);
+    for (const t of txs) { const n = idx.get(t.date); if (n !== undefined) daily[n] += statAmount(t); }
+    return daily;
+  });
+}
+
 export interface BudgetView {
   budget: Budget;
   period: Range;
   status: BudgetStatus;
   carryIn: number;
   history: { period: Range; limit: number; spent: number }[];
+  /** 預估期末花費：有過去幾期的紀錄就依「同一天之後」的節奏，否則用目前速度 */
+  projection: Projection;
 }
 
 export async function computeBudgets(today = todayKey()): Promise<BudgetView[]> {
@@ -79,12 +102,16 @@ export async function computeBudgets(today = todayKey()): Promise<BudgetView[]> 
     const chain = rolloverChain(b.amountMinor, spent, b.rollover);
     const i = periods.length - 1;
     const spentToday = txs.filter((t) => t.date === today).reduce((a, t) => a + statAmount(t), 0);
+    const status = budgetStatus(chain[i].limit, spent[i], periods[i], today, b.alertPercents[0] ?? 80, spentToday);
+    const total = eachDay(periods[i]).length;
+    const elapsed = today < periods[i].start ? 0 : today > periods[i].end ? total : eachDay({ start: periods[i].start, end: today }).length;
     out.push({
       budget: b,
       period: periods[i],
       carryIn: chain[i].carryIn,
-      status: budgetStatus(chain[i].limit, spent[i], periods[i], today, b.alertPercents[0] ?? 80, spentToday),
+      status,
       history: periods.map((p, k) => ({ period: p, limit: chain[k].limit, spent: spent[k] })),
+      projection: projectSpend(spent[i], elapsed, total, await pastDaily(b, periods[i], match, opts)),
     });
   }
   // 總預算排最前，其次依使用率
@@ -442,4 +469,66 @@ export async function extendWish(id: string, days: number) {
   if (!w) return;
   const base = w.decideAt > todayKey() ? w.decideAt : todayKey();
   await db.wishes.update(id, { decideAt: addDaysSafe(base, days), updatedAt: now() });
+}
+
+
+// ───────────── 預算建議 ─────────────
+
+export interface SuggestedBudgets {
+  /** 納入計算的完整月份數（過去最多 3 個記帳月，有花費的才算） */
+  monthsUsed: number;
+  total: BudgetSuggestion | null;
+  /** 各大分類（含子分類合計），花費由多到少 */
+  byCategory: { categoryId: string; suggestion: BudgetSuggestion }[];
+}
+
+/** 依過去 3 個「完整記帳月」的實際支出，建議每月總預算與各分類預算 */
+export async function suggestBudgets(today = todayKey()): Promise<SuggestedBudgets> {
+  const [monthStartDay, cats] = await Promise.all([getSetting('monthStartDay'), db.categories.toArray()]);
+  const root = new Map(cats.map((c) => [c.id, c.parentId || c.id]));
+  const ranges: Range[] = [];
+  let cursor = accountingMonth(today, monthStartDay).start;
+  for (let k = 0; k < 3; k++) {
+    const r = accountingMonth(addDays(cursor, -1), monthStartDay);
+    ranges.push(r);
+    cursor = r.start;
+  }
+  const txs = await db.transactions.where('date').between(ranges[ranges.length - 1].start, ranges[0].end, true, true)
+    .filter((t) => !t.deletedAt && (t.type === 'expense' || t.type === 'transfer_fee') && !t.excludeFromStats && !t.excludeFromBudget && !t.categoryId.startsWith('sys-'))
+    .toArray();
+  const totals = ranges.map(() => 0);
+  const perCat = new Map<string, number[]>();
+  for (const t of txs) {
+    const k = ranges.findIndex((r) => t.date >= r.start && t.date <= r.end);
+    if (k < 0) continue;
+    const v = statAmount(t);
+    totals[k] += v;
+    const c = root.get(t.categoryId) ?? t.categoryId;
+    const arr = perCat.get(c) ?? ranges.map(() => 0);
+    arr[k] += v;
+    perCat.set(c, arr);
+  }
+  const byCategory = [...perCat.entries()]
+    .map(([categoryId, arr]) => ({ categoryId, suggestion: suggestBudget(arr) }))
+    .filter((x): x is { categoryId: string; suggestion: BudgetSuggestion } => !!x.suggestion)
+    .sort((a, b) => b.suggestion.avgMinor - a.suggestion.avgMinor);
+  return { monthsUsed: totals.filter((v) => v > 0).length, total: suggestBudget(totals), byCategory };
+}
+
+/** 一鍵建立：每月總預算＋花費最多的幾個分類（已經有的分類不重複建立）；回傳新建的預算 id */
+export async function createSuggestedBudgets(sug: SuggestedBudgets, currency: string, topN = 5): Promise<string[]> {
+  const existing = await db.budgets.toArray();
+  const have = new Set(existing.filter((b) => b.periodType === 'month' && !b.projectId).map((b) => b.categoryId));
+  const cats = new Map((await db.categories.toArray()).map((c) => [c.id, c]));
+  const start = todayKey().slice(0, 8) + '01';
+  const ids: string[] = [];
+  const add = async (name: string, categoryId: string, amountMinor: number) => {
+    ids.push(await saveBudget({ name, periodType: 'month', startDate: start, amountMinor, currency, categoryId, projectId: '', rollover: false, alertPercents: [80], active: 1 }));
+  };
+  if (sug.total && !have.has('')) await add('每月總預算', '', sug.total.suggestedMinor);
+  for (const { categoryId, suggestion } of sug.byCategory.slice(0, topN)) {
+    if (have.has(categoryId)) continue;
+    await add(`${cats.get(categoryId)?.name ?? '分類'}預算`, categoryId, suggestion.suggestedMinor);
+  }
+  return ids;
 }
