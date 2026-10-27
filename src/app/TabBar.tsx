@@ -10,7 +10,7 @@
 import { useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Icon, Logo, type IconName } from '@/ui/Icon';
-import { openVoice, releaseVoice } from '@/services/voice';
+import { holdGuard, openVoice, releaseVoice } from '@/services/voice';
 import { useUI } from '@/stores/ui';
 
 const LEFT: { to: string; icon: IconName; label: string }[] = [
@@ -43,6 +43,7 @@ export function TabBar() {
     if (!plusMode || e.button > 0) return;
     held.current = false;
     setPressing(true);
+    holdGuard(true);
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* 忽略 */ }
     timer.current = window.setTimeout(() => {
       held.current = true;
@@ -54,6 +55,7 @@ export function TabBar() {
     window.clearTimeout(timer.current);
     setPressing(false);
     if (held.current) void releaseVoice();
+    holdGuard(false);
   };
 
   const tab = (t: { to: string; icon: IconName; label: string }) => (

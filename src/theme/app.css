@@ -829,6 +829,12 @@ button.row:active, a.row:active { transform: scale(0.985); transition-duration: 
 .inbox-advanced .inbox-token { margin: 10px 0 0; padding: 0; box-shadow: none; background: none; }
 
 /* ---------- 語音記帳彈窗 ---------- */
+/* 導覽列整個不能選取、不跳長按選單；長按語音期間全頁禁止選取，且彈窗不擋住手指（見 services/voice.ts holdGuard） */
+.tabbar, .tabbar * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.fab svg, .fab .logo, .fab img { pointer-events: none; }
+html.voice-holding, html.voice-holding * { -webkit-user-select: none !important; user-select: none !important; -webkit-touch-callout: none !important; }
+html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: none; }
+
 .voice { display: flex; flex-direction: column; gap: 10px; padding-bottom: 4px; }
 .voice-wave {
   width: 100%; height: 148px; display: block; border-radius: 18px;

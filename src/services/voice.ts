@@ -35,8 +35,35 @@ let want = false;
 let finalText = '';
 let startedAt = 0;
 let quickEnds = 0;
+/** 辨識真的開始了（有 onstart／聽到聲音／有結果）。長按時沒開始，代表瀏覽器不認那個計時器是使用者手勢 */
+let started = false;
 /** 用過一次就保留：Sheet 要曾經掛載過才需要渲染（關閉動畫要播完） */
 export const voiceSupported = () => !!speechRecognition();
+
+const blockEvent = (e: Event) => e.preventDefault();
+let guardTimer = 0;
+
+/**
+ * 長按期間禁止選取文字與長按選單（iOS 長按會跳出放大鏡／選取，網頁沒有別的辦法關掉）：
+ * - html.voice-holding：全部 user-select: none，並且讓彈窗不擋住手指（否則長按會落在彈窗的文字或輸入框上而變成選取）
+ * - 攔截 selectstart／contextmenu，並清掉已經選到的範圍
+ * 放開後稍等一下才解除，避免放開那一刻又觸發一次。
+ */
+export function holdGuard(on: boolean) {
+  window.clearTimeout(guardTimer);
+  if (on) {
+    document.documentElement.classList.add('voice-holding');
+    document.addEventListener('selectstart', blockEvent, true);
+    document.addEventListener('contextmenu', blockEvent, true);
+    window.getSelection()?.removeAllRanges();
+    return;
+  }
+  guardTimer = window.setTimeout(() => {
+    document.documentElement.classList.remove('voice-holding');
+    document.removeEventListener('selectstart', blockEvent, true);
+    document.removeEventListener('contextmenu', blockEvent, true);
+  }, 350);
+}
 
 function bump() { voiceLevel.current = Math.max(voiceLevel.current, 0.55 + Math.random() * 0.45); }
 
@@ -46,6 +73,7 @@ export function startListening() {
   if (!SR) return;
   stopListening();
   want = true;
+  started = false;
   finalText = useVoice.getState().text;
   set({ keyboard: false, hint: '' });
   const r = new SR();
@@ -53,9 +81,9 @@ export function startListening() {
   r.continuous = true;
   r.interimResults = true;
   r.maxAlternatives = 1;
-  r.onstart = () => { startedAt = Date.now(); set({ listening: true }); };
-  r.onsoundstart = bump;
-  r.onspeechstart = bump;
+  r.onstart = () => { startedAt = Date.now(); started = true; set({ listening: true }); };
+  r.onsoundstart = () => { started = true; bump(); };
+  r.onspeechstart = () => { started = true; bump(); };
   r.onresult = (e: any) => {
     let interim = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -63,12 +91,15 @@ export function startListening() {
       if (res.isFinal) finalText += res[0].transcript; else interim += res[0].transcript;
     }
     quickEnds = 0;
+    started = true;
     bump();
     set({ text: finalText + interim });
   };
   r.onerror = (e: any) => {
     if (e.error === 'no-speech' || e.error === 'aborted') return;
     want = false;
+    // 長按時被拒絕（iOS：手指按下的計時器不算手勢）：先不報錯，放開的那一刻再開始聽（releaseVoice）
+    if (useVoice.getState().hold && !started) { set({ listening: false }); return; }
     set({
       listening: false,
       hint: e.error === 'not-allowed' || e.error === 'service-not-allowed'
@@ -147,6 +178,14 @@ export async function submitVoice(): Promise<boolean> {
 export async function releaseVoice() {
   const s = useVoice.getState();
   if (!s.open || !s.hold) return;
+  // iOS Safari 只認 click／pointerup 這類「放開」才是使用者手勢，手指按下後的計時器不算：長按時辨識沒能開始，
+  // 就在放開的這一刻（還在手勢裡，所以這裡不能有 await 在前面）開始聽，改成一般模式：說完按打勾
+  if (!started) {
+    stopListening();
+    set({ hold: false });
+    startListening();
+    return;
+  }
   const r = rec;
   want = false;
   if (r) {
