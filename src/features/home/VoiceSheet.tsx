@@ -154,7 +154,7 @@ export function VoiceSheet() {
       <div className="voice">
         <Wave active={listening} />
         <p className="voice-status" role="status">
-          {hold && listening ? '說話中…放開就完成' : hold ? '放開後開始說話' : busy ? '記帳中…' : listening ? '正在聽…說完按 ✓' : keyboard ? '用鍵盤輸入' : supported ? '已暫停，按麥克風繼續' : ''}
+          {hold && listening ? '說話中…放開就完成' : hold ? '放開後開始聽，說完按 ✓' : busy ? '記帳中…' : listening ? '正在聽…說完按 ✓' : keyboard ? '用鍵盤輸入' : supported ? '已暫停，按麥克風繼續' : ''}
         </p>
         <div className="voice-box">
           <textarea ref={boxRef} rows={3} value={text} maxLength={300} enterKeyHint="done" aria-label="辨識的內容，可以直接修改"
