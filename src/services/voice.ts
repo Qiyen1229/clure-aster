@@ -22,9 +22,11 @@ interface VoiceState {
   text: string;
   hint: string;
   busy: boolean;
+  /** iPhone：長按放開後，要點一下麥克風才能開始聽（放開不算使用者手勢） */
+  prompt: boolean;
 }
 
-export const useVoice = create<VoiceState>(() => ({ open: false, hold: false, listening: false, keyboard: false, text: '', hint: '', busy: false }));
+export const useVoice = create<VoiceState>(() => ({ open: false, hold: false, listening: false, keyboard: false, text: '', hint: '', busy: false, prompt: false }));
 const set = (p: Partial<VoiceState>) => useVoice.setState(p);
 
 /** 波浪的振幅來源：語音辨識有回報就拉高，畫面那邊每一格衰減 */
@@ -80,7 +82,7 @@ export function startListening() {
   want = true;
   heard = false;
   finalText = useVoice.getState().text;
-  set({ keyboard: false, hint: '' });
+  set({ keyboard: false, hint: '', prompt: false });
   const r = new SR();
   r.lang = 'zh-TW';
   r.continuous = true;
@@ -145,10 +147,10 @@ export function openVoice(hold = false) {
   finalText = '';
   quickEnds = 0;
   heard = false;
-  set({ open: true, hold: hold && supported, listening: false, keyboard: false, text: '', hint: '', busy: false });
-  // iOS 不認長按計時器裡的啟動（會假裝在聽卻什麼都收不到）：長按時不啟動，放開那一刻（releaseVoice）才開始聽
-  if (supported && !(hold && isIOS())) startListening();
-  else set({ keyboard: true, hint: '這個瀏覽器沒有語音辨識：請按鍵盤上的麥克風（聽寫）說出來' });
+  set({ open: true, hold: hold && supported, listening: false, keyboard: false, text: '', hint: '', busy: false, prompt: false });
+  if (!supported) set({ keyboard: true, hint: '這個瀏覽器沒有語音辨識：請按鍵盤上的麥克風（聽寫）說出來' });
+  // iPhone：長按計時器裡啟動會假裝在聽卻什麼都收不到，所以長按時不啟動（放開後請使用者點一下麥克風，見 releaseVoice）
+  else if (!(hold && isIOS())) startListening();
 }
 
 export function closeVoice() {
@@ -185,11 +187,14 @@ export async function submitVoice(): Promise<boolean> {
 export async function releaseVoice() {
   const s = useVoice.getState();
   if (!s.open || !s.hold) return;
-  // iOS Safari 只認 click／pointerup 這類「放開」才是使用者手勢，手指按下後的計時器不算：長按時辨識沒能開始，
-  // 就在放開的這一刻（還在手勢裡，所以這裡不能有 await 在前面）開始聽，改成一般模式：說完按打勾
+  // 長按時沒聽到聲音（辨識沒能開始）：改成一般模式。
+  // iPhone：實測長按放開（pointerup／touchend）都不算使用者手勢，這時啟動會假裝在聽卻收不到聲音，
+  //         只有真正的點一下（click）可以 → 不自動開始，請使用者點一下麥克風（和一般點開語音彈窗一樣）
+  // Android／電腦：放開的這一刻還在手勢裡（所以這裡不能有 await 在前面），直接開始聽
   if (!heard) {
     stopListening();
     set({ hold: false });
+    if (isIOS()) { set({ prompt: true }); return; }
     startListening();
     return;
   }

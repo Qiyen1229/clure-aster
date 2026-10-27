@@ -862,9 +862,11 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
   background: var(--surface-2); color: var(--accent-text); transition: background 160ms ease, color 160ms ease, transform 120ms ease;
 }
 .voice-mic.on { background: var(--danger); color: #fff; animation: voice-pulse 1.6s ease-out infinite; }
+.voice-mic.prompt { background: var(--accent); color: var(--on-accent); animation: voice-pulse-accent 1.4s ease-out infinite; }
+@keyframes voice-pulse-accent { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); } 100% { box-shadow: 0 0 0 24px transparent; } }
 .voice-mic:disabled { opacity: 0.35; }
 @keyframes voice-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 45%, transparent); } 100% { box-shadow: 0 0 0 22px transparent; } }
-@media (prefers-reduced-motion: reduce) { .voice-mic.on { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .voice-mic.on, .voice-mic.prompt { animation: none; } }
 
 /* ---------- 設定頁 ---------- */
 .set-group { margin-bottom: 4px; }
