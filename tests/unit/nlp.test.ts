@@ -12,12 +12,14 @@ const ctx: ParseContext = {
     { id: 'esun', name: '玉山銀行', type: 'bank' },
     { id: 'taishin', name: '台新 Richart', type: 'bank' },
     { id: 'cube', name: '國泰 CUBE 卡', type: 'credit' },
+    { id: 'ctbc', name: '中國信託', type: 'bank' },
   ],
   categories: [
     { id: 'food', name: '飲食', kind: 'expense', parentId: '' },
     { id: 'lunch', name: '午餐', kind: 'expense', parentId: 'food' },
     { id: 'breakfast', name: '早餐', kind: 'expense', parentId: 'food' },
     { id: 'drink', name: '飲料', kind: 'expense', parentId: 'food' },
+    { id: 'dinner', name: '晚餐', kind: 'expense', parentId: 'food' },
     { id: 'taxi', name: '計程車', kind: 'expense', parentId: 'transport' },
     { id: 'salary', name: '薪資', kind: 'income', parentId: '' },
     { id: 'other', name: '其他', kind: 'expense', parentId: '' },
@@ -61,7 +63,7 @@ describe('日期', () => {
 describe('一句話記帳', () => {
   it('分類、帳戶、日期、備註', () => {
     const [d] = parseEntries('昨天午餐麥當勞 150 刷玉山卡', ctx);
-    expect(d).toMatchObject({ kind: 'expense', amount: 150, date: '2026-10-27', accountId: 'esun', categoryId: 'lunch', note: '午餐麥當勞' });
+    expect(d).toMatchObject({ kind: 'expense', amount: 150, date: '2026-10-27', accountId: 'esun', categoryId: 'lunch', note: '麥當勞' });
   });
   it('一句多筆，日期與帳戶套用到每一筆', () => {
     const list = parseEntries('昨天 早餐 60 午餐 120 飲料 55 都用現金', ctx);
@@ -85,4 +87,43 @@ describe('一句話記帳', () => {
     expect(parseEntries('拉麵 1200 日圓 刷卡', ctx)[0]).toMatchObject({ amount: 1200, currency: 'JPY', accountId: 'cube' });
   });
   it('沒有金額就沒有結果', () => expect(parseEntries('今天好累', ctx)).toEqual([]));
+});
+
+
+describe('備註與分類辨識', () => {
+  const one = (text: string, c: ParseContext = ctx) => parseEntries(text, c)[0];
+  it('分類已經說了就不再寫進備註：只留具體的東西', () => {
+    expect(one('今天早餐科學麵100塊')).toMatchObject({ amount: 100, categoryId: 'breakfast', note: '科學麵', date: today });
+    expect(one('午餐麥當勞 150')).toMatchObject({ categoryId: 'lunch', note: '麥當勞' });
+  });
+  it('只說了分類：備註留空', () => {
+    expect(one('晚餐320中國信託')).toMatchObject({ amount: 320, categoryId: 'dinner', accountId: 'ctbc', note: '' });
+    expect(one('午餐 120')).toMatchObject({ categoryId: 'lunch', note: '' });
+  });
+  it('常見說法對應到分類：手搖飲 → 飲料', () => {
+    expect(one('手搖飲230中國信託')).toMatchObject({ amount: 230, categoryId: 'drink', accountId: 'ctbc', note: '' });
+    expect(one('買手搖飲 60')).toMatchObject({ categoryId: 'drink', note: '' });
+  });
+  it('具體的店名或品項只用來判斷分類，仍保留在備註', () => {
+    expect(one('珍奶 65')).toMatchObject({ categoryId: 'drink', note: '珍奶' });
+    expect(one('喝咖啡 80')).toMatchObject({ categoryId: 'drink', note: '咖啡' });
+    expect(one('Uber 230')).toMatchObject({ categoryId: 'taxi', note: 'Uber' });
+    expect(one('小黃 180')).toMatchObject({ categoryId: 'taxi', note: '' });
+  });
+  it('使用者沒有這個分類就不亂猜，備註照原樣', () => {
+    const noDrink: ParseContext = { ...ctx, categories: ctx.categories.filter((c) => c.id !== 'drink') };
+    expect(one('手搖飲 50', noDrink)).toMatchObject({ categoryId: undefined, note: '手搖飲' });
+  });
+  it('備註只剩動詞或贅字就當作沒有', () => {
+    expect(one('吃 120')).toMatchObject({ note: '' });
+    expect(one('吃科學麵 100')).toMatchObject({ note: '科學麵' });
+  });
+  it('收入：領到、收到不算備註', () => {
+    expect(one('領薪水 5萬2 存到台新')).toMatchObject({ kind: 'income', categoryId: 'salary', note: '' });
+    expect(one('收到小明還款 500')).toMatchObject({ kind: 'income', note: '小明還款' });
+  });
+  it('一句多筆各自判斷', () => {
+    const list = parseEntries('早餐蛋餅 60 手搖飲 55 晚餐 200', ctx);
+    expect(list.map((x) => [x.amount, x.categoryId, x.note])).toEqual([[60, 'breakfast', '蛋餅'], [55, 'drink', ''], [200, 'dinner', '']]);
+  });
 });
