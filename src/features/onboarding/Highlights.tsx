@@ -118,7 +118,7 @@ export function WhatsNewSheet() {
   }, [ready, onboarded, seen]);
   const close = () => { setOpen(false); useSettings.getState().set('seenWhatsNew', WHATS_NEW_VERSION); };
   return (
-    <Sheet open={open} onClose={close} title={`Clure ${WHATS_NEW_VERSION} 新功能`}>
+    <Sheet open={open} onClose={close} title={`Aster ${WHATS_NEW_VERSION} 新功能`}>
       <p className="muted" style={{ margin: '0 0 12px' }}>左右滑動看看，點「去看看」直接打開。</p>
       <FeatureCards onGo={(to) => { close(); navigate(to); }} />
       <button className="btn" style={{ marginTop: 12 }} onClick={close}>開始使用</button>

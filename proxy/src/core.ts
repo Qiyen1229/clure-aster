@@ -1,5 +1,5 @@
 /**
- * Clure 報價代理核心（Cloudflare Workers、Node、Vite 開發伺服器共用）。
+ * Aster 報價代理核心（Cloudflare Workers、Node、Vite 開發伺服器共用）。
  *
  * 只做一件事：把瀏覽器無法直接呼叫（沒有 CORS）的「白名單」金融資料網址代為取回，並加上 CORS 標頭。
  *   GET /fetch?url=<encoded target>   → 轉發（只允許 GET、只允許白名單網域）
@@ -13,7 +13,7 @@
 
 export interface ProxyEnv {
   ACCESS_TOKEN?: string;
-  /** 允許的來源，預設 *；可設為 https://clure.example.com */
+  /** 允許的來源，預設 *；可設為 https://aster.example.com */
   ALLOW_ORIGIN?: string;
 }
 
@@ -97,7 +97,7 @@ export async function handle(req: Request, env: ProxyEnv, opts: { ip?: string; c
   try { target = new URL(u.searchParams.get('url') ?? ''); } catch { return json(400, { error: 'invalid url' }, env); }
   if (target.protocol !== 'https:' || !ALLOWED_HOSTS.includes(target.host)) return json(403, { error: `host not allowed: ${target.host}` }, env);
 
-  const cacheKey = `https://clure-cache/${encodeURIComponent(target.toString())}`;
+  const cacheKey = `https://aster-cache/${encodeURIComponent(target.toString())}`;
   if (opts.cache) {
     const hit = await opts.cache.get(cacheKey);
     if (hit) return new Response(hit.body, { status: hit.status, headers: cors(env, { 'content-type': hit.headers.get('content-type') ?? 'application/json', 'x-cache': 'HIT' }) });

@@ -19,9 +19,10 @@ from app.db import session_scope
 from app.model import ROLE_ADMIN, User
 from app.repository.user_repository import UserRepository
 from app.schema.auth import validate_password_strength
+from app.service.app_settings import registration_open
 from app.service.errors import ServiceError
 
-log = logging.getLogger("clure")
+log = logging.getLogger("aster")
 
 
 FIELD_LABELS = {"username": "使用者名稱", "email": "Email", "password": "密碼", "new_password": "新密碼", "current_password": "目前密碼",
@@ -96,8 +97,8 @@ def warn_insecure_defaults() -> None:
 
     for db in session_scope():
         users = int(db.scalar(select(func.count(User.id))) or 0)
-        if s.allow_registration and users > 0:
-            log.warning("⚠ 已有 %s 位使用者但仍開放註冊（CLURE_ALLOW_REGISTRATION=true）；只給自己和家人使用時請改為 false", users)
+        if registration_open(db, s) and users > 0:
+            log.warning("⚠ 已有 %s 位使用者但仍開放註冊；只給自己和家人使用時，請在管理後台關閉「開放註冊」", users)
         if s.first_user_admin and users == 0:
             log.warning("⚠ 系統還沒有使用者：第一位註冊的人會成為管理員，請立刻自己先註冊，或設定 CLURE_ADMIN_* 並把 CLURE_FIRST_USER_ADMIN 設為 false")
     if "change-me" in s.database_url:
@@ -126,7 +127,7 @@ async def lifespan(_: FastAPI):
 def create_app() -> FastAPI:
     s = get_settings()
     app = FastAPI(
-        title="Clure API", version="1.3.0", lifespan=lifespan,
+        title="Aster API", version="1.3.1", lifespan=lifespan,
         docs_url="/api/docs" if s.env != "production" else None, redoc_url=None, openapi_url="/api/openapi.json" if s.env != "production" else None,
     )
 

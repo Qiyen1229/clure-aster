@@ -7,8 +7,11 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_client, get_db, require_admin
 from app.core.request_info import ClientInfo
 from app.model import User
-from app.schema.admin import AdminUserOut, ResetPasswordResponse, StatsOut, StatusUpdateRequest, UserListQuery, UserListResponse
+from app.schema.admin import (
+    AdminUserOut, ResetPasswordResponse, StatsOut, StatusUpdateRequest, SystemSettingsOut, SystemSettingsUpdate, UserListQuery, UserListResponse,
+)
 from app.schema.audit import AuditLogList, AuditQuery
+from app.service import app_settings
 from app.service.admin_service import AdminService
 from app.service.audit_service import AuditService
 from app.service.stats_service import StatsService
@@ -49,3 +52,13 @@ def audit_logs(q: AuditQuery = Depends(), admin: User = Depends(require_admin), 
         svc.record("admin.audit_view", client, actor_id=admin.id, detail={"action": q.action or ""})
         db.commit()
     return result
+
+
+@router.get("/settings", response_model=SystemSettingsOut, summary="系統設定")
+def get_system_settings(admin: User = Depends(require_admin), db: Session = Depends(get_db)) -> SystemSettingsOut:
+    return app_settings.read(db)
+
+
+@router.patch("/settings", response_model=SystemSettingsOut, summary="修改系統設定（開放註冊）")
+def update_system_settings(body: SystemSettingsUpdate, admin: User = Depends(require_admin), client: ClientInfo = Depends(get_client), db: Session = Depends(get_db)) -> SystemSettingsOut:
+    return app_settings.update(db, body, admin, client)

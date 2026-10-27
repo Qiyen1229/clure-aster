@@ -35,7 +35,7 @@ export default function PrintReport() {
         <button className="btn secondary small" onClick={() => navigate(-1)}><Icon name="chevronL" size={16} />返回</button>
         <button className="btn small" onClick={() => window.print()}><Icon name="download" size={16} />列印／儲存 PDF</button>
       </div>
-      <h1>Clure 記帳報表</h1>
+      <h1>Aster 記帳報表</h1>
       <p className="muted">{range.start} ～ {range.end}・主幣別 {base}・產生於 {new Date().toLocaleString('zh-TW')}</p>
       <table className="print-table">
         <tbody>

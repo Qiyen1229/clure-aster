@@ -42,5 +42,5 @@ def schedule(body: ScheduleRequest, user: User = Depends(get_current_user), db: 
 
 @router.post("/test", response_model=MessageResponse, summary="發送測試推播")
 def test(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> MessageResponse:
-    n = PushService(db).send_to_user(user.id, {"title": "Clure 測試推播 🔔", "body": "收到這則通知代表背景推播設定成功", "url": "/settings/notifications", "tag": "test"})
+    n = PushService(db).send_to_user(user.id, {"title": "Aster 測試推播 🔔", "body": "收到這則通知代表背景推播設定成功", "url": "/settings/notifications", "tag": "test"})
     return MessageResponse(message=f"已送出到 {n} 台裝置" if n else "沒有可用的推播裝置")

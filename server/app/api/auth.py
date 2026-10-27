@@ -11,6 +11,7 @@ from app.core.config import get_settings
 from app.core.request_info import ClientInfo
 from app.model import User
 from app.schema.auth import ChangePasswordRequest, LoginRequest, MessageResponse, RegisterRequest, UserPublic
+from app.service.app_settings import registration_open
 from app.service.auth_service import AuthService, IssuedTokens
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -20,6 +21,11 @@ def _respond(response: Response, request: Request, tokens: IssuedTokens) -> None
     set_auth_cookies(response, request, access=tokens.access_token, access_exp=tokens.access_expires,
                      refresh=tokens.refresh_token, refresh_exp=tokens.refresh_expires)
     response.headers["Cache-Control"] = "no-store"
+
+
+@router.get("/registration", summary="是否開放註冊（登入頁決定要不要顯示註冊連結）")
+def registration(db: Session = Depends(get_db)) -> dict[str, bool]:
+    return {"open": registration_open(db)}
 
 
 @router.post("/register", response_model=UserPublic, status_code=201, summary="註冊")

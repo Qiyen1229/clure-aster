@@ -1,8 +1,8 @@
-# Clure 記帳 PWA — 設計文件 v1.0（階段 1–5 已實作）
+# Aster 記帳 PWA — 設計文件 v1.0（階段 1–5 已實作）
 
 > 實作狀態：全部完成。實作細節差異見下方「v1.0 實作備註」。
 > v0.1 依需求「八-1」提出；v0.2 依使用者回饋調整 Tab Bar、中央按鈕與記帳月曆頁，HTTPS／反向代理由使用者自行處理。
-> 專案代號暫定 **Clure**（取自資料夾名稱），App 顯示名稱「Clure 記帳」，可再改。
+> 專案名稱 **Aster**（原名 Clure，1.3.1 更名），App 顯示名稱「Aster 記帳」。
 
 ---
 
@@ -49,7 +49,7 @@
 ## 2. 專案結構
 
 ```
-Clure/
+Aster/
 ├─ docs/                     DESIGN.md、DEPLOY.md、QA.md、KNOWN_LIMITS.md
 ├─ public/
 │  ├─ icons/                 icon-192/512/maskable/apple-touch-180、splash/*.png

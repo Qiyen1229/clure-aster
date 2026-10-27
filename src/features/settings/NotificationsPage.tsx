@@ -14,7 +14,7 @@ import type { NotifySettings } from '@/db/repo/settings';
 
 const STATE_TEXT: Record<PermissionState, string> = {
   granted: '已允許系統通知 ✓',
-  denied: '通知已被封鎖。請到 iPhone「設定 → 通知 → Clure」或瀏覽器網站設定中允許。',
+  denied: '通知已被封鎖。請到 iPhone「設定 → 通知 → Aster」或瀏覽器網站設定中允許。',
   default: '尚未允許系統通知',
   unsupported: '此瀏覽器不支援系統通知，提醒會顯示在 App 內的提醒中心（鈴鐺）。',
   'needs-install': 'iPhone 需先「加入主畫面」並從主畫面開啟（iOS 16.4 以上），才能使用系統通知。目前提醒會顯示在 App 內的提醒中心。',

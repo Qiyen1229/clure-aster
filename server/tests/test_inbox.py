@@ -9,7 +9,9 @@ from tests.conftest import Api
 
 def _hook(token: str, body: dict, header: str = "bearer"):  # noqa: ANN202
     c = TestClient(app)  # 捷徑沒有 Cookie、也沒有 CSRF 標頭
-    h = {"Authorization": f"Bearer {token}"} if header == "bearer" else {"X-Clure-Token": token}
+    if header == "query":  # 匯入式捷徑：連結碼＝網址＋?t=權杖
+        return c.post("/api/hook/inbox", params={"t": token}, json=body)
+    h = {"Authorization": f"Bearer {token}"} if header == "bearer" else {"X-Aster-Token": token}
     return c.post("/api/hook/inbox", json=body, headers=h)
 
 
@@ -31,7 +33,7 @@ def test_hook_receive_list_and_ack(api: Api) -> None:
     r = _hook(token, {"source": "Apple Pay", "amount": "NT$1,234.00", "merchant": "全聯福利中心", "card": "玉山 Pi 卡", "date": "2026/10/28 12:30"})
     assert r.status_code == 200 and r.json()["ok"]
     assert _hook(token, {"source": "簡訊", "text": "您的玉山卡消費 NT$560"}, header="x").status_code == 200
-    assert _hook(token, {"amount": 99, "extra_field": "ignored"}).status_code == 200
+    assert _hook(token, {"amount": 99, "extra_field": "ignored"}, header="query").status_code == 200
     assert _hook(token, {"source": "siri"}).status_code == 422  # 沒有內容
     items = api.get("/api/inbox/items").json()
     assert [i["source"] for i in items] == ["other", "sms", "applepay"]
@@ -41,6 +43,13 @@ def test_hook_receive_list_and_ack(api: Api) -> None:
     # 另一台裝置再確認同一筆：已經不在了，不會回傳（避免重複記帳）
     assert api.post("/api/inbox/items/ack", {"ids": ids[:2]}).json()["ids"] == []
     assert len(api.get("/api/inbox/items").json()) == 1
+
+
+def test_hook_accepts_legacy_header(api: Api) -> None:
+    api.register("alice")
+    token = api.post("/api/inbox/tokens", {"name": "iPhone"}).json()["token"]
+    # 更名為 Aster 前設定的捷徑用 X-Clure-Token
+    assert TestClient(app).post("/api/hook/inbox", json={"text": "午餐 1"}, headers={"X-Clure-Token": token}).status_code == 200
 
 
 def test_hook_rejects_bad_token_and_isolates_users(admin_and_user) -> None:  # noqa: ANN001

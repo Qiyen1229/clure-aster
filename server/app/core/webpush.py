@@ -23,7 +23,7 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from app.core.config import get_settings
 
-log = logging.getLogger("clure.push")
+log = logging.getLogger("aster.push")
 
 
 def b64u(b: bytes) -> str:
@@ -85,7 +85,7 @@ class SendResult:
     gone: bool  # 訂閱已失效（404／410），應刪除
 
 
-def send(endpoint: str, p256dh: str, auth: str, message: dict, subject: str = "mailto:admin@clure.local", ttl: int = 86400) -> SendResult:
+def send(endpoint: str, p256dh: str, auth: str, message: dict, subject: str = "mailto:admin@aster.local", ttl: int = 86400) -> SendResult:
     body = encrypt(json.dumps(message, ensure_ascii=False).encode(), p256dh, auth)
     headers = {
         "Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream", "TTL": str(ttl), "Urgency": "normal",

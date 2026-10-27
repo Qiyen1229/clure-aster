@@ -1,4 +1,4 @@
-# Clure 後端（Python ≥ 3.10）
+# Aster 後端（Python ≥ 3.10）
 fastapi>=0.115,<1
 uvicorn[standard]>=0.32,<1
 sqlalchemy>=2.0.36,<3

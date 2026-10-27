@@ -61,3 +61,14 @@ class StatsOut(BaseModel):
     db_engine: str
     # 部署設定提醒（開放註冊、預設密碼等）
     warnings: list[str] = []
+
+
+class SystemSettingsOut(BaseModel):
+    allow_registration: bool
+    # .env 的 CLURE_ALLOW_REGISTRATION；後台改過後以後台為準
+    allow_registration_default: bool
+    allow_registration_overridden: bool
+
+
+class SystemSettingsUpdate(BaseModel):
+    allow_registration: bool | None = None

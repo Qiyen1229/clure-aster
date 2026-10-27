@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Clure 設計系統：iOS 原生質感 + 輕度毛玻璃
+   Aster 設計系統：iOS 原生質感 + 輕度毛玻璃
    - 顏色全部是 token，深淺色與 8 組主題色只改變數
    - 字級用 rem，html 套用 -apple-system-body → 跟隨 iOS「文字大小」設定（動態字級）
    ========================================================================== */
@@ -811,6 +811,16 @@ button.row:active, a.row:active { transform: scale(0.985); transition-duration: 
 .inbox-fields { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 .inbox-fields td { padding: 6px 4px; border-top: 0.5px solid var(--sep); vertical-align: top; }
 .inbox-fields td:first-child { width: 88px; }
+.inbox-oneclick code, .inbox-advanced code { font-size: 0.8rem; word-break: break-all; background: var(--surface-2); padding: 1px 5px; border-radius: 6px; }
+.oneclick-steps { padding-left: 20px; margin: 0 0 6px; font-size: 0.88rem; line-height: 1.55; }
+.oneclick-item { padding: 8px 0; border-top: 0.5px solid var(--sep); }
+.oneclick-row { display: flex; align-items: center; gap: 10px; }
+.oneclick-row .pill { flex: none; height: 34px; padding: 0 16px; }
+.oneclick-note { font-size: 0.78rem; margin: 6px 0 0 46px; line-height: 1.5; }
+.oneclick-fallback, .inbox-advanced { margin-top: 10px; }
+.oneclick-fallback summary, .inbox-advanced summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; font-size: 0.85rem; }
+.oneclick-fallback p { font-size: 0.8rem; display: flex; flex-wrap: wrap; gap: 6px; }
+.inbox-advanced .inbox-token { margin: 10px 0 0; padding: 0; box-shadow: none; background: none; }
 
 /* ---------- 現金流預測 ---------- */
 .cash-warn { border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent); background: color-mix(in srgb, var(--danger) 8%, var(--surface)); }

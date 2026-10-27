@@ -55,7 +55,7 @@ export default function Onboarding() {
       {step === 0 && (
         <>
           <img src="/icons/icon-192.png" alt="" width={88} height={88} style={{ borderRadius: 20, marginTop: 24 }} />
-          <h1>歡迎使用 Clure 記帳</h1>
+          <h1>歡迎使用 Aster 記帳</h1>
           <p>記帳、預算、多帳戶、多幣別、股票投資組合，一個 App 搞定。</p>
           <div className="card">
             <p style={{ margin: 0 }}>🔒 <b>你的資料存在你自己的伺服器</b><br />帳目會自動同步，之後在手機、平板、電腦登入同一個帳號都能看到。這些設定只需要做一次。</p>

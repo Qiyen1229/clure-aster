@@ -81,8 +81,6 @@ def security_warnings() -> list[str]:
     """給管理員後台顯示的設定提醒。"""
     s = get_settings()
     out: list[str] = []
-    if s.allow_registration:
-        out.append("目前開放註冊：只給自己和家人使用時，建議在 .env 設定 CLURE_ALLOW_REGISTRATION=false")
     if s.first_user_admin:
         out.append("CLURE_FIRST_USER_ADMIN 仍為 true：已建立管理員後建議改為 false")
     if "change-me" in s.database_url:

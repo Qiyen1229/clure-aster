@@ -44,7 +44,7 @@ export async function buildBackup(includePhotos = true): Promise<Blob> {
       data[t.name] = await t.toArray();
     }
   }
-  const payload = { app: 'clure', format: BACKUP_FORMAT, version: __APP_VERSION__, schema: db.verno, exportedAt: new Date().toISOString(), data };
+  const payload = { app: 'aster', format: BACKUP_FORMAT, version: __APP_VERSION__, schema: db.verno, exportedAt: new Date().toISOString(), data };
   return new Blob([JSON.stringify(payload)], { type: 'application/json' });
 }
 
@@ -52,7 +52,8 @@ export interface RestoreSummary { tables: number; rows: number }
 
 export async function restoreBackup(file: File, mode: 'replace' | 'merge'): Promise<RestoreSummary> {
   const json = JSON.parse(await file.text());
-  if (json.app !== 'clure' || !json.data) throw new Error('不是 Clure 的備份檔');
+  // 'clure'：更名為 Aster 前的備份檔，格式相同
+  if ((json.app !== 'aster' && json.app !== 'clure') || !json.data) throw new Error('不是 Aster 的備份檔');
   if (json.schema > db.verno) throw new Error('備份檔來自較新版本，請先更新 App');
   let rows = 0, tables = 0;
   const names = db.tables.map((t) => t.name).filter((n) => !DEVICE_STATE_TABLES.has(n));
@@ -117,7 +118,7 @@ export async function saveFile(blob: Blob, filename: string, mime: string): Prom
 
 export async function exportBackup(includePhotos = true) {
   const blob = await buildBackup(includePhotos);
-  const r = await saveFile(blob, `clure-backup-${new Date().toISOString().slice(0, 10)}.json`, 'application/json');
+  const r = await saveFile(blob, `aster-backup-${new Date().toISOString().slice(0, 10)}.json`, 'application/json');
   if (r !== 'cancelled') await db.meta.put({ key: 'lastBackupAt', value: Date.now() });
   return r;
 }
@@ -166,12 +167,12 @@ async function ledgerRows(scope: ExportScope) {
   return [header, ...out];
 }
 
-export async function exportCSV(scope: ExportScope = {}, name = 'clure-transactions') {
+export async function exportCSV(scope: ExportScope = {}, name = 'aster-transactions') {
   const rows = await ledgerRows(scope);
   return saveFile(new Blob([toCSV(rows)], { type: 'text/csv;charset=utf-8' }), `${name}.csv`, 'text/csv');
 }
 
-export async function exportXLSX(scope: ExportScope = {}, name = 'clure') {
+export async function exportXLSX(scope: ExportScope = {}, name = 'aster') {
   const [rows, accounts, stocks, trades, divs] = await Promise.all([
     ledgerRows(scope), db.accounts.toArray(), db.stocks.toArray(), db.stock_trades.toArray(), db.dividends.toArray(),
   ]);

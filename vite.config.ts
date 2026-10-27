@@ -7,7 +7,7 @@ import type { Connect, Plugin } from 'vite';
 import { handle, memoryCache } from './proxy/src/core';
 
 /** 開發／預覽伺服器內建報價代理：/proxy/* → proxy/src/core.ts（與 NAS、Cloudflare 版本同一份程式） */
-function clureProxy(): Plugin {
+function asterProxy(): Plugin {
   const cache = memoryCache();
   const mw: Connect.NextHandleFunction = async (req, res, next) => {
     if (!req.url?.startsWith('/proxy')) return next();
@@ -57,7 +57,7 @@ export default defineConfig({
     },
   },
   plugins: [
-    clureProxy(),
+    asterProxy(),
     react(),
     VitePWA({
       strategies: 'injectManifest',
@@ -70,8 +70,8 @@ export default defineConfig({
       includeAssets: ['icons/*.png', 'icons/*.svg'],
       manifest: {
         id: '/',
-        name: 'Clure 記帳',
-        short_name: 'Clure',
+        name: 'Aster 記帳',
+        short_name: 'Aster',
         description: '資料只存在你裝置上的個人記帳與投資組合 App',
         lang: 'zh-Hant-TW',
         start_url: '/?source=pwa',

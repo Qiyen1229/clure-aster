@@ -1,6 +1,8 @@
-# Clure 記帳（PWA）
+# Aster 記帳（PWA）
 
 自架的個人記帳＋股票投資組合 PWA：帳目存在你自己的伺服器（NAS），同一個帳號在手機、平板、電腦之間自動同步，離線也能記帳。參考 Moze 4.0 的操作邏輯，iOS 原生質感，可加入 iPhone 主畫面。
+
+> 原名 Clure，1.3.1 起更名為 Aster。`.env` 的 `CLURE_*` 設定、docker 資料卷與資料庫名稱都沿用舊名，已部署的 NAS 不用改設定，直接用 `aster-nas.zip` 覆蓋更新即可。
 
 - 設計文件：[docs/DESIGN.md](docs/DESIGN.md)
 - QA 檢查清單：[docs/QA.md](docs/QA.md)
@@ -34,7 +36,7 @@
 | 今日可用（動態每日額度） | 今日額度 = 今天開始前的剩餘預算 ÷ 剩餘天數（含今天）；今天少花明天自動變多、超支則變少。首頁小工具與預算卡大字顯示 |
 | 心願清單 | 專案與預算 → 心願：冷靜期 3／7／14／30 天，到期提醒「你還想買嗎？」，放棄購買會累計「冷靜期幫你省下」 |
 | 帳號系統 | 註冊／登入（帳號或 Email）、Argon2id、JWT（HttpOnly Cookie）、Refresh 輪替與重用偵測、CSRF、頻率限制、帳號鎖定 |
-| 管理員資安後台 | `/admin`：系統總覽、使用者管理（凍結／啟用、強制登出、重設密碼）、資安審計日誌 |
+| 管理員資安後台 | `/admin`：系統總覽（含開放註冊開關）、使用者管理（凍結／啟用、強制登出、重設密碼）、資安審計日誌 |
 | 本機資料隔離 | 每個帳號獨立的 IndexedDB；首次登入可把舊資料歸到帳號；離線時曾登入的裝置可繼續使用 |
 | 跨裝置同步 | 帳目、分類、預算、投資、設定自動同步到自架伺服器；新裝置登入直接取得全部資料（不再出現首次設定）；變更約 1 秒內上傳，其他裝置 15 秒內收到（背景 60 秒）；離線記的帳恢復連線後自動上傳；同一筆兩邊都改時以較晚的修改為準。設定 → 帳號 → 跨裝置同步 可看狀態、立即同步 |
 | 動態效果 | 頁面依方向滑入（分頁左右、進入／返回下一層）、清單與卡片依序進場、按鈕按壓回彈、選取時彈跳、Tab 圖示彈跳＋指示點；尊重系統「減少動態效果」 |
@@ -46,7 +48,7 @@
 | 功能 | 說明 |
 |---|---|
 | 一句話／語音記帳 | 記帳面板最上方「一句話記帳」：打字或說「昨天午餐 150 刷玉山卡」，自動判斷金額（含中文數字「兩千三」「5萬2」）、日期（昨天、上週五、10/25）、帳戶、分類；「早餐 60 午餐 120」一次記多筆。深層連結 `/add?text=…` |
-| 自動記帳收件匣 | 設定 → 自動記帳收件匣：iPhone 捷徑把 Apple Pay 交易（iOS 17+「交易」自動化）、銀行刷卡簡訊、Siri 一句話送到 `/api/hook/inbox`（捷徑專用權杖，只能寄、不能讀），App 開啟時解析成帳目，確認後記帳或開啟自動入帳；會記住「卡片 → 帳戶」。說明見 [docs/INBOX.md](docs/INBOX.md) |
+| 自動記帳收件匣 | 設定 → 自動記帳收件匣：按「加入」一鍵匯入預先做好的捷徑（只要貼上自動複製的連結碼）；iPhone 捷徑把 Apple Pay 交易（iOS 17+「交易」自動化）、銀行刷卡簡訊、Siri 一句話送到 `/api/hook/inbox`（捷徑專用權杖，只能寄、不能讀），App 開啟時解析成帳目，確認後記帳或開啟自動入帳；會記住「卡片 → 帳戶」。說明見 [docs/INBOX.md](docs/INBOX.md) |
 | 現金流預測 | 報表 → 現金流預測：未來 30／90／180 天可動用的錢，算入週期收支、信用卡繳款（已出帳、未出帳、卡上的週期與分期）、分期、貸款與日常花費推估；最低點、哪天哪個帳戶不夠付 |
 | 週報／月報 | 報表 → 週報／月報：支出與前一期比較、分類變化、最大一筆、無消費日、白話重點；每週第一天、每月第一天 9 點提醒（App 內提醒中心＋背景推播） |
 | 用問的查帳 | 搜尋直接問：「上個月吃飯花多少」「這週咖啡喝了幾次」「今年最大一筆」「上個月錢都花到哪」「最近 30 天平均每天花多少」「上個月最常去哪裡」 |
@@ -118,7 +120,7 @@ cd server && .venv/bin/python -m pytest -q
 | `npm run build` | 型別檢查＋正式建置到 `dist/` |
 | `npm run preview` | 以正式建置在 http://localhost:9122 預覽（Service Worker 生效、含 `/proxy`） |
 | `npm run icons` | 由 `assets/icon.svg` 重新產生所有圖標與 iOS 啟動畫面 |
-| `npm run pack:nas` | 產生 NAS 更新用的 `clure-nas.zip`（**不含 `.env` 與 `data/`**，解壓覆蓋不會動到你的設定與資料庫） |
+| `npm run pack:nas` | 產生 NAS 更新用的 `aster-nas.zip`（**不含 `.env` 與 `data/`**，解壓覆蓋不會動到你的設定與資料庫） |
 
 ---
 
@@ -128,7 +130,7 @@ cd server && .venv/bin/python -m pytest -q
 
 | 項目 | 預設值 | 建議 |
 |---|---|---|
-| `CLURE_ALLOW_REGISTRATION` | `true`（開放註冊） | 建好自己的帳號後改成 `false`，避免陌生人註冊 |
+| `CLURE_ALLOW_REGISTRATION` | `true`（開放註冊） | 預設值；管理後台的「開放註冊」開關改過後以後台為準。建好自己的帳號後關閉，避免陌生人註冊 |
 | `CLURE_FIRST_USER_ADMIN` | `true`（第一位註冊者是管理員） | 部署後第一時間自己先註冊，或預先設定 `CLURE_ADMIN_*` |
 | `POSTGRES_PASSWORD` | `change-me` | 若啟用 PostgreSQL，**務必**改成強密碼 |
 | `PROXY_ACCESS_TOKEN` | 空（不驗證） | NAS 版的 `/proxy/` 已要求登入；若另外把報價代理對外開放（例如 Cloudflare Worker、直接開 9123 埠）請設定一串隨機權杖 |
@@ -137,7 +139,7 @@ cd server && .venv/bin/python -m pytest -q
 另外：
 
 - `.env` 已被 `.gitignore` 排除，**請勿把自己的 `.env` 提交到 Git**。
-- `npm run pack:nas` 產生的 `clure-nas.zip` 不含 `.env`；舊版手動打包的檔案可能含有 `.env` 副本，請勿上傳。
+- `npm run pack:nas` 產生的 `aster-nas.zip` 不含 `.env`；舊版手動打包的檔案可能含有 `.env` 副本，請勿上傳。
 - 管理員後台「系統總覽」會列出目前的危險設定。
 - 發現安全問題請開 Issue（不要貼出密鑰或個資）。
 
@@ -163,7 +165,7 @@ cd server && .venv/bin/python -m pytest -q
    - `CLURE_DATA_PATH`：資料庫存放位置，**建議放在專案資料夾外**，例如 `/volume1/docker/clure-data`
    - `CLURE_JWT_SECRET`（`openssl rand -base64 64` 產生）
    - `CLURE_ADMIN_USERNAME`／`CLURE_ADMIN_EMAIL`／`CLURE_ADMIN_PASSWORD`（首次啟動建立管理員），並把 `CLURE_FIRST_USER_ADMIN` 設為 `false`
-   - 只給家人使用時，建好帳號後把 `CLURE_ALLOW_REGISTRATION` 設為 `false`
+   - 只給家人使用時，建好帳號後在管理後台關閉「開放註冊」（或把 `CLURE_ALLOW_REGISTRATION` 設為 `false`）
 3. 在該資料夾執行（或在 Container Manager「專案」中用這個資料夾建立專案）：
 
 ```bash
@@ -180,7 +182,7 @@ docker compose logs -f web-builder api
 
 **你的資料在哪裡**：NAS 專案資料夾裡的 `data/api/`（`clure.db`、`clure.db-wal`、`clure.db-shm`、`jwt_secret`、`vapid_private.pem`），或 `.env` 中 `CLURE_DATA_PATH` 指定的位置。各裝置的瀏覽器也各有一份完整帳目。更新前建議先複製一份 `data/` 資料夾。
 
-1. 在電腦上執行 `npm run pack:nas` 產生 `clure-nas.zip`（不含 `.env` 與 `data/`）。
+1. 在電腦上執行 `npm run pack:nas` 產生 `aster-nas.zip`（不含 `.env` 與 `data/`）。
 2. 把 zip 解壓縮後**覆蓋**到 NAS 上同一個資料夾（**不要先刪除資料夾**）。`data/` 與 `.env` 不在 zip 裡，會原封不動。
 3. 若 `.env.example` 有新增設定（例如 `CLURE_PROXY_REQUIRE_LOGIN`），可手動加到 `.env`；不加則使用預設值。
 
@@ -196,7 +198,7 @@ docker compose logs -f web-builder api
 | `docker/nginx.conf`、`docker-compose.yml`、`.env` | 需手動套用：`docker compose up -d`（nginx 設定則 `docker compose restart web`） | — |
 
 - 建置失敗（例如檔案只傳了一半）會**保留舊版本繼續服務**，修正後自動重試；原因可在 `docker compose logs web-builder` 看到。
-- 前端更新後，已開啟的 App 會出現「有新版本，點擊更新」。
+- 前端更新後，已開啟的 App 會出現「有新版本，點擊更新」；也可以到「設定 → 關於」按版本旁的「檢查更新」立刻更新（iPhone 主畫面版不用重新加入主畫面）。
 - 想在建置前先跑單元測試再上線：`.env` 設定 `CLURE_RUN_TESTS=true`。
 - ⚠ 覆蓋時**不要刪除** `CLURE_DATA_PATH` 指向的資料夾（預設 `./data`），裡面是資料庫與 JWT 金鑰。
 

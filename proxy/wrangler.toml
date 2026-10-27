@@ -4,7 +4,7 @@ main = "worker.ts"
 compatibility_date = "2024-09-23"
 
 [vars]
-# 允許的前端來源（建議改成你的網址，例如 https://clure.example.com）
+# 允許的前端來源（建議改成你的網址，例如 https://aster.example.com）
 ALLOW_ORIGIN = "*"
 
 # 存取權杖請用 secret 設定，不要寫在這裡：

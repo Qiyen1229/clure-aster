@@ -23,7 +23,7 @@ from app.repository.sync_repository import SyncRepository
 from app.schema.sync import SYNC_TABLES, E2EEConfig, E2EEUpdate, SyncChange, SyncPullResponse, SyncPushResponse, SyncStatus
 from app.service.errors import ServiceError
 
-log = logging.getLogger("clure.sync")
+log = logging.getLogger("aster.sync")
 
 MAX_PAYLOAD_BYTES = 256 * 1024
 MAX_RECORDS_PER_USER = 500_000

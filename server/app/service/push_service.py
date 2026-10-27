@@ -22,7 +22,7 @@ from app.schema.push import PushStatus, ScheduleRequest, SubscribeRequest
 from app.service.audit_service import AuditService
 from app.service.errors import ServiceError
 
-log = logging.getLogger("clure.push")
+log = logging.getLogger("aster.push")
 
 # 只允許瀏覽器內建的推播服務，避免伺服器被拿去對任意網址發送請求（SSRF）
 PUSH_HOST_SUFFIXES = (

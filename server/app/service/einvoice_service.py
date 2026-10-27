@@ -24,7 +24,7 @@ from app.core.config import get_settings
 from app.schema.einvoice import CarrierInvoice, CarrierItem, CarrierQuery, CarrierResult, EinvoiceStatus
 from app.service.errors import ServiceError
 
-log = logging.getLogger("clure.einvoice")
+log = logging.getLogger("aster.einvoice")
 
 INV_SERV = "/PB2CAPIVAN/invServ/InvServ"
 MAX_PAGES = 20

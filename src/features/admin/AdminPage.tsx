@@ -8,6 +8,7 @@ import { api, ApiError } from '@/services/api';
 import { useAuth } from '@/stores/auth';
 import { useUI } from '@/stores/ui';
 import { EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
+import { SwitchField } from '@/ui/form';
 import { Icon } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
 
@@ -31,7 +32,7 @@ export const ACTION_LABEL: Record<string, string> = {
   'admin.user_list_view': '查看使用者列表', 'admin.audit_view': '查看審計日誌', 'admin.stats_view': '查看系統統計',
   'admin.cli_create_admin': '建立管理員（指令列）', 'admin.cli_delete_user': '刪除使用者（指令列）',
   'sync.e2ee_on': '啟用端對端加密', 'sync.e2ee_off': '停用端對端加密', 'push.subscribe': '啟用背景推播',
-  'admin.user_freeze': '凍結帳號', 'admin.user_unfreeze': '啟用帳號', 'admin.force_logout': '強制登出', 'admin.password_reset': '重設密碼',
+  'admin.user_freeze': '凍結帳號', 'admin.user_unfreeze': '啟用帳號', 'admin.force_logout': '強制登出', 'admin.password_reset': '重設密碼', 'admin.settings': '修改系統設定',
 };
 
 /** 伺服器回傳 UTC（無時區）→ 本地時間字串 */
@@ -94,6 +95,34 @@ export default function AdminPage() {
   );
 }
 
+interface SystemSettings { allow_registration: boolean; allow_registration_default: boolean; allow_registration_overridden: boolean }
+
+/** 開放註冊：後台改過就以後台為準，沒改過沿用 .env 的 CLURE_ALLOW_REGISTRATION */
+function RegistrationSwitch() {
+  const { data, error } = useApi<SystemSettings>('/admin/settings');
+  const [s, setS] = useState<SystemSettings | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (data) setS(data); }, [data]);
+  const cur = s ?? data;
+  if (error || !cur) return null;
+  const toggle = async (open: boolean) => {
+    if (!open || window.confirm('開放註冊後，知道網址的任何人都能建立帳號。確定要開放嗎？')) {
+      setBusy(true);
+      try {
+        setS(await api<SystemSettings>('/admin/settings', { method: 'PATCH', body: { allow_registration: open } }));
+        useUI.getState().showSnack({ text: open ? '已開放註冊' : '已關閉註冊，新使用者無法自行建立帳號' });
+      } catch (e) { useUI.getState().showSnack({ text: (e as Error).message }); } finally { setBusy(false); }
+    }
+  };
+  return (
+    <div className="list" style={{ marginBottom: 12 }}>
+      <SwitchField label="開放註冊" checked={cur.allow_registration} onChange={(v) => { if (!busy) void toggle(v); }}
+        sub={(cur.allow_registration ? '任何人都能在登入頁自行建立帳號' : '登入頁不顯示註冊，只能由管理員建立帳號')
+          + (cur.allow_registration_overridden ? '' : '（目前沿用 .env 設定）')} />
+    </div>
+  );
+}
+
 function Overview() {
   const { data, error, reload } = useApi<Stats>('/admin/stats');
   const recent = useApi<Page<AuditLog>>('/admin/audit-logs', { success: false, size: 5 });
@@ -119,6 +148,7 @@ function Overview() {
           <p className="muted">修改 NAS 上的 .env 後執行 docker compose up -d 套用。</p>
         </div>
       )}
+      <RegistrationSwitch />
       <div className="admin-grid">
         {cards.map((c) => (
           <button key={c.k} className={`admin-stat${c.warn ? ' warn' : ''}`} onClick={() => c.to && navigate(c.to)} disabled={!c.to}>

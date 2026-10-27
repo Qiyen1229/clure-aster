@@ -10,7 +10,7 @@ import type {
 } from './types';
 import { OUTBOX, syncTracking, type OutboxEntry } from './sync-tracking';
 
-export class ClureDB extends Dexie {
+export class AsterDB extends Dexie {
   accounts!: Table<Account, string>;
   categories!: Table<Category, string>;
   transactions!: Table<Transaction, string>;
@@ -100,7 +100,7 @@ export class ClureDB extends Dexie {
  * 目前使用中的資料庫。登入後切換為該使用者專屬的 `clure-u{userId}`（同一台裝置多人使用互不干擾）。
  * 使用 `export let`：ES 模組為 live binding，切換後所有 `import { db }` 的地方都會拿到新的實例。
  */
-export let db = new ClureDB('clure');
+export let db = new AsterDB('clure');
 
 export const LEGACY_DB_NAME = 'clure';
 
@@ -113,7 +113,7 @@ export async function openUserDatabase(userId: number | string): Promise<void> {
   const name = userDbName(userId);
   if (db.name !== name) {
     db.close();
-    db = new ClureDB(name);
+    db = new AsterDB(name);
   }
   await db.open();
   const owner = await db.meta.get('ownerUserId');
@@ -124,7 +124,7 @@ export async function openUserDatabase(userId: number | string): Promise<void> {
 /** 登入前（未啟用帳號系統時）留下的本機資料筆數；0 代表沒有需要歸屬的資料 */
 export async function legacyDataCount(): Promise<number> {
   if (!(await Dexie.exists(LEGACY_DB_NAME))) return 0;
-  const legacy = new ClureDB(LEGACY_DB_NAME);
+  const legacy = new AsterDB(LEGACY_DB_NAME);
   try {
     await legacy.open();
     return (await legacy.transactions.count()) + (await legacy.accounts.count());
@@ -135,7 +135,7 @@ export async function legacyDataCount(): Promise<number> {
 
 /** 把舊資料庫的所有資料複製到目前使用者的資料庫，成功後刪除舊資料庫 */
 export async function adoptLegacyData(): Promise<number> {
-  const legacy = new ClureDB(LEGACY_DB_NAME);
+  const legacy = new AsterDB(LEGACY_DB_NAME);
   await legacy.open();
   let rows = 0;
   try {

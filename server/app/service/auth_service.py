@@ -16,10 +16,11 @@ from app.model import ROLE_ADMIN, ROLE_USER, RefreshToken, User
 from app.repository.token_repository import TokenRepository
 from app.repository.user_repository import UserRepository
 from app.schema.auth import ChangePasswordRequest, LoginRequest, RegisterRequest
+from app.service import app_settings
 from app.service.audit_service import AuditService
 from app.service.errors import ServiceError
 
-log = logging.getLogger("clure.auth")
+log = logging.getLogger("aster.auth")
 # 兩個分頁同時刷新時，舊權杖在這段時間內再次使用不視為遭竊
 REFRESH_REUSE_GRACE = timedelta(seconds=20)
 
@@ -65,7 +66,7 @@ class AuthService:
 
     # ───── 註冊 ─────
     def register(self, req: RegisterRequest, client: ClientInfo) -> tuple[User, IssuedTokens]:
-        if not self.settings.allow_registration:
+        if not app_settings.registration_open(self.db, self.settings):
             raise ServiceError(403, "目前未開放註冊，請聯絡管理員")
         if self.users.get_by_username(req.username) or self.users.get_by_email(req.email):
             self.audit.record("auth.register", client, success=False, detail={"reason": "duplicate"})

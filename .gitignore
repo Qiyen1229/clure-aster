@@ -10,8 +10,8 @@ dist
 !.env.example
 
 # 部署打包檔(內含 .env 副本)
-clure-nas.zip
-clure-nas.tar.gz
+aster-nas.zip
+aster-nas.tar.gz
 
 # 執行期資料與快取
 data/*
@@ -25,3 +25,5 @@ __pycache__/
 
 # 本機編輯器/工具設定
 .claude/
+clure-nas.zip
+clure-nas.tar.gz

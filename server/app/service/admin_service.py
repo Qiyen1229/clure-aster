@@ -14,7 +14,7 @@ from app.schema.admin import AdminUserOut, ResetPasswordResponse, StatusUpdateRe
 from app.service.audit_service import AuditService
 from app.service.errors import ServiceError
 
-log = logging.getLogger("clure.admin")
+log = logging.getLogger("aster.admin")
 
 
 class AdminService:

@@ -191,8 +191,8 @@ export function ProjectDetailPage() {
       </section>
       <div className="btn-row" style={{ marginBottom: 12 }}>
         <button className="btn tinted small" style={{ flex: 1 }} onClick={() => openAdd({ projectId: project.id })}>記一筆</button>
-        <button className="btn tinted small" style={{ flex: 1 }} onClick={() => void exportCSV({ projectId: project.id }, `clure-${project.name}`)}>匯出 CSV</button>
-        <button className="btn tinted small" style={{ flex: 1 }} onClick={() => void exportXLSX({ projectId: project.id }, `clure-${project.name}`)}>匯出 Excel</button>
+        <button className="btn tinted small" style={{ flex: 1 }} onClick={() => void exportCSV({ projectId: project.id }, `aster-${project.name}`)}>匯出 CSV</button>
+        <button className="btn tinted small" style={{ flex: 1 }} onClick={() => void exportXLSX({ projectId: project.id }, `aster-${project.name}`)}>匯出 Excel</button>
       </div>
       {byCat.length > 0 && (
         <div className="list">

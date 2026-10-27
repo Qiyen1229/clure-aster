@@ -1,11 +1,11 @@
 """收件匣路由。
 
 - /api/inbox/*：App 使用（登入 Cookie，非 GET 需 CSRF）：管理捷徑權杖、列出與確認待記帳項目
-- /api/hook/inbox：iPhone 捷徑使用（Authorization: Bearer clr_…）；不使用 Cookie，因此不需要 CSRF
+- /api/hook/inbox：iPhone 捷徑使用（Authorization: Bearer clr_…，或匯入式捷徑用的 ?t=clr_…）；不使用 Cookie，因此不需要 CSRF
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_client, get_current_user, get_db, rate_limit
@@ -53,12 +53,14 @@ def ack(body: AckRequest, user: User = Depends(get_current_user), db: Session = 
 
 
 @hook_router.post("/inbox", response_model=HookResult, summary="iPhone 捷徑送進收件匣")
-def hook(body: HookItem, client: ClientInfo = Depends(get_client), authorization: str | None = Header(None), x_clure_token: str | None = Header(None),
-         db: Session = Depends(get_db)) -> HookResult:
-    token = x_clure_token or (authorization[7:].strip() if authorization and authorization[:7].lower() == "bearer " else None)
+def hook(body: HookItem, client: ClientInfo = Depends(get_client), authorization: str | None = Header(None), x_aster_token: str | None = Header(None),
+         x_clure_token: str | None = Header(None),
+         t: str | None = Query(None, max_length=80), db: Session = Depends(get_db)) -> HookResult:
+    # 匯入式捷徑只有一個「連結碼」（網址＋?t=權杖），手動設定的捷徑則用 Authorization 標頭；X-Clure-Token 是更名前的標頭
+    token = x_aster_token or x_clure_token or (authorization[7:].strip() if authorization and authorization[:7].lower() == "bearer " else None) or t
     rate_limit(hook_ip_limiter, client.ip or "?")
     svc = InboxService(db)
     user, row = svc.user_for_token(token)
     rate_limit(hook_limiter, str(row.id))
     svc.receive(user, row, body)
-    return HookResult(message="已送到 Clure，打開 App 確認記帳")
+    return HookResult(message="已送到 Aster，打開 App 確認記帳")

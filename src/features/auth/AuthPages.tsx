@@ -2,9 +2,9 @@
  * 登入／註冊／變更密碼頁面。
  * 密碼只在送出時傳給伺服器，前端不保存；權杖由伺服器設定為 HttpOnly Cookie。
  */
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { ApiError } from '@/services/api';
+import { api, ApiError } from '@/services/api';
 import { useAuth } from '@/stores/auth';
 import { Icon } from '@/ui/Icon';
 
@@ -21,6 +21,13 @@ function AuthShell({ title, subtitle, children, footer }: { title: string; subti
       <p className="disclaimer">🔒 帳號與帳目都存放在你自己架設的伺服器，登入任何裝置都能看到同一份資料。</p>
     </main>
   );
+}
+
+/** 管理員是否開放註冊；查不到（離線、舊版伺服器）時當作開放，由伺服器在送出時把關 */
+function useRegistrationOpen(): boolean | null {
+  const [open, setOpen] = useState<boolean | null>(null);
+  useEffect(() => { void api<{ open: boolean }>('/auth/registration').then((r) => setOpen(r.open), () => setOpen(true)); }, []);
+  return open;
 }
 
 function PasswordInput({ id, value, onChange, autoComplete, placeholder }: { id: string; value: string; onChange: (v: string) => void; autoComplete: string; placeholder?: string }) {
@@ -51,6 +58,7 @@ function errorText(e: unknown): string {
 
 export function LoginPage() {
   const login = useAuth((s) => s.login);
+  const registrationOpen = useRegistrationOpen();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const location = useLocation();
@@ -76,7 +84,7 @@ export function LoginPage() {
   };
 
   return (
-    <AuthShell title="登入 Clure" subtitle="歡迎回來" footer={<>還沒有帳號？<Link to="/register" className="accent">註冊</Link></>}>
+    <AuthShell title="登入 Aster" subtitle="歡迎回來" footer={registrationOpen ? <>還沒有帳號？<Link to="/register" className="accent">註冊</Link></> : undefined}>
       <form onSubmit={submit} className="auth-form" noValidate>
         <label htmlFor="login-id">使用者名稱或 Email</label>
         <input id="login-id" className="input" value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoComplete="username"
@@ -91,6 +99,7 @@ export function LoginPage() {
 }
 
 export function RegisterPage() {
+  const registrationOpen = useRegistrationOpen();
   const register = useAuth((s) => s.register);
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
@@ -120,6 +129,14 @@ export function RegisterPage() {
       setBusy(false);
     }
   };
+
+  if (registrationOpen === false) {
+    return (
+      <AuthShell title="目前未開放註冊" subtitle="請向管理員索取帳號" footer={<>已經有帳號？<Link to="/login" className="accent">登入</Link></>}>
+        <p className="muted" style={{ margin: 0 }}>這台伺服器只給特定成員使用。需要帳號時，請聯絡架設的人幫你建立。</p>
+      </AuthShell>
+    );
+  }
 
   return (
     <AuthShell title="建立帳號" subtitle="註冊後即可在這台裝置開始記帳" footer={<>已經有帳號？<Link to="/login" className="accent">登入</Link></>}>

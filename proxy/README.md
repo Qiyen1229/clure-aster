@@ -1,4 +1,4 @@
-# Clure 報價代理（CORS Proxy）
+# Aster 報價代理（CORS Proxy）
 
 瀏覽器不能直接呼叫證交所、櫃買、Yahoo 等沒有開放 CORS 的 API，因此需要一個極輕量的代理。
 同一份核心程式（`src/core.ts`）可部署成三種形式：

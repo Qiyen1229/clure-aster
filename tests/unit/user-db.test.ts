@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import Dexie from 'dexie';
 import * as schema from '@/db/schema';
-import { ClureDB } from '@/db/schema';
+import { AsterDB } from '@/db/schema';
 
 describe('每位使用者獨立的本機資料庫', () => {
   it('切換使用者時資料互不可見，並標記擁有者', async () => {
@@ -18,14 +18,14 @@ describe('每位使用者獨立的本機資料庫', () => {
   });
 
   it('帳號系統啟用前的資料可歸屬到目前帳號，之後舊庫被刪除', async () => {
-    const legacy = new ClureDB('clure');
+    const legacy = new AsterDB('clure');
     await legacy.open();
     await legacy.tags.add({ id: 'old', name: '舊資料', color: '#000', sort: 0, createdAt: 0, updatedAt: 0 });
     await legacy.meta.put({ key: 'fxUpdatedAt', value: 123 });
     legacy.close();
     await schema.openUserDatabase(7);
     expect(await schema.legacyDataCount()).toBe(0); // 只算帳目與帳戶
-    const l2 = new ClureDB('clure');
+    const l2 = new AsterDB('clure');
     await l2.open();
     await l2.accounts.add({ id: 'a', name: '錢包', icon: '', color: '', type: 'cash', currency: 'TWD', initialBalanceMinor: 0, balanceMinor: 0, includeInNetWorth: true, isLiability: false, sort: 0, archived: 0, createdAt: 0, updatedAt: 0 });
     l2.close();

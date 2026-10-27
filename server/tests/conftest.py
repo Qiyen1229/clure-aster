@@ -7,7 +7,7 @@ from collections.abc import Iterator
 
 import pytest
 
-_tmp = tempfile.mkdtemp(prefix="clure-test-")
+_tmp = tempfile.mkdtemp(prefix="aster-test-")
 os.environ.update({
     "CLURE_ENV": "test",
     "CLURE_DATA_DIR": _tmp,

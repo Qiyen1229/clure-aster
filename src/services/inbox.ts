@@ -13,7 +13,7 @@ import { api } from './api';
 import { extractDate, findAccounts, findAmounts, parseEntries, toHalfWidth, type DraftEntry } from '@/domain/nlp';
 import { toDateKey, todayKey } from '@/domain/period';
 import { useSettings } from '@/stores/settings';
-import { AUTH_ENABLED } from '@/stores/auth';
+import { AUTH_ENABLED, useAuth } from '@/stores/auth';
 import { bookDrafts, fallbackAccount, parseContext, resolveDraft, type ResolvedDraft } from './quickentry';
 
 export interface InboxRaw {
@@ -47,6 +47,54 @@ export const SOURCE_LABEL: Record<InboxRaw['source'], { icon: string; label: str
 export const useInboxCount = create<{ n: number; set: (n: number) => void }>((set) => ({ n: 0, set: (n) => set({ n }) }));
 
 export const hookUrl = () => `${location.origin}/api/hook/inbox`;
+
+/** 預先做好、簽署過的捷徑（scripts/make-shortcuts.py 產生 public/shortcuts/aster-<key>.shortcut）；name＝匯入後的捷徑名稱 */
+export const SHORTCUTS = [
+  { key: 'siri', name: 'Aster 記一筆', icon: '🎙', title: '對 Siri 說一句話記帳', automation: null },
+  { key: 'applepay', name: 'Aster Apple Pay 記帳', icon: '💳', title: 'Apple Pay 付款後自動記帳', automation: '交易' },
+  { key: 'sms', name: 'Aster 簡訊記帳', icon: '💬', title: '銀行刷卡簡訊自動記帳', automation: '訊息' },
+] as const;
+
+type ShortcutDef = (typeof SHORTCUTS)[number];
+export const shortcutFileUrl = (s: ShortcutDef) => `/shortcuts/aster-${s.key}.shortcut`;
+
+/**
+ * 下載捷徑檔：iOS 下載後由「捷徑」App 開啟匯入畫面，捷徑名稱取自檔名，所以用 download 屬性帶中文名稱。
+ * （shortcuts://import-shortcut 只接受 iCloud 連結，自架網址會顯示「捷徑 URL 無效」）
+ */
+export function downloadShortcut(s: ShortcutDef) {
+  const a = document.createElement('a');
+  a.href = shortcutFileUrl(s);
+  a.download = `${s.name}.shortcut`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+/** 連結碼＝網址＋?t=權杖：捷徑匯入時只要貼上這一串。存在這台裝置（依使用者區分），之後加其他捷徑可重用 */
+export const linkCode = (token: string) => `${hookUrl()}?t=${token}`;
+const linkKey = () => `clure.inbox.link.${useAuth.getState().user?.id ?? 0}`;
+
+export function savedLink(): { id: number; code: string } | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(linkKey()) ?? 'null') as { id: number; code: string } | null;
+    return v && typeof v.code === 'string' ? v : null;
+  } catch { return null; }
+}
+
+export function forgetLink() {
+  try { localStorage.removeItem(linkKey()); } catch { /* 私密瀏覽 */ }
+}
+
+/** 取得這台裝置的連結碼；沒有就建立一組名為「iPhone 捷徑」的權杖 */
+export async function ensureLink(): Promise<{ id: number; code: string; created?: InboxToken }> {
+  const saved = savedLink();
+  if (saved) return saved;
+  const r = await createToken('iPhone 捷徑');
+  const link = { id: r.item.id, code: linkCode(r.token) };
+  try { localStorage.setItem(linkKey(), JSON.stringify(link)); } catch { /* 私密瀏覽：這次仍可用 */ }
+  return { ...link, created: r.item };
+}
 
 export const listTokens = () => api<InboxToken[]>('/inbox/tokens');
 export const createToken = (name: string) => api<{ token: string; item: InboxToken }>('/inbox/tokens', { method: 'POST', body: { name } });

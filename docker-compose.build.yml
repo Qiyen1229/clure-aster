@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────
-# Clure 記帳 — 映像檔版部署（每次更新需重新建置映像檔）
+# Aster 記帳 — 映像檔版部署（每次更新需重新建置映像檔）
 #   日常更新建議改用 docker-compose.yml（掛載＋熱更新，覆蓋檔案即自動生效）
 #   docker compose -f docker-compose.build.yml up -d --build
 #   開啟 http://<NAS-IP>:9122   （HTTPS 請由你的反向代理處理）

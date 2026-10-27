@@ -93,3 +93,19 @@ def test_sync_enabled(admin_and_user) -> None:
     _, u = admin_and_user
     assert u.get("/api/sync/status").json()["enabled"] is True
     assert u.post("/api/sync/push", {"device_id": "device-0001", "changes": []}).status_code == 200
+
+
+def test_registration_toggle(admin_and_user) -> None:
+    a, u = admin_and_user
+    assert u.patch("/api/admin/settings", {"allow_registration": False}).status_code == 403
+    s = a.get("/api/admin/settings").json()
+    assert s["allow_registration"] is True and s["allow_registration_overridden"] is False
+    s = a.patch("/api/admin/settings", {"allow_registration": False}).json()
+    assert s["allow_registration"] is False and s["allow_registration_overridden"] is True
+    assert Api("10.9.0.1").get("/api/auth/registration").json() == {"open": False}
+    r = Api("10.9.0.2").register("bob")
+    assert r.status_code == 403 and "未開放註冊" in r.json()["detail"]
+    a.patch("/api/admin/settings", {"allow_registration": True})
+    assert Api("10.9.0.3").register("carol").status_code == 201
+    actions = [i["action"] for i in a.get("/api/admin/audit-logs", params={"action": "admin.settings"}).json()["items"]]
+    assert actions.count("admin.settings") == 2

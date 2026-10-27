@@ -17,7 +17,7 @@ declare const self: ServiceWorkerGlobalScope & { __WB_MANIFEST: Array<{ url: str
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 
-registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html'), { denylist: [/^\/proxy\//, /^\/api\//] }));
+registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html'), { denylist: [/^\/proxy\//, /^\/api\//, /^\/shortcuts\//] }));
 
 registerRoute(
   ({ url }) => url.hostname === 'open.er-api.com' || url.pathname.includes('/currency-api'),
@@ -36,7 +36,7 @@ self.addEventListener('message', (event) => {
 self.addEventListener('push', (event) => {
   let msg: { title?: string; body?: string; url?: string; tag?: string } = {};
   try { msg = event.data?.json() ?? {}; } catch { msg = { body: event.data?.text() }; }
-  event.waitUntil(self.registration.showNotification(msg.title || 'Clure 記帳', {
+  event.waitUntil(self.registration.showNotification(msg.title || 'Aster 記帳', {
     body: msg.body ?? '', icon: '/icons/icon-192.png', badge: '/icons/favicon-32.png', tag: msg.tag, data: { url: msg.url || '/' },
   }));
 });

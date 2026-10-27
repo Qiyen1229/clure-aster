@@ -80,8 +80,8 @@ export default function BackupPage() {
       <div className="list">
         <div className="field"><span className="label">開始</span><input type="date" value={range.start} max={range.end} onChange={(e) => setRange((r) => ({ ...r, start: e.target.value }))} /></div>
         <div className="field"><span className="label">結束</span><input type="date" value={range.end} min={range.start} onChange={(e) => setRange((r) => ({ ...r, end: e.target.value }))} /></div>
-        <button className="row accent" disabled={!!busy} onClick={() => void run('csv', () => exportCSV(range, `clure-${range.start}_${range.end}`))}>匯出 CSV</button>
-        <button className="row accent" disabled={!!busy} onClick={() => void run('xlsx', () => exportXLSX(range, `clure-${range.start}_${range.end}`))}>匯出 Excel（.xlsx，含帳戶、投資、股利）</button>
+        <button className="row accent" disabled={!!busy} onClick={() => void run('csv', () => exportCSV(range, `aster-${range.start}_${range.end}`))}>匯出 CSV</button>
+        <button className="row accent" disabled={!!busy} onClick={() => void run('xlsx', () => exportXLSX(range, `aster-${range.start}_${range.end}`))}>匯出 Excel（.xlsx，含帳戶、投資、股利）</button>
         <button className="row accent" onClick={() => navigate(`/reports/print?start=${m.start}&end=${m.end}`)}>本月 PDF 報表（列印／儲存為 PDF）</button>
       </div>
 

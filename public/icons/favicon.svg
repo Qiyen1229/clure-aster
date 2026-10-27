@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <!-- Clure App 圖標：深色漸層底 + 幾何三角稜鏡 + 金幣，滿版方形（iOS 會自動裁圓角） -->
+  <!-- Aster App 圖標：深色漸層底 + 幾何三角稜鏡 + 金幣，滿版方形（iOS 會自動裁圓角） -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#101A2E"/>

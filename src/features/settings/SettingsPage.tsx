@@ -9,6 +9,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
 import { clearSampleData, hasSampleData, loadSampleData } from '@/db/seed/sample';
 import { CURRENCIES } from '@/domain/money';
+import { checkForUpdate } from '@/services/appUpdate';
 import { refreshRates } from '@/services/fx';
 import { useSettings } from '@/stores/settings';
 import { useUI } from '@/stores/ui';
@@ -127,6 +128,7 @@ export default function SettingsPage() {
   const sample = useLiveQuery(() => hasSampleData(), []);
   const fxAt = useLiveQuery(async () => (await db.meta.get('fxUpdatedAt'))?.value as number | undefined, []);
   const [busy, setBusy] = useState('');
+  const [checking, setChecking] = useState(false);
   const auth = useAuth();
   const [pwOpen, setPwOpen] = useState(false);
   const [encOpen, setEncOpen] = useState(false);
@@ -296,11 +298,21 @@ export default function SettingsPage() {
 
       <div className="section-title">關於</div>
       <div className="list">
-        <Row label="版本" sub={`v${__APP_VERSION__} · 建置於 ${__BUILD_TIME__.slice(0, 10)}`} />
+        <Row label="版本" sub={`v${__APP_VERSION__} · 建置於 ${__BUILD_TIME__.slice(0, 10)}`}>
+          <button className="pill" disabled={checking} onClick={async () => {
+            setChecking(true);
+            try {
+              const r = await checkForUpdate();
+              if (r === 'reloading') snack('找到新版本，正在更新…');
+              else if (r === 'latest') snack('已經是最新版本 ✓');
+              else location.reload();
+            } catch { snack('無法連線到伺服器，請稍後再試'); } finally { setChecking(false); }
+          }}>{checking ? '檢查中…' : '檢查更新'}</button>
+        </Row>
         <Row label="資料隱私" sub="記帳資料存在本機（IndexedDB，每個帳號獨立），並同步到你自己架設的伺服器，讓同一帳號的所有裝置看到相同資料；未啟用端對端加密時，伺服器上的資料為明文。收據照片只留在拍照的裝置。App 鎖 PIN、通知設定不會同步。匯率與股價查詢只會送出幣別／股票代號。" />
         <Row label="重新執行首次引導" onClick={() => { s.set('onboarded', false); navigate('/onboarding'); }} />
       </div>
-      <p className="disclaimer">Clure 記帳 · 以 ❤️ 製作於台灣</p>
+      <p className="disclaimer">Aster 記帳 · 以 ❤️ 製作於台灣</p>
     </main>
   );
 }

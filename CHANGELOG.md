@@ -1,5 +1,22 @@
 # 變更紀錄
 
+## 1.3.1（2026-10-27）
+
+### 更名
+- 專案更名為 **Aster**（App 名稱「Aster 記帳」、主畫面名稱「Aster」、捷徑「Aster 記一筆」等），版本維持 1.3.1
+- 為了不影響已部署的資料，以下沿用舊名：`.env` 的 `CLURE_*` 設定、登入 Cookie、裝置上的本機資料庫與設定、端對端加密檢查值、docker 專案／資料卷／PostgreSQL 帳號名稱、報價代理的 `x-clure-token` 標頭；舊的備份檔與 `X-Clure-Token` 捷徑標頭仍可使用
+- NAS 更新檔改名為 `aster-nas.zip`
+
+### 新功能
+- **一鍵加入 iPhone 捷徑**：收件匣頁面提供三個預先做好、已簽署的捷徑（Aster 記一筆／Aster Apple Pay 記帳／Aster 簡訊記帳）。按「加入」會自動建立權杖、複製連結碼並打開「捷徑」App，匯入時貼上連結碼即可；Apple Pay 與簡訊另附建立自動化的步驟。原本的手動設定移到「進階」
+- **管理後台開放註冊開關**：總覽頁可直接開關註冊（存在資料庫，優先於 `.env` 的 `CLURE_ALLOW_REGISTRATION`）；關閉時登入頁不顯示註冊連結，修改會寫入審計日誌
+- **手動檢查更新**：設定 → 關於 → 版本旁的「檢查更新」，部署新版後不用等自動檢查，有新版就立刻更新並重新整理
+
+### 後端
+- `/api/hook/inbox` 也接受網址參數 `?t=權杖`（匯入式捷徑的連結碼）
+- 新增資料表 `app_settings`（遷移 0006，啟動時自動套用）；`GET /api/auth/registration`、`GET/PATCH /api/admin/settings`
+- 捷徑檔放在 `public/shortcuts/`，由 `scripts/make-shortcuts.py` 產生並簽署
+
 ## 1.3.0（2026-10-27）
 
 ### 新功能

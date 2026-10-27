@@ -15,7 +15,7 @@ from app.model import AuditLog
 from app.repository.audit_repository import AuditRepository
 from app.schema.audit import AuditLogList, AuditLogOut, AuditQuery
 
-log = logging.getLogger("clure.audit")
+log = logging.getLogger("aster.audit")
 _FORBIDDEN_KEYS = {"password", "new_password", "current_password", "token", "refresh_token", "access_token", "temporary_password"}
 
 

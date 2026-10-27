@@ -29,8 +29,8 @@ from app.repository.user_repository import UserRepository
 from app.schema.auth import USERNAME_RE, validate_password_strength
 from app.service.audit_service import AuditService
 
-log = logging.getLogger("clure.cli")
-CLI_CLIENT = ClientInfo(ip="cli", user_agent="clure-cli")
+log = logging.getLogger("aster.cli")
+CLI_CLIENT = ClientInfo(ip="cli", user_agent="aster-cli")
 
 
 def _read_password() -> str | None:
@@ -120,7 +120,7 @@ def list_users() -> int:
 
 def main() -> int:
     setup_logging()
-    p = argparse.ArgumentParser(prog="clure")
+    p = argparse.ArgumentParser(prog="aster")
     sub = p.add_subparsers(dest="cmd", required=True)
     c = sub.add_parser("create-admin", help="建立或提升管理員（密碼可用環境變數 CLURE_NEW_PASSWORD 提供）")
     c.add_argument("--username", required=True)
