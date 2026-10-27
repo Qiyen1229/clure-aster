@@ -24,6 +24,8 @@ export interface AddPrefill {
   invoiceNo?: string;
   /** 一句話記帳：開啟時先解析這段文字（深層連結 /add?text=…） */
   quickText?: string;
+  /** 從主畫面的麥克風進來：打開一句話記帳並立刻開始聽（不支援語音辨識時改為聚焦輸入框，可用鍵盤聽寫） */
+  quickVoice?: boolean;
   /** 從收件匣帶入：儲存後把這則收件匣項目標為已處理 */
   inboxId?: string;
   /** 收件匣的卡片名稱：儲存後記住「這張卡 → 這個帳戶」 */

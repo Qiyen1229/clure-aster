@@ -14,7 +14,7 @@ import { todayKey } from '@/domain/period';
 import { deleteTransactions, deleteTransfers } from '@/db/repo/ledger';
 import {
   ackInbox, bookInboxEntries, createToken, ensureLink, forgetLink, hookUrl, listTokens, loadInbox, revokeToken, savedLink,
-  downloadShortcut, shortcutFileUrl, SHORTCUTS, SOURCE_LABEL, useInboxCount,
+  canImportByUrl, openShortcutImport, shortcutFileUrl, SHORTCUTS, SOURCE_LABEL, useInboxCount,
   type InboxEntry, type InboxToken,
 } from '@/services/inbox';
 import { useSettings } from '@/stores/settings';
@@ -122,8 +122,8 @@ export default function InboxPage() {
         if (!copied) copied = await navigator.clipboard.writeText(r.code).then(() => true, () => false);
       } catch (e) { snack((e as Error).message); return; } finally { setPreparing(false); }
     }
-    snack(copied ? '已複製連結碼：下載後在「捷徑」App 按「設定捷徑」，長按輸入框 →「貼上」' : '請先複製下方的連結碼，再到「捷徑」App 貼上', 8000);
-    downloadShortcut(sc);
+    snack(copied ? '已複製連結碼：在「捷徑」App 按「設定捷徑」，長按輸入框 →「貼上」' : '請先複製下方的連結碼，再到「捷徑」App 貼上', 8000);
+    openShortcutImport(sc);
   };
 
   const resetLink = async () => {
@@ -227,8 +227,7 @@ export default function InboxPage() {
       <div className="section-title">加入 iPhone 捷徑</div>
       <div className="card inbox-oneclick">
         <ol className="oneclick-steps">
-          <li>按下面的「<b>加入</b>」：自動複製你的<b>連結碼</b>，並下載捷徑（問要不要下載時按「<b>下載</b>」）</li>
-          <li>「捷徑」App 打開後（沒有自動打開就點網址列旁的下載圖示 → 點檔案）</li>
+          <li>按下面的「<b>加入</b>」：自動複製你的<b>連結碼</b>，並切換到「捷徑」App</li>
           <li>按「<b>設定捷徑</b>」，長按輸入框 →「<b>貼上</b>」</li>
           <li>按「<b>加入捷徑</b>」就完成了（名稱可以自己改）</li>
         </ol>
@@ -264,8 +263,9 @@ export default function InboxPage() {
         </div>
         <details className="oneclick-fallback">
           <summary className="muted">沒有跳到「捷徑」App？</summary>
-          <p className="muted">請用 iPhone 開啟這一頁。也可以按下面的連結下載，再到「檔案」App 的「下載項目」點開：</p>
-          <p>{SHORTCUTS.map((s) => <a key={s.key} className="pill" href={shortcutFileUrl(s)} download={`${s.name}.shortcut`}>{s.icon} {s.name}</a>)}</p>
+          <p className="muted">請用 iPhone 開啟這一頁（需要 HTTPS 網址）。匯入完成後，按「捷徑」App 左上角的「◀ Aster」就能回到這裡。也可以改成下載捷徑檔，再到「檔案」App 的「下載項目」點開：</p>
+          <p>{SHORTCUTS.map((s) => <a key={s.key} className="pill" href={shortcutFileUrl(s)} download={`${s.name}.shortcut`} target="_blank" rel="noreferrer">{s.icon} {s.name}</a>)}</p>
+          {!canImportByUrl() && <p className="muted">目前是 HTTP 網址：「捷徑」App 不接受網址匯入，「加入」會改為下載檔案。</p>}
           <p className="muted">如果「設定捷徑」畫面卡住，可以先按「略過設定」加入，再打開捷徑、把第一個「文字」動作的內容換成連結碼。NAS 外層有登入保護（例如 Cloudflare Access）時，需要放行 <code>/shortcuts/</code> 與 <code>/api/hook/</code>。</p>
         </details>
       </div>

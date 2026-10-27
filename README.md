@@ -198,6 +198,7 @@ docker compose logs -f web-builder api
 | `docker/nginx.conf`、`docker-compose.yml`、`.env` | 需手動套用：`docker compose up -d`（nginx 設定則 `docker compose restart web`） | — |
 
 - 建置失敗（例如檔案只傳了一半）會**保留舊版本繼續服務**，修正後自動重試；原因可在 `docker compose logs web-builder` 看到。
+- 覆蓋 `docker/nginx.conf` 也會自動生效（web 容器每 5 秒檢查，語法有誤時保留舊設定）。只有 `docker-compose.yml`、`.env` 變動才需要 `docker compose up -d`。
 - 前端更新後，已開啟的 App 會出現「有新版本，點擊更新」；也可以到「設定 → 關於」按版本旁的「檢查更新」立刻更新（iPhone 主畫面版不用重新加入主畫面）。
 - 想在建置前先跑單元測試再上線：`.env` 設定 `CLURE_RUN_TESTS=true`。
 - ⚠ 覆蓋時**不要刪除** `CLURE_DATA_PATH` 指向的資料夾（預設 `./data`），裡面是資料庫與 JWT 金鑰。

@@ -79,6 +79,9 @@ export default function HomePage() {
         </button>
         <input ref={dateInput} type="date" className="sr-only" tabIndex={-1} aria-hidden="true" value={selected}
           onChange={(e) => e.target.value && setSelected(e.target.value)} />
+        <button className="icon-btn" aria-label="用說的記帳" onClick={() => openAdd({ date: selected, quickVoice: true })}>
+          <Icon name="mic" />
+        </button>
         <button className="icon-btn" aria-label="帳目列表" onClick={() => navigate('/ledger')}>
           <Icon name="list" />
         </button>

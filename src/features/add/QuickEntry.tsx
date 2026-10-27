@@ -20,14 +20,15 @@ export function speechRecognition(): (new () => any) | undefined {
   return (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 }
 
-export function QuickEntry({ initialText, accMap, catMap, onApply, onBooked }: {
+export function QuickEntry({ initialText, autoListen, accMap, catMap, onApply, onBooked }: {
   initialText?: string;
+  autoListen?: boolean;
   accMap: Map<string, Account>;
   catMap: Map<string, Category>;
   onApply: (d: ResolvedDraft) => void;
   onBooked: () => void;
 }) {
-  const [open, setOpen] = useState(!!initialText);
+  const [open, setOpen] = useState(!!initialText || !!autoListen);
   const [text, setText] = useState(initialText ?? '');
   const [drafts, setDrafts] = useState<ResolvedDraft[]>([]);
   const [hint, setHint] = useState('');
@@ -58,6 +59,11 @@ export function QuickEntry({ initialText, accMap, catMap, onApply, onBooked }: {
 
   useEffect(() => { if (initialText) void run(initialText); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (open && !initialText) inputRef.current?.focus(); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!autoListen) return;
+    if (SR) listen();
+    else setHint('這個瀏覽器沒有語音辨識：請按鍵盤上的麥克風（聽寫）說出來，再按「帶入」');
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const listen = () => {
     if (!SR) return;

@@ -7,6 +7,8 @@
 #     - 後端（server/app/、server/alembic/）→ uvicorn 熱重載，資料庫遷移自動執行
 #     - 套件清單（package-lock.json、server/requirements.txt）→ 自動重新安裝
 #     - 報價代理（proxy/）→ node --watch 自動重啟
+#     - nginx 設定（docker/nginx.conf）→ 自動檢查語法並重新載入
+#     - 只有 docker-compose.yml 或 .env 變更時，才需要執行 docker compose up -d
 #   查看進度：docker compose logs -f web-builder api
 #
 #   ⚠ 資料都在 CLURE_DATA_PATH（預設 ./data）：覆蓋檔案時請保留這個資料夾，不要刪除。
@@ -50,12 +52,14 @@ services:
     image: nginx:1.27-alpine
     container_name: clure-web
     restart: unless-stopped
+    command: ["sh", "/nginx-watch.sh"]         # 啟動 nginx，並監看設定檔：覆蓋後自動重新載入
     ports:
       - "${CLURE_PORT:-9122}:9122"
     environment:
       - TZ=${TZ:-Asia/Taipei}
     volumes:
       - clure-www:/srv/www:ro
+      - ./docker/nginx-watch.sh:/nginx-watch.sh:ro
       - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./docker/security-headers.conf:/etc/nginx/snippets/security-headers.conf:ro
     depends_on:

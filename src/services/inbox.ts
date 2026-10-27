@@ -59,16 +59,30 @@ type ShortcutDef = (typeof SHORTCUTS)[number];
 export const shortcutFileUrl = (s: ShortcutDef) => `/shortcuts/aster-${s.key}.shortcut`;
 
 /**
- * 下載捷徑檔：iOS 下載後由「捷徑」App 開啟匯入畫面，捷徑名稱取自檔名，所以用 download 屬性帶中文名稱。
- * （shortcuts://import-shortcut 只接受 iCloud 連結，自架網址會顯示「捷徑 URL 無效」）
+ * 打開「捷徑」App 的匯入畫面（需要 HTTPS 網址）。
+ * 用 shortcuts:// 自訂網址：直接切到「捷徑」App，這個 PWA 的畫面不會被導向別的頁面，
+ * 匯入完按左上角「◀ Aster」就能回來。（以前用下載檔案的方式，在主畫面版 App 會讓整個視窗停在下載頁，沒有返回鍵）
  */
+export const shortcutImportUrl = (s: ShortcutDef) =>
+  `shortcuts://import-shortcut?url=${encodeURIComponent(location.origin + shortcutFileUrl(s))}&name=${encodeURIComponent(s.name)}`;
+
+/** HTTP（本機測試）時「捷徑」App 不接受網址匯入，改成下載檔案 */
+export const canImportByUrl = () => location.protocol === 'https:';
+
+/** 用瀏覽器下載捷徑檔（備用）：下載後點開檔案就會進入匯入畫面，名稱取自檔名 */
 export function downloadShortcut(s: ShortcutDef) {
   const a = document.createElement('a');
   a.href = shortcutFileUrl(s);
   a.download = `${s.name}.shortcut`;
+  a.target = '_blank';
   document.body.appendChild(a);
   a.click();
   a.remove();
+}
+
+export function openShortcutImport(s: ShortcutDef) {
+  if (canImportByUrl()) location.href = shortcutImportUrl(s);
+  else downloadShortcut(s);
 }
 
 /** 連結碼＝網址＋?t=權杖：捷徑匯入時只要貼上這一串。存在這台裝置（依使用者區分），之後加其他捷徑可重用 */
