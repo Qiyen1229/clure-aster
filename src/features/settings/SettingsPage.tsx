@@ -268,7 +268,8 @@ export default function SettingsPage() {
 
       <Group title="自動化與整合">
         {AUTH_ENABLED && <Row icon="download" tint="#30D158" label="自動記帳收件匣" sub="Apple Pay、銀行簡訊、Siri 經 iPhone 捷徑記帳" onClick={() => navigate('/inbox')} />}
-        {AUTH_ENABLED && <Row icon="sparkle" tint="#BF5AF2" label="AI 輔助" sub="一句話記帳看不懂時請 AI 解析（每日／週／月免費額度）" onClick={() => navigate('/settings/ai')} />}
+        {AUTH_ENABLED && <Row icon="sparkle" tint="#BF5AF2" label="AI 助理" sub="問答、下月預算建議、白話解讀、整理分類、拍照記帳" onClick={() => navigate('/ai')} />}
+        {AUTH_ENABLED && <Row icon="sliders" tint="#8E8E93" label="AI 設定與額度" sub="開關、會送出哪些內容、每日／週／月額度" onClick={() => navigate('/settings/ai')} />}
         <Row icon="note" tint="#0A84FF" label="電子發票" sub="手機條碼載具、掃描 QR Code、匯入明細" onClick={() => navigate('/settings/invoice')} />
         <Row icon="bell" tint="#FF3B30" label="通知與提醒" sub="記帳、繳款、預算、訂閱、到價、週報月報" onClick={() => navigate('/settings/notifications')} />
         <Row icon="trend" tint="#5E5CE6" label="股票資料源與 API Key" sub="代理網址、資料源順序、手續費、成本法" onClick={() => navigate('/settings/invest')} />

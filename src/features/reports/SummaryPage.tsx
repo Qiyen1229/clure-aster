@@ -13,6 +13,8 @@ import { useSettings } from '@/stores/settings';
 import { useUI } from '@/stores/ui';
 import { Segmented, SkeletonRows } from '@/ui/controls';
 import { Icon } from '@/ui/Icon';
+import { AiInsightsCard } from '../ai/AiInsights';
+import { AUTH_ENABLED } from '@/stores/auth';
 
 export default function SummaryPage() {
   const navigate = useNavigate();
@@ -75,6 +77,8 @@ export default function SummaryPage() {
               <ul className="sum-insights">{sum.insights.map((t) => <li key={t}>{t}</li>)}</ul>
             </section>
           )}
+
+          {AUTH_ENABLED && <AiInsightsCard unit={unit} anchor={anchor} />}
 
           {sum.categories.length > 0 && (
             <>

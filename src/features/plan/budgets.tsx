@@ -3,6 +3,7 @@
  * 卡片顯示進度條、剩餘金額、剩餘天數、今日可用（Moze 式動態每日額度）、推估期末花費、超支警示。
  */
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
 import type { Budget } from '@/db/types';
@@ -11,6 +12,7 @@ import { fromMinor, toMinor } from '@/domain/money';
 import { evaluate } from '@/domain/calc-expr';
 import { todayKey } from '@/domain/period';
 import { useCategories, useProjects } from '@/app/hooks';
+import { AUTH_ENABLED } from '@/stores/auth';
 import { useSettings } from '@/stores/settings';
 import { snackUndo, useUI } from '@/stores/ui';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
@@ -19,6 +21,7 @@ import { Sheet } from '@/ui/Sheet';
 import { SectionHead } from './PlanPage';
 
 export default function BudgetSection() {
+  const navigate = useNavigate();
   const [edit, setEdit] = useState<Budget | 'new' | null>(null);
   const monthStartDay = useSettings((s) => s.monthStartDay);
   const tick = useLiveQuery(() => db.transactions.count(), []);
@@ -38,6 +41,12 @@ export default function BudgetSection() {
   return (
     <>
       <SectionHead title="預算" onAdd={() => setEdit('new')} />
+      {AUTH_ENABLED && (
+        <button className="card" style={{ width: '100%', textAlign: 'left', marginBottom: 8 }} onClick={() => navigate('/ai?tool=budget')}>
+          <span className="row-title">✨ 讓 AI 建議下個月預算</span>
+          <span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>依過去花費與固定支出，算出總預算與每天的日常預算</span>
+        </button>
+      )}
       {!views ? <SkeletonRows /> : views.length === 0 ? (
         <EmptyState emoji="🎯" title="還沒有預算" text="先設定一個「每月總預算」，再為容易超支的分類（飲食、購物）各設一個。有過去幾個月的帳目，可以直接依實際花費建立。"
           action={(

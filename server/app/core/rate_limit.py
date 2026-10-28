@@ -23,22 +23,24 @@ class RateLimiter:
 
         now = int(time.time())
         k = f"{self.name}:{key}"[:200]
+        # 注意：不能在 `for db in session_scope()` 迴圈裡直接 return —— 提前離開會跳過 session_scope 最後的 commit，
+        # 計數就沒有寫入（限流形同虛設）。所以把結果存在變數，讓迴圈正常結束。
+        result = (True, 0)
         for db in session_scope():
             row = db.scalar(select(RateLimitHit).where(RateLimitHit.key == k).with_for_update())
             if row is None:
                 db.add(RateLimitHit(key=k, window_start=now, count=1))
-                return True, 0
-            if now - row.window_start >= self.window:
+            elif now - row.window_start >= self.window:
                 row.window_start = now
                 row.count = 1
-                return True, 0
-            if row.count >= self.limit:
-                return False, max(1, self.window - (now - row.window_start))
-            row.count += 1
+            elif row.count >= self.limit:
+                result = (False, max(1, self.window - (now - row.window_start)))
+            else:
+                row.count += 1
             # 偶爾清掉過期的計數，避免表無限成長
             if now % 50 == 0:
                 db.execute(delete(RateLimitHit).where(RateLimitHit.window_start < now - 3600))
-        return True, 0
+        return result
 
     def reset(self) -> None:
         from app.db import session_scope

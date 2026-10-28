@@ -35,3 +35,15 @@ export async function discardAttachments(ids: string[]): Promise<void> {
   const rows = await db.attachments.bulkGet(ids);
   await db.attachments.bulkDelete(rows.filter((r) => r && !r.transactionId).map((r) => r!.id));
 }
+
+/** 拍照記帳用：縮到長邊 1280px、約 250KB 內的 JPEG，轉成 data URL（不存入資料庫） */
+export async function compressForAi(file: File): Promise<string> {
+  const { default: compress } = await import('browser-image-compression');
+  const blob = await compress(file, { maxSizeMB: 0.25, maxWidthOrHeight: 1280, useWebWorker: true, libURL: libURL(), fileType: 'image/jpeg', initialQuality: 0.7 });
+  return await new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(new Error('讀取照片失敗'));
+    r.readAsDataURL(blob);
+  });
+}

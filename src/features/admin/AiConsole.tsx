@@ -25,7 +25,9 @@ interface Console {
 }
 interface TestResult { name: string; ok: boolean; latency_ms: number | null; detail: string }
 
-const KIND: Record<string, string> = { parse_entry: '一句話記帳' };
+const KIND: Record<string, string> = {
+  parse_entry: '一句話記帳', ask: '問 AI', budget_plan: '預算建議', insights: '白話解讀', categorize: '整理分類', receipt: '拍照記帳',
+};
 const epoch = (t: number | null) => (t ? new Date(t * 1000).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : '—');
 const utc = (s: string) => new Date(s + 'Z').toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 

@@ -24,6 +24,10 @@ def ai_env(monkeypatch):  # noqa: ANN001, ANN201
     monkeypatch.setattr(s, "ai_openrouter_api_key", "k1")
     monkeypatch.setattr(s, "ai_nvidia_api_key", "k2")
     monkeypatch.setattr(s, "ai_providers", "openrouter,nvidia")
+    monkeypatch.setattr(s, "ai_openrouter_model", "or-model")
+    monkeypatch.setattr(s, "ai_nvidia_model", "nv-model")
+    monkeypatch.setattr(s, "ai_gemini_api_key", "")
+    monkeypatch.setattr(s, "ai_global_per_minute", 0)
     for k, v in (("ai_user_daily", 3), ("ai_user_weekly", 5), ("ai_user_monthly", 8), ("ai_global_daily", 0)):
         monkeypatch.setattr(s, k, v)
     ai_providers.reset_state()
@@ -326,3 +330,140 @@ def test_describe_error() -> None:
     assert "逾時" in d(TimeoutError())
     assert "無法連線" in d(urllib.error.URLError("dns"))
     assert "格式" in d(ValueError())
+
+
+# ── v2：問答、預算建議、洞察、分類整理、收據辨識 ──
+
+SUMMARY = {"currency": "TWD", "months": [{"label": "2026-09", "expense": 30000, "byCategory": {"飲食": 9000, "交通": 3000}}], "fixedMonthly": 12000}
+IMG = "data:image/jpeg;base64," + "A" * 200
+
+
+def test_ask(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    seen: list[dict] = []
+    fake(monkeypatch, lambda n, p: (seen.append(p), ok({"answer": "  近三個月平均 3 萬。 ", "followups": ["要不要建預算？", "", "x" * 100, "a", "b"]}))[1])
+    api.register("alice")
+    r = api.post("/api/ai/ask", {"question": "下個月日常預算多少？", "summary": SUMMARY})
+    assert r.status_code == 200, r.text
+    j = r.json()
+    assert j["answer"] == "近三個月平均 3 萬。" and len(j["followups"]) == 3 and all(len(f) <= 40 for f in j["followups"])
+    assert j["quota"]["daily"]["used"] == 1
+    sent = json.loads(seen[0]["messages"][1]["content"])
+    assert set(sent) == {"問題", "摘要"} and sent["摘要"]["fixedMonthly"] == 12000
+
+
+def test_ask_limits_and_bad_output(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    fake(monkeypatch, lambda n, p: ok({"answer": ""}))
+    api.register("alice")
+    big = {"x": "字" * 15000}
+    assert api.post("/api/ai/ask", {"question": "?", "summary": big}).status_code == 422  # 摘要太大
+    assert api.post("/api/ai/ask", {"question": "", "summary": SUMMARY}).status_code == 422
+    assert api.post("/api/ai/ask", {"question": "x" * 301, "summary": SUMMARY}).status_code == 422
+    r = api.post("/api/ai/ask", {"question": "你好", "summary": SUMMARY})
+    assert r.status_code == 422 and usage_rows() == []  # 模型回空答案：不扣額度
+
+
+def test_budget_plan_validates_categories(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    plan = {"total": "41,500.4", "categories": [
+        {"name": "飲食", "amount": 9500, "reason": "近三月平均再加 5%"},
+        {"name": "不存在", "amount": 1},
+        {"name": "交通", "amount": -3},
+        {"name": "娛樂", "amount": 2000.6}], "tips": ["少叫外送", "", "a", "b", "c", "d"], "assumption": "依近 3 個月"}
+    fake(monkeypatch, lambda n, p: ok(plan))
+    api.register("alice")
+    r = api.post("/api/ai/budget-plan", {"summary": SUMMARY, "categories": ["飲食", "交通", "娛樂"]})
+    assert r.status_code == 200, r.text
+    j = r.json()
+    assert j["total"] == 41500 and [c["name"] for c in j["categories"]] == ["飲食", "娛樂"] and j["categories"][1]["amount"] == 2001
+    assert len(j["tips"]) == 4
+
+
+def test_budget_plan_without_valid_categories_fails_free(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    fake(monkeypatch, lambda n, p: ok({"total": 1000, "categories": [{"name": "亂寫", "amount": 5}]}))
+    api.register("alice")
+    assert api.post("/api/ai/budget-plan", {"summary": SUMMARY, "categories": ["飲食"]}).status_code == 422
+    assert usage_rows() == []
+
+
+def test_insights(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    fake(monkeypatch, lambda n, p: ok({"headline": "支出比上月多 12%", "points": ["飲食 +3,000", "無消費日 4 天"], "suggestion": "外送改成每週 2 次"}))
+    api.register("alice")
+    r = api.post("/api/ai/insights", {"summary": SUMMARY, "label": "2026 年 9 月"})
+    assert r.status_code == 200 and r.json()["headline"] == "支出比上月多 12%" and len(r.json()["points"]) == 2
+    fake(monkeypatch, lambda n, p: ok({"headline": "", "points": []}))
+    assert api.post("/api/ai/insights", {"summary": SUMMARY}).status_code == 422
+
+
+def test_categorize(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    fake(monkeypatch, lambda n, p: ok({"items": [{"i": 0, "category": "午餐"}, {"i": 1, "category": "不存在"}, {"i": 9, "category": "午餐"}, {"i": 2, "category": None}, {"i": "1", "category": "早餐"}]}))
+    api.register("alice")
+    body = {"notes": ["  麥當勞 ", "亂碼", "Uber"], "categories": ["午餐", "早餐"], "kind": "expense"}
+    r = api.post("/api/ai/categorize", body)
+    assert r.status_code == 200, r.text
+    assert r.json()["items"] == [{"index": 0, "category": "午餐"}, {"index": 1, "category": "早餐"}]
+    assert api.post("/api/ai/categorize", {**body, "notes": ["x"] * 41}).status_code == 422
+    assert api.post("/api/ai/categorize", {**body, "notes": []}).status_code == 422
+
+
+def test_receipt_costs_two_and_sends_image(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    seen: list[dict] = []
+    good = {"entries": [{"type": "expense", "amount": 356, "note": "全聯", "category": "午餐", "date": "2026-10-27"}]}
+    fake(monkeypatch, lambda n, p: (seen.append(p), ok(good))[1])
+    api.register("alice")
+    body = {"image": IMG, "categories": ["午餐"], "accounts": ["現金"], "today": "2026-10-28"}
+    r = api.post("/api/ai/receipt", body)
+    assert r.status_code == 200, r.text
+    assert r.json()["entries"][0]["amount"] == 356 and r.json()["quota"]["daily"]["used"] == 2
+    content = seen[0]["messages"][1]["content"]
+    assert isinstance(content, list) and content[1]["image_url"]["url"] == IMG
+    assert api.post("/api/ai/receipt", {**body, "image": "http://evil/x.png"}).status_code == 422
+    assert api.post("/api/ai/receipt", {**body, "image": "data:text/html;base64,AAAA" + "A" * 200}).status_code == 422
+    assert api.post("/api/ai/receipt", {**body, "image": "data:image/jpeg;base64," + "A" * 1_300_000}).status_code == 422
+
+
+def test_receipt_quota_needs_two_points(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    fake(monkeypatch, lambda n, p: ok({"entries": [{"type": "expense", "amount": 10}]}))
+    monkeypatch.setattr(get_settings(), "ai_user_daily", 3)
+    api.register("alice")
+    body = {"image": IMG, "categories": [], "accounts": [], "today": "2026-10-28"}
+    assert api.post("/api/ai/receipt", body).status_code == 200  # 2/3
+    r = api.post("/api/ai/receipt", body)
+    assert r.status_code == 429 and "今日" in r.json()["detail"]  # 需要 2 點但只剩 1
+    assert sum(u.cost for u in usage_rows()) == 2
+
+
+def test_receipt_unreadable_not_charged(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    fake(monkeypatch, lambda n, p: ok({"entries": []}))
+    api.register("alice")
+    r = api.post("/api/ai/receipt", {"image": IMG, "categories": [], "accounts": [], "today": "2026-10-28"})
+    assert r.status_code == 422 and usage_rows() == []
+
+
+def test_global_per_minute_guard(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    fake(monkeypatch, lambda n, p: ok({"answer": "好"}))
+    monkeypatch.setattr(get_settings(), "ai_global_per_minute", 2)
+    monkeypatch.setattr(get_settings(), "ai_user_daily", 0)
+    monkeypatch.setattr(get_settings(), "ai_user_weekly", 0)
+    monkeypatch.setattr(get_settings(), "ai_user_monthly", 0)
+    api.register("alice")
+    for _ in range(2):
+        assert api.post("/api/ai/ask", {"question": "嗨", "summary": SUMMARY}).status_code == 200
+    r = api.post("/api/ai/ask", {"question": "嗨", "summary": SUMMARY})
+    assert r.status_code == 429 and "每分鐘" in r.json()["detail"]
+    assert len(usage_rows()) == 2  # 被擋下的不會預留
+
+
+def test_gemini_provider_builtin(monkeypatch) -> None:  # noqa: ANN001
+    s = get_settings()
+    monkeypatch.setattr(s, "ai_providers", "gemini")
+    monkeypatch.setattr(s, "ai_gemini_api_key", "AIza-test-key-123456")
+    (p,) = ai_providers.providers(s)
+    assert p.name == "gemini" and p.configured and p.base_url.startswith("https://generativelanguage.googleapis.com") and p.model.startswith("gemini")
+
+
+def test_old_custom_gemini_setup_still_works(monkeypatch) -> None:  # noqa: ANN001
+    s = get_settings()
+    monkeypatch.setattr(s, "ai_providers", "custom")
+    monkeypatch.setattr(s, "ai_custom_base_url", "https://generativelanguage.googleapis.com/v1beta/openai")
+    monkeypatch.setattr(s, "ai_custom_api_key", "k")
+    monkeypatch.setattr(s, "ai_custom_model", "gemini-flash-lite-latest")
+    assert [p.name for p in ai_providers.providers(s) if p.configured] == ["custom"]

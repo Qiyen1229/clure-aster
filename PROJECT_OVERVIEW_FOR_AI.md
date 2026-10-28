@@ -1,7 +1,7 @@
 # Aster 記帳 — 專案完整總覽（給 AI 閱讀）
 
 > 這份檔案把整個專案（功能、技術、架構、資料模型、API、安全、部署、檔案地圖、慣例）整合在一處，讓 AI 不用逐一翻檔案就能理解全貌。
-> 內容整理自 README、CHANGELOG、docs/*、原始碼與設定檔。版本：**1.4.4**（2026-10-27）。分支：`feature/v1.2`（主分支 `main`）。
+> 內容整理自 README、CHANGELOG、docs/*、原始碼與設定檔。版本：**2.0.0**（2026-10-28）。分支：`feature/v1.2`（主分支 `main`）。2.0.0 新增 AI 全面整合，見下方「AI 功能」一節與 `docs/AI.md`。
 > 想看細節時，請依第 13 節「檔案地圖」直接讀對應檔案；各檔案開頭都有繁體中文說明註解。
 
 ---
@@ -375,6 +375,15 @@ Aster/
 │     └─ onboarding/  Onboarding、Highlights
 └─ tests/unit/                       *.test.ts（Vitest；sync-engine.test.ts 以模擬伺服器測兩台裝置同步）
 ```
+
+---
+
+## AI 功能（v1.5.0～2.0.0，詳見 `docs/AI.md`）
+
+- **架構**：前端先用規則（本機、免費），規則做不到才請 AI；管理員在 `.env` 設一把共用 Key，後端 `server/app/service/ai_{quota,providers,tasks,service}.py` 提供供應商鏈（`gemini`／`openrouter`／`nvidia`／`custom`，OpenAI 相容 `/chat/completions`，失敗自動換下一家、連續 3 次失敗冷卻 5 分鐘）與額度（每位使用者日／週／月＋全站每日＋全站每分鐘；`ai_usage` 表；失敗不扣額度；收據辨識扣 2 點）。API：`/api/ai/{status,parse-entry,ask,budget-plan,insights,categorize,receipt}`、`/api/admin/ai{,/console,/test}`。
+- **前端**：`src/services/ai.ts`（呼叫、本機結果快取 `meta` 表、進行中請求共用）、`src/domain/aisummary.ts`（去識別化收支摘要、日常預算＝（總預算−固定支出）÷天數、預算建議對回分類）、`src/domain/aiparse.ts`、`src/features/ai/{AiAssistant,AiInsights}.tsx`（`/ai`：問 AI、下月預算建議、白話解讀、AI 整理分類、拍照記帳）、`src/features/settings/AiPage.tsx`（兩個隱私開關 `ai.enabled`／`ai.allowData`，預設關）、`src/features/admin/AiConsole.tsx`（管理員主控台：連線狀態、測試連線、用量、額度）。
+- **隱私原則**：統計類功能只送整數統計與分類名稱（無備註、商家、帳戶名、單筆帳目）；伺服器不保存內容；輸出驗證（分類必須在使用者名單內）並以純文字顯示。免費層的內容可能被供應商用於改進產品。
+- **測試**：`server/tests/test_ai.py`、`test_rate_limit.py`；`tests/unit/aisummary.test.ts`、`aiparse.test.ts`、`nlquery.test.ts`。
 
 ---
 

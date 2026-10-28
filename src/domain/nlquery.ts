@@ -124,6 +124,16 @@ export function isQuestion(text: string): boolean {
   return QUESTION_RE.test(s) || /今天|昨天|這週|上週|這個月|上個月|今年|去年|最近/.test(s) && s.length > 3;
 }
 
+/**
+ * 看起來是在「請教」而不是在找帳目的句子（問號結尾，或包含「怎麼／如何／要不要…」）。
+ * 規則式的查帳回答不了時，搜尋頁會多提供「問 AI」。
+ */
+export function looksLikeAiQuestion(text: string): boolean {
+  const s = toHalfWidth(text).trim();
+  if (s.length < 5) return false;
+  return /[?？]$/.test(s) || /怎麼|怎樣|如何|為什麼|為何|該不該|要不要|可不可以|能不能|有沒有辦法|是不是|應該/.test(s) || /^(請問|幫我(分析|算|看|規劃|檢查)|有什麼)/.test(s);
+}
+
 export function parseQuery(input: string, ctx: QueryContext): NlQuery | null {
   const text = toHalfWidth(input).trim();
   if (!text || !isQuestion(text)) return null;

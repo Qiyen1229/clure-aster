@@ -41,16 +41,26 @@ export default function AiPage() {
     <main className="page">
       <header className="topbar">
         <button className="icon-btn" aria-label="返回" onClick={() => navigate(-1)}><Icon name="chevronL" /></button>
-        <h1>AI 輔助</h1>
+        <h1>AI 設定</h1>
         <div style={{ width: 44 }} />
       </header>
       <div className="list">
-        <SwitchField label="啟用 AI 輔助解析" checked={!!ai?.enabled} onChange={(v) => set('ai', { enabled: v })}
-          sub="一句話／語音記帳在規則看不懂時，才請 AI 解析一次" />
+        <SwitchField label="啟用 AI 功能" checked={!!ai?.enabled} onChange={(v) => set('ai', { ...ai, enabled: v })}
+          sub="一句話記帳看不懂時請 AI 解析、拍照記帳、AI 整理分類" />
+        <SwitchField label="允許 AI 分析我的收支統計" checked={!!ai?.enabled && !!ai?.allowData} onChange={(v) => set('ai', { ...ai, enabled: ai?.enabled || v, allowData: v })}
+          sub="用於「問 AI」、下月預算建議、週報月報白話解讀" />
       </div>
       <p className="set-note">
-        只有在你按下送出、而規則解析找不到金額時才會使用，輸入過程中的即時預覽不會用到額度。送出的內容只有你輸入的那一句話，以及你的分類與帳戶「名稱」；不會送出任何帳目紀錄、餘額或其他資料。
-        內容會經過你的伺服器與管理員設定的第三方 AI 供應商（免費模型的服務條款可能記錄輸入），不在端對端加密的範圍內。
+        <b>一句話記帳／整理分類／拍照記帳</b>：送出你輸入的那一句話（整理分類是帳目備註、拍照記帳是縮小後的收據照片），以及你的分類與帳戶「名稱」。
+        一句話記帳只有規則解析找不到金額時才會用到，輸入過程中的即時預覽不會用到額度。
+      </p>
+      <p className="set-note">
+        <b>收支統計</b>（需另外允許）：最近約 6 個月每月的收入、支出與各分類合計、每月固定支出（訂閱／分期／貸款）、各預算的上限與已花、存錢目標進度與淨資產，全部是整數統計。
+        <b>不會送出</b>：單筆帳目、備註、商家、日期明細、帳戶名稱、標籤。
+      </p>
+      <p className="set-note">
+        送出的內容會經過你的伺服器與管理員設定的第三方 AI 供應商，不在端對端加密的範圍內。免費方案的供應商可能把內容用於改進產品（例如 Google Gemini 免費層），請不要在輸入裡寫入敏感資料。
+        相同內容的結果會暫存在這台裝置，重複查詢不會再扣額度。
       </p>
       <div className="section-title">我的額度</div>
       {err ? <p className="muted" style={{ margin: '0 8px' }}>{err}</p> : !st ? null : (

@@ -515,6 +515,16 @@ export async function suggestBudgets(today = todayKey()): Promise<SuggestedBudge
   return { monthsUsed: totals.filter((v) => v > 0).length, total: suggestBudget(totals), byCategory };
 }
 
+/** 依 AI 預算建議（已由 domain/aisummary.planToBudgetInputs 對回分類 id）建立每月預算；回傳新建的預算 id */
+export async function createBudgetsFromPlan(items: { name: string; categoryId: string; amountMinor: number }[], currency: string): Promise<string[]> {
+  const start = todayKey().slice(0, 8) + '01';
+  const ids: string[] = [];
+  for (const it of items) {
+    ids.push(await saveBudget({ name: it.name, periodType: 'month', startDate: start, amountMinor: it.amountMinor, currency, categoryId: it.categoryId, projectId: '', rollover: false, alertPercents: [80], active: 1 }));
+  }
+  return ids;
+}
+
 /** 一鍵建立：每月總預算＋花費最多的幾個分類（已經有的分類不重複建立）；回傳新建的預算 id */
 export async function createSuggestedBudgets(sug: SuggestedBudgets, currency: string, topN = 5): Promise<string[]> {
   const existing = await db.budgets.toArray();

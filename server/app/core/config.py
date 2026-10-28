@@ -42,23 +42,31 @@ class Settings(BaseSettings):
     einvoice_api_base: str = "https://api.einvoice.nat.gov.tw"
 
     # ── AI 功能（OpenAI 相容的第三方模型；管理員共用一把 Key，每位使用者有日／週／月免費額度）──
-    # 供應商依序嘗試（逗號分隔，可用：openrouter、nvidia、custom）；一家失敗、限流或逾時就換下一家
-    ai_providers: str = "openrouter,nvidia"
+    # 供應商依序嘗試（逗號分隔，可用：gemini、openrouter、nvidia、custom）；一家失敗、限流或逾時就換下一家。沒設 Key 的會自動略過。
+    ai_providers: str = "gemini,openrouter,nvidia,custom"
+    # Google Gemini（AI Studio 免費 Key：https://aistudio.google.com/apikey）。模型名稱用 *-latest 別名，不怕舊型號下架
+    ai_gemini_api_key: str = ""
+    ai_gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
+    ai_gemini_model: str = "gemini-flash-lite-latest"
     ai_openrouter_api_key: str = ""
     ai_openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    ai_openrouter_model: str = "meta-llama/llama-3.3-70b-instruct:free"
+    ai_openrouter_model: str = "google/gemma-4-31b-it:free"
+    # NVIDIA 與 custom 的模型沒有預設值（免費模型常下架）：請到供應商網站挑一個目前可用的，填入 CLURE_AI_*_MODEL
     ai_nvidia_api_key: str = ""
     ai_nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
-    ai_nvidia_model: str = "meta/llama-3.1-70b-instruct"
+    ai_nvidia_model: str = ""
     ai_custom_api_key: str = ""
     ai_custom_base_url: str = ""
     ai_custom_model: str = ""
-    ai_timeout_seconds: int = Field(20, ge=3, le=120)
-    # 額度預設值（管理後台改過就以後台為準）：每位使用者的日／週／月上限，以及全站每日上限（保護上游免費額度；0＝不限）
-    ai_user_daily: int = Field(20, ge=0)
-    ai_user_weekly: int = Field(80, ge=0)
-    ai_user_monthly: int = Field(250, ge=0)
-    ai_global_daily: int = Field(300, ge=0)
+    ai_timeout_seconds: int = Field(30, ge=3, le=120)
+    # 額度預設值（管理後台改過就以後台為準）：每位使用者的日／週／月上限，以及全站每日上限（保護上游免費額度；0＝不限）。
+    # 免費層的每日上限以 Google AI Studio 的 Rate limit 頁面為準（會變動），全站每日上限請設在它以內
+    ai_user_daily: int = Field(30, ge=0)
+    ai_user_weekly: int = Field(120, ge=0)
+    ai_user_monthly: int = Field(400, ge=0)
+    ai_global_daily: int = Field(100, ge=0)
+    # 全站每分鐘最多幾次（免費層通常只有每分鐘 5～15 次）；0＝不限
+    ai_global_per_minute: int = Field(8, ge=0)
 
     auto_migrate: bool = True  # 啟動（含熱重載）時自動套用資料庫遷移
 

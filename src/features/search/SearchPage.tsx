@@ -13,8 +13,9 @@ import { useAccounts, useCategories, useTags } from '@/app/hooks';
 import { Icon } from '@/ui/Icon';
 import { EmptyState, SkeletonRows } from '@/ui/controls';
 import { LedgerRow } from '../ledger/LedgerRow';
-import { isQuestion, rangeText } from '@/domain/nlquery';
+import { isQuestion, looksLikeAiQuestion, rangeText } from '@/domain/nlquery';
 import { ask, type QueryAnswer } from '@/services/nlquery';
+import { aiEnabledLocally } from '@/services/ai';
 
 const EXAMPLES = ['上個月吃飯花多少', '這週咖啡喝了幾次', '今年最大一筆', '上個月錢都花到哪', '最近 30 天平均每天花多少', '去年收入多少'];
 
@@ -80,7 +81,14 @@ export default function SearchPage() {
           </div>
         </>
       ) : question ? (
-        !answer ? <SkeletonRows n={2} /> : (
+        !answered || answered.text !== dq ? <SkeletonRows n={2} /> : !answer ? (
+          <section className="card ask-answer">
+            <p className="ask-text">💬 這個問題我用規則看不懂。</p>
+            {aiEnabledLocally()
+              ? <button className="btn small" onClick={() => navigate(`/ai?q=${encodeURIComponent(q.trim())}`)}>✨ 問 AI</button>
+              : <p className="muted" style={{ margin: '4px 0 0' }}>到「設定 → AI 助理」開啟 AI 後，可以問更複雜的問題。</p>}
+          </section>
+        ) : (
           <>
             <section className="card ask-answer" aria-live="polite">
               <p className="ask-text">💬 {answer.answer}</p>
@@ -101,6 +109,12 @@ export default function SearchPage() {
         )
       ) : (
         <>
+          {aiEnabledLocally() && looksLikeAiQuestion(q) && (
+            <section className="card ask-answer">
+              <p className="ask-text">✨ 這像是一個請教的問題，要問 AI 嗎？</p>
+              <button className="btn small" onClick={() => navigate(`/ai?q=${encodeURIComponent(q.trim())}`)}>問 AI</button>
+            </section>
+          )}
           {matchedAccounts.length > 0 && (
             <>
               <div className="section-title">帳戶</div>

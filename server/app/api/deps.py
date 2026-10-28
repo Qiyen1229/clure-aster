@@ -59,5 +59,5 @@ def reset_rate_limits() -> None:
     from app.api.einvoice import carrier_limiter
     from app.api.inbox import hook_ip_limiter, hook_limiter
 
-    for l in (carrier_limiter, hook_limiter, hook_ip_limiter, ai_limiter, ai_test_limiter):
+    for l in (carrier_limiter, hook_limiter, hook_ip_limiter, ai_limiter, ai_test_limiter, RateLimiter(1, name="ai-global")):
         l.reset()

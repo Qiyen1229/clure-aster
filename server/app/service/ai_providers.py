@@ -22,7 +22,7 @@ log = logging.getLogger("aster.ai")
 
 FAIL_THRESHOLD = 3
 COOLDOWN_SECONDS = 300
-KNOWN = ("openrouter", "nvidia", "custom")
+KNOWN = ("gemini", "openrouter", "nvidia", "custom")
 
 
 @dataclass(frozen=True)
@@ -147,7 +147,7 @@ def extract_json(text: str) -> object:
     raise ValueError("no json")
 
 
-def complete_json(system: str, user: str, *, max_tokens: int = 500) -> tuple[object, str, str]:
+def complete_json(system: str, user: str, *, max_tokens: int = 800, images: list[str] | None = None) -> tuple[object, str, str]:
     """依序嘗試各供應商，回傳 (解析後的 JSON, 供應商名稱, 模型)。全部失敗拋 503。"""
     s = get_settings()
     tried = 0
@@ -155,8 +155,10 @@ def complete_json(system: str, user: str, *, max_tokens: int = 500) -> tuple[obj
         if not p.configured or cooling_down(p.name):
             continue
         tried += 1
+        # 圖片（data URL）放在使用者訊息裡；Gemini 等支援視覺的模型才看得懂
+        content: object = user if not images else [{"type": "text", "text": user}, *({"type": "image_url", "image_url": {"url": u}} for u in images)]
         payload = {"model": p.model, "temperature": 0, "max_tokens": max_tokens,
-                   "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
+                   "messages": [{"role": "system", "content": system}, {"role": "user", "content": content}]}
         t0 = time.monotonic()
         try:
             resp = _post(p, payload, s.ai_timeout_seconds)

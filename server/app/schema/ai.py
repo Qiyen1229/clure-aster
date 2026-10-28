@@ -1,10 +1,11 @@
 """AI 功能的請求／回應模型。"""
 from __future__ import annotations
 
+import json
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class QuotaWindow(BaseModel):
@@ -49,6 +50,94 @@ class ParsedEntry(BaseModel):
 class ParseEntryResult(BaseModel):
     entries: list[ParsedEntry]
     quota: AiQuota
+
+
+# ── 理財問答、預算建議、洞察、分類整理、收據辨識 ──
+
+SUMMARY_MAX_CHARS = 14000  # 收支摘要的上限：避免被拿來當免費的大型文字代理
+
+
+def _check_summary(v: dict[str, Any]) -> dict[str, Any]:
+    if len(json.dumps(v, ensure_ascii=False)) > SUMMARY_MAX_CHARS:
+        raise ValueError("收支摘要太大")
+    return v
+
+
+class AskRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=300)
+    summary: dict[str, Any]
+
+    _v = field_validator("summary")(_check_summary)
+
+
+class AskResult(BaseModel):
+    answer: str
+    followups: list[str] = []
+    quota: AiQuota
+
+
+class BudgetPlanRequest(BaseModel):
+    summary: dict[str, Any]
+    categories: list[str] = Field(default_factory=list, max_length=120)  # 可選的支出分類名稱
+
+    _v = field_validator("summary")(_check_summary)
+
+
+class BudgetCategory(BaseModel):
+    name: str
+    amount: float = Field(ge=0, lt=1e10)
+    reason: str = ""
+
+
+class BudgetPlanResult(BaseModel):
+    total: float = Field(gt=0, lt=1e10)
+    categories: list[BudgetCategory]
+    tips: list[str] = []
+    assumption: str = ""
+    quota: AiQuota
+
+
+class InsightsRequest(BaseModel):
+    summary: dict[str, Any]
+    label: str = Field(default="", max_length=40)  # 例如「2026 年 9 月」
+
+    _v = field_validator("summary")(_check_summary)
+
+
+class InsightsResult(BaseModel):
+    headline: str
+    points: list[str]
+    suggestion: str = ""
+    quota: AiQuota
+
+
+class CategorizeRequest(BaseModel):
+    notes: list[str] = Field(min_length=1, max_length=40)
+    categories: list[str] = Field(min_length=1, max_length=120)
+    kind: Literal["expense", "income"] = "expense"
+
+    @field_validator("notes")
+    @classmethod
+    def _notes(cls, v: list[str]) -> list[str]:
+        return [n.strip()[:60] for n in v]
+
+
+class CategorizeItem(BaseModel):
+    index: int
+    category: str | None
+
+
+class CategorizeResult(BaseModel):
+    items: list[CategorizeItem]
+    quota: AiQuota
+
+
+class ReceiptRequest(BaseModel):
+    # data:image/jpeg;base64,…（前端已縮到長邊約 1280px）
+    image: str = Field(min_length=100, max_length=1_200_000, pattern=r"^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$")
+    categories: list[str] = Field(default_factory=list, max_length=120)
+    accounts: list[str] = Field(default_factory=list, max_length=40)
+    today: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
 
 
 # ── 管理員 ──
