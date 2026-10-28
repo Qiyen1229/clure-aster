@@ -15,6 +15,7 @@ import { Icon } from '@/ui/Icon';
 import { Amount, EmptyState, SkeletonRows } from '@/ui/controls';
 import { Calendar } from './Calendar';
 import { Widgets } from './Widgets';
+import { AiChatBar, AiChatSheet } from './AiChat';
 import { RemindersSheet, useUnreadCount } from './RemindersSheet';
 import { LedgerRow } from '../ledger/LedgerRow';
 import { useInboxCount } from '@/services/inbox';
@@ -24,7 +25,7 @@ export default function HomePage() {
   const selected = useUI((s) => s.selectedDate);
   const setSelected = useUI((s) => s.setSelectedDate);
   const openAdd = useUI((s) => s.openAdd);
-  const { weekStart, calendarCollapsed, baseCurrency, set } = useSettings();
+  const { weekStart, calendarCollapsed, baseCurrency, homeAiChat, set } = useSettings();
   const dateInput = useRef<HTMLInputElement>(null);
   const [remindersOpen, setRemindersOpen] = useState(false);
   const unread = useUnreadCount();
@@ -102,6 +103,8 @@ export default function HomePage() {
         </button>
       )}
 
+      {homeAiChat && <AiChatBar />}
+
       <Widgets />
 
       <div className="day-summary">
@@ -128,6 +131,7 @@ export default function HomePage() {
         </div>
       )}
       <RemindersSheet open={remindersOpen} onClose={() => setRemindersOpen(false)} />
+      <AiChatSheet />
     </main>
   );
 }

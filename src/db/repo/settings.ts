@@ -94,6 +94,8 @@ export interface Settings {
   calendarCollapsed: boolean;
   ledgerUnit: 'day' | 'week' | 'month' | 'year';
   homeWidgets: WidgetKey[];
+  /** 首頁的對話框（記帳、查帳、問 AI 共用一個輸入框） */
+  homeAiChat: boolean;
   quote: QuoteSettings;
   invest: InvestSettings;
   lock: LockSettings;
@@ -171,6 +173,7 @@ export const DEFAULT_SETTINGS: Settings = {
   calendarCollapsed: false,
   ledgerUnit: 'month',
   homeWidgets: ['today', 'budget', 'networth', 'invest', 'bills'],
+  homeAiChat: true,
   quote: {
     proxyUrl: '/proxy',
     proxyToken: '',

@@ -926,3 +926,16 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
   font: inherit; font-size: 16px; line-height: 1.4; outline: none; box-shadow: var(--shadow); margin-bottom: 8px;
 }
 .try-box textarea:focus { box-shadow: 0 0 0 2px var(--accent); }
+
+/* 首頁對話框與對話彈窗 */
+.ai-bar { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; padding: 6px 6px 6px 14px; background: var(--surface-2); border-radius: 999px; }
+.ai-bar input { flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; color: var(--text); font-size: 1rem; min-height: 40px; }
+.ai-bar input::placeholder { color: var(--text-3, var(--text-2)); }
+.ai-bar-icon { font-size: 1.1rem; }
+.chat-wrap { display: flex; flex-direction: column; height: min(70vh, 640px); }
+.chat-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 4px 2px 10px; }
+.chat-msg { max-width: 88%; padding: 10px 14px; border-radius: 18px; word-break: break-word; }
+.chat-msg.me { align-self: flex-end; background: var(--accent); color: var(--on-accent); border-bottom-right-radius: 6px; }
+.chat-msg.ai { align-self: flex-start; background: var(--surface-2); border-bottom-left-radius: 6px; }
+.chat-input { display: flex; gap: 8px; padding-top: 8px; border-top: 1px solid var(--separator, rgba(127,127,127,.2)); }
+.chat-input input { flex: 1; min-width: 0; background: var(--surface-2); border: 0; border-radius: 999px; padding: 0 16px; min-height: 44px; color: var(--text); font-size: 1rem; outline: 0; }

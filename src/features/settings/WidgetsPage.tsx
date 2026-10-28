@@ -11,6 +11,7 @@ export default function WidgetsPage() {
   const navigate = useNavigate();
   const keys = useSettings((s) => s.homeWidgets);
   const set = useSettings((s) => s.set);
+  const homeAiChat = useSettings((s) => s.homeAiChat);
   const hidden = ALL_WIDGETS.filter((w) => !keys.includes(w.key));
   const move = (i: number, d: -1 | 1) => {
     const j = i + d;
@@ -27,6 +28,12 @@ export default function WidgetsPage() {
         <h1>首頁小工具</h1>
         <div style={{ width: 44 }} />
       </header>
+      <div className="list" style={{ marginBottom: 12 }}>
+        <div className="row">
+          <span className="row-main"><span className="row-title">對話框</span><span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>首頁的輸入框：直接說「昨天午餐 150」記帳、問「這個月花多少」，開啟 AI 後還能問更多</span></span>
+          <Switch checked={homeAiChat} label="顯示首頁對話框" onChange={(v) => set('homeAiChat', v)} />
+        </div>
+      </div>
       <div className="section-title">顯示中（依序排列在記帳月曆下方）</div>
       <div className="list">
         {keys.map((k, i) => (
