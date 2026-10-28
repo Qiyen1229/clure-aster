@@ -11,6 +11,7 @@ import { EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { SwitchField } from '@/ui/form';
 import { Icon } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
+import AiConsole from './AiConsole';
 
 interface Stats {
   total_users: number; active_users: number; frozen_users: number; admins: number; active_today: number;
@@ -32,7 +33,7 @@ export const ACTION_LABEL: Record<string, string> = {
   'admin.user_list_view': '查看使用者列表', 'admin.audit_view': '查看審計日誌', 'admin.stats_view': '查看系統統計',
   'admin.cli_create_admin': '建立管理員（指令列）', 'admin.cli_delete_user': '刪除使用者（指令列）',
   'sync.e2ee_on': '啟用端對端加密', 'sync.e2ee_off': '停用端對端加密', 'push.subscribe': '啟用背景推播',
-  'admin.user_freeze': '凍結帳號', 'admin.user_unfreeze': '啟用帳號', 'admin.force_logout': '強制登出', 'admin.password_reset': '重設密碼', 'admin.settings': '修改系統設定',
+  'admin.user_freeze': '凍結帳號', 'admin.user_unfreeze': '啟用帳號', 'admin.force_logout': '強制登出', 'admin.password_reset': '重設密碼', 'admin.settings': '修改系統設定', 'admin.ai_test': 'AI 連線測試',
 };
 
 /** 伺服器回傳 UTC（無時區）→ 本地時間字串 */
@@ -83,11 +84,13 @@ export default function AdminPage() {
       <nav className="admin-tabs" aria-label="後台功能">
         <NavLink to="/admin" end>總覽</NavLink>
         <NavLink to="/admin/users">使用者</NavLink>
+        <NavLink to="/admin/ai">AI 主控台</NavLink>
         <NavLink to="/admin/audit">審計日誌</NavLink>
       </nav>
       <Routes>
         <Route index element={<Overview />} />
         <Route path="users" element={<Users />} />
+        <Route path="ai" element={<AiConsole />} />
         <Route path="audit" element={<Audit />} />
         <Route path="*" element={<Navigate to="/admin" replace />} />
       </Routes>

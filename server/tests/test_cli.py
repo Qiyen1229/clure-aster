@@ -39,3 +39,18 @@ def test_create_admin_rejects_weak_password(monkeypatch) -> None:
     assert cli.create_admin("weak", "weak@example.com") == 1
     monkeypatch.setenv("CLURE_NEW_PASSWORD", "weakuser1")
     assert cli.create_admin("weakuser1", "w@example.com") == 1  # 與帳號相同
+
+
+def test_ai_test_command(monkeypatch, caplog) -> None:  # noqa: ANN001
+    from app.core.config import get_settings
+    from app.service import ai_providers
+
+    s = get_settings()
+    monkeypatch.setattr(s, "ai_openrouter_api_key", "k1")
+    monkeypatch.setattr(s, "ai_nvidia_api_key", "")
+    monkeypatch.setattr(s, "ai_providers", "openrouter,nvidia")
+    monkeypatch.setattr(ai_providers, "_post", lambda p, payload, t: {"choices": [{"message": {"content": "OK"}}]})
+    ai_providers.reset_state()
+    assert cli.ai_test("openrouter") == 0
+    assert cli.ai_test("nvidia") == 1  # 沒有 Key
+    assert cli.ai_test(None) == 1  # 全部：其中一家失敗

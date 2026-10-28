@@ -165,11 +165,11 @@ export async function submitVoice(): Promise<boolean> {
   stopListening();
   set({ busy: true, hold: false });
   try {
-    const [{ bookDrafts, draftsFromText }, { deleteTransactions, deleteTransfers }, { snackUndo }] = await Promise.all([
+    const [{ bookDrafts, draftsSmart }, { deleteTransactions, deleteTransfers }, { snackUndo }] = await Promise.all([
       import('./quickentry'), import('@/db/repo/ledger'), import('@/stores/ui'),
     ]);
-    const list = await draftsFromText(t);
-    if (!list.length) { set({ hint: '找不到金額：試試「午餐 120」或「計程車兩百三」' }); return false; }
+    const { list, aiNote } = await draftsSmart(t);
+    if (!list.length) { set({ hint: `找不到金額：試試「午餐 120」或「計程車兩百三」${aiNote ?? ''}` }); return false; }
     const r = await bookDrafts(list);
     closeVoice();
     snackUndo(`已記下 ${list.length} 筆`, async () => {

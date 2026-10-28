@@ -7,6 +7,8 @@
     python -m app.cli delete-user --username olduser
   列出使用者：
     python -m app.cli list-users
+  測試 AI 供應商連線與 Key（不指定名稱＝測試全部；送出 1 次極小的請求，不扣使用者額度）：
+    python -m app.cli ai-test [--provider openrouter]
 所有變更都會寫入審計日誌（IP 記為 cli）。
 """
 from __future__ import annotations
@@ -118,6 +120,28 @@ def list_users() -> int:
     return 0
 
 
+def ai_test(provider: str | None) -> int:
+    from app.service import ai_providers
+
+    names = [provider] if provider else [p.name for p in ai_providers.providers()]
+    if not names:
+        log.error("CLURE_AI_PROVIDERS 沒有任何供應商")
+        return 1
+    code = 0
+    for n in names:
+        try:
+            r = ai_providers.check_provider(n)
+        except Exception as e:  # noqa: BLE001
+            log.error("%s：%s", n, getattr(e, "message", e))
+            code = 1
+            continue
+        mark = "✅" if r["ok"] else "❌"
+        ms = f"（{r['latency_ms']} ms）" if r["latency_ms"] is not None else ""
+        log.info("%s %s %s%s", mark, n, r["detail"], ms)
+        code = code or (0 if r["ok"] else 1)
+    return code
+
+
 def main() -> int:
     setup_logging()
     p = argparse.ArgumentParser(prog="aster")
@@ -128,6 +152,8 @@ def main() -> int:
     d = sub.add_parser("delete-user", help="刪除使用者（不可刪除最後一位管理員）")
     d.add_argument("--username", required=True)
     sub.add_parser("list-users", help="列出使用者")
+    a = sub.add_parser("ai-test", help="測試 AI 供應商連線與 Key")
+    a.add_argument("--provider", help="只測這一家（openrouter／nvidia／custom）；不指定則全部")
     args = p.parse_args()
     if args.cmd == "create-admin":
         return create_admin(args.username, args.email)
@@ -135,6 +161,8 @@ def main() -> int:
         return delete_user(args.username)
     if args.cmd == "list-users":
         return list_users()
+    if args.cmd == "ai-test":
+        return ai_test(args.provider)
     return 1
 
 

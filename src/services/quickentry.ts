@@ -69,6 +69,25 @@ export async function draftsFromText(text: string): Promise<ResolvedDraft[]> {
   return Promise.all(list.map((d) => resolveDraft(d, fallback)));
 }
 
+/**
+ * 一句話記帳（明確送出時使用）：先用規則解析；規則找不到金額且使用者開啟了 AI 輔助，才請 AI 解析一次。
+ * 輸入中的即時預覽請用 draftsFromText，不要用這個（會消耗額度）。
+ * AI 失敗不丟錯，把原因放在 aiNote，讓畫面顯示「找不到金額」＋原因。
+ */
+export async function draftsSmart(text: string): Promise<{ list: ResolvedDraft[]; usedAi: boolean; aiNote?: string; quotaText?: string }> {
+  const list = await draftsFromText(text);
+  if (list.length) return { list, usedAi: false };
+  const ai = await import('./ai');
+  if (!ai.aiEnabledLocally()) return { list, usedAi: false };
+  try {
+    const { drafts, quota } = await ai.aiParse(text);
+    const fallback = await fallbackAccount();
+    return { list: await Promise.all(drafts.map((d) => resolveDraft(d, fallback))), usedAi: true, quotaText: ai.quotaLabel(quota) };
+  } catch (e) {
+    return { list, usedAi: false, aiNote: `（AI：${(e as Error).message}）` };
+  }
+}
+
 /** 一次記下多筆；回傳新增的帳目與轉帳 id（給「復原」用） */
 export async function bookDrafts(list: ResolvedDraft[]): Promise<{ txIds: string[]; transferIds: string[] }> {
   const { addTransaction, addTransfer } = await import('@/db/repo/ledger');

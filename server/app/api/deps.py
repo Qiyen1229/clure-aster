@@ -54,8 +54,10 @@ def reset_rate_limits() -> None:
     """測試用"""
     for l in (login_ip_limiter, login_account_limiter, register_limiter):
         l.reset()
+    from app.api.admin import ai_test_limiter
+    from app.api.ai import ai_limiter
     from app.api.einvoice import carrier_limiter
     from app.api.inbox import hook_ip_limiter, hook_limiter
 
-    for l in (carrier_limiter, hook_limiter, hook_ip_limiter):
+    for l in (carrier_limiter, hook_limiter, hook_ip_limiter, ai_limiter, ai_test_limiter):
         l.reset()

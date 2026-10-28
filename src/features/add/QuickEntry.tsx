@@ -9,7 +9,7 @@ import type { Account, Category } from '@/db/types';
 import { formatMoney, toMinor } from '@/domain/money';
 import { shortDate } from '@/domain/nlp';
 import { todayKey } from '@/domain/period';
-import { bookDrafts, draftsFromText, type ResolvedDraft } from '@/services/quickentry';
+import { bookDrafts, draftsSmart, type ResolvedDraft } from '@/services/quickentry';
 import { deleteTransactions, deleteTransfers } from '@/db/repo/ledger';
 import { snackUndo, useUI } from '@/stores/ui';
 import { speechRecognition } from '@/services/voice';
@@ -39,15 +39,15 @@ export function QuickEntry({ initialText, accMap, catMap, onApply, onBooked }: {
     if (!t.trim()) return;
     setBusy(true);
     try {
-      const list = await draftsFromText(t);
-      if (!list.length) { setHint('找不到金額，試試「午餐 120」或「計程車兩百三」'); setDrafts([]); return; }
+      const { list, usedAi, aiNote, quotaText } = await draftsSmart(t);
+      if (!list.length) { setHint(`找不到金額，試試「午餐 120」或「計程車兩百三」${aiNote ?? ''}`); setDrafts([]); return; }
       setHint('');
       if (list.length === 1) {
         onApply(list[0]);
         setDrafts([]);
         setOpen(false);
         setText('');
-        useUI.getState().showSnack({ text: '已帶入，確認後按「完成」' });
+        useUI.getState().showSnack({ text: usedAi ? `AI 已協助解析（${quotaText}），確認後按「完成」` : '已帶入，確認後按「完成」' });
       } else setDrafts(list);
     } catch (e) {
       setHint((e as Error).message);

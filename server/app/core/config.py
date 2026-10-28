@@ -41,6 +41,25 @@ class Settings(BaseSettings):
     einvoice_api_key: str = ""
     einvoice_api_base: str = "https://api.einvoice.nat.gov.tw"
 
+    # ── AI 功能（OpenAI 相容的第三方模型；管理員共用一把 Key，每位使用者有日／週／月免費額度）──
+    # 供應商依序嘗試（逗號分隔，可用：openrouter、nvidia、custom）；一家失敗、限流或逾時就換下一家
+    ai_providers: str = "openrouter,nvidia"
+    ai_openrouter_api_key: str = ""
+    ai_openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    ai_openrouter_model: str = "meta-llama/llama-3.3-70b-instruct:free"
+    ai_nvidia_api_key: str = ""
+    ai_nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
+    ai_nvidia_model: str = "meta/llama-3.1-70b-instruct"
+    ai_custom_api_key: str = ""
+    ai_custom_base_url: str = ""
+    ai_custom_model: str = ""
+    ai_timeout_seconds: int = Field(20, ge=3, le=120)
+    # 額度預設值（管理後台改過就以後台為準）：每位使用者的日／週／月上限，以及全站每日上限（保護上游免費額度；0＝不限）
+    ai_user_daily: int = Field(20, ge=0)
+    ai_user_weekly: int = Field(80, ge=0)
+    ai_user_monthly: int = Field(250, ge=0)
+    ai_global_daily: int = Field(300, ge=0)
+
     auto_migrate: bool = True  # 啟動（含熱重載）時自動套用資料庫遷移
 
     timezone: str = "Asia/Taipei"  # 「今日」統計使用的時區

@@ -644,8 +644,8 @@ body:has(.sheet) .snackbar { animation-name: snack-in-top; }
 #boot img { width: 88px; height: 88px; border-radius: 20px; animation: bp 1.4s ease-in-out infinite; }
 @keyframes bp { 50% { opacity: .55; transform: scale(.96); } }
 
-.admin-tabs { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface-2); border-radius: 10px; padding: 2px; margin-bottom: 14px; }
-.admin-tabs a { text-align: center; padding: 8px 0; border-radius: 8px; font-size: 0.9rem; color: var(--text-2); min-height: 36px; }
+.admin-tabs { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--surface-2); border-radius: 10px; padding: 2px; margin-bottom: 14px; }
+.admin-tabs a { text-align: center; padding: 8px 0; border-radius: 8px; font-size: 0.85rem; white-space: nowrap; color: var(--text-2); min-height: 36px; }
 .admin-tabs a.active { background: var(--bg-elev); color: var(--text); font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,.12); }
 :root[data-theme='dark'] .admin-tabs a.active { background: var(--surface-3); }
 .admin-warnings { margin: 0 0 12px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--warning, #FF9F0A) 50%, transparent); }

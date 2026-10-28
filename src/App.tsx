@@ -63,6 +63,7 @@ const HealthPage = lazy(() => import('./features/settings/HealthPage'));
 const WidgetsPage = lazy(() => import('./features/settings/WidgetsPage'));
 const RulesPage = lazy(() => import('./features/settings/RulesPage'));
 const InvoicePage = lazy(() => import('./features/settings/InvoicePage'));
+const AiPage = lazy(() => import('./features/settings/AiPage'));
 const FirePage = lazy(() => import('./features/reports/FirePage'));
 const TaxPage = lazy(() => import('./features/reports/TaxPage'));
 const CashflowPage = lazy(() => import('./features/reports/CashflowPage'));
@@ -239,6 +240,7 @@ export default function App() {
           <Route path="/settings/widgets" element={<WidgetsPage />} />
           <Route path="/settings/rules" element={<RulesPage />} />
           <Route path="/settings/invoice" element={<InvoicePage />} />
+          <Route path="/settings/ai" element={<AiPage />} />
           <Route path="/inbox" element={<InboxPage />} />
           <Route path="/admin/*" element={<AdminPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

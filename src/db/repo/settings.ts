@@ -108,6 +108,8 @@ export interface Settings {
   einvoice: EinvoiceSettings;
   /** 自動記帳收件匣（iPhone 捷徑：Apple Pay、簡訊、Siri） */
   inbox: InboxSettings;
+  /** AI 輔助：規則解析不了一句話時，才把那句話與分類／帳戶名稱送到伺服器設定的 AI 供應商（預設關閉） */
+  ai: { enabled: boolean };
   /** 已看過哪一版的「新功能介紹」（隨帳號同步，換裝置不會再跳一次） */
   seenWhatsNew: string;
 }
@@ -188,6 +190,7 @@ export const DEFAULT_SETTINGS: Settings = {
   tax: { netIncome: 0 },
   einvoice: { cardNo: '', verifyCode: '', defaultAccountId: '', autoSync: true },
   inbox: { autoBook: false, defaultAccountId: '', cardMap: {} },
+  ai: { enabled: false },
   seenWhatsNew: '',
 };
 
