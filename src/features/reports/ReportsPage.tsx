@@ -187,7 +187,15 @@ export default function ReportsPage() {
         <h1 className="large-title" style={{ margin: '4px 4px 8px' }}>報表</h1>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="icon-btn" aria-label={`篩選${fcount ? `（${fcount}）` : ''}`} onClick={() => setFilterOpen(true)} style={fcount ? { background: 'var(--accent)', color: 'var(--on-accent)' } : undefined}><Icon name="filter" /></button>
-          <button className="icon-btn" aria-label="列印或儲存 PDF" onClick={() => navigate(`/reports/print?start=${range.start}&end=${range.end}`)}><Icon name="download" /></button>
+          <button className="icon-btn" aria-label="列印或儲存 PDF" onClick={() => {
+            // 列印沿用目前篩選的帳戶／專案／標籤／幣別（可在列印頁再調整）
+            const q = new URLSearchParams({ start: range.start, end: range.end });
+            if (filter.accountIds.length) q.set('accounts', filter.accountIds.join(','));
+            if (filter.projectIds.length) q.set('projects', filter.projectIds.join(','));
+            if (filter.tagIds.length) q.set('tags', filter.tagIds.join(','));
+            if (filter.currencies.length) q.set('currencies', filter.currencies.join(','));
+            navigate(`/reports/print?${q}`);
+          }}><Icon name="download" /></button>
         </div>
       </div>
       <Segmented value={unit} onChange={(u) => { setUnit(u); setDrill(null); }} options={[{ value: 'month', label: '月' }, { value: 'year', label: '年' }, { value: 'custom', label: '自訂' }]} ariaLabel="期間" />

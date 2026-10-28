@@ -40,17 +40,35 @@ def valid_endpoint(endpoint: str) -> bool:
     return u.scheme == "https" and any(host.endswith(s) or host == s.lstrip(".") for s in PUSH_HOST_SUFFIXES)
 
 
+class SendReport:
+    """一次發送的結果：有幾台裝置、成功幾台、失敗原因、是否值得稍後重試。"""
+
+    def __init__(self) -> None:
+        self.devices = 0
+        self.ok = 0
+        self.gone = 0
+        self.retry = False
+        self.failed: list[str] = []
+
+
+# 暫時性失敗的重試次數（記憶體內；重啟歸零）
+_attempts: dict[int, int] = {}
+MAX_ATTEMPTS = 6
+
+
 class PushService:
     def __init__(self, db: Session) -> None:
         self.db = db
 
     def status(self, user: User, device_id: str | None) -> PushStatus:
         subs = self.db.scalars(select(PushSubscription).where(PushSubscription.user_id == user.id)).all()
+        fail = webpush.last_failure
         q = select(PushSchedule).where(PushSchedule.user_id == user.id, PushSchedule.sent.is_(False))
         if device_id:
             q = q.where(PushSchedule.device_id == device_id)
         return PushStatus(public_key=webpush.vapid_public_key(), subscribed=any(not device_id or s.device_id == device_id for s in subs),
-                          scheduled=len(self.db.scalars(q).all()))
+                          scheduled=len(self.db.scalars(q).all()), devices=len(subs),
+                          last_error=(f"{fail['host']} 回應 {fail['status'] or '連線失敗'} {fail['detail']}".strip() if fail else ""))
 
     def subscribe(self, user: User, body: SubscribeRequest, client: ClientInfo) -> None:
         if not valid_endpoint(body.endpoint):
@@ -94,16 +112,24 @@ class PushService:
 
     def send_to_user(self, user_id: int, message: dict) -> int:
         """送給使用者的所有訂閱；回傳成功數。失效的訂閱一併刪除。"""
-        ok = 0
+        return self.send_detailed(user_id, message).ok
+
+    def send_detailed(self, user_id: int, message: dict) -> SendReport:
+        rep = SendReport()
         for sub in self.db.scalars(select(PushSubscription).where(PushSubscription.user_id == user_id)).all():
+            rep.devices += 1
             r = webpush.send(sub.endpoint, sub.p256dh, sub.auth, message)
             if r.ok:
-                ok += 1
+                rep.ok += 1
                 sub.last_ok_at = utcnow()
-            elif r.gone:
-                self.db.delete(sub)
+            else:
+                rep.failed.append(f"{urlparse(sub.endpoint).hostname} 回應 {r.status or '連線失敗'}" + (f"（{r.detail[:80]}）" if r.detail else ""))
+                rep.retry = rep.retry or r.retry
+                if r.gone:
+                    self.db.delete(sub)
+                    rep.gone += 1
         self.db.flush()
-        return ok
+        return rep
 
     def deliver_due(self, now_ms: int | None = None) -> int:
         now = now_ms or int(time.time() * 1000)
@@ -114,7 +140,19 @@ class PushService:
             self.db.commit()
             if not claimed or now - item.at > STALE_MS:
                 continue
-            sent += self.send_to_user(item.user_id, {"title": item.title, "body": item.body, "url": item.url, "tag": item.item_id})
+            rep = self.send_detailed(item.user_id, {"title": item.title, "body": item.body, "url": item.url, "tag": item.item_id})
+            if rep.ok:
+                sent += 1
+                _attempts.pop(item.id, None)
+            elif rep.retry and not rep.ok and _attempts.get(item.id, 0) < MAX_ATTEMPTS:
+                # 推播服務暫時連不上：不要把提醒吞掉，標回未送出，下一輪再試
+                _attempts[item.id] = _attempts.get(item.id, 0) + 1
+                self.db.execute(update(PushSchedule).where(PushSchedule.id == item.id).values(sent=False))
+                log.warning("推播暫時失敗，稍後重試（第 %s 次）：%s", _attempts[item.id], "；".join(rep.failed))
+            elif rep.devices == 0:
+                log.warning("使用者 %s 沒有推播訂閱，略過提醒 %s（請在通知設定重新開啟背景推播）", item.user_id, item.item_id)
+            else:
+                log.warning("推播失敗：%s", "；".join(rep.failed))
             self.db.commit()
         # 清掉一週前已送出的排程
         self.db.execute(delete(PushSchedule).where(PushSchedule.sent.is_(True), PushSchedule.at < now - 7 * 86400_000))
@@ -129,9 +167,10 @@ async def push_loop() -> None:
     while True:
         try:
             def run() -> int:
-                for db in session_scope():
-                    return PushService(db).deliver_due()
-                return 0
+                n = 0
+                for db in session_scope():  # 不可在迴圈內提前 return（會跳過 commit）
+                    n = PushService(db).deliver_due()
+                return n
             n = await asyncio.to_thread(run)
             if n:
                 log.info("已發送 %s 則推播", n)

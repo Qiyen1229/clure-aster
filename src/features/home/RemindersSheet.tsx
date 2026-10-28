@@ -4,7 +4,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
-import { markAllRead, notificationSupport, runReminderChecks } from '@/services/notifications';
+import { clearAllReminders, markAllRead, notificationSupport, runReminderChecks } from '@/services/notifications';
 import { Sheet } from '@/ui/Sheet';
 import { EmptyState } from '@/ui/controls';
 
@@ -16,11 +16,16 @@ export function useUnreadCount() {
 
 export function RemindersSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate();
-  const list = useLiveQuery(() => db.reminders.orderBy('dueAt').reverse().limit(60).toArray(), []) ?? [];
+  const list = useLiveQuery(() => db.reminders.orderBy('dueAt').reverse().filter((r) => !r.cleared).limit(60).toArray(), []) ?? [];
   const support = notificationSupport();
   return (
     <Sheet open={open} onClose={() => { void markAllRead(); onClose(); }} title="提醒"
-      right={<button className="accent" style={{ minHeight: 44 }} onClick={() => void runReminderChecks()}>重新檢查</button>}>
+      right={(
+        <span style={{ display: 'flex', gap: 4 }}>
+          {list.length > 0 && <button className="accent" style={{ minHeight: 44 }} onClick={() => void clearAllReminders()}>清除通知</button>}
+          <button className="accent" style={{ minHeight: 44 }} onClick={() => void runReminderChecks()}>重新檢查</button>
+        </span>
+      )}>
       {support !== 'granted' && (
         <button className="card" style={{ width: '100%', textAlign: 'left' }} onClick={() => { onClose(); navigate('/settings/notifications'); }}>
           🔔 {support === 'needs-install' ? '把 App 加入主畫面後即可開啟系統通知（iOS 16.4+）' : support === 'unsupported' ? '此瀏覽器不支援系統通知，提醒會顯示在這裡' : '開啟系統通知，帳單與預算提醒不漏接 →'}

@@ -110,7 +110,7 @@ export function AiChatBar() {
     <form className="ai-bar" onSubmit={submit} aria-label="對話框">
       <span className="ai-bar-icon" aria-hidden="true">✨</span>
       <input value={q} onChange={(e) => setQ(e.target.value)} maxLength={300} enterKeyHint="send" aria-label="對話框輸入"
-        placeholder="說「昨天午餐 150」或問問題" />
+        placeholder="AI 記帳或問問題" />
       {hasHistory && !q && <button type="button" className="icon-btn plain" aria-label="開啟對話紀錄" onClick={() => useChat.getState().setOpen(true)}><Icon name="list" size={20} /></button>}
       <button type="submit" className="btn small" disabled={!q.trim()}>送出</button>
     </form>

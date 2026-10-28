@@ -2,7 +2,7 @@
  * 可列印的月報表：瀏覽器「列印 → 儲存為 PDF」（iPhone：分享 → 列印 → 兩指放大預覽 → 分享 PDF）。
  * 用 HTML + CSS 排版而非 PDF 函式庫，中文字型完美、檔案小、離線可用。
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
@@ -22,8 +22,22 @@ export default function PrintReport() {
   const range = { start: p.get('start') ?? def.start, end: p.get('end') ?? def.end };
   const cats = useCategories();
   const accounts = useAccounts(true);
-  const txs = useLiveQuery(() => db.transactions.where('date').between(range.start, range.end, true, true).filter((t) => !t.deletedAt).toArray(), [range.start, range.end]);
+  const csv = (k: string) => (p.get(k) ?? '').split(',').filter(Boolean);
+  // 預設沿用報表頁的篩選；空＝全部。可在列印頁勾選要印哪些帳戶／幣別
+  const [accSel, setAccSel] = useState<string[]>(() => csv('accounts'));
+  const [curSel, setCurSel] = useState<string[]>(() => csv('currencies'));
+  const projSel = csv('projects');
+  const tagSel = csv('tags');
+  const raw = useLiveQuery(() => db.transactions.where('date').between(range.start, range.end, true, true).filter((t) => !t.deletedAt).toArray(), [range.start, range.end]);
+  const txs = useMemo(() => raw?.filter((t) => (!accSel.length || accSel.includes(t.accountId))
+    && (!curSel.length || curSel.includes(t.currency))
+    && (!projSel.length || projSel.includes(t.projectId ?? ''))
+    && (!tagSel.length || tagSel.some((x) => t.tagIds.includes(x)))), [raw, accSel, curSel, p]); // eslint-disable-line react-hooks/exhaustive-deps
+  const usedCurrencies = useMemo(() => [...new Set((raw ?? []).map((t) => t.currency))], [raw]);
   const a = useMemo(() => (txs ? analyze(txs, cats.map, range) : null), [txs, cats.map]); // eslint-disable-line react-hooks/exhaustive-deps
+  const toggle = (set: React.Dispatch<React.SetStateAction<string[]>>, id: string) => set((v) => (v.includes(id) ? v.filter((x) => x !== id) : [...v, id]));
+  const accLabel = accSel.length ? accSel.map((id) => accounts.map.get(id)?.name ?? '').filter(Boolean).join('、') : '全部帳戶';
+  const curLabel = curSel.length ? curSel.join('、') : '全部幣別';
   const f = (v: number) => formatMoney(v, base);
   if (!a || !txs) return null;
   const top = [...a.byMain].sort((x, y) => y[1] - x[1]);
@@ -35,8 +49,22 @@ export default function PrintReport() {
         <button className="btn secondary small" onClick={() => navigate(-1)}><Icon name="chevronL" size={16} />返回</button>
         <button className="btn small" onClick={() => window.print()}><Icon name="download" size={16} />列印／儲存 PDF</button>
       </div>
+      <div className="no-print" style={{ marginBottom: 16 }}>
+        <div className="section-title">要印哪些帳戶（不選＝全部）</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {accounts.list.map((ac) => <button key={ac.id} className="pill" aria-pressed={accSel.includes(ac.id)} onClick={() => toggle(setAccSel, ac.id)}>{ac.icon} {ac.name}</button>)}
+        </div>
+        {usedCurrencies.length > 1 && (
+          <>
+            <div className="section-title">幣別（不選＝全部）</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {usedCurrencies.map((c) => <button key={c} className="pill" aria-pressed={curSel.includes(c)} onClick={() => toggle(setCurSel, c)}>{c}</button>)}
+            </div>
+          </>
+        )}
+      </div>
       <h1>Aster 記帳報表</h1>
-      <p className="muted">{range.start} ～ {range.end}・主幣別 {base}・產生於 {new Date().toLocaleString('zh-TW')}</p>
+      <p className="muted">{range.start} ～ {range.end}・主幣別 {base}・{accLabel}・{curLabel}・產生於 {new Date().toLocaleString('zh-TW')}</p>
       <table className="print-table">
         <tbody>
           <tr><th>總收入</th><td>{f(a.income)}</td><th>總支出</th><td>{f(a.expense)}</td></tr>

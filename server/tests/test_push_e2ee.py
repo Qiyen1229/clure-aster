@@ -85,5 +85,28 @@ def test_push_subscribe_schedule_and_deliver(api: Api, monkeypatch) -> None:  # 
 
     # 失效的訂閱（410）會被刪除
     monkeypatch.setattr(webpush, "send", lambda *a, **kw: webpush.SendResult(False, 410, True))
-    assert api.post("/api/push/test").json()["message"] == "沒有可用的推播裝置"
+    assert "已失效並移除" in api.post("/api/push/test").json()["message"]
     assert api.get("/api/push/status").json()["subscribed"] is False
+    assert "沒有這個帳號的推播訂閱" in api.post("/api/push/test").json()["message"]
+
+
+def test_transient_failure_is_retried_not_lost(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    import time
+
+    from app.db import session_scope
+    from app.service import push_service
+    from app.service.push_service import PushService
+
+    api.register("bob")
+    api.post("/api/push/subscribe", _sub_body())
+    api.post("/api/push/schedule", {"device_id": DEV, "items": [{"id": "daily:x", "at": int(time.time() * 1000) - 1000, "title": "t", "body": "b", "url": "/"}]})
+    push_service._attempts.clear()
+    # 推播服務暫時連不上：提醒要保留、下一輪再送
+    monkeypatch.setattr(webpush, "send", lambda *a, **kw: webpush.SendResult(False, 0, False, "timeout", retry=True))
+    for s in session_scope():
+        assert PushService(s).deliver_due() == 0
+    assert api.get("/api/push/status", params={"device_id": DEV}).json()["scheduled"] == 1
+    monkeypatch.setattr(webpush, "send", lambda *a, **kw: webpush.SendResult(True, 201, False))
+    for s in session_scope():
+        assert PushService(s).deliver_due() == 1
+    assert api.get("/api/push/status", params={"device_id": DEV}).json()["scheduled"] == 0

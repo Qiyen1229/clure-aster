@@ -25,19 +25,34 @@ export function pushSupported(): boolean {
 const fromB64Url = (s: string) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (s.length % 4)) % 4)), (c) => c.charCodeAt(0));
 const toB64Url = (b: ArrayBuffer | null) => (b ? btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '') : '');
 
-export async function enablePush(): Promise<void> {
-  if (!pushSupported()) throw new Error('這個瀏覽器不支援背景推播（iPhone 需 iOS 16.4 以上並加入主畫面）');
-  if ((await requestPermission()) !== 'granted') throw new Error('請先允許通知');
+export interface PushStatus { public_key: string; subscribed: boolean; scheduled: number; devices: number; last_error: string }
+
+export const fetchPushStatus = async (): Promise<PushStatus> => api<PushStatus>('/push/status', { query: { device_id: await deviceId() } });
+
+/**
+ * 確認這台裝置在瀏覽器與伺服器兩邊都有有效訂閱，缺的就補上。
+ * 設定（含「背景推播」開關）會跟著帳號同步，但訂閱是每台裝置各自的；伺服器收到 410 也會刪掉訂閱。
+ * 只要有任何一邊遺失，開關看起來是開的卻永遠收不到通知——所以每次開啟 App 都檢查。
+ */
+export async function ensurePushSubscription(): Promise<boolean> {
+  if (!pushSupported() || notificationSupport() !== 'granted') return false;
   const reg = await navigator.serviceWorker.ready;
   const device = await deviceId();
-  const st = await api<{ public_key: string }>('/push/status', { query: { device_id: device } });
+  const st = await api<PushStatus>('/push/status', { query: { device_id: device } });
   let sub = await reg.pushManager.getSubscription();
-  const key = fromB64Url(st.public_key);
   // 伺服器換過 VAPID 金鑰（例如重建資料夾）時，舊訂閱要先取消
   const same = sub?.options.applicationServerKey && toB64Url(sub.options.applicationServerKey) === st.public_key;
   if (sub && !same) { await sub.unsubscribe().catch(() => undefined); sub = null; }
-  sub ??= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+  if (sub && st.subscribed) return true;
+  sub ??= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: fromB64Url(st.public_key) });
   await api('/push/subscribe', { method: 'POST', body: { device_id: device, endpoint: sub.endpoint, keys: { p256dh: toB64Url(sub.getKey('p256dh')), auth: toB64Url(sub.getKey('auth')) } } });
+  return true;
+}
+
+export async function enablePush(): Promise<void> {
+  if (!pushSupported()) throw new Error('這個瀏覽器不支援背景推播（iPhone 需 iOS 16.4 以上並加入主畫面）');
+  if ((await requestPermission()) !== 'granted') throw new Error('請先允許通知');
+  await ensurePushSubscription();
   const s = useSettings.getState();
   s.set('notify', { ...s.notify, enabled: true, push: true });
   await schedulePush();
@@ -136,6 +151,7 @@ export async function upcomingPushItems(days = 14, now = Date.now()): Promise<Pu
 export async function schedulePush(): Promise<number> {
   const s = useSettings.getState();
   if (!AUTH_ENABLED || !s.notify.push) return 0;
+  await ensurePushSubscription().catch(() => undefined); // 訂閱遺失時自動補上；補不上也照樣排程
   const items = await upcomingPushItems();
   await api('/push/schedule', { method: 'POST', body: { device_id: await deviceId(), items } });
   return items.length;

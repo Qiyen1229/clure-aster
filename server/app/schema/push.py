@@ -38,3 +38,5 @@ class PushStatus(BaseModel):
     public_key: str
     subscribed: bool
     scheduled: int
+    devices: int = 0  # 這個帳號在伺服器上共有幾台訂閱中的裝置
+    last_error: str = ""  # 伺服器最近一次發送失敗的原因（重啟歸零）

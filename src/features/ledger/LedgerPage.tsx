@@ -1,22 +1,18 @@
 /**
  * 帳目列表：日／週／月／年／自訂區間切換，依日分組並顯示小計，
- * 虛擬捲動（@tanstack/react-virtual，1 萬筆以上流暢），批次選取：刪除／改分類／改帳戶。
+ * 虛擬捲動（@tanstack/react-virtual，1 萬筆以上流暢）。右上角打勾＝完成並回到首頁。
  */
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
-import { batchUpdate, deleteTransactions, deleteTransfers, listLedger, restoreTransactions, restoreTransfers, type LedgerItem } from '@/db/repo/ledger';
+import { listLedger, type LedgerItem } from '@/db/repo/ledger';
 import { periodRange, shiftPeriod, todayKey, type PeriodUnit } from '@/domain/period';
 import { totals } from '@/domain/ledger';
-import { buildTree } from '@/db/repo/categories';
 import { useAccounts, useCategories, useTags } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
-import { snackUndo, useUI } from '@/stores/ui';
 import { Icon } from '@/ui/Icon';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
-import { Sheet } from '@/ui/Sheet';
-import { AccountPicker } from '../add/pickers';
 import { LedgerRow } from './LedgerRow';
 import { FilterSheet, filterCount } from './FilterSheet';
 import { categoryChildren, matchFilter } from '@/db/repo/plan';
@@ -36,9 +32,6 @@ export default function LedgerPage() {
   const [anchor, setAnchor] = useState(params.get('date') ?? todayKey());
   const [custom, setCustom] = useState({ start: todayKey().slice(0, 8) + '01', end: todayKey() });
   const [keyword, setKeyword] = useState('');
-  const [selectMode, setSelectMode] = useState(false);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [batchSheet, setBatchSheet] = useState<null | 'category' | 'account'>(null);
   const [filter, setFilter] = useState<TxFilter>({});
   const [filterOpen, setFilterOpen] = useState(false);
   const children = useLiveQuery(() => categoryChildren(), []);
@@ -116,32 +109,12 @@ export default function LedgerPage() {
     return `${range.start.slice(5).replace('-', '/')} – ${range.end.slice(5).replace('-', '/')}`;
   })();
 
-  const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const selItems = () => (filtered ?? []).filter((it) => selected.has(it.id));
-  const exitSelect = () => { setSelectMode(false); setSelected(new Set()); };
-
-  const batchDelete = async () => {
-    const sel = selItems();
-    if (!sel.length || !window.confirm(`確定刪除 ${sel.length} 筆？`)) return;
-    const txIds = sel.filter((i) => i.kind === 'tx').map((i) => i.id);
-    const trIds = sel.filter((i) => i.kind === 'transfer').map((i) => i.id);
-    await deleteTransactions(txIds);
-    await deleteTransfers(trIds);
-    exitSelect();
-    snackUndo(`已刪除 ${sel.length} 筆`, async () => { await restoreTransactions(txIds); await restoreTransfers(trIds); });
-  };
-
-  const expenseTree = useMemo(() => buildTree(cats.all, 'expense'), [cats.all]);
-  const incomeTree = useMemo(() => buildTree(cats.all, 'income'), [cats.all]);
-
   return (
     <main className="page">
       <header className="topbar">
-        <button className="icon-btn" aria-label="返回月曆" onClick={() => navigate('/')}><Icon name="calendar" /></button>
+        <div style={{ width: 44 }} />
         <h1>{accountFilter ? accounts.map.get(accountFilter)?.name ?? '帳目' : '帳目明細'}</h1>
-        <button className="icon-btn" aria-label={selectMode ? '完成選取' : '批次選取'} onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}>
-          <Icon name={selectMode ? 'close' : 'check'} />
-        </button>
+        <button className="icon-btn" aria-label="完成，回到首頁" onClick={() => navigate('/')}><Icon name="check" /></button>
       </header>
 
       <Segmented<Unit> value={unit} ariaLabel="期間"
@@ -199,7 +172,7 @@ export default function LedgerPage() {
                   </div>
                 ) : (
                   <LedgerRow item={r.item} cats={cats.map} accounts={accounts.map} tags={tags.map}
-                    showDate={unit === 'year'} selectMode={selectMode} selected={selected.has(r.item.id)} onToggleSelect={toggle} />
+                    showDate={unit === 'year'} />
                 )}
               </div>
             );
@@ -207,42 +180,6 @@ export default function LedgerPage() {
         </div>
       )}
 
-      {selectMode && (
-        <div className="banner" style={{ top: 'auto', bottom: 'calc(var(--tabbar-h) + var(--safe-b) + 12px)' }}>
-          <span>已選 {selected.size} 筆</span>
-          <button className="btn small secondary" onClick={() => setSelected(new Set((filtered ?? []).map((i) => i.id)))}>全選</button>
-          <button className="btn small tinted" disabled={!selected.size} onClick={() => setBatchSheet('category')}>改分類</button>
-          <button className="btn small tinted" disabled={!selected.size} onClick={() => setBatchSheet('account')}>改帳戶</button>
-          <button className="btn small danger" disabled={!selected.size} onClick={() => void batchDelete()}>刪除</button>
-        </div>
-      )}
-
-      <Sheet open={batchSheet === 'category'} onClose={() => setBatchSheet(null)} title={`將 ${selected.size} 筆改為…`}>
-        {[{ label: '支出', tree: expenseTree, kind: 'expense' }, { label: '收入', tree: incomeTree, kind: 'income' }].map(({ label, tree, kind }) => (
-          <div key={label}>
-            <div className="section-title">{label}</div>
-            <div className="list">
-              {tree.flatMap(({ main, subs }) => [main, ...subs]).map((c) => (
-                <button key={c.id} className="row" style={{ paddingLeft: c.parentId ? 40 : 16 }} onClick={async () => {
-                  const ids = selItems().filter((i) => i.kind === 'tx' && (i.tx.type === kind)).map((i) => i.id);
-                  await batchUpdate(ids, { categoryId: c.id });
-                  setBatchSheet(null); exitSelect();
-                  useUI.getState().showSnack({ text: `已更新 ${ids.length} 筆分類${ids.length < selected.size ? '（類型不符者略過）' : ''}` });
-                }}>
-                  <span aria-hidden="true">{c.icon}</span><span className="row-main">{c.name}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
-      </Sheet>
-      <AccountPicker open={batchSheet === 'account'} onClose={() => setBatchSheet(null)} accounts={accounts.list}
-        title={`將 ${selected.size} 筆移到帳戶`} onPick={async (id) => {
-          const ids = selItems().filter((i) => i.kind === 'tx').map((i) => i.id);
-          await batchUpdate(ids, { accountId: id });
-          exitSelect();
-          useUI.getState().showSnack({ text: '已更新帳戶（不同幣別的帳目會略過）' });
-        }} />
       {accountFilter && (
         <p className="disclaimer"><button className="accent" onClick={() => { params.delete('account'); setParams(params); }}>顯示全部帳戶</button></p>
       )}

@@ -240,7 +240,7 @@ docker compose logs -f web-builder api
 - 使用 PostgreSQL：`.env` 設定 `CLURE_DATABASE_URL=postgresql+psycopg://clure:密碼@postgres:5432/clure`，啟動時加 `--profile postgres`；資料存在 `CLURE_DATA_PATH/postgres`。
 - 資料備份：備份 `CLURE_DATA_PATH` 整個資料夾即可（SQLite 資料庫含所有帳號與同步的帳目）。
 - 若有設定 `PROXY_ACCESS_TOKEN`，到 App「設定 → 股票資料源與 API Key → 代理權杖」填入同樣的值。
-- 背景推播的 VAPID 金鑰自動產生在 `CLURE_DATA_PATH/api/vapid_private.pem`；刪除它會讓所有裝置需要重新開啟推播。
+- 背景推播的 VAPID 金鑰自動產生在 `CLURE_DATA_PATH/api/vapid_private.pem`；刪除它會讓所有裝置需要重新開啟推播（v2.1.2 起 App 開啟時會自動重新訂閱）。背景推播收不到時，到「通知與提醒」按「傳送測試推播」，訊息會寫出原因；伺服器日誌（`docker logs clure-api`）搜尋「推播」。
 - HTTPS 請用你的反向代理／Cloudflare 指向這個埠（Cookie 會自動加上 Secure）。
 
 ### 從舊版（映像檔版）換到熱更新版

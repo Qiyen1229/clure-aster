@@ -53,7 +53,7 @@ Aster 2.0 把 AI 放進記帳的各個環節。**管理員共用一把 Key，每
 ## 接 NVIDIA（Nemotron 3.5 Super VL）
 
 ```
-CLURE_AI_PROVIDERS=custom,nvidia        # Gemini 在前、NVIDIA 備援；只想用 NVIDIA 就寫 nvidia
+CLURE_AI_PROVIDERS=nvidia,gemini        # NVIDIA 優先、Gemini 備援（預設順序就是 nvidia,gemini,openrouter,custom）
 CLURE_AI_NVIDIA_API_KEY=nvapi-你的Key
 CLURE_AI_NVIDIA_MODEL=nvidia/nemotron-3.5-super-vl-120b-a12b   # 已是預設值，可省略
 ```

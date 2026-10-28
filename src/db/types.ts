@@ -409,6 +409,8 @@ export interface Reminder {
   refId: string;
   dueAt: number;
   done: 0 | 1;
+  /** 使用者按「清除通知」後隱藏；資料列保留，才不會被同一天的檢查重新通知 */
+  cleared?: 1;
   notifiedAt?: number;
   title: string;
   body: string;

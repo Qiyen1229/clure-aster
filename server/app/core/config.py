@@ -43,9 +43,10 @@ class Settings(BaseSettings):
 
     # ── AI 功能（OpenAI 相容的第三方模型；管理員共用一把 Key，每位使用者有日／週／月免費額度）──
     # 供應商依序嘗試（逗號分隔，可用：gemini、openrouter、nvidia、custom）；一家失敗、限流或逾時就換下一家。沒設 Key 的會自動略過。
-    ai_providers: str = "gemini,openrouter,nvidia,custom"
+    ai_providers: str = "nvidia,gemini,openrouter,custom"
     # Google Gemini（AI Studio 免費 Key：https://aistudio.google.com/apikey）。模型名稱用 *-latest 別名，不怕舊型號下架
     ai_gemini_api_key: str = ""
+    vapid_subject: str = ""  # Web Push 的 VAPID sub（mailto: 或 https:），空白用預設
     ai_gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
     ai_gemini_model: str = "gemini-flash-lite-latest"
     ai_openrouter_api_key: str = ""

@@ -42,5 +42,10 @@ def schedule(body: ScheduleRequest, user: User = Depends(get_current_user), db: 
 
 @router.post("/test", response_model=MessageResponse, summary="發送測試推播")
 def test(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> MessageResponse:
-    n = PushService(db).send_to_user(user.id, {"title": "Aster 測試推播 🔔", "body": "收到這則通知代表背景推播設定成功", "url": "/settings/notifications", "tag": "test"})
-    return MessageResponse(message=f"已送出到 {n} 台裝置" if n else "沒有可用的推播裝置")
+    rep = PushService(db).send_detailed(user.id, {"title": "Aster 測試推播 🔔", "body": "收到這則通知代表背景推播設定成功", "url": "/settings/notifications", "tag": "test"})
+    if rep.ok:
+        return MessageResponse(message=f"已送出到 {rep.ok} 台裝置" + (f"（另有 {len(rep.failed)} 台失敗）" if rep.failed else ""))
+    if rep.devices == 0:
+        return MessageResponse(message="伺服器上沒有這個帳號的推播訂閱：請把「背景推播」關掉再重新開啟")
+    reason = "；".join(rep.failed)
+    return MessageResponse(message=f"推播服務拒絕或連不上：{reason}" + ("。訂閱已失效並移除，請關掉再重新開啟背景推播" if rep.gone else ""))

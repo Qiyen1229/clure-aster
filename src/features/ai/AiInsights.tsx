@@ -36,7 +36,7 @@ export function AiInsightsCard({ unit, anchor }: { unit: SummaryUnit; anchor: Da
   if (!enabled) {
     return (
       <section className="card" style={{ marginTop: 12 }}>
-        <div className="row-title">✨ AI 白話解讀</div>
+        <div className="row-title">✨ AI 白話解讀你的資產狀況</div>
         <div className="row-sub" style={{ whiteSpace: 'normal' }}>讓 AI 用幾句話說明這一期的重點與建議。需要先在設定允許 AI 分析收支統計。</div>
         <button className="btn small tinted" style={{ marginTop: 8 }} onClick={() => navigate('/settings/ai')}>前往 AI 設定</button>
       </section>
@@ -45,7 +45,7 @@ export function AiInsightsCard({ unit, anchor }: { unit: SummaryUnit; anchor: Da
   return (
     <section className="card" style={{ marginTop: 12 }} aria-live="polite">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-        <div className="row-title">✨ AI 白話解讀</div>
+        <div className="row-title">✨ AI 白話解讀你的資產狀況</div>
         <button className="btn small" disabled={busy} onClick={() => void run(!!shown)}>{busy ? '分析中…' : shown ? '重新分析' : '請 AI 解讀'}</button>
       </div>
       {err && <p className="row-sub" style={{ color: 'var(--danger)', whiteSpace: 'normal' }}>{err}</p>}

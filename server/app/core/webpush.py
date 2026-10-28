@@ -83,21 +83,47 @@ class SendResult:
     ok: bool
     status: int
     gone: bool  # 訂閱已失效（404／410），應刪除
+    detail: str = ""  # 推播服務回的原因（例如 Apple 的 BadJwtToken），方便診斷
+    retry: bool = False  # 暫時性失敗（連不上、429、5xx），可稍後再送
 
 
-def send(endpoint: str, p256dh: str, auth: str, message: dict, subject: str = "mailto:admin@aster.local", ttl: int = 86400) -> SendResult:
+# 最近一次失敗的原因（記憶體內，重啟歸零）；給「傳送測試推播」與狀態頁顯示
+last_failure: dict[str, object] = {}
+
+
+def _host(endpoint: str) -> str:
+    return urlparse(endpoint).netloc
+
+
+def _record_failure(endpoint: str, status: int, detail: str) -> None:
+    last_failure.clear()
+    last_failure.update({"host": _host(endpoint), "status": status, "detail": detail[:200], "at": int(time.time())})
+
+
+def default_subject() -> str:
+    # 蘋果等推播服務會檢查 sub 是否像真的聯絡方式，.local 這類假網域可能被拒絕
+    return get_settings().vapid_subject or "mailto:admin@example.com"
+
+
+def send(endpoint: str, p256dh: str, auth: str, message: dict, subject: str | None = None, ttl: int = 86400) -> SendResult:
     body = encrypt(json.dumps(message, ensure_ascii=False).encode(), p256dh, auth)
     headers = {
-        "Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream", "TTL": str(ttl), "Urgency": "normal",
-        **vapid_headers(endpoint, subject),
+        "Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream", "TTL": str(ttl), "Urgency": "normal", "User-Agent": "Aster-WebPush/2",
+        **vapid_headers(endpoint, subject or default_subject()),
     }
     req = urllib.request.Request(endpoint, data=body, headers=headers, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=10) as r:  # noqa: S310 — endpoint 來自瀏覽器的 Push 服務
             return SendResult(True, r.status, False)
     except urllib.error.HTTPError as e:
-        log.info("推播失敗 status=%s host=%s", e.code, urlparse(endpoint).netloc)
-        return SendResult(False, e.code, e.code in (404, 410))
+        try:
+            detail = e.read(300).decode("utf-8", "replace")
+        except Exception:  # noqa: BLE001
+            detail = ""
+        log.warning("推播失敗 status=%s host=%s detail=%s", e.code, _host(endpoint), detail)
+        _record_failure(endpoint, e.code, detail)
+        return SendResult(False, e.code, e.code in (404, 410), detail, retry=e.code == 429 or e.code >= 500)
     except (urllib.error.URLError, TimeoutError, OSError) as e:
-        log.info("推播連線失敗 host=%s err=%s", urlparse(endpoint).netloc, e)
-        return SendResult(False, 0, False)
+        log.warning("推播連線失敗 host=%s err=%s", _host(endpoint), e)
+        _record_failure(endpoint, 0, str(e))
+        return SendResult(False, 0, False, str(e), retry=True)

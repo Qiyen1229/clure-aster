@@ -2,7 +2,7 @@
  * 通知設定：權限引導（iOS 需先加入主畫面、iOS 16.4+）、各類提醒開關、每日提醒時間、測試通知。
  */
 import { useEffect, useRef, useState } from 'react';
-import { disablePush, enablePush, pushSupported, schedulePush, sendTestPush } from '@/services/push';
+import { disablePush, enablePush, fetchPushStatus, pushSupported, schedulePush, sendTestPush, type PushStatus } from '@/services/push';
 import { AUTH_ENABLED } from '@/stores/auth';
 import { useNavigate } from 'react-router-dom';
 import { isIOS, notificationSupport, notify, requestPermission, runReminderChecks, type PermissionState } from '@/services/notifications';
@@ -27,6 +27,9 @@ export default function NotificationsPage() {
   const set = (patch: Partial<NotifySettings>) => s.set('notify', { ...n, ...patch });
   const [perm, setPerm] = useState<PermissionState>(notificationSupport());
   const [pushBusy, setPushBusy] = useState(false);
+  const [pst, setPst] = useState<PushStatus | null>(null);
+  const refreshPst = () => { if (AUTH_ENABLED && n.push) void fetchPushStatus().then(setPst, () => setPst(null)); };
+  useEffect(refreshPst, [n.push]); // eslint-disable-line react-hooks/exhaustive-deps
   const snack = (text: string) => useUI.getState().showSnack({ text });
   // 提醒設定變更後重新排程背景推播（停止輸入 1.5 秒後）
   const first = useRef(true);
@@ -85,7 +88,19 @@ export default function NotificationsPage() {
                 } catch (e) { snack((e as Error).message); } finally { setPushBusy(false); }
               }} />
             </div>
-            {n.push && <button className="row accent" disabled={pushBusy} onClick={() => void sendTestPush().then(snack, (e) => snack((e as Error).message))}>傳送測試推播</button>}
+            {n.push && pst && (
+              <div className="row"><span className="row-main row-sub" style={{ whiteSpace: 'normal' }}>
+                {pst.subscribed ? '✓ 這台裝置已訂閱' : '✗ 這台裝置尚未訂閱（按下「傳送測試推播」會自動補訂閱）'}　已排程 {pst.scheduled} 則　伺服器共 {pst.devices} 台裝置
+                {pst.last_error && <span style={{ display: 'block', color: 'var(--danger)' }}>最近一次發送失敗：{pst.last_error}</span>}
+              </span></div>
+            )}
+            {n.push && <button className="row accent" disabled={pushBusy} onClick={async () => {
+              setPushBusy(true);
+              try {
+                await schedulePush(); // 先確認訂閱與排程都在
+                snack(await sendTestPush());
+              } catch (e) { snack((e as Error).message); } finally { setPushBusy(false); refreshPst(); }
+            }}>傳送測試推播</button>}
             {!pushSupported() && <div className="row"><span className="row-main row-sub" style={{ whiteSpace: 'normal' }}>目前的瀏覽器無法使用背景推播（需 HTTPS；iPhone 需 iOS 16.4 以上並從主畫面開啟）。</span></div>}
           </div>
         </>
