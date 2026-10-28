@@ -8,6 +8,8 @@
  *  - 年度回顧、列印／PDF
  */
 import { lazy, Suspense, useMemo, useState } from 'react';
+import { AiInsightsCard } from '../ai/AiInsights';
+import { AUTH_ENABLED } from '@/stores/auth';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
@@ -233,6 +235,8 @@ export default function ReportsPage() {
               </div>
             </section>
           )}
+
+          {AUTH_ENABLED && unit === 'month' && <AiInsightsCard unit="month" anchor={anchor} />}
 
           <section className="card" aria-label="分類佔比">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>

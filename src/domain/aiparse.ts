@@ -33,6 +33,19 @@ export function aiEntriesToDrafts(entries: AiEntry[], ctx: ParseContext, raw: st
   return out;
 }
 
+/**
+ * 簡訊／通知送給 AI 前先去掉不需要的個資：網址、身分證字號、連續 10 碼以上的數字（帳號、電話）、卡號（4-4-4-4）。
+ * 金額、日期、商家、卡片末四碼不動；最多 300 字（伺服器上限）。
+ */
+export function sanitizeForAi(text: string): string {
+  return text
+    .replace(/https?:\/\/\S+/gi, ' ')
+    .replace(/\b[A-Z][12]\d{8}\b/g, ' ')
+    .replace(/\b\d{4}[ -]\d{4}[ -]\d{4}[ -]\d{2,4}\b/g, ' ')
+    .replace(/\b\d{10,}\b/g, ' ')
+    .replace(/\s+/g, ' ').trim().slice(0, 300);
+}
+
 /** 送給伺服器的名單：只送名稱（去重、限制數量），不送 id、金額與帳目 */
 export function namesForAi(ctx: ParseContext): { categories: string[]; accounts: string[] } {
   const uniq = (xs: string[]) => [...new Set(xs.map((x) => x.trim()).filter(Boolean))];

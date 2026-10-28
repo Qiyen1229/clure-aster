@@ -1,6 +1,9 @@
 /**
  * 專案／旅行記帳：列表、建立／編輯（期間、幣別、預算）、專案詳情（獨立統計、分類、明細、匯出）。
  */
+import { AiExplainCard } from '../ai/AiExplain';
+import { projectToAi } from '@/domain/aisummary';
+import { currencyInfo } from '@/domain/money';
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -189,6 +192,9 @@ export function ProjectDetailPage() {
           <div className="stat"><div className="k">天數</div><div className="v num">{days}</div></div>
         </div>
       </section>
+      <AiExplainCard subject={`專案：${project.name}`} hint="分析這個專案的花費節奏、分類佔比與預算使用情形。"
+        build={async () => projectToAi({ name: project.name, currency: project.currency, decimals: currencyInfo(project.currency).exp, start: project.start, end: project.end, today: todayKey(),
+          budgetMinor: project.budgetMinor, expense: stats?.expense ?? 0, income: stats?.income ?? 0, byCat: stats?.byCat ?? new Map(), byDay: stats?.byDay ?? new Map(), cats: cats.all })} />
       <div className="btn-row" style={{ marginBottom: 12 }}>
         <button className="btn tinted small" style={{ flex: 1 }} onClick={() => openAdd({ projectId: project.id })}>記一筆</button>
         <button className="btn tinted small" style={{ flex: 1 }} onClick={() => void exportCSV({ projectId: project.id }, `aster-${project.name}`)}>匯出 CSV</button>

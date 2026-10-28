@@ -9,7 +9,8 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useAccounts, useCategories, useProjects, useTags } from '@/app/hooks';
-import { describeTerm, parseSearch, preferPlainSearch } from '@/domain/search';
+import { describeTerm, parseSearch, planToSearch, preferPlainSearch } from '@/domain/search';
+import type { LedgerItem } from '@/db/repo/ledger';
 import { todayKey } from '@/domain/period';
 import { searchLedger } from '@/services/search';
 import { useSettings } from '@/stores/settings';
@@ -18,7 +19,7 @@ import { EmptyState, SkeletonRows } from '@/ui/controls';
 import { LedgerRow } from '../ledger/LedgerRow';
 import { isQuestion, looksLikeAiQuestion, rangeText } from '@/domain/nlquery';
 import { ask, type QueryAnswer } from '@/services/nlquery';
-import { aiEnabledLocally } from '@/services/ai';
+import { aiEnabledLocally, aiSearchPlan, quotaLabel } from '@/services/ai';
 
 const EXAMPLES = ['上個月吃飯花多少', '這週咖啡喝了幾次', '今年最大一筆', '上個月錢都花到哪', '最近 30 天平均每天花多少', '去年收入多少'];
 const TIPS = ['5000', '5000 轉帳', '10/25 午餐', '1000-5000 上週', '>=3000 #旅遊', '@玉山 本月', '麥當勞 支出'];
@@ -53,13 +54,46 @@ export default function SearchPage() {
 
   // 規則看得懂的問題直接回答；看不懂（或不是問題）就用一般搜尋
   const ruleFailed = question && answered?.text === dq && !answer;
+  const matchCtx = useMemo(() => ({ cats: cats.map, accounts: accounts.map, tags: tags.map, projects: projects.map, baseCurrency }), [cats.map, accounts.map, tags.map, projects.map, baseCurrency]);
   const search = useLiveQuery(async () => {
     if (!dq || (question && !ruleFailed)) return null;
-    return searchLedger(parsed, { cats: cats.map, accounts: accounts.map, tags: tags.map, projects: projects.map, baseCurrency });
-  }, [dq, question, ruleFailed, parsed, cats.map, accounts.map, tags.map, projects.map, baseCurrency]);
+    return searchLedger(parsed, matchCtx);
+  }, [dq, question, ruleFailed, parsed, matchCtx]);
+
+  // ✨ AI 搜尋：把一句話描述（「前幾天跟朋友吃飯大概五千」）轉成條件再搜。只送描述與分類／帳戶／標籤名稱，不送帳目。
+  const [aiRes, setAiRes] = useState<{ q: string; items: LedgerItem[]; truncated: boolean; chips: string[]; cached: boolean; quota?: string } | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiErr, setAiErr] = useState('');
+  useEffect(() => { setAiRes(null); setAiErr(''); }, [dq]);
+  const runAi = async () => {
+    setAiBusy(true); setAiErr('');
+    try {
+      const r = await aiSearchPlan(dq);
+      const planned = planToSearch(r.value.plan);
+      const found = await searchLedger(planned, matchCtx);
+      setAiRes({ q: dq, items: found.items, truncated: found.truncated, chips: planned.terms.map(describeTerm), cached: r.cached, quota: r.quota ? quotaLabel(r.quota) : undefined });
+    } catch (e) { setAiErr((e as Error).message); } finally { setAiBusy(false); }
+  };
   const results = search?.items;
   const lowDq = dq.toLowerCase();
   const chips = parsed.terms.length > 1 || parsed.terms.some((t) => t.kind !== 'text') ? parsed.terms.map(describeTerm) : [];
+
+  const aiPrompt = (found: number) => (aiEnabledLocally() && dq.length >= 4 && found >= 0 && (found === 0 || dq.length >= 8) && !aiRes ? (
+    <section className="card ask-answer">
+      <p className="ask-text">✨ {found === 0 ? '找不到？' : '想用說的找？'}讓 AI 把「{dq.length > 18 ? `${dq.slice(0, 18)}…` : dq}」轉成搜尋條件。</p>
+      {aiErr && <p className="row-sub" role="alert" style={{ color: 'var(--danger)', whiteSpace: 'normal' }}>{aiErr}</p>}
+      <button className="btn small" disabled={aiBusy} onClick={() => void runAi()}>{aiBusy ? 'AI 理解中…' : '用 AI 找'}</button>
+    </section>
+  ) : null);
+  const aiResults = aiRes && aiRes.q === dq ? (
+    <>
+      <div className="section-title">✨ AI 找到（{aiRes.items.length}{aiRes.truncated ? '+' : ''}）</div>
+      <div className="ask-chips" aria-label="AI 理解的搜尋條件" style={{ margin: '0 4px 8px' }}>{aiRes.chips.map((c, i) => <span key={i} className="chip">{c}</span>)}</div>
+      {aiRes.items.length === 0 && <p className="muted" style={{ margin: '0 8px' }}>用這些條件沒有找到帳目，可以換個說法再試。</p>}
+      {aiRes.items.map((it) => <LedgerRow key={`ai:${it.kind}:${it.id}`} item={it} cats={cats.map} accounts={accounts.map} tags={tags.map} showDate />)}
+      <p className="row-sub" style={{ margin: '4px 8px 12px', whiteSpace: 'normal' }}>{aiRes.cached ? '使用先前的理解（未扣額度）' : aiRes.quota}</p>
+    </>
+  ) : null;
 
   const matchedAccounts = dq && parsed.terms.length === 1 && parsed.terms[0].kind === 'text' ? accounts.all.filter((a) => a.name.toLowerCase().includes(lowDq)) : [];
 
@@ -102,6 +136,7 @@ export default function SearchPage() {
               {answer.query.accountIds.map((id) => <span key={id} className="chip">{accounts.map.get(id)?.icon} {accounts.map.get(id)?.name}</span>)}
             </div>
           </section>
+          {answer.items.length === 0 && <>{aiPrompt(0)}{aiResults}</>}
           <div className="section-title">符合的帳目（{answer.items.length}）</div>
           {answer.items.slice(0, 300).map((t) => (
             <LedgerRow key={t.id} item={{ kind: 'tx', id: t.id, date: t.date, ts: t.ts, tx: t }} cats={cats.map} accounts={accounts.map} tags={tags.map} showDate />
@@ -123,6 +158,8 @@ export default function SearchPage() {
               <button className="btn small" onClick={() => navigate(`/ai?q=${encodeURIComponent(q.trim())}`)}>問 AI</button>
             </section>
           )}
+          {aiPrompt(search?.items.length ?? -1)}
+          {aiResults}
           {chips.length > 0 && (
             <div className="ask-chips" aria-label="我理解的搜尋條件" style={{ margin: '0 4px 8px' }}>
               {chips.map((c, i) => <span key={i} className="chip">{c}</span>)}

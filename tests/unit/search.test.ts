@@ -203,3 +203,24 @@ describe('isAggregationQuestion', () => {
   it.each(['上個月吃飯花多少', '這週咖啡喝了幾次', '今年最大一筆', '平均每天花多少', '怎麼存錢？'])('是統計／提問：%s', (s) => expect(isAggregationQuestion(s)).toBe(true));
   it.each(['昨天午餐 120', '午餐 120', '領薪水 5萬2', '早餐 60 午餐 120'])('不是：%s', (s) => expect(isAggregationQuestion(s)).toBe(false));
 });
+
+import { planToSearch } from '@/domain/search';
+
+describe('planToSearch：AI 的搜尋規劃 → 條件', () => {
+  const plan = { keywords: ['朋友'], category: '午餐', account: '玉山', tag: '旅遊', type: 'expense' as const, date_start: '2026-10-23', date_end: '2026-10-28', min: 4500, max: 5500 };
+  it('轉成和手動輸入同一套條件', () => {
+    const q = planToSearch(plan);
+    expect(q.terms.map((t) => t.kind)).toEqual(['text', 'text', 'account', 'tag', 'type', 'date', 'range']);
+    expect(dateBounds(q)).toEqual({ start: '2026-10-23', end: '2026-10-28' });
+    expect(q.terms.map(describeTerm)).toEqual(['🔎 朋友', '🔎 午餐', '@ 玉山', '# 旅遊', '🏷 支出', '📅 2026-10-23～2026-10-28', '💰 4500～5500']);
+  });
+  it('可以實際比對到轉帳與帳目', () => {
+    const q = planToSearch({ keywords: [], category: null, account: '玉山', tag: null, type: 'transfer', date_start: '2026-10-20', date_end: null, min: 5000, max: null });
+    expect(matchItem(tr({ date: '2026-10-25' }), q, ctx)).toBe(true);
+    expect(matchItem(tr({ date: '2026-10-19' }), q, ctx)).toBe(false);
+    expect(matchItem(tx({ date: '2026-10-25', amountMinor: 600000, accountAmountMinor: 600000, baseAmountMinor: 600000 }), q, ctx)).toBe(false); // 不是轉帳
+  });
+  it('只有單邊日期／金額', () => {
+    expect(planToSearch({ keywords: ['a'], category: null, account: null, tag: null, type: null, date_start: null, date_end: '2026-10-01', min: null, max: 300 }).terms.map(describeTerm)).toEqual(['🔎 a', '📅 2026-10-01 前', '💰 ≤ 300']);
+  });
+});

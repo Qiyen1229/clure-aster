@@ -8,8 +8,8 @@ from app.api.deps import get_current_user, get_db, rate_limit
 from app.core.rate_limit import RateLimiter
 from app.model import User
 from app.schema.ai import (
-    AiStatus, AskRequest, AskResult, BudgetPlanRequest, BudgetPlanResult, CategorizeRequest, CategorizeResult, InsightsRequest, InsightsResult,
-    ParseEntryRequest, ParseEntryResult, ReceiptRequest,
+    AiStatus, AskRequest, AskResult, BudgetPlanRequest, BudgetPlanResult, CategorizeRequest, CategorizeResult, ExplainRequest, InsightsRequest,
+    InsightsResult, ParseEntryRequest, ParseEntryResult, ReceiptRequest, SearchPlanRequest, SearchPlanResult,
 )
 from app.service.ai_service import AiService
 
@@ -57,3 +57,15 @@ def categorize(body: CategorizeRequest, user: User = Depends(get_current_user), 
 def receipt(body: ReceiptRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> ParseEntryResult:
     rate_limit(ai_limiter, str(user.id))
     return AiService(db).receipt(user, body)
+
+
+@router.post("/search-plan", response_model=SearchPlanResult, summary="搜尋：把一句話描述轉成搜尋條件")
+def search_plan(body: SearchPlanRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> SearchPlanResult:
+    rate_limit(ai_limiter, str(user.id))
+    return AiService(db).search_plan(user, body)
+
+
+@router.post("/explain", response_model=InsightsResult, summary="某個專案／帳戶／分類的白話解說")
+def explain(body: ExplainRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> InsightsResult:
+    rate_limit(ai_limiter, str(user.id))
+    return AiService(db).explain(user, body)

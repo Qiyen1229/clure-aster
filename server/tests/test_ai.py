@@ -28,7 +28,8 @@ def ai_env(monkeypatch):  # noqa: ANN001, ANN201
     monkeypatch.setattr(s, "ai_nvidia_model", "nv-model")
     monkeypatch.setattr(s, "ai_gemini_api_key", "")
     monkeypatch.setattr(s, "ai_global_per_minute", 0)
-    for k, v in (("ai_user_daily", 3), ("ai_user_weekly", 5), ("ai_user_monthly", 8), ("ai_global_daily", 0)):
+    # 第一位註冊的使用者會是管理員：管理員與一般使用者先設成相同額度，讓下面的測試不必在意角色（角色分開的測試另外寫）
+    for k, v in (("ai_user_daily", 3), ("ai_user_weekly", 5), ("ai_user_monthly", 8), ("ai_admin_daily", 3), ("ai_admin_weekly", 5), ("ai_admin_monthly", 8), ("ai_global_daily", 0)):
         monkeypatch.setattr(s, k, v)
     ai_providers.reset_state()
     yield
@@ -114,6 +115,8 @@ def test_circuit_breaker_skips_failing_provider(api: Api, monkeypatch) -> None: 
     monkeypatch.setattr(get_settings(), "ai_user_daily", 0)
     monkeypatch.setattr(get_settings(), "ai_user_weekly", 0)
     monkeypatch.setattr(get_settings(), "ai_user_monthly", 0)
+    for k in ("ai_admin_daily", "ai_admin_weekly", "ai_admin_monthly"):
+        monkeypatch.setattr(get_settings(), k, 0)
     for _ in range(4):
         assert api.post("/api/ai/parse-entry", BODY).status_code == 200
     # 前 3 次 openrouter 失敗後進入冷卻，第 4 次直接跳過
@@ -444,6 +447,8 @@ def test_global_per_minute_guard(api: Api, monkeypatch) -> None:  # noqa: ANN001
     monkeypatch.setattr(get_settings(), "ai_user_daily", 0)
     monkeypatch.setattr(get_settings(), "ai_user_weekly", 0)
     monkeypatch.setattr(get_settings(), "ai_user_monthly", 0)
+    for k in ("ai_admin_daily", "ai_admin_weekly", "ai_admin_monthly"):
+        monkeypatch.setattr(get_settings(), k, 0)
     api.register("alice")
     for _ in range(2):
         assert api.post("/api/ai/ask", {"question": "嗨", "summary": SUMMARY}).status_code == 200
@@ -467,3 +472,101 @@ def test_old_custom_gemini_setup_still_works(monkeypatch) -> None:  # noqa: ANN0
     monkeypatch.setattr(s, "ai_custom_api_key", "k")
     monkeypatch.setattr(s, "ai_custom_model", "gemini-flash-lite-latest")
     assert [p.name for p in ai_providers.providers(s) if p.configured] == ["custom"]
+
+
+# ── v2.1：一般使用者與管理員的額度分開 ──
+
+def _set(monkeypatch, **kw) -> None:  # noqa: ANN001, ANN003
+    for k, v in kw.items():
+        monkeypatch.setattr(get_settings(), k, v)
+
+
+def test_admin_and_user_have_separate_quotas(admin_and_user, monkeypatch) -> None:  # noqa: ANN001
+    admin, user = admin_and_user
+    fake(monkeypatch, lambda n, p: ok(GOOD))
+    _set(monkeypatch, ai_user_daily=2, ai_user_weekly=50, ai_user_monthly=50, ai_admin_daily=5, ai_admin_weekly=50, ai_admin_monthly=50)
+    # 一般使用者 2 次就沒了
+    assert user.get("/api/ai/status").json()["role"] == "user"
+    for _ in range(2):
+        assert user.post("/api/ai/parse-entry", BODY).status_code == 200
+    r = user.post("/api/ai/parse-entry", BODY)
+    assert r.status_code == 429 and "2 次" in r.json()["detail"]
+    # 管理員有自己的 5 次，不受一般使用者影響
+    st = admin.get("/api/ai/status").json()
+    assert st["role"] == "admin" and st["quota"]["daily"]["limit"] == 5 and st["quota"]["daily"]["used"] == 0
+    for _ in range(5):
+        assert admin.post("/api/ai/parse-entry", BODY).status_code == 200
+    r = admin.post("/api/ai/parse-entry", BODY)
+    assert r.status_code == 429 and "5 次" in r.json()["detail"]
+    # 使用者的額度也不會被管理員用掉
+    assert user.get("/api/ai/status").json()["quota"]["daily"]["used"] == 2
+
+
+def test_admin_limits_editable_and_console_splits_by_role(admin_and_user, monkeypatch) -> None:  # noqa: ANN001
+    admin, user = admin_and_user
+    fake(monkeypatch, lambda n, p: ok(GOOD))
+    a = admin.get("/api/admin/ai").json()
+    assert (a["admin_daily"], a["admin_weekly"], a["admin_monthly"]) == (3, 5, 8)
+    r = admin.patch("/api/admin/ai", {"admin_daily": 9, "admin_weekly": 90, "admin_monthly": 900, "user_daily": 4})
+    assert r.status_code == 200 and r.json()["admin_daily"] == 9 and r.json()["user_daily"] == 4 and r.json()["admin_monthly"] == 900
+    assert admin.patch("/api/admin/ai", {"admin_daily": -1}).status_code == 422
+    for _ in range(2):
+        assert user.post("/api/ai/parse-entry", BODY).status_code == 200
+    for _ in range(3):
+        assert admin.post("/api/ai/parse-entry", BODY).status_code == 200
+    c = admin.get("/api/admin/ai/console").json()
+    assert c["by_role"]["user"]["today"] == 2 and c["by_role"]["admin"]["today"] == 3 and c["totals"]["today"] == 5
+    assert {(u["username"], u["role"]) for u in c["by_user"]} == {("admin", "admin"), ("alice", "user")}
+    # 一般使用者看不到這些設定
+    assert user.patch("/api/admin/ai", {"admin_daily": 1}).status_code == 403
+
+
+def test_global_cap_applies_to_both_roles(admin_and_user, monkeypatch) -> None:  # noqa: ANN001
+    admin, user = admin_and_user
+    fake(monkeypatch, lambda n, p: ok(GOOD))
+    _set(monkeypatch, ai_global_daily=2, ai_user_daily=10, ai_admin_daily=10)
+    assert user.post("/api/ai/parse-entry", BODY).status_code == 200
+    assert admin.post("/api/ai/parse-entry", BODY).status_code == 200
+    assert "全站" in admin.post("/api/ai/parse-entry", BODY).json()["detail"]
+
+
+# ── v2.1：搜尋規劃與通用解說 ──
+
+PLAN_BODY = {"text": "前幾天跟朋友吃飯大概五千", "categories": ["飲食", "交通"], "accounts": ["玉山", "錢包"], "tags": ["旅遊"], "today": "2026-10-28"}
+
+
+def test_search_plan_validates(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    plan = {"keywords": ["朋友", "", "x" * 50], "category": "飲食", "account": "不存在", "tag": "旅遊", "type": "expense",
+            "date_start": "2026-10-30", "date_end": "2026-10-23", "min": "6,000", "max": 4500}
+    seen: list[dict] = []
+    fake(monkeypatch, lambda n, p: (seen.append(p), ok(plan))[1])
+    api.register("alice")
+    r = api.post("/api/ai/search-plan", PLAN_BODY)
+    assert r.status_code == 200, r.text
+    j = r.json()
+    assert j["keywords"] == ["朋友", "x" * 20] and j["category"] == "飲食" and j["account"] is None and j["tag"] == "旅遊" and j["type"] == "expense"
+    assert (j["date_start"], j["date_end"]) == ("2026-10-23", "2026-10-30")  # 顛倒的日期會對調
+    assert (j["min"], j["max"]) == (4500, 6000)
+    sent = json.loads(seen[0]["messages"][1]["content"])
+    assert set(sent) == {"今天", "描述", "可選分類", "可選帳戶", "可選標籤"}  # 不含任何帳目
+
+
+def test_search_plan_rejects_garbage_and_is_free(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    fake(monkeypatch, lambda n, p: ok({"keywords": [], "category": "亂寫", "date_start": "1900-01-01", "type": "refund", "min": -5}))
+    api.register("alice")
+    assert api.post("/api/ai/search-plan", PLAN_BODY).status_code == 422
+    assert usage_rows() == []
+    assert api.post("/api/ai/search-plan", {**PLAN_BODY, "text": ""}).status_code == 422
+    assert api.post("/api/ai/search-plan", {**PLAN_BODY, "text": "x" * 201}).status_code == 422
+    assert api.post("/api/ai/search-plan", {**PLAN_BODY, "today": "昨天"}).status_code == 422
+
+
+def test_explain(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    seen: list[dict] = []
+    fake(monkeypatch, lambda n, p: (seen.append(p), ok({"headline": "旅行花了 3 萬", "points": ["住宿佔 40%", "第 3 天花最多"], "suggestion": "下次先訂機票"}))[1])
+    api.register("alice")
+    r = api.post("/api/ai/explain", {"subject": "專案：日本旅行", "summary": {"expense": 30000}})
+    assert r.status_code == 200 and r.json()["headline"] == "旅行花了 3 萬" and len(r.json()["points"]) == 2
+    assert json.loads(seen[0]["messages"][1]["content"]) == {"對象": "專案：日本旅行", "摘要": {"expense": 30000}}
+    assert api.post("/api/ai/explain", {"subject": "", "summary": {}}).status_code == 422
+    assert api.post("/api/ai/explain", {"subject": "x", "summary": {"x": "字" * 15000}}).status_code == 422

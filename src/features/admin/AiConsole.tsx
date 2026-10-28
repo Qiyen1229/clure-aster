@@ -13,19 +13,21 @@ interface Provider {
   ok: number; fail: number; last_ok_at: number | null; last_fail_at: number | null; last_error: string; last_latency_ms: number | null;
 }
 interface Settings {
-  enabled: boolean; user_daily: number; user_weekly: number; user_monthly: number; global_daily: number; overridden: boolean;
+  enabled: boolean; user_daily: number; user_weekly: number; user_monthly: number; global_daily: number; admin_daily: number; admin_weekly: number; admin_monthly: number; overridden: boolean;
   used_today: number; used_today_by_provider: Record<string, number>;
 }
 interface Console {
   settings: Settings; providers: Provider[];
   totals: { today: number; week: number; month: number };
-  by_user: { user_id: number; username: string; today: number; week: number; month: number }[];
+  by_role: Record<'user' | 'admin', { today: number; week: number; month: number }>;
+  by_user: { user_id: number; username: string; role: 'user' | 'admin'; today: number; week: number; month: number }[];
   recent: { at: string; username: string; kind: string; provider: string; model: string; cost: number }[];
   daily: { date: string; count: number }[]; timezone: string; server_time: string;
 }
 interface TestResult { name: string; ok: boolean; latency_ms: number | null; detail: string }
 
 const KIND: Record<string, string> = {
+  search_plan: 'AI 搜尋', explain: '專案／帳戶解說',
   parse_entry: '一句話記帳', ask: '問 AI', budget_plan: '預算建議', insights: '白話解讀', categorize: '整理分類', receipt: '拍照記帳',
 };
 const epoch = (t: number | null) => (t ? new Date(t * 1000).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : '—');
@@ -85,7 +87,11 @@ export default function AiConsole() {
   const summary = !ready.length ? { icon: '⚠️', text: '尚未設定任何供應商：到 NAS 的 .env 填入 API Key，再 docker compose up -d' }
     : !st.enabled ? { icon: '⏸', text: 'AI 功能已由管理員關閉' }
     : { icon: healthy ? '✅' : '🔎', text: `${ready.length} 個供應商已設定，${healthy} 個確認正常${healthy ? '' : '（按「全部測試」確認 Key 是否有效）'}` };
-  const limits: [string, string, number][] = [['user_daily', '每人每日', st.user_daily], ['user_weekly', '每人每週', st.user_weekly], ['user_monthly', '每人每月', st.user_monthly], ['global_daily', '全站每日', st.global_daily]];
+  const limits: [string, string, number][] = [
+    ['user_daily', '一般使用者・每人每日', st.user_daily], ['user_weekly', '一般使用者・每人每週', st.user_weekly], ['user_monthly', '一般使用者・每人每月', st.user_monthly],
+    ['admin_daily', '管理員・每人每日', st.admin_daily], ['admin_weekly', '管理員・每人每週', st.admin_weekly], ['admin_monthly', '管理員・每人每月', st.admin_monthly],
+    ['global_daily', '全站每日（兩者合計）', st.global_daily],
+  ];
   const dirty = limits.some(([k, , v]) => draft[k] !== undefined && draft[k] !== String(v));
   const max = Math.max(1, ...d.daily.map((x) => x.count));
 
@@ -154,12 +160,21 @@ export default function AiConsole() {
         </div>
       </div>
 
+      <div className="list">
+        {(['user', 'admin'] as const).map((r) => (
+          <div key={r} className="row">
+            <span className="row-main row-title">{r === 'admin' ? '管理員' : '一般使用者'}</span>
+            <span className="num muted">今日 {d.by_role[r].today} ／ 本週 {d.by_role[r].week} ／ 本月 {d.by_role[r].month}</span>
+          </div>
+        ))}
+      </div>
+
       <div className="section-title">各使用者用量（本月前 30 名）</div>
       <div className="list">
         {d.by_user.length === 0 && <div className="row muted">本月還沒有人使用</div>}
         {d.by_user.map((u) => (
           <div key={u.user_id} className="row">
-            <span className="row-main row-title">{u.username}</span>
+            <span className="row-main row-title">{u.username}{u.role === 'admin' ? ' 🛡' : ''}</span>
             <span className="num muted">今日 {u.today} ／ 本週 {u.week} ／ 本月 {u.month}</span>
           </div>
         ))}

@@ -65,6 +65,10 @@ class Settings(BaseSettings):
     ai_user_weekly: int = Field(120, ge=0)
     ai_user_monthly: int = Field(400, ge=0)
     ai_global_daily: int = Field(100, ge=0)
+    # 管理員的額度與一般使用者分開計算（管理員常用來測試與設定，通常需要比較多）
+    ai_admin_daily: int = Field(60, ge=0)
+    ai_admin_weekly: int = Field(300, ge=0)
+    ai_admin_monthly: int = Field(1000, ge=0)
     # 全站每分鐘最多幾次（免費層通常只有每分鐘 5～15 次）；0＝不限
     ai_global_per_minute: int = Field(8, ge=0)
 

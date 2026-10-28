@@ -17,6 +17,8 @@ import {
   canImportByUrl, openShortcutImport, shortcutFileUrl, SHORTCUTS, SOURCE_LABEL, useInboxCount,
   type InboxEntry, type InboxToken,
 } from '@/services/inbox';
+import { aiEnabledLocally, aiParseText } from '@/services/ai';
+import { fallbackAccount, resolveDraft } from '@/services/quickentry';
 import { useSettings } from '@/stores/settings';
 import { snackUndo, useUI } from '@/stores/ui';
 import { AccountField, SwitchField } from '@/ui/form';
@@ -82,6 +84,19 @@ export default function InboxPage() {
     } catch (err) { snack((err as Error).message); }
   };
 
+  /** 規則看不懂的簡訊／通知：請 AI 解析成草稿（扣 1 點額度）。解析結果只改在畫面上，確認記帳才會寫入帳本 */
+  const [aiBusyId, setAiBusyId] = useState<number | null>(null);
+  const aiParse = async (e: InboxEntry) => {
+    setAiBusyId(e.item.id);
+    try {
+      const { drafts } = await aiParseText((e.item.text || e.item.merchant).trim());
+      if (!drafts.length) { snack('AI 也看不出金額，請手動記'); return; }
+      const fb = await fallbackAccount();
+      const list = await Promise.all(drafts.map((d) => resolveDraft(d, fb)));
+      setEntries((l) => l?.map((x) => (x.item.id === e.item.id ? { ...x, drafts: list } : x)) ?? null);
+      snack('AI 已解析，確認後按「記帳」');
+    } catch (err) { snack((err as Error).message); } finally { setAiBusyId(null); }
+  };
   const skip = async (e: InboxEntry) => {
     await ackInbox([e.item.id]).catch((err) => snack((err as Error).message));
     setEntries((l) => l?.filter((x) => x.item.id !== e.item.id) ?? null);
@@ -198,6 +213,7 @@ export default function InboxPage() {
                       <span className="row-sub">{src.label} · 看不懂金額，請手動記</span>
                     </span>
                     <span className="inbox-actions">
+                      {aiEnabledLocally() && (e.item.text || e.item.merchant) && <button className="pill accent-pill" disabled={aiBusyId === e.item.id} onClick={() => void aiParse(e)}>{aiBusyId === e.item.id ? '解析中…' : '✨ AI 解析'}</button>}
                       <button className="pill" onClick={() => edit(e)}>手動記</button>
                       <button className="pill" onClick={() => void skip(e)} aria-label="略過">略過</button>
                     </span>

@@ -141,3 +141,35 @@ describe('hashJson', () => {
     expect(hashJson({ a: 1 })).not.toBe(hashJson({ a: 2 }));
   });
 });
+
+import { accountToAi, projectToAi } from '@/domain/aisummary';
+
+describe('projectToAi / accountToAi', () => {
+  it('專案：分類併到主分類、預算使用率、每日平均；不含備註', () => {
+    const r = projectToAi({
+      name: '日本旅行', currency: 'JPY', decimals: 0, start: '2026-10-01', end: '2026-10-05', today: '2026-10-28', budgetMinor: 100000,
+      expense: 80000, income: 0, byCat: new Map([['lunch', 30000], ['food', 10000], ['taxi', 40000]]), byDay: new Map([['2026-10-01', 50000], ['2026-10-02', 30000]]), cats,
+    });
+    expect(r).toMatchObject({ name: '日本旅行', days: 5, budget: 100000, expense: 80000, budgetUsedPct: 80, dailyAvg: 16000, maxDay: 50000, spendDays: 2 });
+    expect(r.byCategory).toEqual({ 交通: 40000, 飲食: 40000 });
+    expect(JSON.stringify(r)).not.toMatch(/note|備註|merchant/i);
+  });
+  it('專案沒有結束日、沒有預算：以今天計天數', () => {
+    const r = projectToAi({ name: 'x', currency: 'TWD', decimals: 2, start: '2026-10-20', today: '2026-10-28', expense: 90000, income: 0, byCat: new Map(), byDay: new Map(), cats });
+    expect(r).toMatchObject({ days: 9, budget: null, budgetUsedPct: null, end: null, expense: 900 });
+  });
+  it('信用卡帳戶：欠款、額度使用率、近 3 個月、主要分類', () => {
+    const r = accountToAi({
+      name: '玉山卡', typeLabel: '信用卡', currency: 'TWD', decimals: 2, balanceMinor: -3000000, isDebt: true, creditLimitMinor: 10000000, today: '2026-10-15',
+      txs: [{ date: '2026-09-10', type: 'expense', categoryId: 'lunch', amountMinor: 500000 }, { date: '2026-10-05', type: 'expense', categoryId: 'taxi', amountMinor: 200000 }, { date: '2026-10-06', type: 'income', categoryId: 'salary', amountMinor: 100000 }], cats,
+    });
+    expect(r).toMatchObject({ name: '玉山卡', owed: 30000, creditLimit: 100000, creditUsedPct: 30, txCount: 3 });
+    expect(r.months.map((m) => [m.label, m.expense, m.income])).toEqual([['2026-08', 0, 0], ['2026-09', 5000, 0], ['2026-10', 2000, 1000]]);
+    expect(r.topExpenseCategories).toEqual({ 飲食: 5000, 交通: 2000 });
+  });
+  it('一般帳戶用 balance', () => {
+    const r = accountToAi({ name: '錢包', typeLabel: '現金', currency: 'TWD', decimals: 2, balanceMinor: 123400, isDebt: false, today: '2026-10-15', txs: [], cats });
+    expect(r).toMatchObject({ balance: 1234 });
+    expect('owed' in r).toBe(false);
+  });
+});

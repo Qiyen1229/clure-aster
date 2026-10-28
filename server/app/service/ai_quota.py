@@ -16,11 +16,11 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.security import utcnow
-from app.model import AiUsage, AppSetting
+from app.model import ROLE_ADMIN, AiUsage, AppSetting
 from app.schema.ai import AiQuota, QuotaWindow
 from app.service.errors import ServiceError
 
-KEYS = ("ai_enabled", "ai_user_daily", "ai_user_weekly", "ai_user_monthly", "ai_global_daily")
+KEYS = ("ai_enabled", "ai_user_daily", "ai_user_weekly", "ai_user_monthly", "ai_global_daily", "ai_admin_daily", "ai_admin_weekly", "ai_admin_monthly")
 PENDING_TTL = timedelta(minutes=2)  # 預留後超過這個時間仍未完成（例如程序中斷）就不再計入
 WINDOW_NAMES = {"daily": "今日", "weekly": "本週", "monthly": "本月"}
 
@@ -32,7 +32,16 @@ class Limits:
     user_weekly: int
     user_monthly: int
     global_daily: int
+    admin_daily: int
+    admin_weekly: int
+    admin_monthly: int
     overridden: bool
+
+    def for_role(self, role: str) -> tuple[int, int, int]:
+        """(每日, 每週, 每月) 上限：管理員與一般使用者分開設定。"""
+        if role == ROLE_ADMIN:
+            return self.admin_daily, self.admin_weekly, self.admin_monthly
+        return self.user_daily, self.user_weekly, self.user_monthly
 
 
 def read_limits(db: Session) -> Limits:
@@ -49,7 +58,8 @@ def read_limits(db: Session) -> Limits:
         enabled=rows["ai_enabled"] == "1" if "ai_enabled" in rows else True,
         user_daily=num("ai_user_daily", s.ai_user_daily), user_weekly=num("ai_user_weekly", s.ai_user_weekly),
         user_monthly=num("ai_user_monthly", s.ai_user_monthly), global_daily=num("ai_global_daily", s.ai_global_daily),
-        overridden=bool(rows),
+        admin_daily=num("ai_admin_daily", s.ai_admin_daily), admin_weekly=num("ai_admin_weekly", s.ai_admin_weekly),
+        admin_monthly=num("ai_admin_monthly", s.ai_admin_monthly), overridden=bool(rows),
     )
 
 
@@ -91,13 +101,14 @@ def _window(limit: int, used: int, resets_at: datetime) -> QuotaWindow:
     return QuotaWindow(limit=limit, used=used, remaining=None if limit == 0 else max(0, limit - used), resets_at=resets_at)
 
 
-def quota_for(db: Session, user_id: int, limits: Limits | None = None) -> AiQuota:
+def quota_for(db: Session, user_id: int, role: str, limits: Limits | None = None) -> AiQuota:
     lim = limits or read_limits(db)
+    d, w, m = lim.for_role(role)
     b = window_bounds()
     return AiQuota(
-        daily=_window(lim.user_daily, _used(db, b["daily"][0], user_id), b["daily"][1]),
-        weekly=_window(lim.user_weekly, _used(db, b["weekly"][0], user_id), b["weekly"][1]),
-        monthly=_window(lim.user_monthly, _used(db, b["monthly"][0], user_id), b["monthly"][1]),
+        daily=_window(d, _used(db, b["daily"][0], user_id), b["daily"][1]),
+        weekly=_window(w, _used(db, b["weekly"][0], user_id), b["weekly"][1]),
+        monthly=_window(m, _used(db, b["monthly"][0], user_id), b["monthly"][1]),
     )
 
 
@@ -114,7 +125,7 @@ def _reset_text(resets_at: datetime) -> str:
     return local.strftime("%m/%d %H:%M")
 
 
-def reserve(db: Session, user_id: int, kind: str, cost: int = 1) -> AiUsage:
+def reserve(db: Session, user_id: int, kind: str, cost: int = 1, role: str = "user") -> AiUsage:
     """預留額度；超過任何一層上限就拒絕（429），不會寫入。"""
     limits = read_limits(db)
     if not limits.enabled:
@@ -125,7 +136,8 @@ def reserve(db: Session, user_id: int, kind: str, cost: int = 1) -> AiUsage:
     db.flush()
     b = window_bounds()
     over: str | None = None
-    for name, limit in (("daily", limits.user_daily), ("weekly", limits.user_weekly), ("monthly", limits.user_monthly)):
+    d, w, m = limits.for_role(role)
+    for name, limit in (("daily", d), ("weekly", w), ("monthly", m)):
         if limit > 0 and _used(db, b[name][0], user_id) > limit:
             over = f"{WINDOW_NAMES[name]} AI 額度已用完（{limit} 次），{_reset_text(b[name][1])} 重置"
             break

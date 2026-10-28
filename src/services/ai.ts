@@ -8,8 +8,9 @@
  * - 需要「收支統計」的功能（問答、預算、洞察）另外要使用者開啟 ai.allowData；送出的是 domain/aisummary 整理的去識別化統計。
  * - 結果快取在這台裝置（meta 表，不同步）：同樣的資料同樣的問題不會重複呼叫，省免費額度。
  */
-import { aiEntriesToDrafts, namesForAi, type AiEntry } from '@/domain/aiparse';
+import { aiEntriesToDrafts, namesForAi, sanitizeForAi, type AiEntry } from '@/domain/aiparse';
 import { hashJson, periodToAi } from '@/domain/aisummary';
+import type { AiSearchPlan } from '@/domain/search';
 import type { DraftEntry } from '@/domain/nlp';
 import { AUTH_ENABLED } from '@/stores/auth';
 import { useSettings } from '@/stores/settings';
@@ -19,7 +20,7 @@ import { parseContext } from './quickentry';
 
 export interface AiQuotaWindow { limit: number; used: number; remaining: number | null; resets_at: string }
 export interface AiQuota { daily: AiQuotaWindow; weekly: AiQuotaWindow; monthly: AiQuotaWindow }
-export interface AiStatus { enabled: boolean; configured: boolean; available: boolean; message: string; quota: AiQuota }
+export interface AiStatus { role: 'user' | 'admin'; enabled: boolean; configured: boolean; available: boolean; message: string; quota: AiQuota }
 
 export const aiEnabledLocally = () => AUTH_ENABLED && !!useSettings.getState().ai?.enabled && navigator.onLine;
 
@@ -68,8 +69,10 @@ export interface Cached<T> { value: T; cached: boolean; quota?: AiQuota }
  */
 const pending = new Map<string, Promise<Cached<unknown>>>();
 
+const cacheId = (kind: string, key: unknown) => `ai-cache:${kind}:${hashJson(key)}`;
+
 function cached<T extends { quota?: AiQuota }>(kind: string, key: unknown, ttlMs: number, run: () => Promise<T>, force = false): Promise<Cached<Omit<T, 'quota'>>> {
-  const id = `ai-cache:${kind}:${hashJson(key)}`;
+  const id = cacheId(kind, key);
   const running = pending.get(id);
   if (running) return running as Promise<Cached<Omit<T, 'quota'>>>;
   const p = (async (): Promise<Cached<Omit<T, 'quota'>>> => {
@@ -141,4 +144,65 @@ export async function aiReceipt(file: File): Promise<{ drafts: DraftEntry[]; quo
   const names = namesForAi({ today: ctx.today, accounts: ctx.accounts, categories: ctx.categories });
   const res = await api<{ entries: AiEntry[]; quota: AiQuota }>('/ai/receipt', { method: 'POST', body: { image, ...names, today: ctx.today } });
   return { drafts: aiEntriesToDrafts(res.entries, ctx, '拍照記帳'), quota: res.quota };
+}
+
+
+// ───────────── v2.1：搜尋規劃、通用解說、自動週報 ─────────────
+
+/** 搜尋：把一句話描述轉成搜尋條件（只送描述與分類／帳戶／標籤名稱，不送任何帳目） */
+export async function aiSearchPlan(text: string): Promise<Cached<{ plan: AiSearchPlan }>> {
+  const [cats, accs, tags, ctx] = await Promise.all([db.categories.toArray(), db.accounts.toArray(), db.tags.toArray(), parseContext()]);
+  const uniq = (xs: string[]) => [...new Set(xs.map((x) => x.trim()).filter(Boolean))];
+  const body = {
+    text: text.trim().slice(0, 200), today: ctx.today,
+    categories: uniq(cats.filter((c) => !c.archived && !c.system).map((c) => c.name)).slice(0, 120),
+    accounts: uniq(accs.filter((a) => !a.archived).map((a) => a.name)).slice(0, 40),
+    tags: uniq(tags.map((t) => t.name)).slice(0, 60),
+  };
+  const r = await cached('search', body, 6 * HOUR, async () => {
+    const { quota, ...plan } = await api<AiSearchPlan & { quota: AiQuota }>('/ai/search-plan', { method: 'POST', body });
+    return { plan, quota };
+  });
+  return r as Cached<{ plan: AiSearchPlan }>;
+}
+
+/** 專案、帳戶…的白話解說：data 是 domain/aisummary 整理的去識別化統計 */
+export async function aiExplain(subject: string, data: object, force = false): Promise<Cached<InsightsValue>> {
+  return cached('explain', { subject, data }, 12 * HOUR, () => api<InsightsValue & { quota: AiQuota }>('/ai/explain', { method: 'POST', body: { subject, summary: data } }), force);
+}
+
+/** 收件匣：規則看不懂的簡訊／通知，請 AI 解析（和一句話記帳同一個後端任務，扣 1 點） */
+export async function aiParseText(text: string) {
+  return aiParse(sanitizeForAi(text));
+}
+
+const TRY_MS = 6 * HOUR;
+
+/**
+ * 首頁「上週重點」：使用者開啟「自動產生」時，每週最多自動呼叫一次。
+ * 已有結果直接回傳；沒有結果時 6 小時內最多嘗試一次（失敗、額度用完也不會一直重試）。
+ */
+export async function autoWeeklyInsight(): Promise<{ label: string; value: InsightsValue } | null> {
+  if (!aiDataEnabled() || !useSettings.getState().ai?.auto) return null;
+  const { loadSummary, lastCompleted, summaryRange, summaryTitle } = await import('./summary');
+  const { currencyInfo } = await import('@/domain/money');
+  const anchor = lastCompleted('week');
+  const sum = await loadSummary('week', anchor);
+  if (!sum.count) return null;
+  const base = useSettings.getState().baseCurrency;
+  const cats = new Map((await db.categories.toArray()).map((c) => [c.id, c]));
+  const label = `上週 ${summaryTitle('week', summaryRange('week', anchor).range)}`;
+  const data = periodToAi(sum, cats, label, base, currencyInfo(base).exp);
+  const key = { label, data };
+  const id = cacheId('autoweek', key);
+  const hit = (await db.meta.get(id).catch(() => undefined))?.value as { at: number; value: InsightsValue } | undefined;
+  if (hit && Date.now() - hit.at < 7 * 24 * HOUR) return { label, value: hit.value };
+  const triedId = `ai-auto-try:${anchor}`;
+  const tried = (await db.meta.get(triedId).catch(() => undefined))?.value as number | undefined;
+  if (tried && Date.now() - tried < TRY_MS) return null;
+  await db.meta.put({ key: triedId, value: Date.now() }).catch(() => undefined);
+  try {
+    const r = await cached('autoweek', key, 7 * 24 * HOUR, () => api<InsightsValue & { quota: AiQuota }>('/ai/insights', { method: 'POST', body: { summary: data, label } }));
+    return { label, value: r.value };
+  } catch { return null; }
 }

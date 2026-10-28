@@ -112,9 +112,10 @@ export interface Settings {
   inbox: InboxSettings;
   /**
    * AI：enabled＝規則解析不了一句話時，才把那句話與分類／帳戶名稱送到伺服器設定的 AI 供應商；
-   * allowData＝另外允許 AI 看「去識別化的收支統計」（問答、預算建議、洞察）。兩個都預設關閉。
+   * allowData＝另外允許 AI 看「去識別化的收支統計」（問答、預算建議、洞察、專案／帳戶解說）；
+   * auto＝首頁自動產生上週重點（每週最多用 1 點額度）。三個都預設關閉。
    */
-  ai: { enabled: boolean; allowData: boolean };
+  ai: { enabled: boolean; allowData: boolean; auto: boolean };
   /** 已看過哪一版的「新功能介紹」（隨帳號同步，換裝置不會再跳一次） */
   seenWhatsNew: string;
 }
@@ -196,7 +197,7 @@ export const DEFAULT_SETTINGS: Settings = {
   tax: { netIncome: 0 },
   einvoice: { cardNo: '', verifyCode: '', defaultAccountId: '', autoSync: true },
   inbox: { autoBook: false, defaultAccountId: '', cardMap: {} },
-  ai: { enabled: false, allowData: false },
+  ai: { enabled: false, allowData: false, auto: false },
   seenWhatsNew: '',
 };
 

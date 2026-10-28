@@ -22,6 +22,7 @@ class AiQuota(BaseModel):
 
 
 class AiStatus(BaseModel):
+    role: str  # user／admin：額度依角色分開計算
     enabled: bool  # 管理員是否開啟
     configured: bool  # 是否至少有一個供應商設定了 Key
     available: bool  # enabled 且 configured 且全站額度未用完
@@ -140,6 +141,34 @@ class ReceiptRequest(BaseModel):
     today: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
 
 
+class SearchPlanRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=200)
+    categories: list[str] = Field(default_factory=list, max_length=120)
+    accounts: list[str] = Field(default_factory=list, max_length=40)
+    tags: list[str] = Field(default_factory=list, max_length=60)
+    today: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
+class SearchPlanResult(BaseModel):
+    keywords: list[str] = []
+    category: str | None = None
+    account: str | None = None
+    tag: str | None = None
+    type: Literal["expense", "income", "transfer"] | None = None
+    date_start: str | None = None
+    date_end: str | None = None
+    min: float | None = None
+    max: float | None = None
+    quota: AiQuota
+
+
+class ExplainRequest(BaseModel):
+    subject: str = Field(min_length=1, max_length=60)  # 例如「專案：日本旅行」「帳戶：玉山信用卡」
+    summary: dict[str, Any]
+
+    _v = field_validator("summary")(_check_summary)
+
+
 # ── 管理員 ──
 
 class AiProviderInfo(BaseModel):
@@ -155,6 +184,9 @@ class AiAdminOut(BaseModel):
     user_weekly: int
     user_monthly: int
     global_daily: int
+    admin_daily: int
+    admin_weekly: int
+    admin_monthly: int
     # 目前生效值是否來自後台（否則沿用 .env 預設）
     overridden: bool
     providers: list[AiProviderInfo]
@@ -168,6 +200,9 @@ class AiAdminUpdate(BaseModel):
     user_weekly: int | None = Field(None, ge=0, le=100000)
     user_monthly: int | None = Field(None, ge=0, le=100000)
     global_daily: int | None = Field(None, ge=0, le=1000000)
+    admin_daily: int | None = Field(None, ge=0, le=100000)
+    admin_weekly: int | None = Field(None, ge=0, le=100000)
+    admin_monthly: int | None = Field(None, ge=0, le=100000)
 
 
 # ── 主控台 ──
@@ -197,6 +232,7 @@ class UsageTotals(BaseModel):
 class UserUsage(BaseModel):
     user_id: int
     username: str
+    role: str = "user"
     today: int
     week: int
     month: int
@@ -220,6 +256,7 @@ class AiConsole(BaseModel):
     settings: AiAdminOut
     providers: list[ConsoleProvider]
     totals: UsageTotals
+    by_role: dict[str, UsageTotals]  # user／admin 分開的用量
     by_user: list[UserUsage]
     recent: list[RecentCall]
     daily: list[DayCount]

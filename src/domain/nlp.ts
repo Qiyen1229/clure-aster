@@ -102,7 +102,11 @@ const CURRENCY_WORDS: [RegExp, string][] = [
 ];
 const CURRENCY_AFTER = /^(美金|美元|日幣|日圓|日元|円|港幣|港元|歐元|人民幣|韓元|韓幣|英鎊|泰銖|新加坡幣|新幣|澳幣)/;
 /** 會被誤認為金額的店名 */
-const PROTECTED = /7\s*-?\s*11|7\s*-?\s*eleven|85\s*度\s*c|50\s*嵐|五十嵐|21\s*世紀|101|3\s*m(?![a-z])/gi;
+const PROTECTED = new RegExp([
+  '7\\s*-?\\s*11', '7\\s*-?\\s*eleven', '85\\s*度\\s*c', '50\\s*嵐', '五十嵐', '21\\s*世紀', '101', '3\\s*m(?![a-z])',
+  // 簡訊裡的電話、帳號、會員編號、網址不是金額（例如「電話 0912345678」不可以變成 $912,345,678）
+  'https?:\\/\\/\\S+', '(?<![\\d.,])\\d{9,}(?![\\d])', '(?<![\\d.,])0\\d{1,2}[- ]\\d{3,4}[- ]\\d{3,4}(?![\\d])',
+].join('|'), 'gi');
 
 export function detectCurrency(text: string): string | undefined {
   return CURRENCY_WORDS.find(([re]) => re.test(text))?.[1];

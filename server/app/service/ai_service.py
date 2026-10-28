@@ -21,7 +21,7 @@ from app.model import AiUsage, AppSetting, User
 from app.schema.ai import (
     AiAdminOut, AiAdminUpdate, AiConsole, AiProviderInfo, AiStatus, AskRequest, AskResult, BudgetPlanRequest, BudgetPlanResult, CategorizeItem,
     CategorizeRequest, CategorizeResult, ConsoleProvider, DayCount, InsightsRequest, InsightsResult, ParsedEntry, ParseEntryRequest,
-    ParseEntryResult, ReceiptRequest, RecentCall, TestResult, UsageTotals, UserUsage,
+    ParseEntryResult, ReceiptRequest, RecentCall, SearchPlanRequest, SearchPlanResult, ExplainRequest, TestResult, UsageTotals, UserUsage,
 )
 from app.service import ai_providers, ai_quota, ai_tasks
 from app.service.audit_service import AuditService
@@ -82,7 +82,7 @@ class AiService:
     def status(self, user: User) -> AiStatus:
         lim = ai_quota.read_limits(self.db)
         configured = any(p.configured for p in ai_providers.providers())
-        quota = ai_quota.quota_for(self.db, user.id, lim)
+        quota = ai_quota.quota_for(self.db, user.id, user.role, lim)
         if not lim.enabled:
             msg, available = "管理員已關閉 AI 功能", False
         elif not configured:
@@ -91,10 +91,10 @@ class AiService:
             msg, available = "今日全站 AI 額度已用完，明天 00:00 重置", False
         else:
             msg, available = "可以使用", True
-        return AiStatus(enabled=lim.enabled, configured=configured, available=available, message=msg, quota=quota)
+        return AiStatus(role=user.role, enabled=lim.enabled, configured=configured, available=available, message=msg, quota=quota)
 
     def _quota(self, user: User):  # noqa: ANN202
-        return ai_quota.quota_for(self.db, user.id)
+        return ai_quota.quota_for(self.db, user.id, user.role)
 
     def parse_entry(self, user: User, body: ParseEntryRequest) -> ParseEntryResult:
         categories, accounts = _clean_names(body.categories), _clean_names(body.accounts)
@@ -133,6 +133,18 @@ class AiService:
         r = ai_tasks.run_task(self.db, user, "categorize", ai_tasks.CATEGORIZE, msg, lambda d: ai_tasks.v_categorize(d, n, cats), fail_message="AI 沒能分類這批帳目")
         return CategorizeResult(items=[CategorizeItem(**i) for i in r["items"]], quota=self._quota(user))  # type: ignore[index]
 
+    def search_plan(self, user: User, body: SearchPlanRequest) -> SearchPlanResult:
+        cats, accs, tags = _clean_names(body.categories), _clean_names(body.accounts), _clean_names(body.tags)
+        today = date.fromisoformat(body.today)
+        msg = ai_tasks.dumps({"今天": body.today, "描述": body.text, "可選分類": cats, "可選帳戶": accs, "可選標籤": tags})
+        r = ai_tasks.run_task(self.db, user, "search_plan", ai_tasks.SEARCH_PLAN, msg, lambda d: ai_tasks.v_search_plan(d, cats, accs, tags, today), fail_message="AI 看不出要找什麼，請換個說法")
+        return SearchPlanResult(**r, quota=self._quota(user))  # type: ignore[arg-type]
+
+    def explain(self, user: User, body: ExplainRequest) -> InsightsResult:
+        msg = ai_tasks.dumps({"對象": body.subject, "摘要": body.summary})
+        r = ai_tasks.run_task(self.db, user, "explain", ai_tasks.EXPLAIN, msg, ai_tasks.v_insights, fail_message="AI 沒能產生解說，請稍後再試")
+        return InsightsResult(**r, quota=self._quota(user))  # type: ignore[arg-type]
+
     def receipt(self, user: User, body: ReceiptRequest) -> ParseEntryResult:
         cats, accs = _clean_names(body.categories), _clean_names(body.accounts)
         today = date.fromisoformat(body.today)
@@ -157,7 +169,7 @@ class AiService:
         ).all())
         return AiAdminOut(
             enabled=lim.enabled, user_daily=lim.user_daily, user_weekly=lim.user_weekly, user_monthly=lim.user_monthly,
-            global_daily=lim.global_daily, overridden=lim.overridden,
+            global_daily=lim.global_daily, admin_daily=lim.admin_daily, admin_weekly=lim.admin_weekly, admin_monthly=lim.admin_monthly, overridden=lim.overridden,
             providers=[AiProviderInfo(name=p.name, model=p.model, configured=p.configured, cooling_down=ai_providers.cooling_down(p.name)) for p in ai_providers.providers()],
             used_today=ai_quota.global_used_today(self.db), used_today_by_provider={k or "-": int(v) for k, v in by.items()},
         )
@@ -167,6 +179,7 @@ class AiService:
             "ai_enabled": None if body.enabled is None else ("1" if body.enabled else "0"),
             "ai_user_daily": body.user_daily, "ai_user_weekly": body.user_weekly,
             "ai_user_monthly": body.user_monthly, "ai_global_daily": body.global_daily,
+            "ai_admin_daily": body.admin_daily, "ai_admin_weekly": body.admin_weekly, "ai_admin_monthly": body.admin_monthly,
         }
         applied: dict[str, object] = {}
         for key, value in changes.items():
@@ -194,9 +207,14 @@ class AiService:
     def console(self) -> AiConsole:
         b = ai_quota.window_bounds()
         day, week, month = (self._by_user(b[k][0]) for k in ("daily", "weekly", "monthly"))
-        names = {u.id: u.username for u in self.db.scalars(select(User).where(User.id.in_(set(month) | set(week) | set(day))))} if (month or week or day) else {}
+        users = {u.id: u for u in self.db.scalars(select(User).where(User.id.in_(set(month) | set(week) | set(day))))} if (month or week or day) else {}
+        names = {uid: u.username for uid, u in users.items()}
+        by_role = {role: UsageTotals(
+            today=sum(c for uid, c in day.items() if (users[uid].role if uid in users else "user") == role),
+            week=sum(c for uid, c in week.items() if (users[uid].role if uid in users else "user") == role),
+            month=sum(c for uid, c in month.items() if (users[uid].role if uid in users else "user") == role)) for role in ("user", "admin")}
         by_user = sorted(
-            (UserUsage(user_id=uid, username=names.get(uid, f"#{uid}"), today=day.get(uid, 0), week=week.get(uid, 0), month=month.get(uid, 0)) for uid in set(month)),
+            (UserUsage(user_id=uid, username=names.get(uid, f"#{uid}"), role=users[uid].role if uid in users else "user", today=day.get(uid, 0), week=week.get(uid, 0), month=month.get(uid, 0)) for uid in set(month)),
             key=lambda x: (-x.month, x.username),
         )[:30]
         recent_rows = self.db.execute(
@@ -224,7 +242,7 @@ class AiService:
         return AiConsole(
             settings=self.admin_read(), providers=providers,
             totals=UsageTotals(today=sum(day.values()), week=sum(week.values()), month=sum(month.values())),
-            by_user=by_user,
+            by_role=by_role, by_user=by_user,
             recent=[RecentCall(at=r.created_at, username=name or "（已刪除）", kind=r.kind, provider=r.provider, model=r.model, cost=r.cost) for r, name in recent_rows],
             daily=[DayCount(date=k, count=v) for k, v in counts.items()], timezone=s.timezone, server_time=utcnow(),
         )

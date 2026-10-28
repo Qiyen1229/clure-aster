@@ -47,12 +47,16 @@ export default function AiPage() {
       <div className="list">
         <SwitchField label="啟用 AI 功能" checked={!!ai?.enabled} onChange={(v) => set('ai', { ...ai, enabled: v })}
           sub="一句話記帳看不懂時請 AI 解析、拍照記帳、AI 整理分類" />
-        <SwitchField label="允許 AI 分析我的收支統計" checked={!!ai?.enabled && !!ai?.allowData} onChange={(v) => set('ai', { ...ai, enabled: ai?.enabled || v, allowData: v })}
-          sub="用於「問 AI」、下月預算建議、週報月報白話解讀" />
+        <SwitchField label="允許 AI 分析我的收支統計" checked={!!ai?.enabled && !!ai?.allowData} onChange={(v) => set('ai', { ...ai, enabled: ai?.enabled || v, allowData: v, auto: v ? ai?.auto : false })}
+          sub="用於首頁對話框問 AI、下月預算建議、週報月報／專案／帳戶的白話解說" />
+        <SwitchField label="首頁自動顯示「上週重點」" checked={!!ai?.enabled && !!ai?.allowData && !!ai?.auto} onChange={(v) => set('ai', { ...ai, enabled: true, allowData: true, auto: v })}
+          sub="每週最多自動用 1 點額度；沒開的話只在你按下按鈕時才用 AI" />
       </div>
       <p className="set-note">
         <b>一句話記帳／整理分類／拍照記帳</b>：送出你輸入的那一句話（整理分類是帳目備註、拍照記帳是縮小後的收據照片），以及你的分類與帳戶「名稱」。
         一句話記帳只有規則解析找不到金額時才會用到，輸入過程中的即時預覽不會用到額度。
+        <b>搜尋</b>的「用 AI 找」只送你輸入的描述與分類、帳戶、標籤名稱，不送任何帳目。
+        <b>收件匣</b>的「✨ AI 解析」會送出那則簡訊／通知的文字（已先去掉網址、身分證、卡號與連續 10 碼以上的數字），只有你按下按鈕才會送。
       </p>
       <p className="set-note">
         <b>收支統計</b>（需另外允許）：最近約 6 個月每月的收入、支出與各分類合計、每月固定支出（訂閱／分期／貸款）、各預算的上限與已花、存錢目標進度與淨資產，全部是整數統計。
@@ -66,12 +70,12 @@ export default function AiPage() {
       {err ? <p className="muted" style={{ margin: '0 8px' }}>{err}</p> : !st ? null : (
         <>
           <div className="list">
-            <div className="row"><span className="row-main row-sub" style={{ whiteSpace: 'normal' }}>{st.available ? '✓ ' : '⚠️ '}{st.message}</span></div>
+            <div className="row"><span className="row-main row-sub" style={{ whiteSpace: 'normal' }}>{st.available ? '✓ ' : '⚠️ '}{st.message}{st.role === 'admin' ? '　（你是管理員，使用管理員額度）' : ''}</span></div>
             <Bar label="今日" w={st.quota.daily} />
             <Bar label="本週" w={st.quota.weekly} />
             <Bar label="本月" w={st.quota.monthly} />
           </div>
-          <p className="set-note">每日 00:00、每週一 00:00、每月 1 日 00:00（台北時間）重置；任何一層用完就暫停，其他記帳功能不受影響。AI 失敗或看不懂時不扣額度。額度由管理員設定。</p>
+          <p className="set-note">每日 00:00、每週一 00:00、每月 1 日 00:00（台北時間）重置；任何一層用完就暫停，其他記帳功能不受影響。AI 失敗或看不懂時不扣額度。一般使用者與管理員的額度分開計算，由管理員設定。</p>
         </>
       )}
     </main>

@@ -3,12 +3,16 @@
  * 錢包：淨資產卡（資產 − 負債，外幣以匯率換算主幣別）、依類型分組、排序、封存、信用卡本期應繳。
  * 投資：階段 4 實作（股票投資組合）。
  */
+import { AiExplainCard } from '../ai/AiExplain';
+import { accountToAi } from '@/domain/aisummary';
+import { currencyInfo } from '@/domain/money';
+import { addDays } from '@/domain/period';
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
 import type { Account } from '@/db/types';
-import { ACCOUNT_TYPES, creditCardStatement, installmentReserved, recordLoanPayment, reorderAccounts, updateAccount } from '@/db/repo/accounts';
+import { ACCOUNT_TYPES, accountTypeInfo, creditCardStatement, installmentReserved, recordLoanPayment, reorderAccounts, updateAccount } from '@/db/repo/accounts';
 import { LOAN_KIND_LABEL, loanStatus } from '@/domain/loan';
 import { todayKey } from '@/domain/period';
 import { creditAvailability } from '@/domain/creditcard';
@@ -268,6 +272,15 @@ export function AccountDetailPage() {
           </p>
         )}
       </section>
+      <AiExplainCard subject={`帳戶：${account.name}`} hint="分析這個帳戶近 3 個月的收支與主要花費。"
+        build={async () => {
+          const from = addDays(todayKey(), -100);
+          const rows = (await db.transactions.where('[accountId+date]').between([account.id, from], [account.id, '9999-12-31'], true, true).toArray())
+            .filter((t) => !t.deletedAt && !t.transferId && (t.type === 'expense' || t.type === 'income'));
+          return accountToAi({ name: account.name, typeLabel: accountTypeInfo(account.type).label, currency: account.currency, decimals: currencyInfo(account.currency).exp, balanceMinor: account.balanceMinor,
+            isDebt: account.type === 'credit' || !!account.loan, creditLimitMinor: account.credit?.limitMinor, today: todayKey(), cats: await db.categories.toArray(),
+            txs: rows.map((t) => ({ date: t.date, type: t.type === 'income' ? 'income' as const : 'expense' as const, categoryId: t.categoryId, amountMinor: t.accountAmountMinor })) });
+        }} />
       <div className="btn-row" style={{ marginBottom: 12 }}>
         <button className="btn tinted small" style={{ flex: 1 }} onClick={() => openAdd({ mode: 'expense', accountId: account.id })}>記一筆</button>
         <button className="btn tinted small" style={{ flex: 1 }} onClick={() => openAdd({ mode: 'transfer', accountId: account.type === 'credit' ? undefined : account.id, toAccountId: account.type === 'credit' ? account.id : undefined })}>

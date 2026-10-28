@@ -249,3 +249,36 @@ export function isAggregationQuestion(input: string): boolean {
 export function preferPlainSearch(input: string, q: ParsedSearch): boolean {
   return q.terms.some((t) => t.kind === 'num' || t.kind === 'range') && !isAggregationQuestion(input);
 }
+
+export interface AiSearchPlan {
+  keywords: string[];
+  category: string | null;
+  account: string | null;
+  tag: string | null;
+  type: 'expense' | 'income' | 'transfer' | null;
+  date_start: string | null;
+  date_end: string | null;
+  min: number | null;
+  max: number | null;
+}
+
+/** AI 的搜尋規劃（伺服器已驗證）→ 搜尋條件。分類／帳戶／標籤用名稱比對，和手動輸入同一套邏輯。 */
+export function planToSearch(plan: AiSearchPlan): ParsedSearch {
+  const terms: SearchTerm[] = [];
+  for (const k of plan.keywords) terms.push({ kind: 'text', value: k.toLowerCase() });
+  if (plan.category) terms.push({ kind: 'text', value: plan.category.toLowerCase() });
+  if (plan.account) terms.push({ kind: 'account', value: plan.account.toLowerCase() });
+  if (plan.tag) terms.push({ kind: 'tag', value: plan.tag.toLowerCase() });
+  if (plan.type) terms.push({ kind: 'type', value: plan.type });
+  if (plan.date_start || plan.date_end) {
+    const start = plan.date_start ?? '0000-01-01';
+    const end = plan.date_end ?? '9999-12-31';
+    terms.push({ kind: 'date', start, end, label: plan.date_start && plan.date_end ? (start === end ? start : `${start}～${end}`) : plan.date_start ? `${start} 起` : `${end} 前` });
+  }
+  if (plan.min !== null || plan.max !== null) {
+    const min = plan.min ?? 0;
+    const max = plan.max ?? Infinity;
+    terms.push({ kind: 'range', min, max, label: plan.min !== null && plan.max !== null ? `${min}～${max}` : plan.min !== null ? `≥ ${min}` : `≤ ${max}` });
+  }
+  return { terms };
+}

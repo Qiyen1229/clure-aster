@@ -53,3 +53,24 @@ describe('namesForAi', () => {
     expect(JSON.stringify(n)).not.toContain('esun');
   });
 });
+
+import { sanitizeForAi } from '@/domain/aiparse';
+
+describe('sanitizeForAi：簡訊送出前去掉個資', () => {
+  it('保留金額、日期、商家、卡片末四碼', () => {
+    const s = '【玉山】您的卡號末四碼1234於10/27 12:30消費NT$1,250 全聯福利中心 累積消費';
+    expect(sanitizeForAi(s)).toBe(s);
+  });
+  it('去掉網址、身分證、帳號／電話長數字、完整卡號', () => {
+    const s = '消費NT$300 詳情https://bank.example.com/x?id=1 身分證A123456789 帳號0123456789012 電話0912345678 卡號1234-5678-9012-3456 完';
+    const r = sanitizeForAi(s);
+    expect(r).toBe('消費NT$300 詳情 身分證 帳號 電話 卡號 完');
+    expect(r).not.toMatch(/https|A123456789|0123456789012|0912345678|1234-5678/);
+  });
+  it('日期與時間不會被當成長數字', () => {
+    expect(sanitizeForAi('2026-10-27 10:25 刷卡 120 元')).toBe('2026-10-27 10:25 刷卡 120 元');
+  });
+  it('最多 300 字', () => {
+    expect(sanitizeForAi('字'.repeat(500))).toHaveLength(300);
+  });
+});

@@ -180,3 +180,51 @@ export function hashJson(obj: unknown): string {
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
   return (h >>> 0).toString(36);
 }
+
+const mj = (minor: number, decimals: number) => Math.round(minor / 10 ** decimals);
+
+/** 專案（例如旅行）的去識別化摘要：預算、花費、分類佔比、每日花費；不含備註與商家 */
+export function projectToAi(input: {
+  name: string; currency: string; decimals: number; start: DateKey; end?: DateKey; today: DateKey; budgetMinor?: number;
+  expense: number; income: number; byCat: Map<string, number>; byDay: Map<string, number>; cats: Pick<Category, 'id' | 'name' | 'parentId'>[];
+}) {
+  const root = new Map(input.cats.map((c) => [c.id, c.parentId || c.id]));
+  const name = new Map(input.cats.map((c) => [c.id, c.name]));
+  const by = new Map<string, number>();
+  for (const [id, v] of input.byCat) { const n = name.get(root.get(id) ?? id) ?? '其他'; by.set(n, (by.get(n) ?? 0) + v); }
+  const last = input.end && input.end < input.today ? input.end : input.today;
+  const days = Math.max(1, eachDay({ start: input.start, end: last < input.start ? input.start : last }).length);
+  const maxDay = [...input.byDay.values()].reduce((a, b) => Math.max(a, b), 0);
+  const d = input.decimals;
+  return {
+    subjectType: '專案', name: input.name, currency: input.currency, start: input.start, end: input.end ?? null, days,
+    budget: input.budgetMinor ? mj(input.budgetMinor, d) : null, expense: mj(input.expense, d), income: mj(input.income, d),
+    budgetUsedPct: input.budgetMinor ? Math.round((input.expense / input.budgetMinor) * 100) : null,
+    dailyAvg: mj(input.expense / days, d), maxDay: mj(maxDay, d), spendDays: input.byDay.size,
+    byCategory: Object.fromEntries([...by.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([n, v]) => [n, mj(v, d)])),
+  };
+}
+
+/** 帳戶的去識別化摘要：餘額、近 3 個月收支、主要分類；不含備註與商家 */
+export function accountToAi(input: {
+  name: string; typeLabel: string; currency: string; decimals: number; balanceMinor: number; isDebt: boolean; creditLimitMinor?: number;
+  today: DateKey; txs: { date: DateKey; type: 'expense' | 'income'; categoryId: string; amountMinor: number }[]; cats: Pick<Category, 'id' | 'name' | 'parentId'>[];
+}) {
+  const d = input.decimals;
+  const root = new Map(input.cats.map((c) => [c.id, c.parentId || c.id]));
+  const name = new Map(input.cats.map((c) => [c.id, c.name]));
+  const ranges = monthRanges(input.today, 1, 2);
+  const months = ranges.map((r) => {
+    let expense = 0, income = 0;
+    for (const t of input.txs) if (t.date >= r.start && t.date <= r.end) { if (t.type === 'income') income += t.amountMinor; else expense += t.amountMinor; }
+    return { label: r.start.slice(0, 7), expense: mj(expense, d), income: mj(income, d), ...(r.end >= input.today ? { partial: true } : {}) };
+  });
+  const by = new Map<string, number>();
+  for (const t of input.txs) if (t.type === 'expense') { const n = name.get(root.get(t.categoryId) ?? t.categoryId) ?? '其他'; by.set(n, (by.get(n) ?? 0) + t.amountMinor); }
+  return {
+    subjectType: '帳戶', name: input.name, type: input.typeLabel, currency: input.currency,
+    [input.isDebt ? 'owed' : 'balance']: mj(input.isDebt ? -input.balanceMinor : input.balanceMinor, d),
+    ...(input.creditLimitMinor ? { creditLimit: mj(input.creditLimitMinor, d), creditUsedPct: Math.round((-input.balanceMinor / input.creditLimitMinor) * 100) } : {}),
+    months, topExpenseCategories: Object.fromEntries([...by.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([n, v]) => [n, mj(v, d)])), txCount: input.txs.length,
+  };
+}

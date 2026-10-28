@@ -69,8 +69,22 @@ RECEIPT = f"""你是收據辨識助手。使用者上傳一張購物收據、發
 - category 必須完全等於「可選分類」清單裡的名稱，找不到填 null。
 - 一張收據通常只有一筆；不是收據或看不懂就輸出 {{"entries":[]}}。"""
 
-MAX_TOKENS = {"parse_entry": 900, "ask": 1800, "budget_plan": 2200, "insights": 1400, "categorize": 1600, "receipt": 1200}
-COST = {"parse_entry": 1, "ask": 1, "budget_plan": 1, "insights": 1, "categorize": 1, "receipt": 2}
+SEARCH_PLAN = f"""你是記帳 App 的搜尋助手。使用者用一句話描述想找的帳目，請轉成結構化的搜尋條件。{COMMON}
+格式：{{"keywords":["備註或商家關鍵字，最多 4 個"],"category":"分類名稱或null","account":"帳戶名稱或null","tag":"標籤名稱或null","type":"expense|income|transfer|null","date_start":"YYYY-MM-DD或null","date_end":"YYYY-MM-DD或null","min":數字或null,"max":數字或null}}
+規則：
+- category、account、tag 必須完全等於清單裡的名稱，找不到就填 null；不要猜。
+- keywords 只放使用者明確提到的店名、品項、人名；分類、日期、金額詞（例如「午餐」若已是分類名稱、「上週」「五千」）不要放進 keywords。
+- 日期依「今天」換算（上週、前幾天＝近 5 天、上個月、去年…）；沒提到時間就填 null。
+- 金額：「五千」＝ 5000；「大約五千」可填 min 4500、max 5500；「超過一千」只填 min。
+- type：轉帳／匯款／轉給 → transfer；收到、薪水、收入 → income；其餘花費 → expense；不確定填 null。
+- 至少要有一項條件，看不懂就全部填 null。"""
+
+EXPLAIN = f"""你是理財解說助手。使用者提供某個對象（專案、帳戶、分類…）的去識別化統計摘要，請用白話說明重點。{COMMON}
+格式：{{"headline":"一句話總結（30 字內）","points":["重點，每點都要有具體數字，最多 4 點"],"suggestion":"一個可以馬上執行的具體建議"}}
+規則：只根據摘要；不要編造；語氣客觀不說教；繁體中文（台灣用語）；不提供投資買賣建議。"""
+
+MAX_TOKENS = {"search_plan": 700, "explain": 1400, "parse_entry": 900, "ask": 1800, "budget_plan": 2200, "insights": 1400, "categorize": 1600, "receipt": 1200}
+COST = {"search_plan": 1, "explain": 1, "parse_entry": 1, "ask": 1, "budget_plan": 1, "insights": 1, "categorize": 1, "receipt": 2}
 
 
 def _text(v: object, n: int) -> str:
@@ -141,6 +155,40 @@ def v_categorize(data: object, n: int, categories: list[str]) -> dict:
     return {"items": [{"index": i, "category": c} for i, c in sorted(picked.items())]}
 
 
+def v_search_plan(data: object, categories: list[str], accounts: list[str], tags: list[str], today: date) -> dict:
+    d = data if isinstance(data, dict) else {}
+    pick = lambda v, allowed: v if isinstance(v, str) and v in allowed else None  # noqa: E731
+
+    def day(v: object) -> str | None:
+        if not isinstance(v, str):
+            return None
+        try:
+            x = date.fromisoformat(v)
+        except ValueError:
+            return None
+        return v if today.replace(year=today.year - 6) <= x <= today.replace(year=today.year + 1) else None
+
+    def amount(v: object) -> float | None:
+        try:
+            n = _num(v)
+        except (TypeError, ValueError):
+            return None
+        return n if 0 <= n < 1e10 else None
+
+    out: dict = {
+        "keywords": _texts(d.get("keywords"), 4, 20), "category": pick(d.get("category"), categories), "account": pick(d.get("account"), accounts),
+        "tag": pick(d.get("tag"), tags), "type": d.get("type") if d.get("type") in ("expense", "income", "transfer") else None,
+        "date_start": day(d.get("date_start")), "date_end": day(d.get("date_end")), "min": amount(d.get("min")), "max": amount(d.get("max")),
+    }
+    if out["date_start"] and out["date_end"] and out["date_start"] > out["date_end"]:
+        out["date_start"], out["date_end"] = out["date_end"], out["date_start"]
+    if out["min"] is not None and out["max"] is not None and out["min"] > out["max"]:
+        out["min"], out["max"] = out["max"], out["min"]
+    if not out["keywords"] and not any(out[k] is not None for k in ("category", "account", "tag", "type", "date_start", "date_end", "min", "max")):
+        raise ValueError("empty plan")
+    return out
+
+
 def _global_rpm_guard() -> None:
     limit = get_settings().ai_global_per_minute
     if limit:
@@ -155,7 +203,7 @@ def run_task(db: Session, user: User, kind: str, system: str, user_msg: str, val
     if not any(p.configured for p in ai_providers.providers()):
         raise ServiceError(503, "伺服器尚未設定 AI 供應商")
     _global_rpm_guard()
-    row = ai_quota.reserve(db, user.id, kind, COST[kind])
+    row = ai_quota.reserve(db, user.id, kind, COST[kind], user.role)
     try:
         data, provider, model = ai_providers.complete_json(system, user_msg, max_tokens=MAX_TOKENS[kind], images=images)
         try:
