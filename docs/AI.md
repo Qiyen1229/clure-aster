@@ -50,6 +50,21 @@ Aster 2.0 把 AI 放進記帳的各個環節。**管理員共用一把 Key，每
 
 > 免費模型的名稱與限額常變動。測試回 404／410 時，到供應商網站挑一個目前可用的模型填進 `.env` 的 `CLURE_AI_*_MODEL`；Gemini 預設用 `gemini-flash-lite-latest` 別名，不怕舊型號下架。
 
+## 接 NVIDIA（Nemotron 3.5 Super VL）
+
+```
+CLURE_AI_PROVIDERS=custom,nvidia        # Gemini 在前、NVIDIA 備援；只想用 NVIDIA 就寫 nvidia
+CLURE_AI_NVIDIA_API_KEY=nvapi-你的Key
+CLURE_AI_NVIDIA_MODEL=nvidia/nemotron-3.5-super-vl-120b-a12b   # 已是預設值，可省略
+```
+- Key 到 https://build.nvidia.com 登入後產生（`nvapi-` 開頭）。額度與限流以網站公告為準，**我沒有查到穩定的免費額度數字**；請把全站上限設在實際額度以內。
+- 這是**推理模型**：預設會先輸出一長串思考。程式對 `nvidia` 的 `nemotron` 模型**自動帶 `chat_template_kwargs.enable_thinking=false`** 關掉思考；回應裡的 `<think>…</think>` 也會被去掉，content 為空（思考用完輸出長度）視為失敗、不扣額度。
+- NVIDIA 官方建議取樣 `temperature=1.0`、`top_p=0.95`；本程式預設 `temperature=0`（結構化輸出較穩）。想照官方建議可設：
+  `CLURE_AI_NVIDIA_EXTRA_BODY={"chat_template_kwargs":{"enable_thinking":false},"temperature":1.0,"top_p":0.95}`
+  （`CLURE_AI_*_EXTRA_BODY` 適用所有供應商：JSON 物件，直接合併進請求本文；寫錯格式會被忽略並回到預設。）
+- 驗證：`sudo docker exec clure-api /opt/venv/bin/python -m app.cli ai-test --provider nvidia`，或 AI 主控台「測試連線」（卡片會顯示額外參數名稱）。
+- 拍照記帳需要視覺模型；VL 版本理論上支援 OpenAI 格式的 `image_url`，**我沒有實測**，若拍照辨識失敗，改讓 Gemini 排在前面。
+
 ## 免費額度要注意（Gemini）
 
 - 限制以 **RPM（每分鐘請求）、TPM（每分鐘 token）、RPD（每日請求）** 計，任一項超過就 429；**按專案計，不是按 Key**。

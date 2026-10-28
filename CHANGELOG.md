@@ -1,5 +1,14 @@
 # 變更紀錄
 
+## 2.1.1（2026-10-29）
+
+### 新增：NVIDIA Nemotron 推理模型支援
+- NVIDIA 預設模型改為 `nvidia/nemotron-3.5-super-vl-120b-a12b`。它是**推理模型**，預設會先輸出一長串思考、吃掉輸出長度導致答案被截斷；程式現在對 `nvidia` 的 `nemotron` 模型**自動帶 `chat_template_kwargs.enable_thinking=false`**（依 NVIDIA NIM 文件）
+- 新增 `CLURE_AI_{GEMINI,OPENROUTER,NVIDIA,CUSTOM}_EXTRA_BODY`：JSON 物件，直接合併進請求本文，可用來開關思考、覆寫 `temperature`／`top_p`；格式錯誤會被忽略並回到預設。主控台供應商卡片顯示額外參數名稱（不顯示值）
+- 回應容錯：去掉 `<think>…</think>`（含只有結尾標籤的情況）；content 為空或思考沒有收尾視為失敗，不扣額度，錯誤訊息說明「推理模型的思考用完輸出長度」；連線測試在只有 `reasoning_content` 時仍算連線成功
+- 「請求格式有誤」的錯誤訊息補充可能是模型不接受額外參數，可用 `*_EXTRA_BODY` 調整
+- 文件新增「接 NVIDIA」一節
+
 ## 2.1.0（2026-10-28）— AI 無處不在
 
 ### 新增：AI 在更多地方幫忙

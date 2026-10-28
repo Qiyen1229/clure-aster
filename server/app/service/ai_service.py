@@ -237,7 +237,7 @@ class AiService:
                 name=p.name, model=p.model, base_host=urlparse(p.base_url).hostname or "", configured=p.configured,
                 key_hint=("••••" + p.api_key[-4:]) if len(p.api_key) >= 12 else ("••••" if p.api_key else ""),
                 cooling_down=ai_providers.cooling_down(p.name), cooldown_remaining_s=ai_providers.cooldown_remaining(p.name),
-                ok=h.ok, fail=h.fail, last_ok_at=h.last_ok_at, last_fail_at=h.last_fail_at, last_error=h.last_error, last_latency_ms=h.last_latency_ms,
+                ok=h.ok, fail=h.fail, last_ok_at=h.last_ok_at, last_fail_at=h.last_fail_at, last_error=h.last_error, last_latency_ms=h.last_latency_ms, extra_keys=sorted(p.extra),
             ))
         return AiConsole(
             settings=self.admin_read(), providers=providers,

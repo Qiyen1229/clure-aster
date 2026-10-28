@@ -10,7 +10,7 @@ import { SwitchField } from '@/ui/form';
 
 interface Provider {
   name: string; model: string; base_host: string; configured: boolean; key_hint: string; cooling_down: boolean; cooldown_remaining_s: number;
-  ok: number; fail: number; last_ok_at: number | null; last_fail_at: number | null; last_error: string; last_latency_ms: number | null;
+  ok: number; fail: number; last_ok_at: number | null; last_fail_at: number | null; last_error: string; last_latency_ms: number | null; extra_keys?: string[];
 }
 interface Settings {
   enabled: boolean; user_daily: number; user_weekly: number; user_monthly: number; global_daily: number; admin_daily: number; admin_weekly: number; admin_monthly: number; overridden: boolean;
@@ -119,7 +119,7 @@ export default function AiConsole() {
                 <button className="btn small" disabled={!p.configured || t === 'busy'} onClick={() => void test(p.name)}>{t === 'busy' ? '測試中…' : '測試連線'}</button>
               </div>
               <div className="row-sub" style={{ whiteSpace: 'normal' }}>
-                模型 {p.model || '（未設定）'}　主機 {p.base_host || '—'}　Key {p.key_hint || '（未設定）'}
+                模型 {p.model || '（未設定）'}　主機 {p.base_host || '—'}　Key {p.key_hint || '（未設定）'}{p.extra_keys?.length ? `　額外參數 ${p.extra_keys.join('、')}` : ''}
               </div>
               <div className="row-sub" style={{ whiteSpace: 'normal' }}>
                 自上次重啟：成功 {p.ok} 次、失敗 {p.fail} 次　最近成功 {epoch(p.last_ok_at)}{p.last_latency_ms !== null ? `（${p.last_latency_ms} ms）` : ''}

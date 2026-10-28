@@ -570,3 +570,86 @@ def test_explain(api: Api, monkeypatch) -> None:  # noqa: ANN001
     assert json.loads(seen[0]["messages"][1]["content"]) == {"對象": "專案：日本旅行", "摘要": {"expense": 30000}}
     assert api.post("/api/ai/explain", {"subject": "", "summary": {}}).status_code == 422
     assert api.post("/api/ai/explain", {"subject": "x", "summary": {"x": "字" * 15000}}).status_code == 422
+
+
+# ── v2.1.1：推理模型（NVIDIA Nemotron）──
+
+def test_nemotron_defaults_disable_thinking(monkeypatch) -> None:  # noqa: ANN001
+    s = get_settings()
+    monkeypatch.setattr(s, "ai_providers", "nvidia")
+    monkeypatch.setattr(s, "ai_nvidia_api_key", "nvapi-xxxxxxxxxxxx")
+    monkeypatch.setattr(s, "ai_nvidia_model", "nvidia/nemotron-3.5-super-vl-120b-a12b")
+    monkeypatch.setattr(s, "ai_nvidia_extra_body", "")
+    (p,) = ai_providers.providers(s)
+    assert p.configured and p.extra == {"chat_template_kwargs": {"enable_thinking": False}}
+    # 其他模型／供應商不會被偷偷加參數
+    monkeypatch.setattr(s, "ai_nvidia_model", "meta/llama-3.3-70b-instruct")
+    assert ai_providers.providers(s)[0].extra == {}
+    monkeypatch.setattr(s, "ai_providers", "gemini")
+    monkeypatch.setattr(s, "ai_gemini_api_key", "k")
+    assert ai_providers.providers(s)[0].extra == {}
+
+
+def test_extra_body_env_overrides_and_invalid_is_ignored(monkeypatch) -> None:  # noqa: ANN001
+    s = get_settings()
+    monkeypatch.setattr(s, "ai_providers", "nvidia")
+    monkeypatch.setattr(s, "ai_nvidia_api_key", "k")
+    monkeypatch.setattr(s, "ai_nvidia_model", "nvidia/nemotron-3.5-super-vl-120b-a12b")
+    monkeypatch.setattr(s, "ai_nvidia_extra_body", '{"temperature": 1.0, "top_p": 0.95}')
+    assert ai_providers.providers(s)[0].extra == {"temperature": 1.0, "top_p": 0.95}  # 自訂的取代預設
+    monkeypatch.setattr(s, "ai_nvidia_extra_body", "not json")
+    assert ai_providers.providers(s)[0].extra == {"chat_template_kwargs": {"enable_thinking": False}}  # 無效就回到預設
+    monkeypatch.setattr(s, "ai_nvidia_extra_body", "[1,2]")
+    assert ai_providers.providers(s)[0].extra != [1, 2]
+
+
+def test_extra_body_is_sent_in_request_and_overrides(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    s = get_settings()
+    monkeypatch.setattr(s, "ai_providers", "nvidia")
+    monkeypatch.setattr(s, "ai_nvidia_api_key", "k")
+    monkeypatch.setattr(s, "ai_nvidia_model", "nvidia/nemotron-3.5-super-vl-120b-a12b")
+    monkeypatch.setattr(s, "ai_nvidia_extra_body", "")
+    seen: list[dict] = []
+    fake(monkeypatch, lambda n, p: (seen.append(p), ok(GOOD))[1])
+    api.register("alice")
+    assert api.post("/api/ai/parse-entry", BODY).status_code == 200
+    assert seen[0]["chat_template_kwargs"] == {"enable_thinking": False} and seen[0]["model"].startswith("nvidia/nemotron")
+    assert seen[0]["temperature"] == 0 and seen[0]["max_tokens"] >= 800
+
+
+def test_console_shows_extra_keys_not_values(admin_and_user, monkeypatch) -> None:  # noqa: ANN001
+    admin, _ = admin_and_user
+    s = get_settings()
+    monkeypatch.setattr(s, "ai_providers", "nvidia")
+    monkeypatch.setattr(s, "ai_nvidia_api_key", "nvapi-abcdefghijkl")
+    monkeypatch.setattr(s, "ai_nvidia_model", "nvidia/nemotron-3.5-super-vl-120b-a12b")
+    monkeypatch.setattr(s, "ai_nvidia_extra_body", '{"chat_template_kwargs": {"enable_thinking": false}, "top_p": 0.9}')
+    p = admin.get("/api/admin/ai/console").json()["providers"][0]
+    assert p["extra_keys"] == ["chat_template_kwargs", "top_p"]
+
+
+def test_clean_content_handles_reasoning_output() -> None:
+    cc = ai_providers.clean_content
+    assert cc('<think>先想一想 {"a": 1}</think>{"x": 2}') == '{"x": 2}'
+    assert cc('我先分析…\n</think>\n{"x": 2}').strip() == '{"x": 2}'  # 只留結尾標籤（模板已開頭）
+    assert cc('{"x": 2}') == '{"x": 2}'
+    for bad in (None, "", "   ", "<think>想到一半就被截斷 {"):
+        with pytest.raises(ValueError):
+            cc(bad)
+
+
+def test_reasoning_model_without_answer_fails_with_hint_and_is_free(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    # content 為 null、只有 reasoning_content：思考用完了輸出長度
+    fake(monkeypatch, lambda n, p: {"choices": [{"message": {"content": None, "reasoning_content": "想了很久…"}}]})
+    api.register("alice")
+    r = api.post("/api/ai/parse-entry", BODY)
+    assert r.status_code == 503 and usage_rows() == []
+    assert "思考" in ai_providers.health("openrouter").last_error
+
+
+def test_connection_test_accepts_reasoning_only_reply(admin_and_user, monkeypatch) -> None:  # noqa: ANN001
+    admin, _ = admin_and_user
+    fake(monkeypatch, lambda n, p: {"choices": [{"message": {"content": None, "reasoning_content": "thinking"}}]})
+    assert admin.post("/api/admin/ai/test", {"provider": "openrouter"}).json()["ok"] is True  # 能連上、Key 有效就算通
+    fake(monkeypatch, lambda n, p: {"choices": [{"message": {"content": None}}]})
+    assert admin.post("/api/admin/ai/test", {"provider": "openrouter"}).json()["ok"] is False

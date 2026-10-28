@@ -221,6 +221,7 @@ class ConsoleProvider(BaseModel):
     last_fail_at: float | None
     last_error: str
     last_latency_ms: int | None
+    extra_keys: list[str] = []  # 額外帶進請求的參數名稱（例如 chat_template_kwargs），不含值
 
 
 class UsageTotals(BaseModel):

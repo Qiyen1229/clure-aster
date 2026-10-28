@@ -51,13 +51,20 @@ class Settings(BaseSettings):
     ai_openrouter_api_key: str = ""
     ai_openrouter_base_url: str = "https://openrouter.ai/api/v1"
     ai_openrouter_model: str = "google/gemma-4-31b-it:free"
-    # NVIDIA 與 custom 的模型沒有預設值（免費模型常下架）：請到供應商網站挑一個目前可用的，填入 CLURE_AI_*_MODEL
+    # NVIDIA NIM（https://build.nvidia.com）。預設 Nemotron 3.5 Super VL：推理模型，程式會自動帶 enable_thinking=false 關掉思考輸出。
+    # 免費模型常下架；若回 404／410，請到網站挑一個目前可用的填入 CLURE_AI_NVIDIA_MODEL
     ai_nvidia_api_key: str = ""
     ai_nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
-    ai_nvidia_model: str = ""
+    ai_nvidia_model: str = "nvidia/nemotron-3.5-super-vl-120b-a12b"
     ai_custom_api_key: str = ""
     ai_custom_base_url: str = ""
     ai_custom_model: str = ""
+    # 每個供應商可以額外帶的請求參數（JSON 物件，會合併進 chat/completions 的請求本文），例如關閉推理模型的思考：
+    #   {"chat_template_kwargs": {"enable_thinking": false}}；也可以覆寫 temperature、top_p。留空＝使用內建預設
+    ai_gemini_extra_body: str = ""
+    ai_openrouter_extra_body: str = ""
+    ai_nvidia_extra_body: str = ""
+    ai_custom_extra_body: str = ""
     ai_timeout_seconds: int = Field(30, ge=3, le=120)
     # 額度預設值（管理後台改過就以後台為準）：每位使用者的日／週／月上限，以及全站每日上限（保護上游免費額度；0＝不限）。
     # 免費層的每日上限以 Google AI Studio 的 Rate limit 頁面為準（會變動），全站每日上限請設在它以內

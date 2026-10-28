@@ -13,7 +13,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from app.core.config import Settings, get_settings
 from app.service.errors import ServiceError
@@ -31,6 +31,8 @@ class Provider:
     base_url: str
     api_key: str
     model: str
+    # 額外合併進請求本文的參數（例如關閉推理模型的思考）
+    extra: dict = field(default_factory=dict)
 
     @property
     def configured(self) -> bool:
@@ -56,13 +58,30 @@ class Health:
 _health: dict[str, Health] = {}
 
 
+def extra_body(name: str, model: str, raw: str) -> dict:
+    """該供應商額外的請求參數：環境變數（JSON 物件）優先；沒設定時，Nemotron 推理模型預設關閉思考輸出。"""
+    if raw.strip():
+        try:
+            v = json.loads(raw)
+            if isinstance(v, dict):
+                return v
+        except ValueError:
+            pass
+        log.warning("CLURE_AI_%s_EXTRA_BODY 不是有效的 JSON 物件，已忽略", name.upper())
+    if name == "nvidia" and "nemotron" in model.lower():
+        # NVIDIA NIM 的 Nemotron 預設會先輸出一長串思考，吃掉 max_tokens；關掉後直接回答
+        return {"chat_template_kwargs": {"enable_thinking": False}}
+    return {}
+
+
 def providers(s: Settings | None = None) -> list[Provider]:
     s = s or get_settings()
     out: list[Provider] = []
     for name in [p.strip().lower() for p in s.ai_providers.split(",") if p.strip()]:
         if name not in KNOWN:
             continue
-        out.append(Provider(name, getattr(s, f"ai_{name}_base_url"), getattr(s, f"ai_{name}_api_key"), getattr(s, f"ai_{name}_model")))
+        model = getattr(s, f"ai_{name}_model")
+        out.append(Provider(name, getattr(s, f"ai_{name}_base_url"), getattr(s, f"ai_{name}_api_key"), model, extra_body(name, model, getattr(s, f"ai_{name}_extra_body"))))
     return out
 
 
@@ -89,13 +108,15 @@ def cooldown_remaining(name: str) -> int:
 def describe_error(e: Exception) -> str:
     """把例外轉成管理員看得懂的一句話（不含網址、Key 與回應內容）。"""
     if isinstance(e, urllib.error.HTTPError):
-        hint = {400: "請求格式或模型名稱有誤", 401: "API Key 無效或已過期", 402: "餘額或免費額度不足", 403: "沒有權限（Key 無此模型或地區受限）",
+        hint = {400: "請求格式有誤（模型名稱錯誤，或這個模型不接受額外參數，可用 CLURE_AI_*_EXTRA_BODY 調整）", 422: "請求內容被拒絕（檢查模型名稱與 CLURE_AI_*_EXTRA_BODY）", 401: "API Key 無效或已過期", 402: "餘額或免費額度不足", 403: "沒有權限（Key 無效、Key 沒有這個模型的權限，或地區受限）",
                 404: "找不到模型或網址錯誤（檢查 MODEL / BASE_URL）", 408: "供應商逾時", 429: "被限流或免費額度用完"}.get(e.code, "供應商伺服器錯誤" if e.code >= 500 else "")
         return f"HTTP {e.code}" + (f"：{hint}" if hint else "")
     if isinstance(e, (TimeoutError,)) or "timed out" in str(e).lower():
         return "逾時（供應商太久沒回應）"
     if isinstance(e, (urllib.error.URLError, OSError)):
         return "無法連線（網路不通、DNS 失敗或網址錯誤）"
+    if isinstance(e, ValueError) and "content" in str(e) or "think" in str(e):
+        return "模型沒有給出答案（推理模型的思考用完了輸出長度）；請關閉思考（見 CLURE_AI_*_EXTRA_BODY）或換模型"
     return "回應格式不正確（不是預期的 JSON）"
 
 
@@ -131,6 +152,18 @@ def _post(p: Provider, payload: dict, timeout: int) -> dict:
         return json.loads(r.read().decode("utf-8"))
 
 
+def clean_content(content: object) -> str:
+    """模型回應的文字內容。推理模型可能把思考放在 <think>…</think>（或只留結尾的 </think>）裡，只取思考之後的答案；內容空白代表被截斷。"""
+    if not isinstance(content, str) or not content.strip():
+        raise ValueError("empty content")  # 常見原因：思考內容用完了 max_tokens（content 為 null、只有 reasoning_content）
+    t = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL | re.IGNORECASE)
+    if "</think>" in t.lower():
+        t = re.split(r"</think>", t, flags=re.IGNORECASE)[-1]
+    if "<think>" in t.lower():  # 思考沒有收尾：被截斷
+        raise ValueError("unterminated think")
+    return t
+
+
 def extract_json(text: str) -> object:
     """從模型輸出取出 JSON：容忍 ```json 圍欄與前後多餘的說明文字。"""
     t = text.strip()
@@ -158,12 +191,11 @@ def complete_json(system: str, user: str, *, max_tokens: int = 800, images: list
         # 圖片（data URL）放在使用者訊息裡；Gemini 等支援視覺的模型才看得懂
         content: object = user if not images else [{"type": "text", "text": user}, *({"type": "image_url", "image_url": {"url": u}} for u in images)]
         payload = {"model": p.model, "temperature": 0, "max_tokens": max_tokens,
-                   "messages": [{"role": "system", "content": system}, {"role": "user", "content": content}]}
+                   "messages": [{"role": "system", "content": system}, {"role": "user", "content": content}], **p.extra}
         t0 = time.monotonic()
         try:
             resp = _post(p, payload, s.ai_timeout_seconds)
-            content = resp["choices"][0]["message"]["content"]
-            data = extract_json(content)
+            data = extract_json(clean_content(resp["choices"][0]["message"].get("content")))
         except (urllib.error.URLError, TimeoutError, OSError, ValueError, KeyError, IndexError, TypeError) as e:
             reason = describe_error(e)
             log.warning("AI 供應商 %s 失敗：%s", p.name, reason)
@@ -182,11 +214,13 @@ def check_provider(name: str) -> dict:
         raise ServiceError(404, "沒有這個供應商（檢查 CLURE_AI_PROVIDERS）")
     if not p.configured:
         return {"name": name, "ok": False, "latency_ms": None, "detail": "尚未設定：需要 API Key、網址與模型都有值"}
-    payload = {"model": p.model, "temperature": 0, "max_tokens": 8, "messages": [{"role": "user", "content": "請只回覆：OK"}]}
+    payload = {"model": p.model, "temperature": 0, "max_tokens": 8, "messages": [{"role": "user", "content": "請只回覆：OK"}], **p.extra}
     t0 = time.monotonic()
     try:
         resp = _post(p, payload, s.ai_timeout_seconds)
-        resp["choices"][0]["message"]["content"]  # noqa: B018 — 確認回應結構正確
+        msg = resp["choices"][0]["message"]  # 確認回應結構正確
+        if msg.get("content") is None and not msg.get("reasoning_content"):
+            raise ValueError("empty")
     except (urllib.error.URLError, TimeoutError, OSError, ValueError, KeyError, IndexError, TypeError) as e:
         reason = describe_error(e)
         _record(name, False, error=reason)
