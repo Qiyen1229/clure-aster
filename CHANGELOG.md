@@ -1,5 +1,11 @@
 # 變更紀錄
 
+## 2.2.4（2026-10-29）
+
+### 修正：NAS 上報價代理連不上外網（診斷結果：MIS 逾時、OpenAPI／Yahoo 回 502）
+- 診斷顯示「證交所 MIS 逾時、其他資料源 HTTP 502」，代表 `clure-quote-proxy` 容器本身連不到外部網站（不是資料源壞了）。`quote-proxy` 新增 `NODE_OPTIONS=--dns-result-order=ipv4first`：容器沒有 IPv6 出口時，Node 優先用 IPv4，避免連線卡到逾時（NAS 上常見）
+- 代理失敗時會把原因寫進容器日誌（只記網域，不記查詢字串），並隨 502 回傳給 App；「診斷各資料源」現在會顯示像「openapi.twse.com.tw：getaddrinfo EAI_AGAIN」這樣的具體原因，而不只是 HTTP 502
+
 ## 2.2.3（2026-10-29）
 
 ### 修正：股價抓不到「最新」價

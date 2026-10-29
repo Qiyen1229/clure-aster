@@ -185,6 +185,8 @@ services:
       - TZ=${TZ:-Asia/Taipei}
       - PORT=9123
       - ACCESS_TOKEN=${PROXY_ACCESS_TOKEN:-}
+      # 容器沒有 IPv6 出口時，優先用 IPv4，避免連線卡住逾時（NAS 上常見）
+      - NODE_OPTIONS=--dns-result-order=ipv4first
     volumes:
       - ./proxy:/app:ro
     expose:

@@ -121,7 +121,11 @@ export async function handle(req: Request, env: ProxyEnv, opts: { ip?: string; c
     upstream = await fetch(target.toString(), { headers, signal: ctl.signal, redirect: 'follow' });
     clearTimeout(timer);
   } catch (e) {
-    return json(502, { error: 'upstream fetch failed', detail: String((e as Error).message ?? e) }, env);
+    // 連不上外網（DNS、IPv6、防火牆、逾時）時，把原因帶回去並寫進容器日誌；只記網域，不記查詢字串（可能含 API Key）
+    const err = e as Error & { cause?: { code?: string; message?: string } };
+    const reason = [err.name === 'AbortError' ? '逾時（12 秒內沒有回應）' : err.message, err.cause?.code ?? err.cause?.message].filter(Boolean).join(' / ');
+    console.warn(`[proxy] 連不上 ${target.host}：${reason}`);
+    return json(502, { error: 'upstream fetch failed', detail: `${target.host}：${reason}` }, env);
   }
   const body = await upstream.arrayBuffer();
   const ct = upstream.headers.get('content-type') ?? 'application/json';

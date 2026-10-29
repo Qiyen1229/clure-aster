@@ -72,7 +72,12 @@ export async function getJson<T = any>(url: string, opts: { direct?: boolean; re
         reauthed = true;
         if (await refreshLogin()) res = await fetchWithTimeout(target.url, { headers: target.headers }, timeoutMs);
       }
-      if (!res.ok) throw new HttpError(res.status, `HTTP ${res.status}`);
+      if (!res.ok) {
+        // 代理失敗時會在本文帶原因（例如連不上外網的 DNS／逾時），一起顯示才找得到問題
+        let why = '';
+        try { const j = JSON.parse(await res.text()); why = String(j.detail ?? j.error ?? ''); } catch { /* 不是 JSON */ }
+        throw new HttpError(res.status, `HTTP ${res.status}${why ? `（${why}）` : ''}`);
+      }
       const text = await res.text();
       return JSON.parse(text) as T;
     } catch (e) {
