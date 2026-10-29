@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.api.cookies import REFRESH_COOKIE, clear_auth_cookies, set_auth_cookies
 from app.api.deps import get_client, get_current_user, get_db, get_optional_user, login_account_limiter, login_ip_limiter, rate_limit, register_limiter, reset_account_limiter, reset_ip_limiter
 from app.core.config import get_settings
+from app.core.mailer import mail_configured
 from app.core.request_info import ClientInfo
 from app.model import User
 from app.schema.auth import ChangePasswordRequest, ForgotPasswordRequest, LoginRequest, MessageResponse, RegisterRequest, ResetPasswordRequest, UserPublic
@@ -43,6 +44,12 @@ def login(body: LoginRequest, request: Request, response: Response, client: Clie
     user, tokens = AuthService(db).login(body, client)
     _respond(response, request, tokens)
     return user
+
+
+@router.get("/forgot-info", summary="忘記密碼的方式：寄信重設，或聯絡管理員")
+def forgot_info() -> dict[str, object]:
+    s = get_settings()
+    return {"mail": mail_configured() and bool(s.public_url), "contact": s.admin_contact_email}
 
 
 @router.post("/forgot-password", response_model=MessageResponse, summary="忘記密碼：寄重設連結")

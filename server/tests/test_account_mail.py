@@ -55,6 +55,14 @@ def test_new_reset_link_invalidates_old_and_bad_token(admin_and_user, outbox) ->
     assert anon.post("/api/auth/reset-password", {"token": _token(outbox[1][2]), "new_password": "Newpass99"}).status_code == 200
 
 
+def test_forgot_info_contact_admin_when_mail_off(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    monkeypatch.setattr("app.api.auth.mail_configured", lambda: False)
+    r = api.get("/api/auth/forgot-info").json()
+    assert r == {"mail": False, "contact": "giter003@gmail.com"}
+    monkeypatch.setattr("app.api.auth.mail_configured", lambda: True)
+    assert api.get("/api/auth/forgot-info").json()["mail"] is True
+
+
 def test_forgot_password_rate_limited_and_requires_mail(admin_and_user, outbox, monkeypatch) -> None:  # noqa: ANN001
     anon = Api("10.1.2.1")
     codes = [anon.post("/api/auth/forgot-password", {"identifier": "alice"}).status_code for _ in range(4)]

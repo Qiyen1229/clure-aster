@@ -164,6 +164,8 @@ export function RegisterPage() {
 }
 
 export function ForgotPasswordPage() {
+  const [info, setInfo] = useState<{ mail: boolean; contact: string } | null>(null);
+  useEffect(() => { void api<{ mail: boolean; contact: string }>('/auth/forgot-info').then(setInfo, () => setInfo({ mail: false, contact: '' })); }, []);
   const [identifier, setIdentifier] = useState('');
   const [error, setError] = useState('');
   const [done, setDone] = useState('');
@@ -181,6 +183,24 @@ export function ForgotPasswordPage() {
       setBusy(false);
     }
   };
+  // 伺服器沒設定寄信：請使用者寄信給管理員，由管理員在後台重設（會產生臨時密碼）
+  if (info && !info.mail) {
+    const subject = encodeURIComponent('Aster 記帳：申請重設密碼');
+    const body = encodeURIComponent(`管理員你好，我忘記 Aster 記帳的密碼，請幫我重設。\n我的使用者名稱／Email：${identifier.trim() || '（請填寫）'}\n`);
+    return (
+      <AuthShell title="忘記密碼" subtitle="請聯絡管理員幫你重設" footer={<Link to="/login" className="accent">回到登入</Link>}>
+        <div className="auth-form">
+          <label htmlFor="fp-id">你的使用者名稱或 Email（會帶進信件內容）</label>
+          <input id="fp-id" className="input" value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoCapitalize="none" autoCorrect="off" spellCheck={false} maxLength={254} />
+          {info.contact ? (
+            <a className="btn" href={`mailto:${info.contact}?subject=${subject}&body=${body}`}>寄信給管理員（{info.contact}）</a>
+          ) : <p className="muted" style={{ margin: 0 }}>請直接聯絡架設這個網站的人。</p>}
+          <p className="muted" style={{ fontSize: '0.85rem', margin: 0 }}>管理員會給你一組臨時密碼，登入後必須立刻設定新密碼。為了安全，請不要在信裡寫出你的密碼。</p>
+        </div>
+      </AuthShell>
+    );
+  }
+  if (!info) return <AuthShell title="忘記密碼"><p className="muted" style={{ margin: 0 }}>載入中…</p></AuthShell>;
   return (
     <AuthShell title="忘記密碼" subtitle="輸入註冊時的 Email 或使用者名稱，我們會寄重設連結給你" footer={<Link to="/login" className="accent">回到登入</Link>}>
       {done ? (
