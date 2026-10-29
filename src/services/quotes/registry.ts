@@ -31,7 +31,7 @@ export function describeQuoteErrors(errors: string[]): string {
   if (errors.some((e) => /HTTP 401/.test(e))) return '報價代理拒絕存取：請重新整理或重新登入；若有設定代理權杖，請確認與 NAS 上的 PROXY_ACCESS_TOKEN 相同';
   if (errors.some((e) => /Failed to fetch|NetworkError|Load failed|無法連線/.test(e))) return '無法連到報價代理：若代理網址不是同源的 /proxy，請確認網址正確且已加入 CSP 的 connect-src';
   if (errors.every((e) => /HTTP 429/.test(e))) return '資料源暫時限流（429），請稍後再試或在設定中填入 Finnhub／Twelve Data API Key';
-  return errors[0];
+  return [...new Set(errors)].slice(0, 3).join('；');
 }
 
 let inflight: Promise<RefreshResult> | null = null;
@@ -127,4 +127,29 @@ export async function fetchHistory(stock: Stock, range: HistoryRange): Promise<{
   // 離線：用已快取的日線
   const cached = await db.price_history.where('stockId').equals(stock.id).sortBy('date');
   return { bars: cached.map((c) => ({ t: Date.parse(c.date), date: c.date, close: Number(c.closeDec) })), source: '快取', offline: true };
+}
+
+export interface SourceCheck { id: string; label: string; ok: boolean; ms: number; detail: string }
+
+/**
+ * 診斷各資料源：用 2330（台股）與 AAPL（美股）各打一次，回報成功與否、花多久、拿到什麼價與資料時間，
+ * 失敗則附原因。不經過熔斷器與優先順序，直接測每一個。需要 Key 的資料源沒填 Key 會標示略過。
+ */
+export async function diagnoseSources(): Promise<SourceCheck[]> {
+  const keys = useSettings.getState().quote.keys;
+  const out: SourceCheck[] = [];
+  for (const p of PROVIDERS) {
+    if (p.keyName && !keys[p.keyName]) { out.push({ id: p.id, label: p.label, ok: false, ms: 0, detail: '未填 API Key，略過' }); continue; }
+    const ref: StockRef = p.group === 'US' ? { market: 'US', symbol: 'AAPL' } : { market: 'TWSE', symbol: '2330' };
+    const t0 = Date.now();
+    try {
+      const q = (await p.quote([ref]))[0];
+      const ms = Date.now() - t0;
+      if (!q) out.push({ id: p.id, label: p.label, ok: false, ms, detail: `連線成功但沒有 ${ref.symbol} 的報價` });
+      else out.push({ id: p.id, label: p.label, ok: true, ms, detail: `${ref.symbol} ${q.priceDec}（昨收 ${q.prevCloseDec}）・資料時間 ${new Date(q.marketTime).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}` });
+    } catch (e) {
+      out.push({ id: p.id, label: p.label, ok: false, ms: Date.now() - t0, detail: (e as Error).message });
+    }
+  }
+  return out;
 }

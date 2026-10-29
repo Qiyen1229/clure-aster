@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { providerById } from '@/services/quotes/providers';
+import { diagnoseSources, type SourceCheck } from '@/services/quotes/registry';
 import { proxied } from '@/services/quotes/http';
 import { useSettings } from '@/stores/settings';
 import { useUI } from '@/stores/ui';
@@ -45,6 +46,8 @@ export default function InvestSettingsPage() {
   const setQ = (patch: Partial<QuoteSettings>) => s.set('quote', { ...q, ...patch });
   const setI = (patch: Partial<InvestSettings>) => s.set('invest', { ...inv, ...patch });
   const [testing, setTesting] = useState(false);
+  const [diag, setDiag] = useState<SourceCheck[] | null>(null);
+  const [diagBusy, setDiagBusy] = useState(false);
 
   const test = async () => {
     setTesting(true);
@@ -83,6 +86,18 @@ export default function InvestSettingsPage() {
         {text('代理網址', q.proxyUrl, (v) => setQ({ proxyUrl: v }), { placeholder: '/proxy 或 https://xxx.workers.dev' })}
         {text('代理權杖', q.proxyToken, (v) => setQ({ proxyToken: v }), { placeholder: '未設定可留空', type: 'password' })}
         <button className="row accent" onClick={() => void test()} disabled={testing}>{testing ? '測試中…' : '測試連線'}</button>
+      </div>
+      <div className="list">
+        <button className="row accent" disabled={diagBusy} onClick={async () => { setDiagBusy(true); setDiag(null); try { setDiag(await diagnoseSources()); } finally { setDiagBusy(false); } }}>
+          {diagBusy ? '診斷中…（約 10～30 秒）' : '診斷各資料源（找出哪個抓不到最新價）'}
+        </button>
+        {diag?.map((d) => (
+          <div key={d.id} className="row" style={{ alignItems: 'flex-start' }}>
+            <span aria-hidden="true">{d.ok ? '✅' : d.detail.includes('略過') ? '⚪️' : '❌'}</span>
+            <span className="row-main"><span className="row-title">{d.label}{d.ms ? <span className="muted num"> {d.ms} ms</span> : null}</span>
+              <span className="row-sub" style={{ whiteSpace: 'normal', display: 'block' }}>{d.detail}</span></span>
+          </div>
+        ))}
       </div>
       <p className="muted" style={{ fontSize: '0.78rem', margin: '0 8px 8px' }}>NAS Docker 版預設 /proxy（同源，免設定）。部署在其他靜態主機時，請依 proxy/README.md 部署 Cloudflare Worker 並填入網址。</p>
 

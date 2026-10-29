@@ -59,6 +59,19 @@ export function yahooSymbol(r: StockRef): string {
   return r.symbol.toUpperCase();
 }
 
+/**
+ * 證交所 MIS 一檔的「最新價」。
+ * z＝最近一筆成交價，但該秒沒有成交（含收盤那一刻）時是 '-'；這時真正的最後成交價在 trade.z（或 pz）。
+ * 以前直接退到「最佳買價」，所以畫面上的價格會比實際成交價低一檔，而且收盤後就一直停在那個錯的價格。
+ * 順序：z → trade.z → pz → 最佳買賣價中間值 → 最佳買價 → 昨收。
+ */
+export function misPrice(m: { z?: unknown; pz?: unknown; trade?: { z?: unknown }; a?: unknown; b?: unknown; y?: unknown }): string | null {
+  const first = (v: unknown) => num(String(v ?? '').split('_')[0]);
+  const bid = first(m.b), ask = first(m.a);
+  const mid = bid && ask && Number(bid) > 0 && Number(ask) > 0 ? new Decimal(bid).plus(ask).div(2).toString() : null;
+  return num(m.z) ?? num(m.trade?.z) ?? num(m.pz) ?? mid ?? (bid && Number(bid) > 0 ? bid : null) ?? num(m.y);
+}
+
 // ───── 證交所即時（mis.twse.com.tw）─────
 const twseMis: QuoteProvider = {
   id: 'twse-mis', label: '證交所即時（MIS）', group: 'TW',
@@ -71,8 +84,7 @@ const twseMis: QuoteProvider = {
       const j = await getJson(`https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${encodeURIComponent(exCh)}&json=1&delay=0&_=${Date.now()}`);
       for (const m of j.msgArray ?? []) {
         const prev = num(m.y);
-        // z 為最近成交價；盤中無成交時為 '-'，改用最佳買價，再退回昨收
-        const price = num(m.z) ?? num(String(m.b ?? '').split('_')[0]) ?? prev;
+        const price = misPrice(m);
         if (!price || !prev) continue;
         out.push({
           market: m.ex === 'otc' ? 'TPEX' : 'TWSE', symbol: m.c, name: m.n, priceDec: price, prevCloseDec: prev,
