@@ -92,6 +92,15 @@ export class AsterDB extends Dexie {
         '[accountId+date], [categoryId+date], [projectId+date], ' +
         'recurringRuleId, installmentId, transferId, stockTradeId, dividendId, deletedAt, invoiceNo',
     });
+    // v5：股票（市場＋代號）、觀察清單（股票）、標籤與人（名稱）不再要求唯一。
+    // 兩台裝置各自新增同一檔股票時，唯一索引會讓「下載對方的資料」直接失敗、整個同步卡死；
+    // 改由 db/dedupe.ts 在同步後決定性地合併。
+    this.version(5).stores({
+      stocks: 'id, [market+symbol], symbol, market, name',
+      watchlist: 'id, stockId, sort',
+      tags: 'id, name, sort',
+      people: 'id, name',
+    });
     this.use(syncTracking);
   }
 }

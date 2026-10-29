@@ -235,4 +235,41 @@ describe('跨裝置同步', () => {
     await sync.setEncryption(null);
     expect(JSON.stringify([...server.recs.values()].map((r) => r.payload))).toContain('不能給別人看');
   });
+
+  it('兩台裝置各自新增同一檔股票、同一檔觀察清單、同名標籤：同步不會卡死，並合併成一份', async () => {
+    const stock = (id: string) => ({ id, market: 'TWSE' as const, symbol: '2330', name: '台積電', currency: 'TWD', assetType: 'stock' as const, lotSize: 1000 });
+    const mkTag = (id: string) => ({ id, name: '旅遊', color: '#fff', sort: 1 });
+    await useDevice('phone');
+    await bootstrap();
+    await sync.syncNow();
+    await useDevice('laptop');
+    await sync.syncNow();
+    await bootstrap();
+    // 兩台各自加入
+    await useDevice('phone');
+    await db.stocks.put(stock('s-b') as never);
+    await db.watchlist.put({ id: 'w-b', stockId: 's-b', sort: 1, alerts: [] } as never);
+    await db.tags.put(mkTag('tag-b') as never);
+    await db.stock_trades.put({ id: 'tr-b', stockId: 's-b', accountId: 'x', type: 'buy', date: '2026-10-01', ts: 1, sharesDec: '1000' } as never);
+    await sync.syncNow();
+    await useDevice('laptop');
+    await db.stocks.put(stock('s-a') as never);
+    await db.watchlist.put({ id: 'w-a', stockId: 's-a', sort: 1, alerts: [] } as never);
+    await db.tags.put(mkTag('tag-a') as never);
+    await sync.syncNow(); // 以前這裡會因唯一索引衝突而失敗
+    expect(sync.useSync.getState().phase).toBe('idle');
+    await sync.syncNow();
+    const check = async () => {
+      expect((await db.stocks.toArray()).map((x) => x.id)).toEqual(['s-a']);
+      expect((await db.watchlist.toArray()).map((x) => x.id)).toEqual(['w-a']);
+      expect((await db.stock_trades.get('tr-b'))!.stockId).toBe('s-a');
+      expect((await db.tags.toArray()).map((x) => x.name).sort()).toEqual(['旅遊', '旅遊 (2)']);
+    };
+    await check();
+    // 手機收到整理結果後也一樣
+    await useDevice('phone');
+    await sync.syncNow();
+    await sync.syncNow();
+    await check();
+  });
 });

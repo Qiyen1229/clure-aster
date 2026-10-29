@@ -807,6 +807,15 @@ button.row:active, a.row:active { transform: scale(0.985); transition-duration: 
   border-radius: var(--radius); background: var(--accent-soft); color: var(--text); font-size: 0.9rem; text-align: left;
 }
 .inbox-banner b { color: var(--accent-text); }
+/* 首頁 AI 解讀卡片：字大一點、行距與留白寬鬆，不要擠成一團 */
+.ai-card {
+  display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: 100%; margin: 6px 0 12px; padding: 16px 16px;
+  border-radius: var(--radius); background: var(--accent-soft); color: var(--text); text-align: left; font-size: 1rem; line-height: 1.55;
+}
+.ai-card b { color: var(--accent-text); }
+.ai-card-head { display: flex; align-items: flex-start; gap: 10px; }
+.ai-card-head .row-main { white-space: normal; }
+.ai-card-tip { font-size: 0.95rem; line-height: 1.55; color: var(--text-2); white-space: normal; padding-left: 28px; }
 .inbox-intro summary, .inbox-guides summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; list-style: none; }
 .inbox-intro summary::-webkit-details-marker, .inbox-guides summary::-webkit-details-marker { display: none; }
 .inbox-intro summary::after, .inbox-guides summary::after { content: '›'; margin-left: auto; color: var(--text-3); font-size: 1.2rem; transition: transform 0.2s ease; }

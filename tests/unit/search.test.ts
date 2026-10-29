@@ -224,3 +224,19 @@ describe('planToSearch：AI 的搜尋規劃 → 條件', () => {
     expect(planToSearch({ keywords: ['a'], category: null, account: null, tag: null, type: null, date_start: null, date_end: '2026-10-01', min: null, max: 300 }).terms.map(describeTerm)).toEqual(['🔎 a', '📅 2026-10-01 前', '💰 ≤ 300']);
   });
 });
+
+describe('金額部分數字搜尋', () => {
+  const mk = (amountMinor: number): Transaction => ({ id: `t${amountMinor}`, type: 'expense', accountId: 'a', categoryId: 'c', amountMinor, currency: 'TWD', accountAmountMinor: amountMinor, baseAmountMinor: amountMinor, date: '2026-10-20', ts: 1, note: '', tagIds: [], attachmentIds: [] }) as unknown as Transaction;
+  const ctx = { cats: new Map(), accounts: new Map(), tags: new Map(), baseCurrency: 'TWD' };
+  const find = (input: string, pool = [1000, 1456, 1357, 9843, 3714]) => pool.filter((n) => matchItem({ kind: 'tx', tx: mk(n * 100) }, parseSearch(input, { today: '2026-10-29' }), ctx));
+  it('搜 1 找到所有包含 1 的金額，再搜 10 只剩 1000', () => {
+    const pool = [1000, 1456, 1357, 9843];
+    expect(find('1', pool)).toEqual([1000, 1456, 1357]);
+    expect(find('10', pool)).toEqual([1000]);
+    expect(find('5', pool)).toEqual([1456, 1357]);
+  });
+  it('3714 搜 3、37、371、3714 都找得到', () => {
+    for (const q of ['3', '37', '371', '3714']) expect(find(q)).toContain(3714);
+    expect(find('9843')).toEqual([9843]);
+  });
+});

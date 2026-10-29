@@ -157,6 +157,10 @@ export async function applyRemoteChanges(changes: SyncChange[]): Promise<Set<str
       await recomputeBalances();
     });
   }
+  if (['stocks', 'watchlist', 'tags', 'people'].some((t) => touched.has(t))) {
+    // 兩台裝置各自新增了同一檔股票／同名標籤時合併（整理結果會再同步回去）
+    await (await import('@/db/dedupe')).reconcileDuplicates().catch(() => undefined);
+  }
   if (touched.has('settings')) useSettings.getState().hydrate(await loadSettings());
   return touched;
 }

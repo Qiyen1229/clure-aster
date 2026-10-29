@@ -19,13 +19,13 @@ export function AiAutoCard() {
   }, [on]);
   if (!r) return null;
   return (
-    <button className="inbox-banner" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4, textAlign: 'left' }} onClick={() => navigate('/reports/summary?unit=week')}>
-      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    <button className="ai-card" onClick={() => navigate('/reports/summary?unit=week')}>
+      <span className="ai-card-head">
         <span aria-hidden="true">✨</span>
         <span className="row-main"><b>{r.label}：</b>{r.value.headline}</span>
         <Icon name="chevronR" size={18} />
       </span>
-      {r.value.suggestion && <span className="row-sub" style={{ whiteSpace: 'normal' }}>💡 {r.value.suggestion}</span>}
+      {r.value.suggestion && <span className="ai-card-tip">💡 {r.value.suggestion}</span>}
     </button>
   );
 }

@@ -7,7 +7,7 @@
  *   支出 / 收入 / 轉帳                                   類型
  *   #旅遊 / @玉山                                        標籤、帳戶（名稱包含）
  *   其他文字                                             備註、商家、發票號碼、分類（含上層分類）、帳戶、標籤、專案
- * 數字同時也會當作文字比對備註（例如備註「訂單 5000」）。轉帳也會被搜尋到。
+ * 數字是「包含」比對：搜 1 會找到 1000、1456、1357，再搜 10 只剩 1000；也會當作文字比對備註（例如備註「訂單 5000」）。轉帳也會被搜尋到。
  */
 import type { Account, Category, Project, Tag, Transaction, Transfer } from '@/db/types';
 import { fromMinor } from './money';
@@ -174,6 +174,11 @@ function amountsOf(item: SearchItem, ctx: MatchCtx): number[] {
   return out;
 }
 
+/** 金額的數字字串（整數不帶小數點；有小數最多兩位且去掉尾端 0）：給「輸入部分數字也搜得到」用 */
+export function amountText(a: number): string {
+  return Number.isInteger(a) ? String(a) : String(+a.toFixed(2));
+}
+
 function haystack(item: SearchItem, ctx: MatchCtx): string[] {
   const out: string[] = [];
   const acc = (id?: string) => { const a = id ? ctx.accounts.get(id) : undefined; if (a) out.push(a.name); };
@@ -213,7 +218,7 @@ export function matchItem(item: SearchItem, q: ParsedSearch, ctx: MatchCtx): boo
       case 'text': hay ??= haystack(item, ctx); if (!hay.some((h) => h.includes(t.value))) return false; break;
       case 'num': {
         amounts ??= amountsOf(item, ctx);
-        if (amounts.some((a) => approx(a, t.value))) break;
+        if (amounts.some((a) => approx(a, t.value) || amountText(a).includes(t.raw))) break; // 3714 搜 3、37、371 都找得到
         hay ??= haystack(item, ctx);
         if (!hay.some((h) => h.includes(t.raw))) return false; // 備註、發票號碼等文字裡有這串數字也算
         break;
