@@ -23,6 +23,7 @@ import { discardAttachments, saveImageAttachment } from '@/services/attachments'
 import { useAccounts, useCategories, useProjects, useTags } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
 import { snackUndo, useUI, type AddMode } from '@/stores/ui';
+import { confirmDeleteById } from '../ledger/deleteGuard';
 import { Sheet } from '@/ui/Sheet';
 import { Segmented, Switch } from '@/ui/controls';
 import { Icon } from '@/ui/Icon';
@@ -705,7 +706,8 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
               </span>
             )}
             {editing && (
-              <button className="pill" style={{ color: 'var(--danger)' }} onClick={() => {
+              <button className="pill" style={{ color: 'var(--danger)' }} onClick={async () => {
+                if (!(await confirmDeleteById(editTxId ? 'tx' : 'transfer', (editTxId ?? editTransferId)!))) return;
                 if (editTxId) void deleteTransactions([editTxId]).then(() => snackUndo('已刪除', () => restoreTransactions([editTxId])));
                 if (editTransferId) void deleteTransfers([editTransferId]).then(() => snackUndo('已刪除轉帳', () => restoreTransfers([editTransferId])));
                 saved.current = true;

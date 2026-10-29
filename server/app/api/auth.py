@@ -6,11 +6,11 @@ from fastapi.responses import Response as PlainResponse
 from sqlalchemy.orm import Session
 
 from app.api.cookies import REFRESH_COOKIE, clear_auth_cookies, set_auth_cookies
-from app.api.deps import get_client, get_current_user, get_db, get_optional_user, login_account_limiter, login_ip_limiter, rate_limit, register_limiter
+from app.api.deps import get_client, get_current_user, get_db, get_optional_user, login_account_limiter, login_ip_limiter, rate_limit, register_limiter, reset_account_limiter, reset_ip_limiter
 from app.core.config import get_settings
 from app.core.request_info import ClientInfo
 from app.model import User
-from app.schema.auth import ChangePasswordRequest, LoginRequest, MessageResponse, RegisterRequest, UserPublic
+from app.schema.auth import ChangePasswordRequest, ForgotPasswordRequest, LoginRequest, MessageResponse, RegisterRequest, ResetPasswordRequest, UserPublic
 from app.service.app_settings import registration_open
 from app.service.auth_service import AuthService, IssuedTokens
 
@@ -43,6 +43,21 @@ def login(body: LoginRequest, request: Request, response: Response, client: Clie
     user, tokens = AuthService(db).login(body, client)
     _respond(response, request, tokens)
     return user
+
+
+@router.post("/forgot-password", response_model=MessageResponse, summary="忘記密碼：寄重設連結")
+def forgot_password(body: ForgotPasswordRequest, client: ClientInfo = Depends(get_client), db: Session = Depends(get_db)) -> MessageResponse:
+    rate_limit(reset_ip_limiter, client.ip)
+    rate_limit(reset_account_limiter, body.identifier.lower())
+    AuthService(db).request_reset(body.identifier, client)
+    return MessageResponse(message="如果這個帳號存在，重設密碼的信已寄出，請到信箱查看（也看看垃圾郵件）")
+
+
+@router.post("/reset-password", response_model=MessageResponse, summary="用信中的連結設定新密碼")
+def reset_password(body: ResetPasswordRequest, client: ClientInfo = Depends(get_client), db: Session = Depends(get_db)) -> MessageResponse:
+    rate_limit(reset_ip_limiter, client.ip)
+    AuthService(db).reset_password(body, client)
+    return MessageResponse(message="密碼已重設，請用新密碼登入")
 
 
 @router.post("/refresh", response_model=UserPublic, summary="刷新權杖（輪替）")

@@ -93,6 +93,7 @@ export function LoginPage() {
         <PasswordInput id="login-pw" value={password} onChange={setPassword} autoComplete="current-password" />
         {error && <p className="auth-error" role="alert">{error}</p>}
         <button className="btn" type="submit" disabled={busy || !identifier || !password}>{busy ? '登入中…' : '登入'}</button>
+        <Link to="/forgot-password" className="accent" style={{ textAlign: 'center', fontSize: '0.9rem' }}>忘記密碼？</Link>
       </form>
     </AuthShell>
   );
@@ -158,6 +159,86 @@ export function RegisterPage() {
         {error && <p className="auth-error" role="alert">{error}</p>}
         <button className="btn" type="submit" disabled={busy}>{busy ? '建立中…' : '註冊'}</button>
       </form>
+    </AuthShell>
+  );
+}
+
+export function ForgotPasswordPage() {
+  const [identifier, setIdentifier] = useState('');
+  const [error, setError] = useState('');
+  const [done, setDone] = useState('');
+  const [busy, setBusy] = useState(false);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      const r = await api<{ message: string }>('/auth/forgot-password', { method: 'POST', body: { identifier: identifier.trim() } });
+      setDone(r.message);
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <AuthShell title="忘記密碼" subtitle="輸入註冊時的 Email 或使用者名稱，我們會寄重設連結給你" footer={<Link to="/login" className="accent">回到登入</Link>}>
+      {done ? (
+        <p role="status" style={{ margin: 0 }}>✉️ {done}<br /><span className="muted" style={{ fontSize: '0.85rem' }}>連結 30 分鐘內有效，只能使用一次。</span></p>
+      ) : (
+        <form onSubmit={submit} className="auth-form" noValidate>
+          <label htmlFor="fp-id">Email 或使用者名稱</label>
+          <input id="fp-id" className="input" value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoComplete="username"
+            autoCapitalize="none" autoCorrect="off" spellCheck={false} required maxLength={254} autoFocus />
+          {error && <p className="auth-error" role="alert">{error}</p>}
+          <button className="btn" type="submit" disabled={busy || identifier.trim().length < 3}>{busy ? '寄送中…' : '寄送重設連結'}</button>
+        </form>
+      )}
+    </AuthShell>
+  );
+}
+
+export function ResetPasswordPage() {
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const token = params.get('token') ?? '';
+  const [pw, setPw] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [error, setError] = useState('');
+  const [done, setDone] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const issues = passwordIssues(pw);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (issues.length) return setError(`密碼${issues.join('、')}`);
+    if (pw !== confirm) return setError('兩次輸入的密碼不一致');
+    setBusy(true);
+    setError('');
+    try {
+      await api('/auth/reset-password', { method: 'POST', body: { token, new_password: pw } });
+      setDone(true);
+      setTimeout(() => navigate('/login', { replace: true }), 1800);
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (!token) {
+    return <AuthShell title="連結不完整" footer={<Link to="/forgot-password" className="accent">重新申請</Link>}><p className="muted" style={{ margin: 0 }}>請直接點信中的完整連結。</p></AuthShell>;
+  }
+  return (
+    <AuthShell title="設定新密碼" footer={<Link to="/login" className="accent">回到登入</Link>}>
+      {done ? <p role="status" style={{ margin: 0 }}>✓ 密碼已重設，正在前往登入…</p> : (
+        <form onSubmit={submit} className="auth-form" noValidate>
+          <label htmlFor="rp-pw">新密碼</label>
+          <PasswordInput id="rp-pw" value={pw} onChange={setPw} autoComplete="new-password" placeholder="至少 8 字元，含英文與數字" />
+          <label htmlFor="rp-pw2">確認新密碼</label>
+          <PasswordInput id="rp-pw2" value={confirm} onChange={setConfirm} autoComplete="new-password" />
+          {error && <p className="auth-error" role="alert">{error}</p>}
+          <button className="btn" type="submit" disabled={busy || !pw}>{busy ? '儲存中…' : '重設密碼'}</button>
+        </form>
+      )}
     </AuthShell>
   );
 }

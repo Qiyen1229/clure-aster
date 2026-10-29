@@ -511,6 +511,21 @@ a { color: inherit; text-decoration: none; }
 
 /* 首頁小工具（橫向捲動卡片） */
 .widgets { display: flex; gap: 10px; overflow-x: auto; margin: 0 -16px 10px; padding: 2px 16px 6px; scroll-snap-type: x proximity; scroll-padding-inline: 16px; }
+.widgets-wrap { position: relative; }
+.widgets-nav { display: none; }
+/* 桌面（有滑鼠）：顯示可見的細捲軸與左右箭頭，不然右側被截斷時看不出還能橫滑 */
+@media (hover: hover) and (pointer: fine) {
+  .widgets { scrollbar-width: thin; scrollbar-color: var(--text-3, #8e8e93) transparent; padding-bottom: 10px; }
+  .widgets::-webkit-scrollbar { height: 6px; }
+  .widgets::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text-2) 45%, transparent); border-radius: 3px; }
+  .widgets-nav {
+    display: grid; place-items: center; position: absolute; top: 40%; transform: translateY(-50%); width: 34px; height: 34px; border-radius: 50%;
+    background: var(--surface); border: 0.5px solid var(--glass-border); box-shadow: var(--shadow); color: var(--text); font-size: 1.3rem; line-height: 1; z-index: 2;
+  }
+  .widgets-nav.left { left: -6px; }
+  .widgets-nav.right { right: -6px; }
+  .widgets-nav:hover { background: var(--surface-2, var(--surface)); }
+}
 .widget {
   flex: none; width: 168px; min-height: 92px; padding: 12px; border-radius: var(--radius); text-align: left; scroll-snap-align: start;
   background: color-mix(in srgb, var(--surface) 80%, transparent); border: 0.5px solid var(--glass-border); box-shadow: var(--shadow);
@@ -640,8 +655,9 @@ body:has(.sheet) .snackbar { animation-name: snack-in-top; }
 .pw-rules { list-style: none; margin: 2px 0 0; padding: 0; font-size: 0.78rem; color: var(--text-3); }
 .pw-rules li.ok { color: var(--success); }
 #boot { position: fixed; inset: 0; display: grid; place-items: center; align-content: center; gap: 18px; }
-#boot .boot-text { margin: 0; color: var(--text-2); font-size: 0.9rem; animation: fade-in 400ms ease both; }
-#boot img { width: 88px; height: 88px; border-radius: 20px; animation: bp 1.4s ease-in-out infinite; }
+#boot .boot-text { margin: 0; color: var(--text-2); font-size: 0.9rem; animation: fade-in 400ms ease 450ms both; }
+#boot img { width: 88px; height: 88px; border-radius: 20px; opacity: 0; animation: bin 300ms ease 450ms forwards, bp 1.4s ease-in-out 750ms infinite; }
+@keyframes bin { to { opacity: 1; } }
 @keyframes bp { 50% { opacity: .55; transform: scale(.96); } }
 
 .admin-tabs { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--surface-2); border-radius: 10px; padding: 2px; margin-bottom: 14px; }

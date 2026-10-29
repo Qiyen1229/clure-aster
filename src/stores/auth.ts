@@ -51,14 +51,20 @@ interface AuthState {
   changePassword: (current: string, next: string) => Promise<void>;
 }
 
+// 這台裝置曾登入過就先當作已登入，直接開啟本機資料庫；/auth/me 在背景確認，過期再導向登入頁。
+// 這樣直接輸入網址或重新整理時不會先卡在載入畫面等伺服器回應。
+const initialCached = AUTH_ENABLED ? cachedSession() : null;
+
 export const useAuth = create<AuthState>((set, get) => ({
-  status: 'loading',
-  user: null,
+  status: initialCached ? 'authed' : 'loading',
+  user: initialCached,
 
   init: async () => {
     try {
       const user = await api<AuthUser>('/auth/me');
+      const prev = cachedSession();
       saveSession(user);
+      if (prev && prev.id !== user.id) { location.replace('/'); return; } // Cookie 屬於另一位使用者：重新載入以切換資料庫
       set({ status: 'authed', user });
     } catch (e) {
       if (e instanceof ApiError && e.status === 0) {

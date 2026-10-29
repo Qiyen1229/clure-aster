@@ -8,10 +8,11 @@ from app.api.deps import get_client, get_db, rate_limit, require_admin
 from app.core.request_info import ClientInfo
 from app.model import User
 from app.schema.admin import (
-    AdminUserOut, ResetPasswordResponse, StatsOut, StatusUpdateRequest, SystemSettingsOut, SystemSettingsUpdate, UserListQuery, UserListResponse,
+    AdminUserOut, CreateUserRequest, CreateUserResponse, MailStatus, MailTestRequest, ResetPasswordResponse, StatsOut, StatusUpdateRequest, SystemSettingsOut, SystemSettingsUpdate, UserListQuery, UserListResponse,
 )
 from app.core.rate_limit import RateLimiter
 from app.schema.ai import AiAdminOut, AiAdminUpdate, AiConsole, TestRequest, TestResult
+from app.schema.auth import MessageResponse
 from app.schema.audit import AuditLogList, AuditQuery
 from app.service import app_settings
 from app.service.admin_service import AdminService
@@ -22,6 +23,7 @@ from app.service.stats_service import StatsService
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 # 連線測試會用掉供應商一次請求，限制頻率避免誤按連點
 ai_test_limiter = RateLimiter(6, name="ai-test")
+mail_test_limiter = RateLimiter(5, name="mail-test")
 
 
 @router.get("/stats", response_model=StatsOut, summary="系統統計")
@@ -32,6 +34,22 @@ def stats(admin: User = Depends(require_admin), client: ClientInfo = Depends(get
 @router.get("/users", response_model=UserListResponse, summary="使用者列表")
 def list_users(q: UserListQuery = Depends(), admin: User = Depends(require_admin), client: ClientInfo = Depends(get_client), db: Session = Depends(get_db)) -> UserListResponse:
     return AdminService(db).list_users(q, admin, client)
+
+
+@router.post("/users", response_model=CreateUserResponse, status_code=201, summary="管理員建立帳號")
+def create_user(body: CreateUserRequest, admin: User = Depends(require_admin), client: ClientInfo = Depends(get_client), db: Session = Depends(get_db)) -> CreateUserResponse:
+    return AdminService(db).create_user(body, admin, client)
+
+
+@router.get("/mail", response_model=MailStatus, summary="寄信設定狀態")
+def mail_status(admin: User = Depends(require_admin), db: Session = Depends(get_db)) -> MailStatus:
+    return AdminService(db).mail_status()
+
+
+@router.post("/mail/test", response_model=MessageResponse, summary="寄測試信")
+def mail_test(body: MailTestRequest, admin: User = Depends(require_admin), client: ClientInfo = Depends(get_client), db: Session = Depends(get_db)) -> MessageResponse:
+    rate_limit(mail_test_limiter, str(admin.id))
+    return MessageResponse(message=AdminService(db).send_test_mail(body.to, admin, client))
 
 
 @router.patch("/users/{user_id}/status", response_model=AdminUserOut, summary="凍結／啟用帳號")

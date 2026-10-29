@@ -13,6 +13,8 @@ os.environ.update({
     "CLURE_DATA_DIR": _tmp,
     "CLURE_JWT_SECRET": "test-secret-" + "x" * 48,
     "CLURE_LOCKOUT_THRESHOLD": "5",
+    "CLURE_EMAIL_CHECK_DNS": "false",
+    "CLURE_PUBLIC_URL": "https://aster.test",
     "CLURE_LOGIN_RATE_LIMIT_PER_MINUTE": "5",
 })
 

@@ -33,7 +33,7 @@ export const ACTION_LABEL: Record<string, string> = {
   'admin.user_list_view': '查看使用者列表', 'admin.audit_view': '查看審計日誌', 'admin.stats_view': '查看系統統計',
   'admin.cli_create_admin': '建立管理員（指令列）', 'admin.cli_delete_user': '刪除使用者（指令列）',
   'sync.e2ee_on': '啟用端對端加密', 'sync.e2ee_off': '停用端對端加密', 'push.subscribe': '啟用背景推播',
-  'admin.user_freeze': '凍結帳號', 'admin.user_unfreeze': '啟用帳號', 'admin.force_logout': '強制登出', 'admin.password_reset': '重設密碼', 'admin.settings': '修改系統設定', 'admin.ai_test': 'AI 連線測試',
+  'admin.user_freeze': '凍結帳號', 'admin.user_unfreeze': '啟用帳號', 'admin.force_logout': '強制登出', 'admin.password_reset': '重設密碼', 'admin.settings': '修改系統設定', 'admin.ai_test': 'AI 連線測試', 'admin.user_create': '管理員建立帳號', 'admin.mail_test': '寄測試信', 'auth.reset_request': '申請重設密碼', 'auth.reset_password': '用信件連結重設密碼',
 };
 
 /** 伺服器回傳 UTC（無時區）→ 本地時間字串 */
@@ -126,6 +126,39 @@ function RegistrationSwitch() {
   );
 }
 
+interface MailStatus { configured: boolean; host: string; sender: string; public_url: string; dns_check: boolean }
+
+/** 寄信設定狀態＋寄測試信（忘記密碼功能需要） */
+function MailCard() {
+  const { data } = useApi<MailStatus>('/admin/mail');
+  const [to, setTo] = useState('');
+  const [busy, setBusy] = useState(false);
+  const snack = (text: string) => useUI.getState().showSnack({ text });
+  if (!data) return null;
+  const ready = data.configured && !!data.public_url;
+  return (
+    <section className="card" style={{ marginBottom: 12 }}>
+      <div className="row-title">✉️ 寄信（忘記密碼）：{ready ? '已設定' : '尚未完成設定'}</div>
+      <div className="row-sub" style={{ whiteSpace: 'normal' }}>
+        {ready
+          ? `寄件：${data.sender}（${data.host}）　連結網址：${data.public_url}　註冊時${data.dns_check ? '會' : '不會'}檢查信箱網域`
+          : `${data.configured ? '' : '缺少 CLURE_SMTP_HOST、CLURE_SMTP_FROM。'}${data.public_url ? '' : '缺少 CLURE_PUBLIC_URL。'}在 NAS 的 .env 設定後執行 docker compose up -d；沒設定前，登入頁的「忘記密碼」會請使用者聯絡管理員。`}
+      </div>
+      {data.configured && (
+        <form style={{ display: 'flex', gap: 8, marginTop: 8 }} onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          try { snack((await api<{ message: string }>('/admin/mail/test', { method: 'POST', body: { to: to.trim() } })).message); }
+          catch (err) { snack(err instanceof ApiError ? err.message : '寄送失敗'); } finally { setBusy(false); }
+        }}>
+          <input className="input" type="email" placeholder="輸入要收測試信的信箱" value={to} onChange={(e) => setTo(e.target.value)} aria-label="測試信收件信箱" required />
+          <button className="btn small" type="submit" disabled={busy || !to.includes('@')}>{busy ? '寄送中…' : '寄測試信'}</button>
+        </form>
+      )}
+    </section>
+  );
+}
+
 function Overview() {
   const { data, error, reload } = useApi<Stats>('/admin/stats');
   const recent = useApi<Page<AuditLog>>('/admin/audit-logs', { success: false, size: 5 });
@@ -152,6 +185,7 @@ function Overview() {
         </div>
       )}
       <RegistrationSwitch />
+      <MailCard />
       <div className="admin-grid">
         {cards.map((c) => (
           <button key={c.k} className={`admin-stat${c.warn ? ' warn' : ''}`} onClick={() => c.to && navigate(c.to)} disabled={!c.to}>
@@ -171,6 +205,44 @@ function Overview() {
   );
 }
 
+/** 管理員建立帳號：不受「開放註冊」影響；密碼留空會產生臨時密碼，對方第一次登入必須改密碼 */
+function CreateUserSheet({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (username: string, tempPassword: string | null) => void }) {
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<'user' | 'admin'>('user');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  return (
+    <Sheet open={open} onClose={onClose} title="建立帳號">
+      <form className="auth-form" noValidate onSubmit={async (e) => {
+        e.preventDefault();
+        setBusy(true);
+        setError('');
+        try {
+          const r = await api<{ user: AdminUser; temporary_password: string | null }>('/admin/users', { method: 'POST', body: { username: username.trim(), email: email.trim(), role, password: password || null } });
+          onCreated(r.user.username, r.temporary_password);
+          setUsername(''); setEmail(''); setPassword(''); setRole('user');
+        } catch (err) { setError(err instanceof ApiError ? err.message : '建立失敗'); } finally { setBusy(false); }
+      }}>
+        <label htmlFor="cu-user">使用者名稱</label>
+        <input id="cu-user" className="input" value={username} onChange={(e) => setUsername(e.target.value)} autoCapitalize="none" autoCorrect="off" spellCheck={false} maxLength={32} required placeholder="英數、底線、點、連字號" />
+        <label htmlFor="cu-email">Email（忘記密碼時會寄到這裡，請確認收得到信）</label>
+        <input id="cu-email" className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={254} required />
+        <label htmlFor="cu-role">角色</label>
+        <select id="cu-role" value={role} onChange={(e) => setRole(e.target.value as 'user' | 'admin')}>
+          <option value="user">一般使用者</option><option value="admin">管理員</option>
+        </select>
+        <label htmlFor="cu-pw">初始密碼（留空＝自動產生臨時密碼）</label>
+        <input id="cu-pw" className="input" type="text" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="off" maxLength={128} placeholder="至少 8 字元，含英文與數字" />
+        {error && <p className="auth-error" role="alert">{error}</p>}
+        <button className="btn" type="submit" disabled={busy || !username || !email}>{busy ? '建立中…' : '建立帳號'}</button>
+        <p className="muted" style={{ fontSize: '0.8rem', margin: 0 }}>對方第一次登入時必須先設定新密碼。</p>
+      </form>
+    </Sheet>
+  );
+}
+
 function Users() {
   const me = useAuth((s) => s.user);
   const [q, setQ] = useState('');
@@ -181,6 +253,7 @@ function Users() {
   const [sel, setSel] = useState<AdminUser | null>(null);
   const [temp, setTemp] = useState<{ user: string; pw: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [creating, setCreating] = useState(false);
   const snack = (text: string) => useUI.getState().showSnack({ text });
 
   const act = async (fn: () => Promise<unknown>, ok: string) => {
@@ -193,6 +266,8 @@ function Users() {
 
   return (
     <>
+      <button className="btn tinted" style={{ marginBottom: 10 }} onClick={() => setCreating(true)}>＋ 建立帳號</button>
+      <CreateUserSheet open={creating} onClose={() => setCreating(false)} onCreated={(user, pw) => { setCreating(false); if (pw) setTemp({ user, pw }); else snack(`已建立帳號 ${user}`); void reload(); }} />
       <form onSubmit={(e) => { e.preventDefault(); setPage(1); setQuery(q.trim()); }} style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
         <input className="input" type="search" placeholder="搜尋帳號或 Email" value={q} onChange={(e) => setQ(e.target.value)} aria-label="搜尋使用者" />
         <button className="btn small" type="submit">搜尋</button>

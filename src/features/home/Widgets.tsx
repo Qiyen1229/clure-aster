@@ -2,6 +2,7 @@
  * 首頁小工具（可在「設定 → 首頁小工具」調整顯示與順序）：
  * 今日／本月花費、本月預算、淨資產、持股損益、近期帳單與訂閱、分帳債務、存錢目標。
  */
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
@@ -150,5 +151,32 @@ export function Widgets() {
       }
     }
   };
-  return <div className="widgets" aria-label="小工具">{keys.map(render)}</div>;
+  return <WidgetStrip count={keys.length}>{keys.map(render)}</WidgetStrip>;
+}
+
+/**
+ * 橫向捲動列。手機用手指滑；桌面沒有觸控，所以顯示左右箭頭（只有真的還有內容在邊界外才出現）
+ * 與「第 N / 共 M 張」的提示，避免以為只有第一張卡。
+ */
+function WidgetStrip({ children, count }: { children: React.ReactNode; count: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [edge, setEdge] = useState({ left: false, right: false });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => setEdge({ left: el.scrollLeft > 4, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4 });
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => { el.removeEventListener('scroll', update); ro.disconnect(); };
+  }, [count]);
+  const go = (dir: -1 | 1) => ref.current?.scrollBy({ left: dir * Math.max(180, (ref.current?.clientWidth ?? 0) * 0.8), behavior: 'smooth' });
+  return (
+    <div className="widgets-wrap">
+      <div className="widgets" ref={ref} aria-label="小工具">{children}</div>
+      {edge.left && <button className="widgets-nav left" aria-label="上一組小工具" onClick={() => go(-1)}>‹</button>}
+      {edge.right && <button className="widgets-nav right" aria-label="下一組小工具" onClick={() => go(1)}>›</button>}
+    </div>
+  );
 }

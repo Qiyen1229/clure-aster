@@ -4,7 +4,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.schema.auth import USERNAME_RE, normalize_email, validate_password_strength
 
 
 class AdminUserOut(BaseModel):
@@ -46,6 +48,55 @@ class StatusUpdateRequest(BaseModel):
 class ResetPasswordResponse(BaseModel):
     temporary_password: str
     message: str
+
+
+class CreateUserRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    username: str = Field(min_length=3, max_length=32)
+    email: str = Field(min_length=3, max_length=254)
+    role: Literal["user", "admin"] = "user"
+    password: str | None = Field(None, max_length=128, description="空白＝自動產生臨時密碼")
+
+    @field_validator("username")
+    @classmethod
+    def _username(cls, v: str) -> str:
+        if not USERNAME_RE.match(v):
+            raise ValueError("使用者名稱只能使用英文、數字、底線、點與連字號（3–32 字元）")
+        return v
+
+    @field_validator("email")
+    @classmethod
+    def _email(cls, v: str) -> str:
+        return normalize_email(v)
+
+    @field_validator("password")
+    @classmethod
+    def _password(cls, v: str | None) -> str | None:
+        return validate_password_strength(v) if v else None
+
+
+class CreateUserResponse(BaseModel):
+    user: AdminUserOut
+    temporary_password: str | None = None
+    message: str
+
+
+class MailStatus(BaseModel):
+    configured: bool
+    host: str
+    sender: str
+    public_url: str
+    dns_check: bool
+
+
+class MailTestRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    to: str = Field(min_length=3, max_length=254)
+
+    @field_validator("to")
+    @classmethod
+    def _to(cls, v: str) -> str:
+        return normalize_email(v)
 
 
 class StatsOut(BaseModel):

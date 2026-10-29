@@ -9,6 +9,7 @@ import { deleteTransactions, deleteTransfers, restoreTransactions, restoreTransf
 import { SwipeRow } from '@/ui/SwipeRow';
 import { Amount } from '@/ui/controls';
 import { snackUndo, useUI } from '@/stores/ui';
+import { confirmDelete } from './deleteGuard';
 import { categoryLabel } from '@/app/hooks';
 import { fromMinor } from '@/domain/money';
 import { Icon } from '@/ui/Icon';
@@ -26,6 +27,7 @@ interface Props {
 }
 
 export function deleteItem(item: LedgerItem) {
+  if (!confirmDelete(item.kind === 'tx' ? { tx: item.tx } : { tr: item.tr })) return;
   if (item.kind === 'tx') {
     void deleteTransactions([item.id]).then(() => snackUndo('已刪除 1 筆', () => restoreTransactions([item.id])));
   } else {

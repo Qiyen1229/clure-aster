@@ -80,6 +80,17 @@ class Settings(BaseSettings):
     # 全站每分鐘最多幾次（免費層通常只有每分鐘 5～15 次）；0＝不限
     ai_global_per_minute: int = Field(8, ge=0)
 
+    # 寄信（忘記密碼、管理員測試信）。smtp_host 空白＝未設定寄信功能
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""  # 寄件人，空白用 smtp_user
+    smtp_security: str = "starttls"  # starttls（587）｜ssl（465）｜none
+    public_url: str = ""  # 信中連結用的網址，例如 https://aster.example.com（不設就無法寄重設連結，避免被偽造 Host 標頭）
+    reset_token_minutes: int = Field(30, ge=5, le=1440)
+    email_check_dns: bool = True  # 註冊時檢查信箱網域真的有收信伺服器（MX）
+
     auto_migrate: bool = True  # 啟動（含熱重載）時自動套用資料庫遷移
 
     timezone: str = "Asia/Taipei"  # 「今日」統計使用的時區

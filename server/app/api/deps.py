@@ -18,6 +18,8 @@ _settings = get_settings()
 login_ip_limiter = RateLimiter(_settings.login_rate_limit_per_minute * 4, name="login-ip")  # 同一 IP 嘗試多個帳號
 login_account_limiter = RateLimiter(_settings.login_rate_limit_per_minute, name="login-acct")  # 同一 IP＋帳號：每分鐘 5 次
 register_limiter = RateLimiter(_settings.register_rate_limit_per_minute, name="register")
+reset_ip_limiter = RateLimiter(10, window_seconds=600, name="reset-ip")  # 10 分鐘 10 次
+reset_account_limiter = RateLimiter(3, window_seconds=600, name="reset-acct")  # 同一帳號 10 分鐘最多寄 3 封
 
 
 def get_db() -> Iterator[Session]:
@@ -52,12 +54,12 @@ def require_admin(user: User = Depends(get_current_user)) -> User:
 
 def reset_rate_limits() -> None:
     """測試用"""
-    for l in (login_ip_limiter, login_account_limiter, register_limiter):
+    for l in (login_ip_limiter, login_account_limiter, register_limiter, reset_ip_limiter, reset_account_limiter):
         l.reset()
-    from app.api.admin import ai_test_limiter
+    from app.api.admin import ai_test_limiter, mail_test_limiter
     from app.api.ai import ai_limiter
     from app.api.einvoice import carrier_limiter
     from app.api.inbox import hook_ip_limiter, hook_limiter
 
-    for l in (carrier_limiter, hook_limiter, hook_ip_limiter, ai_limiter, ai_test_limiter, RateLimiter(1, name="ai-global")):
+    for l in (carrier_limiter, hook_limiter, hook_ip_limiter, ai_limiter, ai_test_limiter, mail_test_limiter, RateLimiter(1, name="ai-global")):
         l.reset()

@@ -10,7 +10,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import App from '../App';
-import { adoptLegacyData, discardLegacyData, legacyDataCount, openUserDatabase } from '@/db/schema';
+import { adoptLegacyData, db, discardLegacyData, legacyDataCount, openUserDatabase } from '@/db/schema';
 import { bootstrap } from '@/db/bootstrap';
 import { useSettings } from '@/stores/settings';
 import { AUTH_ENABLED, useAuth } from '@/stores/auth';
@@ -19,6 +19,8 @@ import { initialSync, startSync, unlockEncryption, useSync } from '@/services/sy
 
 const LoginPage = lazy(() => import('../features/auth/AuthPages').then((m) => ({ default: m.LoginPage })));
 const RegisterPage = lazy(() => import('../features/auth/AuthPages').then((m) => ({ default: m.RegisterPage })));
+const ForgotPasswordPage = lazy(() => import('../features/auth/AuthPages').then((m) => ({ default: m.ForgotPasswordPage })));
+const ResetPasswordPage = lazy(() => import('../features/auth/AuthPages').then((m) => ({ default: m.ResetPasswordPage })));
 const ForceChangePasswordPage = lazy(() => import('../features/auth/AuthPages').then((m) => ({ default: m.ForceChangePasswordPage })));
 
 function Splash({ text }: { text?: string }) {
@@ -71,6 +73,12 @@ export default function AuthGate() {
     if (AUTH_ENABLED) void init();
   }, [init]);
 
+  // 背景同步才發現需要端對端加密密碼時，補上解鎖畫面（第一次登入則在 finishBootstrap 內就處理了）
+  const syncPhase = useSync((s) => s.phase);
+  useEffect(() => {
+    if (data.phase === 'ready' && syncPhase === 'locked') setData({ phase: 'unlock' });
+  }, [data.phase, syncPhase]);
+
   const signedIn = !AUTH_ENABLED || status === 'authed' || status === 'offline';
   const userId = AUTH_ENABLED ? user?.id : 'local';
 
@@ -113,6 +121,8 @@ export default function AuthGate() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="*" element={<Navigate to="/login" replace state={{ from: location.pathname + location.search }} />} />
         </Routes>
       </Suspense>
@@ -177,9 +187,15 @@ export default function AuthGate() {
 async function finishBootstrap(onSyncing?: () => void): Promise<'ok' | 'locked'> {
   if (AUTH_ENABLED) {
     // 先下載其他裝置的資料再建立預設值；離線或逾時則先用本機資料，背景繼續同步
-    onSyncing?.();
-    await initialSync().catch(() => undefined);
-    if (useSync.getState().phase === 'locked') return 'locked';
+    // 這台裝置已有資料（不是第一次登入）時不必等：直接進 App，背景同步
+    const hasLocal = (await db.categories.count().catch(() => 0)) > 0;
+    if (hasLocal) {
+      void initialSync().catch(() => undefined); // 若發現需要加密密碼，由 AuthGate 的 effect 切到解鎖畫面
+    } else {
+      onSyncing?.();
+      await initialSync().catch(() => undefined);
+      if (useSync.getState().phase === 'locked') return 'locked';
+    }
   }
   const settings = await bootstrap();
   useSettings.getState().hydrate(settings);
