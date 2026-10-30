@@ -33,7 +33,8 @@ function asterProxy(): Plugin {
 
 /** index.html 裡的 %APP_VERSION% 換成目前版本：圖標網址帶版本號，改版後瀏覽器與 iOS 一定重新下載，不會看到舊圖標 */
 function htmlVersion(): Plugin {
-  return { name: 'aster-html-version', transformIndexHtml: (html) => html.replaceAll('%APP_VERSION%', pkg.version) };
+  // order: 'pre'：要在 Vite 解析 HTML 內的資源網址之前代入，否則 %APP_VERSION% 會被當成壞掉的網址編碼而建置失敗
+  return { name: 'aster-html-version', transformIndexHtml: { order: 'pre', handler: (html) => html.replaceAll('%APP_VERSION%', pkg.version) } };
 }
 
 // 預覽與開發固定使用 9122 埠（見 docs/DESIGN.md A10）

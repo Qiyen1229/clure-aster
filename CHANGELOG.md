@@ -1,5 +1,9 @@
 # 變更紀錄
 
+## 3.3.5（2026-10-30）
+
+- **修正 3.3.4 無法建置**：`index.html` 的 `%APP_VERSION%` 在正式建置時被 Vite 當成壞掉的網址編碼（`URI malformed`），NAS 的 `web-builder` 會建置失敗。改為在 Vite 解析 HTML 之前代入版本號（`order: 'pre'`）。已確認 `dist/index.html`、啟動畫面與 manifest 圖標網址都帶 `?v=3.3.5`。**3.3.4 的 zip 請不要用，請改用 3.3.5**
+
 ## 3.3.4（2026-10-30）
 
 ### 修正
