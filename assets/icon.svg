@@ -55,7 +55,7 @@
 
   <!-- ★ 圖案位置：改這裡的 translate(X Y) 就能整體移動（單位是 1024 畫布上的像素；X 正數往右、Y 正數往下）。
        改完執行 npm run icons 重新產生所有圖標。目前是靠右下一點。 -->
-  <g id="art" transform="translate(30 30)">
+  <g id="art" transform="translate(30 60)">
   <!-- ==================== 3D 包圍層 1：星軌身後部分（Back Ring） ==================== -->
   <g transform="rotate(-26 512 512)">
     <!-- 星軌後半段（在字母 A 身後） -->

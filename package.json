@@ -1,7 +1,7 @@
 {
   "name": "aster",
   "private": true,
-  "version": "3.3.2",
+  "version": "3.3.3",
   "type": "module",
   "scripts": {
     "dev": "vite --port 9122 --host",
@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "icons": "node scripts/gen-icons.mjs",
-    "pack:nas": "sh scripts/pack-nas.sh"
+    "pack:nas": "sh scripts/pack-nas.sh",
+    "deploy:nas": "sh scripts/deploy-nas.sh"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.14.14",

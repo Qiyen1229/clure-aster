@@ -1,5 +1,9 @@
 # 變更紀錄
 
+## 3.3.3（2026-10-30）
+
+- **一行指令部署到 NAS**：新增 `npm run deploy:nas`（`scripts/deploy-nas.sh`）。打包 → `scp` 傳到 NAS → 在 NAS 上**就地**解壓縮覆蓋（不重建資料夾，避免容器掛載到已刪除的舊資料夾）→ `docker compose up -d` → 顯示容器狀態。不含 `.env` 與 `data/`。可用 `NAS_HOST`、`NAS_DIR`、`NAS_PROJECT` 覆寫預設值
+
 ## 3.3.2（2026-10-30）
 
 - **主畫面圖標往右下移動一點**：`assets/icon.svg` 的圖案整體以 `translate(30 30)` 偏移（約 3%），所有圖標、啟動畫面、favicon 已重新產生；`index.html` 的快取版本號更新為 3.3.2
