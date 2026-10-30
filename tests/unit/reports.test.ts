@@ -38,6 +38,20 @@ describe('報表分析', () => {
     expect(a.topWeekday).toBe(1);
     expect(a.topHour).toBe(19);
   });
+  it('「最常花錢」看次數，不是金額：週五一筆大額、週二三筆小額 → 週二；早上 8 點三筆小額、晚上 22 點一筆大額 → 8 點', () => {
+    const t = [
+      tx('expense', 'exp-food-lunch', 900000, '2026-10-09', 22), // 週五，大額一筆
+      tx('expense', 'exp-food-lunch', 3000, '2026-10-06', 8), // 週二
+      tx('expense', 'exp-food-lunch', 3000, '2026-10-13', 8),
+      tx('expense', 'exp-food-lunch', 3000, '2026-10-20', 8),
+    ];
+    const r = analyze(t, cats, { start: '2026-10-01', end: '2026-10-31' }, 'expense', '2026-10-31');
+    expect(r.byWeekday[5]).toBeGreaterThan(r.byWeekday[2]); // 金額上週五較多
+    expect(r.topWeekday).toBe(2);
+    expect(r.weekdayCount[2]).toBe(3);
+    expect(r.topHour).toBe(8);
+    expect(r.hourCount[8]).toBe(3);
+  });
   it('增減百分比', () => {
     expect(pctChange(120, 100)).toBe(20);
     expect(pctChange(5, 0)).toBeNull();

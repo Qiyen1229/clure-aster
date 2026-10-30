@@ -145,3 +145,22 @@ describe('電話、帳號、網址不是金額', () => {
     expect(findAmounts(t).map((h) => h.value)).toEqual(values);
   });
 });
+
+describe('轉帳', () => {
+  it('「轉帳 5000 從 A 到 B」：來源與目的帳戶都抓到，備註不留「到」「轉」這類連接詞', () => {
+    for (const s of ['轉帳 5000 從 玉山 到 錢包', '從玉山轉5000到錢包', '玉山轉帳到錢包 5000']) {
+      const [d] = parseEntries(s, ctx);
+      expect(d).toMatchObject({ kind: 'transfer', amount: 5000, accountId: 'esun', toAccountId: 'cash' });
+      expect(d.note).toBe('');
+    }
+  });
+  it('只說轉入帳戶：「轉 3000 到 錢包」記成轉帳，轉出帳戶留空（之後帶預設帳戶）；備註保留真正的說明', () => {
+    const [d] = parseEntries('轉 3000 到 錢包 當生活費', ctx);
+    expect(d).toMatchObject({ kind: 'transfer', amount: 3000, toAccountId: 'cash' });
+    expect(d.accountId).toBeUndefined();
+    expect(d.note).toBe('當生活費');
+  });
+  it('收入句子不受影響：「收到薪水 52000 存到台新」仍是收入', () => {
+    expect(parseEntries('收到薪水 52000 存到台新', ctx)[0]).toMatchObject({ kind: 'income', accountId: 'taishin' });
+  });
+});

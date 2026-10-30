@@ -61,7 +61,7 @@ export default function YearReview() {
     ...(a.topNotes[0] ? [{ emoji: '🔁', title: '最常出現的項目', big: a.topNotes[0].note, sub: `${a.topNotes[0].count} 次，共 ${f(a.topNotes[0].amount)}` }] : []),
     ...(a.maxTx ? [{ emoji: '🏆', title: '年度最大一筆', big: f(statAmount(a.maxTx)), sub: `${a.maxTx.date.slice(5).replace('-', '/')}・${a.maxTx.note || cats.map.get(a.maxTx.categoryId)?.name}` }] : []),
     ...(busiest ? [{ emoji: '🔥', title: '最燒錢的一天', big: busiest[0].slice(5).replace('-', '/'), sub: `那天花了 ${f(busiest[1].expense)}` }] : []),
-    { emoji: '📅', title: '你最常在這時候花錢', big: `${WEEK[a.topWeekday]} ${a.topHour}:00`, sub: months[0] ? `花最多的月份是 ${Number(months[0][0].slice(5))} 月（${f(months[0][1].expense)}）` : undefined },
+    { emoji: '📅', title: '你最常在這時候花錢', big: `${WEEK[a.topWeekday]} ${a.topHour}:00`, sub: `${WEEK[a.topWeekday]}記了 ${a.weekdayCount[a.topWeekday]} 筆、${a.topHour} 點前後記了 ${a.hourCount[a.topHour]} 筆${months[0] ? `；花最多錢的月份是 ${Number(months[0][0].slice(5))} 月（${f(months[0][1].expense)}）` : ''}` },
     ...(a.savingRate !== null ? [{ emoji: a.savingRate >= 20 ? '🐷' : '🌱', title: '年度儲蓄率', big: `${a.savingRate.toFixed(1)}%`, sub: `存下了 ${f(a.net)}${a.savingRate >= 20 ? '，太強了！' : '，明年再加油 💪'}` }] : []),
     ...(pf && pf.investedBase > 0 ? [{ emoji: '📈', title: '投資成績', big: `${pf.totalReturnWithDivPct >= 0 ? '+' : ''}${pf.totalReturnWithDivPct.toFixed(1)}%`, sub: `含股利總報酬・今年股利 ${f(pf.dividendsThisYearBase)}` }] : []),
     { emoji: '✨', title: `${year} 謝謝你認真記帳`, big: `${Number(year) + 1} 見！`, sub: '截圖分享給朋友吧' },

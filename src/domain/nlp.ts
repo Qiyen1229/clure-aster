@@ -386,7 +386,8 @@ export interface ParseContext {
 }
 
 const INCOME_RE = /薪水|薪資|月薪|領薪|發薪|收入|進帳|入帳|收到|領到|拿到|賺了|賺到|獎金|年終|收紅包|紅包收入|退款|退費|退稅|利息|股利|中獎|報帳|還我|還錢給我/;
-const TRANSFER_RE = /轉帳|轉到|轉入|轉進|轉給|存到|存入|存進|提款|提領|領錢|領現/;
+// 「轉5000到錢包」「轉 3000 入 零用金」（轉與到之間夾著金額）也算轉帳
+const TRANSFER_RE = /轉帳|轉到|轉入|轉進|轉給|轉\s*[\d０-９,.]+\s*(?:元|塊|圓)?\s*(?:到|入|進|至|給)|存到|存入|存進|提款|提領|領錢|領現/;
 const CASH_OUT_RE = /提款|提領|領錢|領現/;
 /** 備註裡不需要保留的贅字 */
 const FILLER_RE = /(花了|花掉|總共|一共|大概|付了|付款|消費了?|買了|用掉|共計|金額|元整|我|了)/g;
@@ -481,19 +482,25 @@ export function parseEntries(input: string, ctx: ParseContext): DraftEntry[] {
     rest = rest.replace(/刷卡|信用卡/g, ' ');
     // 4. 類型
     let kind: EntryKind = INCOME_RE.test(seg.text) ? 'income' : 'expense';
-    let accountId = accs[0]?.id;
+    let accountId: string | undefined = accs[0]?.id;
     let toAccountId: string | undefined;
     if (TRANSFER_RE.test(seg.text)) {
       const cash = ctx.accounts.find((x) => x.type === 'cash');
       if (accs.length >= 2) { kind = 'transfer'; accountId = accs[0].id; toAccountId = accs[1].id; }
       else if (CASH_OUT_RE.test(seg.text) && cash && accs[0]?.id !== cash.id) { kind = 'transfer'; toAccountId = cash.id; }
+      else if (kind !== 'income' && accs.length === 1 && accs[0].term) {
+        // 「轉 3000 到 零用金」只說了轉入的帳戶：記成轉帳，轉出帳戶留空，之後帶入預設／上次使用的帳戶
+        const at = seg.text.indexOf(accs[0].term);
+        if (at > 0 && /(轉|存|匯)[^到入進至給]{0,10}(到|入|進|至)\s*$/.test(seg.text.slice(0, at))) { kind = 'transfer'; toAccountId = accs[0].id; accountId = undefined; }
+      }
     }
     const currency = a.currency ?? detectCurrency(seg.text) ?? globalCurrency;
     for (const [re] of CURRENCY_WORDS) rest = rest.replace(re, ' ');
     const rawNote = cleanNote(rest.replace(TRANSFER_RE, kind === 'transfer' ? ' ' : '$&'));
     const match = kind === 'transfer' ? undefined : matchCategory(rawNote || seg.text, ctx.categories, kind);
     const cat = match?.category;
-    const note = kind === 'transfer' ? rawNote : tidyNote(rawNote, match, kind);
+    // 轉帳的備註只留真正的說明；「轉」「到」「從」這類連接詞不是備註
+    const note = kind === 'transfer' ? rawNote.replace(/轉帳|轉出|轉|匯款|匯|到|至|去|從|由|給|的/g, ' ').replace(/\s+/g, ' ').trim() : tidyNote(rawNote, match, kind);
     drafts.push({
       kind, amount: a.value, currency, date: dt.date ?? ctx.today, dateGiven: !!dt.date,
       accountId, toAccountId, categoryId: cat?.id, note, raw: seg.text.trim(),

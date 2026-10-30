@@ -172,12 +172,13 @@ export default function ReportsPage() {
     ],
   } : null, [nw, base]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const distOption = (values: number[], labels: string[]) => ({
+  // 長條＝消費「次數」；提示框同時顯示該時段的花費金額
+  const distOption = (counts: number[], amounts: number[], labels: string[]) => ({
     grid: { left: 4, right: 4, top: 8, bottom: 4, containLabel: true },
-    tooltip: { trigger: 'axis', valueFormatter: (v: number) => formatMoney(v, base) },
+    tooltip: { trigger: 'axis', formatter: (ps: { dataIndex: number; axisValueLabel: string }[]) => `${ps[0].axisValueLabel}：${counts[ps[0].dataIndex]} 筆・${formatMoney(amounts[ps[0].dataIndex], base)}` },
     xAxis: { type: 'category', data: labels, axisLabel: { color: t.text3, fontSize: 10 }, axisLine: { lineStyle: { color: t.sep } } },
     yAxis: { type: 'value', show: false },
-    series: [{ type: 'bar', data: values.map((v) => ({ value: v, itemStyle: { color: v === Math.max(...values) && v > 0 ? t.accent : t.text3, borderRadius: [3, 3, 0, 0] } })), barMaxWidth: 14 }],
+    series: [{ type: 'bar', data: counts.map((v) => ({ value: v, itemStyle: { color: v === Math.max(...counts) && v > 0 ? t.accent : t.text3, borderRadius: [3, 3, 0, 0] } })), barMaxWidth: 14 }],
   });
 
   const Change = ({ cur, prevV, invert }: { cur: number; prevV: number; invert?: boolean }) => {
@@ -253,7 +254,7 @@ export default function ReportsPage() {
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px', marginTop: 12, fontSize: '0.85rem' }} className="muted">
               {a.maxTx && <button className="accent" onClick={() => setDetail({ title: '最大單筆', txs: [a.maxTx!] })}>最大單筆 {formatMoney(statAmount(a.maxTx), base)}（{a.maxTx.note || cats.map.get(a.maxTx.categoryId)?.name}）</button>}
-              {a.expense > 0 && <span>最常花錢：週{WEEK[a.topWeekday]}・{a.topHour}:00 時段</span>}
+              {a.expense > 0 && <span>最常花錢：週{WEEK[a.topWeekday]}・{a.topHour}:00 時段（{a.weekdayCount[a.topWeekday]} 筆／{a.hourCount[a.topHour]} 筆）</span>}
               <span>{a.count} 筆</span>
             </div>
           </section>
@@ -351,10 +352,10 @@ export default function ReportsPage() {
 
           {a.expense > 0 && (
             <section className="card" aria-label="花費分佈">
-              <div style={{ fontWeight: 600 }}>花費最多的星期幾／時段</div>
+              <div style={{ fontWeight: 600 }}>消費次數最多的星期幾／時段</div>
               <Suspense fallback={<div className="skeleton" style={{ height: 120 }} />}>
-                <EChart option={distOption(a.byWeekday, WEEK.map((w) => `週${w}`))} height={120} ariaLabel="星期花費分佈" />
-                <EChart option={distOption(a.byHour, Array.from({ length: 24 }, (_, i) => String(i)))} height={120} ariaLabel="時段花費分佈" />
+                <EChart option={distOption(a.weekdayCount, a.byWeekday, WEEK.map((w) => `週${w}`))} height={120} ariaLabel="星期消費次數分佈" />
+                <EChart option={distOption(a.hourCount, a.byHour, Array.from({ length: 24 }, (_, i) => String(i)))} height={120} ariaLabel="時段消費次數分佈" />
               </Suspense>
               {a.topNotes.length > 0 && (
                 <>

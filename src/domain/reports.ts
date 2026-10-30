@@ -19,10 +19,12 @@ export interface Analysis {
   bySub: Map<string, Map<string, number>>; // main -> sub -> amount
   byDay: Map<string, { expense: number; income: number }>;
   byMonth: Map<string, { expense: number; income: number }>;
-  byWeekday: number[]; // 0=日
-  byHour: number[]; // 0–23
-  topWeekday: number;
-  topHour: number;
+  byWeekday: number[]; // 0=日，各星期的花費金額
+  byHour: number[]; // 0–23，各時段的花費金額
+  weekdayCount: number[]; // 各星期的消費「次數」（筆數）
+  hourCount: number[]; // 各時段的消費「次數」（筆數）
+  topWeekday: number; // 消費次數最多的星期（次數相同時取金額較大者）
+  topHour: number; // 消費次數最多的時段（次數相同時取金額較大者）
   topNotes: { note: string; amount: number; count: number }[];
 }
 
@@ -33,6 +35,8 @@ export function analyze(txs: Transaction[], cats: Map<string, Category>, range: 
   const byMonth = new Map<string, { expense: number; income: number }>();
   const byWeekday = Array(7).fill(0);
   const byHour = Array(24).fill(0);
+  const weekdayCount: number[] = Array(7).fill(0);
+  const hourCount: number[] = Array(24).fill(0);
   const notes = new Map<string, { amount: number; count: number }>();
   let expense = 0, income = 0, count = 0;
   let maxTx: Transaction | undefined;
@@ -57,8 +61,11 @@ export function analyze(txs: Transaction[], cats: Map<string, Category>, range: 
     bySub.set(main, subs);
     if (!isInc) {
       const dt = new Date(t.ts);
-      byWeekday[new Date(`${t.date}T00:00:00`).getDay()] += v;
+      const wd = new Date(`${t.date}T00:00:00`).getDay();
+      byWeekday[wd] += v;
       byHour[dt.getHours()] += v;
+      weekdayCount[wd]++;
+      hourCount[dt.getHours()]++;
       if (!maxTx || v > statAmount(maxTx)) maxTx = t;
       const key = t.note.trim() || c?.name || '';
       if (key) {
@@ -70,14 +77,15 @@ export function analyze(txs: Transaction[], cats: Map<string, Category>, range: 
   }
   const end = today && today < range.end ? today : range.end;
   const days = end >= range.start ? eachDay({ start: range.start, end }).length : 1;
-  const argmax = (a: number[]) => a.reduce((best, v, i) => (v > a[best] ? i : best), 0);
+  // 「最常」＝次數最多；次數相同時看金額
+  const argmaxBy = (counts: number[], amounts: number[]) => counts.reduce((best, v, i) => (v > counts[best] || (v === counts[best] && amounts[i] > amounts[best]) ? i : best), 0);
   return {
     expense, income, net: income - expense, count,
     savingRate: income > 0 ? ((income - expense) / income) * 100 : null,
     ratio: income > 0 ? (expense / income) * 100 : null,
     dailyAvg: Math.round(expense / Math.max(1, days)),
-    maxTx, byMain, bySub, byDay, byMonth, byWeekday, byHour,
-    topWeekday: argmax(byWeekday), topHour: argmax(byHour),
+    maxTx, byMain, bySub, byDay, byMonth, byWeekday, byHour, weekdayCount, hourCount,
+    topWeekday: argmaxBy(weekdayCount, byWeekday), topHour: argmaxBy(hourCount, byHour),
     topNotes: [...notes].map(([note, x]) => ({ note, ...x })).sort((a, b) => b.amount - a.amount).slice(0, 5),
   };
 }
