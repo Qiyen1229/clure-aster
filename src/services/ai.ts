@@ -213,3 +213,32 @@ export async function autoWeeklyInsight(): Promise<{ label: string; value: Insig
     return { label, value: r.value };
   } catch { return null; }
 }
+
+
+// ───────────── 新支出的市價檢查（不計額度，由系統在新增支出時自動觸發；使用者不能手動重跑） ─────────────
+
+export interface PriceVerdict { verdict: 'reasonable' | 'high' | 'unknown'; typical_min: number | null; typical_max: number | null; reason: string }
+export interface PriceCheckInput { category: string; note: string; amount: number; currency: string; date: string; usual?: number }
+
+const PRICE_TTL = 30 * 24 * 3600_000;
+
+/**
+ * 請 AI 依台灣市價判斷這筆金額合不合理。只送這一筆的分類、備註（先去掉網址與長數字）、金額、幣別與日期，
+ * 以及「你平常這個分類一筆約多少」；送出的原文都會記在「AI 送出紀錄」。
+ * 同類型、同價位的結果快取 30 天，重複的消費不會再問。呼叫失敗或沒開 AI 時回傳 null（不影響記帳）。
+ */
+export async function aiPriceCheck(input: PriceCheckInput): Promise<PriceVerdict | null> {
+  if (!aiEnabledLocally() || !useSettings.getState().insights?.aiPrice) return null;
+  const note = sanitizeForAi(input.note).slice(0, 80);
+  // 價位分桶（約每 1.4 倍一桶）：差不多價位的同類消費共用結果
+  const key = `pc:${hashJson({ c: input.category, n: note.toLowerCase().replace(/[\d\s]+/g, ''), b: Math.round(Math.log2(input.amount) * 2), cur: input.currency })}`;
+  const hit = (await db.meta.get(key).catch(() => undefined))?.value as { at: number; v: PriceVerdict } | undefined;
+  if (hit && Date.now() - hit.at < PRICE_TTL) return hit.v;
+  try {
+    const v = await aiPost<PriceVerdict>('/ai/price-check', { category: input.category, note, amount: input.amount, currency: input.currency, date: input.date, usual: input.usual });
+    await db.meta.put({ key, value: { at: Date.now(), v } }).catch(() => undefined);
+    return v;
+  } catch {
+    return null;
+  }
+}

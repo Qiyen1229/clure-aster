@@ -653,3 +653,48 @@ def test_connection_test_accepts_reasoning_only_reply(admin_and_user, monkeypatc
     assert admin.post("/api/admin/ai/test", {"provider": "openrouter"}).json()["ok"] is True  # 能連上、Key 有效就算通
     fake(monkeypatch, lambda n, p: {"choices": [{"message": {"content": None}}]})
     assert admin.post("/api/admin/ai/test", {"provider": "openrouter"}).json()["ok"] is False
+
+
+# ── 新支出的市價檢查：不計額度 ──
+PRICE = {"category": "午餐", "note": "海鮮餐廳", "amount": 5200, "currency": "TWD", "date": "2026-10-28", "usual": 120}
+
+
+def test_price_check_is_free_and_validated(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    api.register("pc1")
+    fake(monkeypatch, lambda n, p: ok({"verdict": "high", "typical_min": 200, "typical_max": 900, "reason": "午餐一般不到 900 元"}))
+    for _ in range(5):  # 額度上限只有 3 次/日：不計額度的功能超過也照樣能用
+        r = api.post("/api/ai/price-check", PRICE)
+        assert r.status_code == 200
+    body = r.json()
+    assert body == {"verdict": "high", "typical_min": 200.0, "typical_max": 900.0, "reason": "午餐一般不到 900 元"}
+    # 沒有扣任何額度（只留 cost=0 的紀錄供管理員看）
+    assert all(row.cost == 0 and row.kind == "price_check" for row in usage_rows())
+    st = api.get("/api/ai/status").json()["quota"]["daily"]
+    assert st["used"] == 0 and st["remaining"] == 3
+
+
+def test_price_check_rejects_garbage_and_failures_are_free(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    api.register("pc2")
+    fake(monkeypatch, lambda n, p: ok({"verdict": "maybe"}))
+    assert api.post("/api/ai/price-check", PRICE).status_code == 422
+    fake(monkeypatch, lambda n, p: ok({"verdict": "reasonable", "typical_min": 900, "typical_max": 100, "reason": "x" * 500}))
+    r = api.post("/api/ai/price-check", PRICE).json()
+    assert r["typical_min"] == 100.0 and r["typical_max"] == 900.0 and len(r["reason"]) <= 100  # 範圍自動校正、說明截斷
+    assert api.post("/api/ai/price-check", {**PRICE, "amount": -5}).status_code == 422
+    assert api.post("/api/ai/price-check", {**PRICE, "currency": "TWDX"}).status_code == 422
+
+
+def test_price_check_respects_per_minute_cap_and_admin_switch(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    api.register("pc3")
+    fake(monkeypatch, lambda n, p: ok({"verdict": "unknown", "typical_min": None, "typical_max": None, "reason": ""}))
+    codes = [api.post("/api/ai/price-check", PRICE).status_code for _ in range(21)]
+    assert codes[:20] == [200] * 20 and codes[20] == 429  # 每人每分鐘 20 次
+    # 管理員關閉 AI 總開關：不計額度的功能也一併停止
+    api.post("/api/auth/logout")
+    from tests.conftest import Api as _Api
+    a = _Api("10.9.9.9")
+    a.login("pc3")
+    assert a.patch("/api/admin/ai", {"enabled": False}).status_code == 200
+    from app.api.deps import reset_rate_limits
+    reset_rate_limits()
+    assert a.post("/api/ai/price-check", PRICE).status_code == 503

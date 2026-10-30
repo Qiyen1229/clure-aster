@@ -21,7 +21,7 @@ from app.model import AiUsage, AppSetting, User
 from app.schema.ai import (
     AiAdminOut, AiAdminUpdate, AiConsole, AiProviderInfo, AiStatus, AskRequest, AskResult, BudgetPlanRequest, BudgetPlanResult, CategorizeItem,
     CategorizeRequest, CategorizeResult, ConsoleProvider, DayCount, InsightsRequest, InsightsResult, ParsedEntry, ParseEntryRequest,
-    ParseEntryResult, ReceiptRequest, RecentCall, SearchPlanRequest, SearchPlanResult, ExplainRequest, TestResult, UsageTotals, UserUsage,
+    ParseEntryResult, PriceCheckRequest, PriceCheckResult, ReceiptRequest, RecentCall, SearchPlanRequest, SearchPlanResult, ExplainRequest, TestResult, UsageTotals, UserUsage,
 )
 from app.service import ai_providers, ai_quota, ai_tasks
 from app.service.audit_service import AuditService
@@ -139,6 +139,11 @@ class AiService:
         msg = ai_tasks.dumps({"今天": body.today, "描述": body.text, "可選分類": cats, "可選帳戶": accs, "可選標籤": tags})
         r = ai_tasks.run_task(self.db, user, "search_plan", ai_tasks.SEARCH_PLAN, msg, lambda d: ai_tasks.v_search_plan(d, cats, accs, tags, today), fail_message="AI 看不出要找什麼，請換個說法")
         return SearchPlanResult(**r, quota=self._quota(user))  # type: ignore[arg-type]
+
+    def price_check(self, user: User, body: PriceCheckRequest) -> PriceCheckResult:
+        msg = ai_tasks.dumps({"日期": body.date, "分類": body.category, "備註": body.note, "金額": body.amount, "幣別": body.currency.upper(), "usual": body.usual})
+        r = ai_tasks.run_task(self.db, user, "price_check", ai_tasks.PRICE_CHECK, msg, ai_tasks.v_price_check, fail_message="AI 沒能判斷這筆的行情", free=True)
+        return PriceCheckResult(**r)  # type: ignore[arg-type]
 
     def explain(self, user: User, body: ExplainRequest) -> InsightsResult:
         msg = ai_tasks.dumps({"對象": body.subject, "摘要": body.summary})

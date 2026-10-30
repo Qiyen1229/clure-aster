@@ -74,6 +74,7 @@ export async function runStartupTasks() {
   await step('snapshot', () => takeSnapshot());
   await step('reminders', () => runReminderChecks());
   // 異常／訂閱偵測與預算預警：排在閒置時間，不拖慢首屏；結果有快取，10 分鐘內不重算
+  void step('newTxWatcher', () => import('./insights').then((m) => m.installNewTxWatcher()));
   idle(() => void step('insights', () => import('./insights').then((m) => m.runInsights({ notifyNew: true }))));
   if (useSettings.getState().notify.push) await step('push', () => import('./push').then((m) => m.schedulePush()));
   // 手機條碼載具自動記帳（伺服器有財政部 AppID、使用者設定了載具時）

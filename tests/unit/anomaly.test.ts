@@ -88,19 +88,34 @@ describe('重複扣款', () => {
   });
 });
 
-describe('異常大額', () => {
-  it('遠高於這個分類平常的一筆 → 提醒，說明是平常的幾倍', () => {
-    const f = detectInsights(base([...filler(60), tx('2026-10-28', '海鮮餐廳', 4800)])).find((x) => x.kind === 'large');
+describe('異常大額（先看習慣、再看分類與市價）', () => {
+  it('吃飯突然 4800（市價遠低於此、也遠高於自己的習慣）→ 提醒，說明市價範圍與你平常一筆', () => {
+    const f = detectInsights({ ...base([...filler(60), tx('2026-10-28', '海鮮餐廳', 4800)]), baseCurrency: 'TWD', catPath: () => ({ name: '午餐', mainName: '飲食' }) }).find((x) => x.kind === 'large');
     expect(f).toBeTruthy();
     expect(f!.title).toContain('$4800');
-    expect(f!.why).toContain('倍');
+    expect(f!.title).toContain('超出一般行情');
+    expect(f!.why).toContain('一般午餐一次消費大約 $60～$300');
+    expect(f!.why).toContain('你平常這個分類一筆約');
   });
-  it('正常範圍內的波動不提醒；資料太少（不到 30 筆）不判斷', () => {
-    expect(detectInsights(base([...filler(60), tx('2026-10-28', '晚餐', 250)])).find((x) => x.kind === 'large')).toBeUndefined();
+  it('買家電、學雜費、買車這類本來就大的項目：金額再大也不提醒（看分類，也看備註）', () => {
+    const catPath = (c: string) => (c === 'exp-housing-furniture' ? { name: '家具家電', mainName: '居住' } : { name: '午餐', mainName: '飲食' });
+    const bigs = [
+      tx('2026-10-28', '冰箱', 45000, { categoryId: 'exp-housing-furniture' }),
+      tx('2026-10-27', '學雜費', 38000), // 分類選午餐，但備註寫明是學雜費
+      tx('2026-10-26', '買車 頭期款', 300000),
+    ];
+    expect(detectInsights({ ...base([...filler(60), ...bigs]), baseCurrency: 'TWD', catPath }).find((x) => x.kind === 'large')).toBeUndefined();
+  });
+  it('比平常貴、但還在市價範圍內（一頓 450 的晚餐）不提醒', () => {
+    expect(detectInsights({ ...base([...filler(60), tx('2026-10-28', '燒肉', 450)]), baseCurrency: 'TWD', catPath: () => ({ name: '晚餐', mainName: '飲食' }) }).find((x) => x.kind === 'large')).toBeUndefined();
+  });
+  it('資料太少（不到 30 筆）不判斷；已登記的週期帳目與定期固定扣款不算異常', () => {
     expect(detectInsights(base([...filler(10), tx('2026-10-28', '海鮮餐廳', 4800)])).find((x) => x.kind === 'large')).toBeUndefined();
-  });
-  it('已登記的週期帳目（房租、保費）本來就大，不算異常', () => {
     expect(detectInsights(base([...filler(60), tx('2026-10-28', '保費', 20000, { recurringRuleId: 'r2' })])).find((x) => x.kind === 'large')).toBeUndefined();
+  });
+  it('非台幣主幣別沒有行情表：只靠習慣，不會誤報', () => {
+    const f = detectInsights({ ...base([...filler(60), tx('2026-10-28', '海鮮餐廳', 4800)]), baseCurrency: 'JPY' }).find((x) => x.kind === 'large');
+    expect(f).toBeUndefined();
   });
 });
 

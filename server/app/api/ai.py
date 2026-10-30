@@ -9,13 +9,15 @@ from app.core.rate_limit import RateLimiter
 from app.model import User
 from app.schema.ai import (
     AiStatus, AskRequest, AskResult, BudgetPlanRequest, BudgetPlanResult, CategorizeRequest, CategorizeResult, ExplainRequest, InsightsRequest,
-    InsightsResult, ParseEntryRequest, ParseEntryResult, ReceiptRequest, SearchPlanRequest, SearchPlanResult,
+    InsightsResult, ParseEntryRequest, ParseEntryResult, PriceCheckRequest, PriceCheckResult, ReceiptRequest, SearchPlanRequest, SearchPlanResult,
 )
 from app.service.ai_service import AiService
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 # 額度之外再加一道每分鐘上限，擋掉程式誤觸發的連續請求
 ai_limiter = RateLimiter(10, name="ai")
+# 新支出的市價檢查由 App 自動觸發（不計額度），另設每人每分鐘上限，避免程式誤觸發或批次匯入時狂打
+price_limiter = RateLimiter(20, name="ai-price")
 
 
 @router.get("/status", response_model=AiStatus, summary="AI 是否可用與目前額度")
@@ -69,3 +71,9 @@ def search_plan(body: SearchPlanRequest, user: User = Depends(get_current_user),
 def explain(body: ExplainRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> InsightsResult:
     rate_limit(ai_limiter, str(user.id))
     return AiService(db).explain(user, body)
+
+
+@router.post("/price-check", response_model=PriceCheckResult, summary="新支出的市價檢查（不計額度，由 App 自動觸發）")
+def price_check(body: PriceCheckRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> PriceCheckResult:
+    rate_limit(price_limiter, str(user.id))
+    return AiService(db).price_check(user, body)

@@ -13,6 +13,8 @@
 import type { Transaction } from '@/db/types';
 import { countsInStats, statAmount } from './ledger';
 import { addDays, fromDateKey, type DateKey, type Range } from './period';
+import { median, quantile } from './anomaly-stats';
+import { judgeExpense, type Judgment } from './pricing';
 
 export type FindingKind = 'subscription' | 'price_up' | 'duplicate' | 'large' | 'surge';
 export type SubPeriod = 'week' | 'month' | 'year';
@@ -47,6 +49,10 @@ export interface DetectInput {
   catName: (categoryId: string) => string;
   /** 分類 id → 主分類 id（沒有上層就是自己） */
   mainOf: (categoryId: string) => string;
+  /** 分類 id → 子分類名稱與主分類名稱（判斷「這是什麼類型的支出、市價多少」用） */
+  catPath?: (categoryId: string) => { name: string; mainName: string };
+  /** 主幣別（行情表只適用台幣） */
+  baseCurrency?: string;
   /** 分類是不是「訂閱」類（決定登記成訂閱或一般週期帳目）；預設都當訂閱 */
   isSubscriptionCat?: (categoryId: string) => boolean;
   /** 太籠統、不算「店家」的備註（例如「午餐」「早餐」這類分類名稱）：不拿來判斷重複扣款 */
@@ -61,18 +67,7 @@ const PERIOD_DAYS: Record<SubPeriod, number> = { week: 7, month: 30, year: 365 }
 const PERIOD_TEXT: Record<SubPeriod, string> = { week: '每週', month: '每月', year: '每年' };
 const PER_YEAR: Record<SubPeriod, number> = { week: 52, month: 12, year: 1 };
 
-export const median = (a: number[]) => {
-  if (!a.length) return 0;
-  const s = [...a].sort((x, y) => x - y);
-  const m = s.length >> 1;
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-};
-const quantile = (a: number[], q: number) => {
-  if (!a.length) return 0;
-  const s = [...a].sort((x, y) => x - y);
-  return s[Math.min(s.length - 1, Math.floor(q * s.length))];
-};
-const mad = (a: number[], med = median(a)) => median(a.map((v) => Math.abs(v - med)));
+export { median } from './anomaly-stats';
 
 /** 店家／備註的比對用鍵：去掉數字、空白、標點與「月費、訂閱」這類贅字 */
 export function merchantKey(t: Pick<Transaction, 'merchant' | 'note'>): string {
@@ -219,50 +214,74 @@ function detectDuplicates(input: DetectInput, pool: Transaction[]): Finding[] {
   return out.slice(0, 5);
 }
 
-// ───────────── 異常大額 ─────────────
+// ───────────── 異常大額（先看習慣、再看分類與市價；大額項目不提醒） ─────────────
 
-function detectLarge(input: DetectInput, pool: Transaction[]): Finding[] {
-  const hist = pool.filter((t) => daysBetween(t.date, input.today) <= 210);
-  if (hist.length < 30) return [];
+/** 判斷一筆支出需要的統計背景（近 210 天的支出） */
+export interface ExpenseContext {
+  allMedian: number;
+  allP95: number;
+  byMain: Map<string, number[]>;
+  /** 定期出現的固定扣款（房租、保費、訂閱）的店家鍵：本來就是這個金額 */
+  periodic: Set<string>;
+  size: number;
+}
+
+export function expenseContext(pool: Transaction[], today: DateKey, mainOf: (id: string) => string): ExpenseContext {
+  const hist = pool.filter((t) => daysBetween(t.date, today) <= 210);
   const all = hist.map((t) => statAmount(t));
-  const allMed = median(all);
-  const p95 = quantile(all, 0.95);
   const byMain = new Map<string, number[]>();
   for (const t of hist) {
-    const k = input.mainOf(t.categoryId);
+    const k = mainOf(t.categoryId);
     byMain.set(k, [...(byMain.get(k) ?? []), statAmount(t)]);
   }
-  // 定期出現的固定扣款（房租、保費、訂閱）本來就是這個金額，不算「異常大額」
   const periodic = new Set(groupByMerchant(hist).filter((g) => detectPeriod(g.txs.map((x) => x.date))).map((g) => g.key));
+  return { allMedian: median(all), allP95: quantile(all, 0.95), byMain, periodic, size: hist.length };
+}
+
+/** 判斷單筆；已登記的週期帳目、定期固定扣款、資料不足（不到 30 筆）一律不判斷（回傳 null） */
+export function judgeOne(input: DetectInput, ctx: ExpenseContext, t: Transaction): Judgment | null {
+  if (ctx.size < 30 || t.recurringRuleId || ctx.periodic.has(merchantKey(t))) return null;
+  const amt = statAmount(t);
+  const main = input.mainOf(t.categoryId);
+  const others = [...(ctx.byMain.get(main) ?? [])];
+  const idx = others.indexOf(amt);
+  if (idx >= 0) others.splice(idx, 1); // 不含這一筆自己
+  const path = input.catPath?.(t.categoryId) ?? { name: input.catName(t.categoryId), mainName: input.catName(t.categoryId) };
+  return judgeExpense({
+    amountMinor: amt, others, allMedian: ctx.allMedian, allP95: ctx.allP95, marketOk: (input.baseCurrency ?? 'TWD') === 'TWD',
+    cat: { name: path.name, mainName: path.mainName, note: t.note, merchant: t.merchant },
+  });
+}
+
+/** 把「超出一般行情」的判斷轉成提醒；reasonExtra 是 AI 查到的市價說明（有的話優先顯示） */
+export function highFinding(input: DetectInput, t: Transaction, j: Judgment, reasonExtra?: string): Finding {
+  const amt = statAmount(t);
+  const label = labelOf(t) || input.catName(t.categoryId);
+  const habit = j.habit ? `你平常這個分類一筆約 ${input.fmt(Math.round(j.habit.median))}。` : '';
+  let why: string;
+  if (reasonExtra) why = `${t.date.slice(5).replace('-', '/')} 這筆 ${input.fmt(amt)}。${reasonExtra}${habit ? ` ${habit}` : ''}`;
+  else if (j.basis === 'market' && j.info.range) {
+    const [lo, hi] = j.info.range;
+    why = `${t.date.slice(5).replace('-', '/')} 這筆 ${input.fmt(amt)}。一般${j.info.why.replace(/屬於.*/, '')}一次消費大約 ${input.fmt(lo * 100)}～${input.fmt(hi * 100)}，這筆是上限的 ${(amt / (hi * 100)).toFixed(1)} 倍。${habit}`;
+  } else why = `${t.date.slice(5).replace('-', '/')} 這筆 ${input.fmt(amt)}，遠高於你平常的花費。${habit}`;
+  return {
+    id: `large:${t.id}`, kind: 'large', severity: 'warn',
+    title: `${label} ${input.fmt(amt)} 超出一般行情`,
+    why,
+    tip: '如果是預期中的花費可以按「略過」；不是的話建議對一下帳單，確認有沒有記錯金額或被盜刷。',
+    amountMinor: amt, date: t.date, txIds: [t.id],
+  };
+}
+
+/** 批次：近 30 天的支出逐筆判斷，只有「依習慣與市價都明顯太高」的才提醒（判斷不了的交給單筆流程，由系統決定要不要請 AI） */
+function detectLarge(input: DetectInput, pool: Transaction[]): Finding[] {
+  const ctx = expenseContext(pool, input.today, input.mainOf);
   const out: (Finding & { ratio: number })[] = [];
-  for (const t of hist.filter((x) => daysBetween(x.date, input.today) <= 30)) {
-    const amt = statAmount(t);
-    const cat = input.mainOf(t.categoryId);
-    // 同分類的其他帳目（不含自己）
-    const others = [...(byMain.get(cat) ?? [])];
-    const idx = others.indexOf(amt);
-    if (idx >= 0) others.splice(idx, 1);
-    let ratio = 0;
-    let basis = '';
-    if (others.length >= 8) {
-      const med = median(others);
-      const thr = Math.max(med * 3, med + 4 * 1.4826 * mad(others, med));
-      if (amt >= thr && amt >= allMed * 5) { ratio = amt / Math.max(1, med); basis = `${input.catName(t.categoryId)}平常一筆約 ${input.fmt(Math.round(med))}`; }
-    } else if (amt >= Math.max(allMed * 10, p95 * 1.5)) {
-      // 這個分類的歷史不夠，改和全部支出比
-      ratio = amt / Math.max(1, allMed);
-      basis = `你平常一筆約 ${input.fmt(Math.round(allMed))}`;
-    }
-    if (!ratio) continue;
-    // 已登記的週期帳目（房租、保費…）本來就大，不算異常
-    if (t.recurringRuleId || periodic.has(merchantKey(t))) continue;
-    out.push({
-      id: `large:${t.id}`, kind: 'large', severity: 'warn', ratio,
-      title: `${labelOf(t) || input.catName(t.categoryId)} ${input.fmt(amt)} 比平常大很多`,
-      why: `${t.date.slice(5).replace('-', '/')} 這筆 ${input.fmt(amt)}，是${basis}的 ${ratio >= 10 ? Math.round(ratio) : ratio.toFixed(1)} 倍，在你近半年的帳目裡算很突出。`,
-      tip: '如果是預期中的大額（旅遊、家電）可以按「略過」；不是的話建議對一下帳單，確認有沒有記錯金額或被盜刷。',
-      amountMinor: amt, date: t.date, txIds: [t.id],
-    });
+  for (const t of pool.filter((x) => daysBetween(x.date, input.today) <= 30)) {
+    const j = judgeOne(input, ctx, t);
+    if (j?.verdict !== 'high') continue;
+    const f = highFinding(input, t, j);
+    out.push({ ...f, ratio: statAmount(t) / Math.max(1, j.marketHigh ?? j.habit?.high ?? 1) });
   }
   return out.sort((a, b) => b.ratio - a.ratio).slice(0, 3).map(({ ratio: _r, ...f }) => f);
 }

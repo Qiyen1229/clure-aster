@@ -158,6 +158,12 @@ def confirm(db: Session, row: AiUsage, provider: str, model: str) -> None:
     db.commit()
 
 
+def record_free(db: Session, user_id: int, kind: str, provider: str, model: str) -> None:
+    """不計額度的呼叫：只留一筆 cost=0 的紀錄（供管理員看用量），不影響任何額度層級。"""
+    db.add(AiUsage(user_id=user_id, kind=kind, cost=0, pending=False, provider=provider, model=model[:100]))
+    db.commit()
+
+
 def release(db: Session, row: AiUsage) -> None:
     db.delete(row)
     db.commit()

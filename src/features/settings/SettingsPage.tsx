@@ -273,11 +273,15 @@ export default function SettingsPage() {
         </Group>
       )}
 
-      <Group title="智慧提醒" note="全部在這台裝置上用規則運算，不使用 AI、不計入 AI 額度；白話說明與重新偵測 5 分鐘內最多 10 次。">
+      <Group title="智慧提醒" note="平常全部在這台裝置上用規則運算，不計入 AI 額度，白話說明可無限次查看。系統會在你每新增一筆支出時自動偵測一次（沒有手動重新偵測）。大額但本來就大的項目（買家電、學雜費、買車…）不會提醒；吃飯、超商這類小額支出突然出現大額才會。">
         <div className="field"><span className="label" style={{ flex: 1 }}>異常與訂閱偵測<span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>找出沒登記的訂閱、漲價、重複扣款、異常大額、分類暴增</span></span>
           <Switch checked={s.insights.anomaly} label="異常與訂閱偵測" onChange={(v) => s.set('insights', { ...s.insights, anomaly: v })} /></div>
         <div className="field"><span className="label" style={{ flex: 1 }}>預算預警<span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>照目前花法會超支時，提早提醒並告訴你每天最多能花多少</span></span>
           <Switch checked={s.insights.budgetWarn} label="預算預警" onChange={(v) => s.set('insights', { ...s.insights, budgetWarn: v })} /></div>
+        {AUTH_ENABLED && s.insights.anomaly && (
+          <div className="field"><span className="label" style={{ flex: 1 }}>規則判斷不了時，請 AI 查市價<span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>{s.ai?.enabled ? '只在新支出比平常高很多、又查不到行情時才問，每筆只問一次，不計額度；送出的內容可在「AI 設定 → 查看送出過什麼」檢查' : '需要先到「AI 設定」開啟 AI 功能；沒開時只在金額離譜到極端才提醒'}</span></span>
+            <Switch checked={s.insights.aiPrice && !!s.ai?.enabled} label="請 AI 查市價" onChange={(v) => { if (s.ai?.enabled) s.set('insights', { ...s.insights, aiPrice: v }); }} /></div>
+        )}
         {(s.insights.anomaly || s.insights.budgetWarn) && <Row icon="sparkle" tint="#FF9F0A" label="查看目前的偵測結果" onClick={() => navigate('/insights')} />}
       </Group>
 

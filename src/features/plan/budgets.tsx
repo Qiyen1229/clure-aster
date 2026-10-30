@@ -87,7 +87,7 @@ function BudgetWarnNote({ v }: { v: BudgetView }) {
   return (
     <div className="insight-card card" style={{ ['--lv' as string]: w.level === 'over' ? 'var(--danger)' : 'var(--warning)', marginTop: -4 }}>
       <div className="insight-title">{w.level === 'over' ? '⚠️' : '🔔'} {w.title}</div>
-      <WhyToggle id={w.id} limitKey="insight-budget" why={w.why} tip={w.tip} />
+      <WhyToggle id={w.id} why={w.why} tip={w.tip} />
     </div>
   );
 }

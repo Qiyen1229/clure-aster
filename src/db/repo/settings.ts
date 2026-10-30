@@ -117,10 +117,10 @@ export interface Settings {
    */
   ai: { enabled: boolean; allowData: boolean; auto: boolean };
   /**
-   * 智慧提醒（全部在本機用規則計算，不使用 AI、不計入 AI 額度）：
+   * 智慧提醒（平常全部在本機用規則計算；只有規則判斷不了的新支出，才在 ai.enabled 開啟時請 AI 查市價，且不計額度）：
    * anomaly＝異常與訂閱偵測；budgetWarn＝預算預警；dismissed＝使用者按「略過」的項目 id（隨帳號同步、最多 200 筆）
    */
-  insights: { anomaly: boolean; budgetWarn: boolean; dismissed: string[] };
+  insights: { anomaly: boolean; budgetWarn: boolean; dismissed: string[]; /** 規則判斷不了的新支出，請 AI 查市價（需先開啟 ai.enabled；不計額度） */ aiPrice: boolean };
   /** 已看過哪一版的「新功能介紹」（隨帳號同步，換裝置不會再跳一次） */
   seenWhatsNew: string;
 }
@@ -203,7 +203,7 @@ export const DEFAULT_SETTINGS: Settings = {
   einvoice: { cardNo: '', verifyCode: '', defaultAccountId: '', autoSync: true },
   inbox: { autoBook: false, defaultAccountId: '', cardMap: {} },
   ai: { enabled: false, allowData: false, auto: false },
-  insights: { anomaly: true, budgetWarn: true, dismissed: [] },
+  insights: { anomaly: true, budgetWarn: true, dismissed: [], aiPrice: true },
   seenWhatsNew: '',
 };
 

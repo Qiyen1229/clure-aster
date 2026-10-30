@@ -83,8 +83,17 @@ EXPLAIN = f"""你是理財解說助手。使用者提供某個對象（專案、
 格式：{{"headline":"一句話總結（30 字內）","points":["重點，每點都要有具體數字，最多 4 點"],"suggestion":"一個可以馬上執行的具體建議"}}
 規則：只根據摘要；不要編造；語氣客觀不說教；繁體中文（台灣用語）；不提供投資買賣建議。"""
 
-MAX_TOKENS = {"search_plan": 700, "explain": 1400, "parse_entry": 900, "ask": 1800, "budget_plan": 2200, "insights": 1400, "categorize": 1600, "receipt": 1200}
-COST = {"search_plan": 1, "explain": 1, "parse_entry": 1, "ask": 1, "budget_plan": 1, "insights": 1, "categorize": 1, "receipt": 2}
+PRICE_CHECK = f"""你是台灣的消費行情助手。使用者剛記下一筆支出（分類、備註、金額、幣別、日期），請依一般市場行情判斷這個金額合不合理。{COMMON}
+格式：{{"verdict":"reasonable|high|unknown","typical_min":數字或null,"typical_max":數字或null,"reason":"一句話理由（40 字內）"}}
+規則：
+- 以台灣一般市價為準（幣別與輸入相同）；typical_min／typical_max 是這類東西「一次消費」常見的價格範圍。
+- 只有金額明顯高於合理上限（約 1.5 倍以上）時才回 high；在合理範圍內或稍高都回 reasonable。
+- 本來就是大額的項目（家電、3C、車、學費、旅遊、醫療、家具、保險…）金額高是正常的，回 reasonable。
+- 備註看不出是什麼、或你不確定這類東西的行情，回 unknown；不要亂猜、不要編造。
+- 若有 usual（使用者在這個分類平常一筆約多少），可作為參考，但判斷以市價為主。"""
+
+MAX_TOKENS = {"price_check": 400, "search_plan": 700, "explain": 1400, "parse_entry": 900, "ask": 1800, "budget_plan": 2200, "insights": 1400, "categorize": 1600, "receipt": 1200}
+COST = {"price_check": 0, "search_plan": 1, "explain": 1, "parse_entry": 1, "ask": 1, "budget_plan": 1, "insights": 1, "categorize": 1, "receipt": 2}
 
 
 def _text(v: object, n: int) -> str:
@@ -189,6 +198,25 @@ def v_search_plan(data: object, categories: list[str], accounts: list[str], tags
     return out
 
 
+def v_price_check(data: object) -> dict:
+    d = data if isinstance(data, dict) else {}
+    verdict = d.get("verdict")
+    if verdict not in ("reasonable", "high", "unknown"):
+        raise ValueError("bad verdict")
+
+    def num(v: object) -> float | None:
+        try:
+            n = _num(v)
+        except (TypeError, ValueError):
+            return None
+        return n if 0 < n < 1e10 else None
+
+    lo, hi = num(d.get("typical_min")), num(d.get("typical_max"))
+    if lo is not None and hi is not None and lo > hi:
+        lo, hi = hi, lo
+    return {"verdict": verdict, "typical_min": lo, "typical_max": hi, "reason": _text(d.get("reason"), 100)}
+
+
 def _global_rpm_guard() -> None:
     limit = get_settings().ai_global_per_minute
     if limit:
@@ -198,11 +226,26 @@ def _global_rpm_guard() -> None:
 
 
 def run_task(db: Session, user: User, kind: str, system: str, user_msg: str, validate: Callable[[object], object], *,
-             images: list[str] | None = None, fail_message: str = "AI 沒能看懂，請稍後再試或改用一般操作") -> object:
-    """預留額度 → 呼叫供應商 → 驗證；失敗不扣額度。回傳驗證後的結果。"""
+             images: list[str] | None = None, fail_message: str = "AI 沒能看懂，請稍後再試或改用一般操作", free: bool = False) -> object:
+    """預留額度 → 呼叫供應商 → 驗證；失敗不扣額度。回傳驗證後的結果。
+
+    free=True：這個功能暫時不計入使用者額度（例如新支出的市價檢查，由系統自動觸發）。仍然受「管理員總開關」與
+    「全站每分鐘上限」限制，並記一筆 cost=0 的呼叫紀錄（只有功能與供應商，不含內容），讓管理員在主控台看得到用量。
+    """
     if not any(p.configured for p in ai_providers.providers()):
         raise ServiceError(503, "伺服器尚未設定 AI 供應商")
     _global_rpm_guard()
+    if free:
+        if not ai_quota.read_limits(db).enabled:
+            raise ServiceError(503, "管理員已關閉 AI 功能")
+        data, provider, model = ai_providers.complete_json(system, user_msg, max_tokens=MAX_TOKENS[kind], images=images)
+        try:
+            result = validate(data)
+        except (ValueError, TypeError, KeyError):
+            raise ServiceError(422, fail_message) from None
+        ai_quota.record_free(db, user.id, kind, provider, model)
+        log.info("AI %s(free) user_id=%s provider=%s", kind, user.id, provider)
+        return result
     row = ai_quota.reserve(db, user.id, kind, COST[kind], user.role)
     try:
         data, provider, model = ai_providers.complete_json(system, user_msg, max_tokens=MAX_TOKENS[kind], images=images)

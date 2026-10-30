@@ -1,7 +1,7 @@
 /**
  * 異常與訂閱偵測、預算預警（/insights）。
- * 全部在這台裝置用規則運算：不使用 AI、不呼叫伺服器、不計入 AI 額度。
- * 「重新偵測」與「白話說明」5 分鐘內最多 10 次（避免連點）；自動偵測在開啟 App 時於閒置時間執行。
+ * 平常全部在這台裝置用規則運算（不呼叫伺服器、不計入 AI 額度）；只有規則判斷不了的新支出，才（在使用者開啟 AI 的前提下）請 AI 查市價。
+ * 沒有手動「重新偵測」：系統在每新增一筆支出、以及開啟 App 時自動偵測；白話說明可以無限次展開。
  */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -9,7 +9,6 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import type { Finding } from '@/domain/anomaly';
 import type { BudgetWarning } from '@/domain/budgetwarn';
 import { createSubscriptionFrom, dismissFinding, loadSnapshot, runInsights, type InsightsSnapshot } from '@/services/insights';
-import { consume, remaining } from '@/services/usageLimit';
 import { useSettings } from '@/stores/settings';
 import { snackUndo, useUI } from '@/stores/ui';
 import { Icon } from '@/ui/Icon';
@@ -24,22 +23,10 @@ export default function InsightsPage() {
   const navigate = useNavigate();
   const cfg = useSettings((s) => s.insights);
   const snap = useLiveQuery(() => loadSnapshot(), [], undefined as InsightsSnapshot | null | undefined);
-  const [busy, setBusy] = useState(false);
-  const [left, setLeft] = useState(() => remaining('insight-anomaly'));
-  const [note, setNote] = useState('');
   const on = cfg.anomaly || cfg.budgetWarn;
 
-  // 進來時用（新的）快取；過期才重算，不計入使用次數
+  // 進來時用（新的）快取；過期才重算
   useEffect(() => { if (on) void runInsights(); }, [on, cfg.anomaly, cfg.budgetWarn]);
-
-  const refresh = async () => {
-    const r = consume('insight-anomaly');
-    setLeft(remaining('insight-anomaly'));
-    if (!r.ok) { setNote(r.message); return; }
-    setNote('');
-    setBusy(true);
-    try { await runInsights({ force: true }); } finally { setBusy(false); }
-  };
 
   const findings = snap?.findings ?? [];
   const warnings = snap?.warnings ?? [];
@@ -60,13 +47,10 @@ export default function InsightsPage() {
       ) : (
         <>
           <p className="muted" style={{ fontSize: '0.85rem', margin: '0 4px 12px' }}>
-            全部在這台裝置上用規則運算，<b>不使用 AI、不計入 AI 額度</b>。「重新偵測」與「白話說明」5 分鐘內最多 10 次。
+            系統會在你每新增一筆支出、以及開啟 App 時自動偵測，不用手動操作，也沒有次數限制。判斷用規則運算<b>不計入 AI 額度</b>；
+            少數規則判斷不了的新支出，如果你開啟了 AI 功能，才會請 AI 查市價（每筆只問一次，不計額度）。
           </p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 12px' }}>
-            <button className="btn small" disabled={busy} onClick={() => void refresh()}>{busy ? '偵測中…' : '重新偵測'}</button>
-            <span className="muted" style={{ fontSize: '0.8rem' }}>{snap ? `上次偵測 ${new Date(snap.at).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}` : ''}　剩 {left} 次</span>
-          </div>
-          {note && <p className="insight-limit" role="status">{note}</p>}
+          {snap && <p className="muted" style={{ fontSize: '0.8rem', margin: '0 4px 12px' }}>上次偵測 {new Date(snap.at).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>}
 
           {snap === undefined ? <SkeletonRows /> : (
             <>
@@ -81,9 +65,9 @@ export default function InsightsPage() {
               {cfg.anomaly && (
                 <>
                   <div className="section-title">需要留意</div>
-                  {warnList.length === 0 ? <p className="muted" style={{ margin: '0 8px 12px' }}>沒有發現異常 ✓</p> : warnList.map((f) => <FindingCard key={f.id} f={f} onChange={() => setLeft(remaining('insight-anomaly'))} />)}
+                  {warnList.length === 0 ? <p className="muted" style={{ margin: '0 8px 12px' }}>沒有發現異常 ✓</p> : warnList.map((f) => <FindingCard key={f.id} f={f} />)}
                   {infoList.length > 0 && <div className="section-title">其他發現</div>}
-                  {infoList.map((f) => <FindingCard key={f.id} f={f} onChange={() => setLeft(remaining('insight-anomaly'))} />)}
+                  {infoList.map((f) => <FindingCard key={f.id} f={f} />)}
                 </>
               )}
               <p className="muted" style={{ fontSize: '0.75rem', margin: '16px 8px' }}>
@@ -104,13 +88,13 @@ function WarningCard({ w, onOpen }: { w: BudgetWarning; onOpen: () => void }) {
         <span aria-hidden="true">{w.level === 'over' ? '⚠️' : '🔔'}</span>
         <div className="row-main"><div className="insight-title">{w.title}</div></div>
       </div>
-      <WhyToggle id={w.id} limitKey="insight-budget" why={w.why} tip={w.tip} />
+      <WhyToggle id={w.id} why={w.why} tip={w.tip} />
       <div className="insight-actions"><button className="accent" onClick={onOpen}>查看預算</button></div>
     </section>
   );
 }
 
-function FindingCard({ f, onChange }: { f: Finding; onChange: () => void }) {
+function FindingCard({ f }: { f: Finding }) {
   const navigate = useNavigate();
   const snack = (text: string) => useUI.getState().showSnack({ text });
   const [busy, setBusy] = useState(false);
@@ -123,7 +107,7 @@ function FindingCard({ f, onChange }: { f: Finding; onChange: () => void }) {
           <div className="row-sub">{KIND_LABEL[f.kind]}　{f.date.slice(5).replace('-', '/')}</div>
         </div>
       </div>
-      <div onClick={onChange}><WhyToggle id={f.id} limitKey="insight-anomaly" why={f.why} tip={f.tip} /></div>
+      <WhyToggle id={f.id} why={f.why} tip={f.tip} />
       <div className="insight-actions">
         {f.subscription && (
           <button className="accent" disabled={busy} onClick={async () => {

@@ -274,3 +274,21 @@ class TestResult(BaseModel):
     ok: bool
     latency_ms: int | None
     detail: str
+
+
+class PriceCheckRequest(BaseModel):
+    """新增一筆支出時，請 AI 依市價判斷這個金額合不合理（只送這一筆的分類、備註、金額，不送其他帳目）。"""
+    category: str = Field(min_length=1, max_length=60)
+    note: str = Field(default="", max_length=80)
+    amount: float = Field(gt=0, lt=1e10)
+    currency: str = Field(default="TWD", min_length=3, max_length=3, pattern=r"^[A-Za-z]{3}$")
+    date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    # 使用者自己的習慣：同分類平常一筆約多少（中位數，可省略）；讓模型知道「對這個人」是否突兀
+    usual: float | None = Field(default=None, gt=0, lt=1e10)
+
+
+class PriceCheckResult(BaseModel):
+    verdict: Literal["reasonable", "high", "unknown"]
+    typical_min: float | None = None
+    typical_max: float | None = None
+    reason: str = ""
