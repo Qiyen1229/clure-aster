@@ -29,7 +29,7 @@ export default function NotificationsPage() {
   const [pushBusy, setPushBusy] = useState(false);
   const [pst, setPst] = useState<PushStatus | null>(null);
   const refreshPst = () => { if (AUTH_ENABLED && n.push) void fetchPushStatus().then(setPst, () => setPst(null)); };
-  useEffect(refreshPst, [n.push]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(refreshPst, [n.push]);  
   const snack = (text: string) => useUI.getState().showSnack({ text });
   // 提醒設定變更後重新排程背景推播（停止輸入 1.5 秒後）
   const first = useRef(true);

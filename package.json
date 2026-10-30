@@ -1,7 +1,7 @@
 {
   "name": "aster",
   "private": true,
-  "version": "3.4.0",
+  "version": "3.5.0",
   "type": "module",
   "scripts": {
     "dev": "vite --port 9122 --host",
@@ -12,7 +12,12 @@
     "typecheck": "tsc --noEmit",
     "icons": "node scripts/gen-icons.mjs",
     "pack:nas": "sh scripts/pack-nas.sh",
-    "deploy:nas": "sh scripts/deploy-nas.sh"
+    "deploy:nas": "sh scripts/deploy-nas.sh",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\"",
+    "format:write": "prettier --write \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\"",
+    "check": "tsc --noEmit && eslint . && vitest run"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.14.14",
@@ -32,14 +37,20 @@
     "zustand": "^4.5.7"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@types/node": "^22.20.5",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.7.0",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
     "fake-indexeddb": "^6.2.5",
+    "globals": "^17.13.0",
     "jsdom": "^25.0.1",
+    "prettier": "^3.9.10",
     "sharp": "^0.33.5",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.72.1",
     "vite": "^5.4.21",
     "vite-plugin-pwa": "^0.20.5",
     "vitest": "^2.1.9",

@@ -116,6 +116,11 @@ export interface Settings {
    * auto＝首頁自動產生上週重點（每週最多用 1 點額度）。三個都預設關閉。
    */
   ai: { enabled: boolean; allowData: boolean; auto: boolean };
+  /**
+   * 智慧提醒（全部在本機用規則計算，不使用 AI、不計入 AI 額度）：
+   * anomaly＝異常與訂閱偵測；budgetWarn＝預算預警；dismissed＝使用者按「略過」的項目 id（隨帳號同步、最多 200 筆）
+   */
+  insights: { anomaly: boolean; budgetWarn: boolean; dismissed: string[] };
   /** 已看過哪一版的「新功能介紹」（隨帳號同步，換裝置不會再跳一次） */
   seenWhatsNew: string;
 }
@@ -198,6 +203,7 @@ export const DEFAULT_SETTINGS: Settings = {
   einvoice: { cardNo: '', verifyCode: '', defaultAccountId: '', autoSync: true },
   inbox: { autoBook: false, defaultAccountId: '', cardMap: {} },
   ai: { enabled: false, allowData: false, auto: false },
+  insights: { anomaly: true, budgetWarn: true, dismissed: [] },
   seenWhatsNew: '',
 };
 

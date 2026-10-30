@@ -281,7 +281,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
         }
       } else {
         const acc = account!;
-        let type = mode as 'expense' | 'income' | 'adjust';
+        const type = mode as 'expense' | 'income' | 'adjust';
         let amt = toMinor(v, txCurrency);
         let catId = categoryId;
         if (mode === 'adjust') {
@@ -387,7 +387,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
       void recentNoteSuggestions(note, mode, txCurrency).then((r) => { if (alive) setNoteSugs(r); }).catch(() => undefined);
     }, 150);
     return () => { alive = false; clearTimeout(t); };
-  }, [note, mode, txCurrency, editing]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [note, mode, txCurrency, editing]);  
   const applyNoteSuggestion = (sg: NoteSuggestion) => {
     catTouched.current = true;
     setAutoCat(null);

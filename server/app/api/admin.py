@@ -24,6 +24,7 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 # 連線測試會用掉供應商一次請求，限制頻率避免誤按連點
 ai_test_limiter = RateLimiter(6, name="ai-test")
 mail_test_limiter = RateLimiter(5, name="mail-test")
+backup_limiter = RateLimiter(3, name="backup-run")
 
 
 @router.get("/stats", response_model=StatsOut, summary="系統統計")
@@ -39,6 +40,27 @@ def list_users(q: UserListQuery = Depends(), admin: User = Depends(require_admin
 @router.post("/users", response_model=CreateUserResponse, status_code=201, summary="管理員建立帳號")
 def create_user(body: CreateUserRequest, admin: User = Depends(require_admin), client: ClientInfo = Depends(get_client), db: Session = Depends(get_db)) -> CreateUserResponse:
     return AdminService(db).create_user(body, admin, client)
+
+
+@router.get("/backup", summary="資料庫自動備份狀態")
+def backup_status(admin: User = Depends(require_admin)) -> dict[str, object]:
+    from app.service import backup_service
+
+    return backup_service.status()
+
+
+@router.post("/backup/run", summary="立即備份資料庫")
+def backup_run(admin: User = Depends(require_admin), client: ClientInfo = Depends(get_client), db: Session = Depends(get_db)) -> dict[str, object]:
+    from app.service import backup_service
+    from app.service.errors import ServiceError
+
+    rate_limit(backup_limiter, str(admin.id))
+    try:
+        info = backup_service.backup_database()
+    except backup_service.BackupError as e:
+        raise ServiceError(400, str(e)) from e
+    AuditService(db).record("admin.backup_run", client, actor_id=admin.id)
+    return {**backup_service.status(), "message": f"已備份（{info.size // 1024} KB）"}
 
 
 @router.get("/mail", response_model=MailStatus, summary="寄信設定狀態")

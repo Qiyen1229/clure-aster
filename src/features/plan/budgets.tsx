@@ -8,7 +8,9 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
 import type { Budget } from '@/db/types';
 import { computeBudgets, createSuggestedBudgets, deleteBudget, saveBudget, suggestBudgets, type BudgetView } from '@/db/repo/plan';
-import { fromMinor, toMinor } from '@/domain/money';
+import { forecastBudget } from '@/domain/budgetwarn';
+import { formatMoney, fromMinor, toMinor } from '@/domain/money';
+import { WhyToggle } from '../insights/WhyToggle';
 import { evaluate } from '@/domain/calc-expr';
 import { todayKey } from '@/domain/period';
 import { useCategories, useProjects } from '@/app/hooks';
@@ -55,7 +57,12 @@ export default function BudgetSection() {
               <button className="btn small secondary" onClick={() => setEdit('new')}>自己設定</button>
             </span>
           )} />
-      ) : views.map((v) => <BudgetCard key={v.budget.id} v={v} onEdit={() => setEdit(v.budget)} />)}
+      ) : views.map((v) => (
+        <div key={v.budget.id}>
+          <BudgetCard v={v} onEdit={() => setEdit(v.budget)} />
+          <BudgetWarnNote v={v} />
+        </div>
+      ))}
       {budgets && budgets.some((b) => !b.active) && (
         <>
           <div className="section-title">已停用</div>
@@ -68,6 +75,20 @@ export default function BudgetSection() {
       )}
       <BudgetSheet open={edit !== null} budget={edit === 'new' ? undefined : edit ?? undefined} onClose={() => setEdit(null)} />
     </>
+  );
+}
+
+/** 預算預警：照目前花法會超支時，在卡片下方顯示一行提示與白話說明（本機規則計算，不使用 AI） */
+function BudgetWarnNote({ v }: { v: BudgetView }) {
+  const on = useSettings((s) => !!s.insights?.budgetWarn);
+  if (!on) return null;
+  const w = forecastBudget({ id: v.budget.id, name: v.budget.name, limit: v.status.limit, spent: v.status.spent, period: v.period, today: todayKey(), projected: v.projection.projected }, (m) => formatMoney(m, v.budget.currency, { decimals: 0 }));
+  if (!w) return null;
+  return (
+    <div className="insight-card card" style={{ ['--lv' as string]: w.level === 'over' ? 'var(--danger)' : 'var(--warning)', marginTop: -4 }}>
+      <div className="insight-title">{w.level === 'over' ? '⚠️' : '🔔'} {w.title}</div>
+      <WhyToggle id={w.id} limitKey="insight-budget" why={w.why} tip={w.tip} />
+    </div>
   );
 }
 

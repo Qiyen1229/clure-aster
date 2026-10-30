@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
 import { AUTH_ENABLED } from '@/stores/auth';
-import { exportBackup, exportCSV, exportXLSX, restoreBackup } from '@/services/backup';
+import { BackupPassphraseError, MIN_BACKUP_PASSPHRASE, exportBackup, exportCSV, exportXLSX, isEncryptedBackup, restoreBackup } from '@/services/backup';
 import { loadSettings } from '@/db/repo/settings';
 import { accountingMonth, todayKey } from '@/domain/period';
 import { useSettings } from '@/stores/settings';
@@ -20,6 +20,13 @@ export default function BackupPage() {
   const [photos, setPhotos] = useState(true);
   const [busy, setBusy] = useState('');
   const [mode, setMode] = useState<'replace' | 'merge'>('merge');
+  // 加密備份：匯出時設密碼；還原遇到加密檔時，在頁面上輸入密碼
+  const [enc, setEnc] = useState(false);
+  const [pass, setPass] = useState('');
+  const [pass2, setPass2] = useState('');
+  const [pending, setPending] = useState<File | null>(null);
+  const [restorePass, setRestorePass] = useState('');
+  const [restoreErr, setRestoreErr] = useState('');
   const m = accountingMonth(todayKey(), msd);
   const [range, setRange] = useState({ start: `${todayKey().slice(0, 4)}-01-01`, end: todayKey() });
   const info = useLiveQuery(async () => ({
@@ -49,10 +56,18 @@ export default function BackupPage() {
       <div className="section-title">完整備份（JSON）</div>
       <div className="list">
         <div className="field"><span className="label" style={{ flex: 1 }}>包含收據照片</span><Switch checked={photos} onChange={setPhotos} label="包含照片" /></div>
-        <button className="row accent" disabled={!!busy} onClick={() => void run('backup', async () => {
-          const r = await exportBackup(photos);
-          if (r !== 'cancelled') snack(r === 'shared' ? '已開啟分享表單，可存到「檔案」或 iCloud Drive' : '備份檔已儲存');
-        })}>{busy === 'backup' ? '產生中…' : '匯出備份檔'}</button>
+        <div className="field"><span className="label" style={{ flex: 1 }}>用密碼加密備份檔<span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>備份檔含全部帳目與收據，弄丟時別人打不開（AES-256；忘記密碼無法復原）</span></span><Switch checked={enc} onChange={setEnc} label="加密備份檔" /></div>
+        {enc && (
+          <>
+            <div className="field"><span className="label">備份密碼</span><input type="password" autoComplete="new-password" value={pass} placeholder={`至少 ${MIN_BACKUP_PASSPHRASE} 個字元`} onChange={(e) => setPass(e.target.value)} /></div>
+            <div className="field"><span className="label">再輸入一次</span><input type="password" autoComplete="new-password" value={pass2} onChange={(e) => setPass2(e.target.value)} /></div>
+          </>
+        )}
+        <button className="row accent" disabled={!!busy || (enc && (pass.length < MIN_BACKUP_PASSPHRASE || pass !== pass2))} onClick={() => void run('backup', async () => {
+          const r = await exportBackup(photos, enc ? pass : undefined);
+          if (r !== 'cancelled') snack(r === 'shared' ? '已開啟分享表單，可存到「檔案」或 iCloud Drive' : enc ? '加密備份檔已儲存（請牢記密碼）' : '備份檔已儲存');
+        })}>{busy === 'backup' ? '產生中…（加密需要幾秒）' : enc ? '匯出加密備份檔' : '匯出備份檔'}</button>
+        {enc && pass && pass2 && pass !== pass2 && <p className="insight-limit" role="alert" style={{ margin: '4px 12px 8px' }}>兩次輸入的密碼不一樣</p>}
       </div>
 
       <div className="section-title">還原備份</div>
@@ -67,14 +82,40 @@ export default function BackupPage() {
             e.target.value = '';
             if (!f) return;
             if (mode === 'replace' && !window.confirm(AUTH_ENABLED ? '完全取代會刪除目前所有資料，並同步到這個帳號的其他裝置，確定？' : '完全取代會刪除這台裝置上目前所有資料，確定？')) return;
-            void run('restore', async () => {
-              const r = await restoreBackup(f, mode);
-              useSettings.getState().hydrate(await loadSettings());
-              snack(`已還原 ${r.rows} 筆資料`);
-            });
+            void (async () => {
+              if (await isEncryptedBackup(f)) { setPending(f); setRestorePass(''); setRestoreErr(''); return; } // 加密檔：先問密碼
+              await run('restore', async () => {
+                const r = await restoreBackup(f, mode);
+                useSettings.getState().hydrate(await loadSettings());
+                snack(`已還原 ${r.rows} 筆資料`);
+              });
+            })();
           }} />
         </label>
       </div>
+
+      {pending && (
+        <div className="card" role="dialog" aria-label="輸入備份密碼">
+          <div className="row-title">🔐 這是加密的備份檔</div>
+          <div className="row-sub" style={{ whiteSpace: 'normal', margin: '4px 0 8px' }}>{pending.name}。請輸入匯出時設定的備份密碼（還原方式：{mode === 'merge' ? '合併' : '完全取代'}）。</div>
+          <input className="input" type="password" autoFocus autoComplete="off" value={restorePass} onChange={(e) => setRestorePass(e.target.value)} aria-label="備份密碼" />
+          {restoreErr && <p className="auth-error" role="alert">{restoreErr}</p>}
+          <div className="btn-row" style={{ marginTop: 10 }}>
+            <button className="btn small secondary" onClick={() => setPending(null)}>取消</button>
+            <button className="btn small" disabled={!restorePass || !!busy} onClick={() => void run('restore', async () => {
+              try {
+                const r = await restoreBackup(pending, mode, restorePass);
+                useSettings.getState().hydrate(await loadSettings());
+                setPending(null);
+                snack(`已還原 ${r.rows} 筆資料`);
+              } catch (e) {
+                if (e instanceof BackupPassphraseError) { setRestoreErr(e.message); return; }
+                throw e;
+              }
+            })}>{busy === 'restore' ? '還原中…' : '解密並還原'}</button>
+          </div>
+        </div>
+      )}
 
       <div className="section-title">匯出表格</div>
       <div className="list">

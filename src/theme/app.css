@@ -1594,3 +1594,20 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
 .chat-msg.ai { align-self: flex-start; background: var(--surface-2); border-bottom-left-radius: 6px; }
 .chat-input { display: flex; gap: 8px; padding-top: 8px; border-top: 1px solid var(--separator, rgba(127,127,127,.2)); }
 .chat-input input { flex: 1; min-width: 0; background: var(--surface-2); border: 0; border-radius: 999px; padding: 0 16px; min-height: 44px; color: var(--text); font-size: 1rem; outline: 0; }
+
+/* ---------- 異常與訂閱偵測／預算預警 ---------- */
+.insight-card { border-left: 3px solid var(--lv, var(--accent)); }
+.insight-head { display: flex; gap: 10px; align-items: flex-start; }
+.insight-title { font-weight: 600; line-height: 1.4; }
+.insight-why { margin-top: 6px; }
+.insight-why-btn { display: inline-flex; align-items: center; gap: 4px; padding: 6px 0; color: var(--accent-text); font-size: 0.88rem; font-weight: 600; }
+.insight-why-body { margin-top: 4px; padding: 10px 12px; border-radius: var(--radius-s); background: var(--surface-2); font-size: 0.92rem; line-height: 1.6; animation: item-in 260ms var(--ease) both; }
+.insight-why-body p { margin: 0 0 6px; }
+.insight-why-body p:last-child { margin: 0; }
+.insight-tip { color: var(--text-2); }
+.insight-limit { margin: 4px 0 8px; padding: 8px 12px; border-radius: var(--radius-s); background: color-mix(in srgb, var(--warning) 16%, transparent); color: var(--text); font-size: 0.85rem; }
+.insight-actions { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 6px; font-size: 0.88rem; }
+.insight-actions button { padding: 6px 0; min-height: 32px; font-weight: 600; }
+.insights-banner { display: flex; align-items: center; gap: 10px; width: 100%; margin: 4px 0 8px; padding: 10px 14px; border-radius: var(--radius); background: color-mix(in srgb, var(--warning) 14%, var(--surface)); color: var(--text); font-size: 0.92rem; text-align: left; }
+.insights-banner b { color: var(--text); }
+.ai-sent-pre { margin: 8px 0 0; padding: 10px 12px; max-height: 320px; overflow: auto; border-radius: var(--radius-s); background: var(--surface-2); font-size: 0.75rem; line-height: 1.5; white-space: pre-wrap; word-break: break-all; user-select: text; -webkit-user-select: text; }

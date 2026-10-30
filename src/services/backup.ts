@@ -13,6 +13,7 @@ import { toCSV } from './csv';
 import { getSetting } from '@/db/repo/settings';
 import { buildXlsx } from './xlsx';
 import { DEVICE_ONLY_SETTINGS, OUTBOX } from '@/db/sync-tracking';
+import { E2EE_ITERATIONS, deriveKey } from './e2ee';
 
 const BACKUP_FORMAT = 1;
 /**
@@ -48,10 +49,57 @@ export async function buildBackup(includePhotos = true): Promise<Blob> {
   return new Blob([JSON.stringify(payload)], { type: 'application/json' });
 }
 
+// ───── 加密備份 ─────
+// 檔案格式（JSON）：{ app, format: 'encrypted-1', kdf, iterations, salt, iv, ct, version, exportedAt }
+// 以密碼經 PBKDF2-SHA256（310,000 次、隨機鹽）導出 AES-256-GCM 金鑰；內容是整份明文備份 JSON。
+// GCM 驗證碼同時保護密文與標頭字串（AAD），密碼錯誤或檔案被改過都會解密失敗。忘記密碼無法復原。
+const ENC_FORMAT = 'encrypted-1';
+const AAD = new TextEncoder().encode('aster-backup:encrypted-1');
+export const MIN_BACKUP_PASSPHRASE = 8;
+
+export class BackupPassphraseError extends Error {
+  constructor(message: string, public needed = false) { super(message); this.name = 'BackupPassphraseError'; }
+}
+
+const toB64 = (u: Uint8Array) => { let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); return btoa(s); };
+const fromB64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+
+/** 產生加密備份檔；密碼至少 8 個字元 */
+export async function buildEncryptedBackup(passphrase: string, includePhotos = true): Promise<Blob> {
+  if (passphrase.length < MIN_BACKUP_PASSPHRASE) throw new BackupPassphraseError(`備份密碼至少 ${MIN_BACKUP_PASSPHRASE} 個字元`);
+  const plain = new Uint8Array(await (await buildBackup(includePhotos)).arrayBuffer());
+  const salt = toB64(crypto.getRandomValues(new Uint8Array(16)));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveKey(passphrase, salt, E2EE_ITERATIONS);
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: AAD }, key, plain));
+  const env = { app: 'aster', format: ENC_FORMAT, kdf: 'PBKDF2-SHA256', iterations: E2EE_ITERATIONS, salt, iv: toB64(iv), ct: toB64(ct), version: __APP_VERSION__, exportedAt: new Date().toISOString() };
+  return new Blob([JSON.stringify(env)], { type: 'application/json' });
+}
+
+/** 這個備份檔是不是加密的（不需要密碼就能判斷） */
+export async function isEncryptedBackup(file: File): Promise<boolean> {
+  try { return JSON.parse(await file.text()).format === ENC_FORMAT; } catch { return false; }
+}
+
+async function decryptBackup(env: Record<string, unknown>, passphrase: string | undefined): Promise<unknown> {
+  if (!passphrase) throw new BackupPassphraseError('這是加密的備份檔，請輸入備份密碼', true);
+  const iterations = Number(env.iterations);
+  // 迭代次數來自檔案：限制範圍，避免被惡意檔案拿來讓裝置算很久
+  if (!Number.isInteger(iterations) || iterations < 100_000 || iterations > 2_000_000) throw new Error('備份檔格式不正確');
+  try {
+    const key = await deriveKey(passphrase, String(env.salt), iterations);
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(String(env.iv)), additionalData: AAD }, key, fromB64(String(env.ct)));
+    return JSON.parse(new TextDecoder().decode(pt));
+  } catch {
+    throw new BackupPassphraseError('密碼不正確，或備份檔已損毀／被修改', true);
+  }
+}
+
 export interface RestoreSummary { tables: number; rows: number }
 
-export async function restoreBackup(file: File, mode: 'replace' | 'merge'): Promise<RestoreSummary> {
-  const json = JSON.parse(await file.text());
+export async function restoreBackup(file: File, mode: 'replace' | 'merge', passphrase?: string): Promise<RestoreSummary> {
+  let json = JSON.parse(await file.text());
+  if (json?.format === ENC_FORMAT) json = await decryptBackup(json, passphrase);
   // 'clure'：更名為 Aster 前的備份檔，格式相同
   if ((json.app !== 'aster' && json.app !== 'clure') || !json.data) throw new Error('不是 Aster 的備份檔');
   if (json.schema > db.verno) throw new Error('備份檔來自較新版本，請先更新 App');
@@ -116,9 +164,9 @@ export async function saveFile(blob: Blob, filename: string, mime: string): Prom
   return 'downloaded';
 }
 
-export async function exportBackup(includePhotos = true) {
-  const blob = await buildBackup(includePhotos);
-  const r = await saveFile(blob, `aster-backup-${new Date().toISOString().slice(0, 10)}.json`, 'application/json');
+export async function exportBackup(includePhotos = true, passphrase?: string) {
+  const blob = passphrase ? await buildEncryptedBackup(passphrase, includePhotos) : await buildBackup(includePhotos);
+  const r = await saveFile(blob, `aster-backup-${new Date().toISOString().slice(0, 10)}${passphrase ? '.encrypted' : ''}.json`, 'application/json');
   if (r !== 'cancelled') await db.meta.put({ key: 'lastBackupAt', value: Date.now() });
   return r;
 }

@@ -77,7 +77,7 @@ export function derToRaw(der: Uint8Array): Uint8Array {
   if (der[1] & 0x80) i += der[1] & 0x7f;
   const read = () => {
     if (der[i++] !== 0x02) throw new Error('bad DER');
-    let len = der[i++];
+    const len = der[i++];
     let v = der.slice(i, i + len);
     i += len;
     while (v.length > 32 && v[0] === 0) v = v.slice(1);

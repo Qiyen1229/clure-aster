@@ -92,6 +92,11 @@ class Settings(BaseSettings):
     reset_token_minutes: int = Field(30, ge=5, le=1440)
     email_check_dns: bool = True  # 註冊時檢查信箱網域真的有收信伺服器（MX）
 
+    # 資料庫自動備份（只支援 SQLite；PostgreSQL 請用 pg_dump，見 docs/OPERATIONS.md）
+    backup_daily: bool = True
+    backup_keep: int = Field(7, ge=1, le=90)  # 保留最近幾份
+    backup_hour: int = Field(3, ge=0, le=23)  # 每天幾點之後做（本機時區 CLURE_TIMEZONE）
+
     auto_migrate: bool = True  # 啟動（含熱重載）時自動套用資料庫遷移
 
     timezone: str = "Asia/Taipei"  # 「今日」統計使用的時區

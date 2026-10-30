@@ -66,6 +66,12 @@ export default function AiPage() {
         送出的內容會經過你的伺服器與管理員設定的第三方 AI 供應商，不在端對端加密的範圍內。免費方案的供應商可能把內容用於改進產品（例如 Google Gemini 免費層），請不要在輸入裡寫入敏感資料。
         相同內容的結果會暫存在這台裝置，重複查詢不會再扣額度。
       </p>
+      <div className="list">
+        <button className="row" onClick={() => navigate('/settings/ai/sent')}>
+          <span className="row-main"><span className="row-title">🔍 查看送出過什麼</span><span className="row-sub" style={{ display: 'block' }}>每一次送去 AI 的原文都記在這台裝置，隨時檢查</span></span>
+          <Icon name="chevronR" className="row-chev" />
+        </button>
+      </div>
       <div className="section-title">我的額度</div>
       {err ? <p className="muted" style={{ margin: '0 8px' }}>{err}</p> : !st ? null : (
         <>

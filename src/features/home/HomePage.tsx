@@ -22,6 +22,7 @@ import { Calendar } from './Calendar';
 import { Widgets } from './Widgets';
 import { AiChatBar, AiChatSheet } from './AiChat';
 import { AiAutoCard } from '../ai/AiAutoCard';
+import { InsightsBanner } from '../insights/InsightsBanner';
 import { RemindersSheet, useUnreadCount } from './RemindersSheet';
 import { LedgerRow } from '../ledger/LedgerRow';
 import { useInboxCount } from '@/services/inbox';
@@ -219,6 +220,7 @@ export default function HomePage() {
       )}
 
       {homeAiChat && <AiChatBar />}
+      <InsightsBanner />
       <AiAutoCard />
 
       <Widgets />

@@ -33,7 +33,7 @@ export const ACTION_LABEL: Record<string, string> = {
   'admin.user_list_view': '查看使用者列表', 'admin.audit_view': '查看審計日誌', 'admin.stats_view': '查看系統統計',
   'admin.cli_create_admin': '建立管理員（指令列）', 'admin.cli_delete_user': '刪除使用者（指令列）',
   'sync.e2ee_on': '啟用端對端加密', 'sync.e2ee_off': '停用端對端加密', 'push.subscribe': '啟用背景推播',
-  'admin.user_freeze': '凍結帳號', 'admin.user_unfreeze': '啟用帳號', 'admin.force_logout': '強制登出', 'admin.password_reset': '重設密碼', 'admin.settings': '修改系統設定', 'admin.ai_test': 'AI 連線測試', 'admin.user_create': '管理員建立帳號', 'admin.mail_test': '寄測試信', 'auth.reset_request': '申請重設密碼', 'auth.reset_password': '用信件連結重設密碼',
+  'admin.user_freeze': '凍結帳號', 'admin.user_unfreeze': '啟用帳號', 'admin.force_logout': '強制登出', 'admin.password_reset': '重設密碼', 'admin.settings': '修改系統設定', 'admin.ai_test': 'AI 連線測試', 'admin.user_create': '管理員建立帳號', 'admin.backup_run': '立即備份資料庫', 'admin.mail_test': '寄測試信', 'auth.reset_request': '申請重設密碼', 'auth.reset_password': '用信件連結重設密碼',
 };
 
 /** 伺服器回傳 UTC（無時區）→ 本地時間字串 */
@@ -159,6 +159,34 @@ function MailCard() {
   );
 }
 
+interface BackupStatus { supported: boolean; enabled: boolean; keep: number; count: number; last_at: string | null; last_size: number; directory: string }
+
+/** 資料庫自動備份狀態與「立即備份」（每天自動備份，保留最近幾份） */
+function BackupCard() {
+  const { data, reload } = useApi<BackupStatus>('/admin/backup');
+  const [busy, setBusy] = useState(false);
+  const snack = (text: string) => useUI.getState().showSnack({ text });
+  if (!data) return null;
+  const age = data.last_at ? Math.floor((Date.now() - new Date(data.last_at).getTime()) / 3600_000) : null;
+  const stale = data.enabled && (age === null || age > 72);
+  return (
+    <section className="card" style={{ marginBottom: 12 }}>
+      <div className="row-title">💾 資料庫備份：{!data.supported ? '請用 pg_dump' : data.enabled ? (stale ? '⚠️ 太久沒備份' : '自動備份中') : '已關閉'}</div>
+      <div className="row-sub" style={{ whiteSpace: 'normal' }}>
+        {!data.supported ? '目前使用 PostgreSQL，請依 docs/OPERATIONS.md 用 pg_dump 備份。'
+          : `共 ${data.count} 份（保留最近 ${data.keep} 份），最近一份：${data.last_at ? `${age === 0 ? '不到 1 小時' : age! < 48 ? `${age} 小時` : `${Math.floor(age! / 24)} 天`}前（${Math.max(1, Math.round(data.last_size / 1024))} KB）` : '還沒有'}。放在 NAS 的 data/api/backups，建議定期複製一份到別的地方。`}
+      </div>
+      {data.supported && (
+        <button className="btn small tinted" style={{ marginTop: 8 }} disabled={busy} onClick={async () => {
+          setBusy(true);
+          try { snack((await api<{ message: string }>('/admin/backup/run', { method: 'POST' })).message); reload(); }
+          catch (e) { snack(e instanceof ApiError ? e.message : '備份失敗'); } finally { setBusy(false); }
+        }}>{busy ? '備份中…' : '立即備份'}</button>
+      )}
+    </section>
+  );
+}
+
 function Overview() {
   const { data, error, reload } = useApi<Stats>('/admin/stats');
   const recent = useApi<Page<AuditLog>>('/admin/audit-logs', { success: false, size: 5 });
@@ -186,6 +214,7 @@ function Overview() {
       )}
       <RegistrationSwitch />
       <MailCard />
+      <BackupCard />
       <div className="admin-grid">
         {cards.map((c) => (
           <button key={c.k} className={`admin-stat${c.warn ? ' warn' : ''}`} onClick={() => c.to && navigate(c.to)} disabled={!c.to}>

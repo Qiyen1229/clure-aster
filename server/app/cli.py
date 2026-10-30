@@ -142,6 +142,66 @@ def ai_test(provider: str | None) -> int:
     return code
 
 
+def backup_cmd(out: str | None, keep: int | None) -> int:
+    from pathlib import Path
+
+    from app.service.backup_service import BackupError, backup_database
+
+    try:
+        info = backup_database(Path(out) if out else None, keep)
+    except BackupError as e:
+        log.error("%s", e)
+        return 1
+    log.info("✅ 備份完成：%s（%.1f KB）", info.path, info.size / 1024)
+    return 0
+
+
+def verify_backup_cmd(file: str) -> int:
+    import gzip
+    import shutil
+    import tempfile
+    from pathlib import Path
+
+    from app.service.backup_service import BackupError, verify_sqlite
+
+    p = Path(file)
+    if not p.exists():
+        log.error("找不到檔案：%s", p)
+        return 1
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            raw = Path(tmp) / "v.db"
+            with gzip.open(p, "rb") as fi, raw.open("wb") as fo:
+                shutil.copyfileobj(fi, fo)
+            verify_sqlite(raw)
+    except (BackupError, OSError) as e:
+        log.error("❌ 備份檔有問題：%s", e)
+        return 1
+    log.info("✅ 備份檔完整，可以還原")
+    return 0
+
+
+def restore_cmd(file: str, yes: bool) -> int:
+    from pathlib import Path
+
+    from app.service.backup_service import BackupError, restore_database, sqlite_path
+
+    target = sqlite_path()
+    if target is None:
+        log.error("目前使用 PostgreSQL，請用 pg_restore 還原（見 docs/OPERATIONS.md）")
+        return 1
+    if not yes:
+        log.error("還原會覆蓋目前的資料庫（原檔會另存為 %s.before-restore）。請先停止 API，確認後加上 --yes 再執行", target.name)
+        return 1
+    try:
+        restore_database(Path(file), target)
+    except BackupError as e:
+        log.error("%s", e)
+        return 1
+    log.info("✅ 已還原到 %s；請重新啟動 API", target)
+    return 0
+
+
 def main() -> int:
     setup_logging()
     p = argparse.ArgumentParser(prog="aster")
@@ -154,7 +214,21 @@ def main() -> int:
     sub.add_parser("list-users", help="列出使用者")
     a = sub.add_parser("ai-test", help="測試 AI 供應商連線與 Key")
     a.add_argument("--provider", help="只測這一家（openrouter／nvidia／custom）；不指定則全部")
+    b = sub.add_parser("backup", help="立即備份資料庫（SQLite）")
+    b.add_argument("--out", help="備份資料夾（預設 data/backups）")
+    b.add_argument("--keep", type=int, help="保留最近幾份")
+    vb = sub.add_parser("verify-backup", help="驗證備份檔是否完整")
+    vb.add_argument("file")
+    r = sub.add_parser("restore", help="從備份還原資料庫（請先停止 API）")
+    r.add_argument("file")
+    r.add_argument("--yes", action="store_true", help="確認覆蓋目前的資料庫")
     args = p.parse_args()
+    if args.cmd == "backup":
+        return backup_cmd(args.out, args.keep)
+    if args.cmd == "verify-backup":
+        return verify_backup_cmd(args.file)
+    if args.cmd == "restore":
+        return restore_cmd(args.file, args.yes)
     if args.cmd == "create-admin":
         return create_admin(args.username, args.email)
     if args.cmd == "delete-user":

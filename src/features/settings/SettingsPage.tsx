@@ -273,6 +273,14 @@ export default function SettingsPage() {
         </Group>
       )}
 
+      <Group title="智慧提醒" note="全部在這台裝置上用規則運算，不使用 AI、不計入 AI 額度；白話說明與重新偵測 5 分鐘內最多 10 次。">
+        <div className="field"><span className="label" style={{ flex: 1 }}>異常與訂閱偵測<span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>找出沒登記的訂閱、漲價、重複扣款、異常大額、分類暴增</span></span>
+          <Switch checked={s.insights.anomaly} label="異常與訂閱偵測" onChange={(v) => s.set('insights', { ...s.insights, anomaly: v })} /></div>
+        <div className="field"><span className="label" style={{ flex: 1 }}>預算預警<span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>照目前花法會超支時，提早提醒並告訴你每天最多能花多少</span></span>
+          <Switch checked={s.insights.budgetWarn} label="預算預警" onChange={(v) => s.set('insights', { ...s.insights, budgetWarn: v })} /></div>
+        {(s.insights.anomaly || s.insights.budgetWarn) && <Row icon="sparkle" tint="#FF9F0A" label="查看目前的偵測結果" onClick={() => navigate('/insights')} />}
+      </Group>
+
       <Group title="自動化與整合">
         {AUTH_ENABLED && <Row icon="download" tint="#30D158" label="自動記帳收件匣" sub="Apple Pay、銀行簡訊、Siri 經 iPhone 捷徑記帳" onClick={() => navigate('/inbox')} />}
         <Row icon="note" tint="#0A84FF" label="電子發票" sub="手機條碼載具、掃描 QR Code、匯入明細" onClick={() => navigate('/settings/invoice')} />

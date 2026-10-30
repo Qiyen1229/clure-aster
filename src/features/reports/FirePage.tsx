@@ -62,7 +62,7 @@ export default function FirePage() {
       annualExpense: expense, annualSaving: saving, expectedReturn: draft.returnPct / 100, volatility: draft.volPct / 100,
       inflation: draft.inflationPct / 100, withdrawalRate: draft.swrPct / 100, runs: 1000, seed: 2026,
     });
-  }, [data, expense, saving, age, start, draft]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [data, expense, saving, age, start, draft]);  
 
   const money = (v: number) => formatMoney(toMinor(Math.round(v), base), base, { decimals: 0 });
   const pAt = (a: number) => (result ? result.fiProbability[Math.max(0, Math.min(result.ages.length - 1, a - age))] : 0);

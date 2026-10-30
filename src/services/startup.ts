@@ -51,6 +51,9 @@ export async function loadTwHolidays(): Promise<void> {
   await db.meta.put({ key: 'twHolidays', value: { at: Date.now(), dates: [...new Set([...(cached?.dates ?? []), ...dates])] } });
 }
 
+/** 瀏覽器閒置時才執行（不支援就稍後執行） */
+const idle = (fn: () => void) => ('requestIdleCallback' in window ? (window as unknown as { requestIdleCallback: (f: () => void, o?: { timeout: number }) => void }).requestIdleCallback(fn, { timeout: 8000 }) : setTimeout(fn, 2500));
+
 let started = false;
 export async function runStartupTasks() {
   if (started) return;
@@ -70,6 +73,8 @@ export async function runStartupTasks() {
   await step('quotes', () => updateAllQuotes({ silent: true }));
   await step('snapshot', () => takeSnapshot());
   await step('reminders', () => runReminderChecks());
+  // 異常／訂閱偵測與預算預警：排在閒置時間，不拖慢首屏；結果有快取，10 分鐘內不重算
+  idle(() => void step('insights', () => import('./insights').then((m) => m.runInsights({ notifyNew: true }))));
   if (useSettings.getState().notify.push) await step('push', () => import('./push').then((m) => m.schedulePush()));
   // 手機條碼載具自動記帳（伺服器有財政部 AppID、使用者設定了載具時）
   await step('carrier', async () => {
@@ -108,6 +113,7 @@ export function startAutoRefresh(): () => void {
     await processInstallments().catch(() => undefined);
     await takeSnapshot().catch(() => undefined);
     await runReminderChecks().catch(() => undefined);
+    await import('./insights').then((m) => m.runInsights({ notifyNew: true })).catch(() => undefined);
   };
   const id = setInterval(() => void tick(), 5000);
   document.addEventListener('visibilitychange', onVis);

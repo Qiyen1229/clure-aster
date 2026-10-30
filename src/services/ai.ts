@@ -16,6 +16,7 @@ import { AUTH_ENABLED } from '@/stores/auth';
 import { useSettings } from '@/stores/settings';
 import { db } from '@/db/schema';
 import { api } from './api';
+import { recordAiSend } from './aiLog';
 import { parseContext } from './quickentry';
 
 export interface AiQuotaWindow { limit: number; used: number; remaining: number | null; resets_at: string }
@@ -25,6 +26,12 @@ export interface AiStatus { role: 'user' | 'admin'; enabled: boolean; configured
 export const aiEnabledLocally = () => AUTH_ENABLED && !!useSettings.getState().ai?.enabled && navigator.onLine;
 
 export const getAiStatus = () => api<AiStatus>('/ai/status');
+
+/** 所有「把內容送去 AI」的呼叫都走這裡：送出前先在本機記下送了什麼（設定 → AI 設定 → 送出紀錄），再呼叫伺服器 */
+async function aiPost<T>(path: string, body: unknown): Promise<T> {
+  await recordAiSend(path, body);
+  return api<T>(path, { method: 'POST', body });
+}
 
 /**
  * 呼叫伺服器解析一句話；失敗（額度用完、供應商掛了、看不懂）會丟出帶中文訊息的錯誤。
@@ -45,7 +52,7 @@ export function aiParse(text: string) {
 async function aiParseOnce(text: string): Promise<{ drafts: DraftEntry[]; quota: AiQuota }> {
   const ctx = await parseContext();
   const names = namesForAi({ today: ctx.today, accounts: ctx.accounts, categories: ctx.categories });
-  const res = await api<{ entries: AiEntry[]; quota: AiQuota }>('/ai/parse-entry', { method: 'POST', body: { text, ...names, today: ctx.today } });
+  const res = await aiPost<{ entries: AiEntry[]; quota: AiQuota }>('/ai/parse-entry', { text, ...names, today: ctx.today });
   return { drafts: aiEntriesToDrafts(res.entries, ctx, text), quota: res.quota };
 }
 
@@ -107,7 +114,7 @@ export async function aiAsk(question: string): Promise<Cached<AskValue>> {
   const { loadFinanceSummary } = await import('./aisummary');
   const { summary } = await loadFinanceSummary();
   const q = question.trim();
-  return cached('ask', { q, summary }, 6 * HOUR, () => api<AskValue & { quota: AiQuota }>('/ai/ask', { method: 'POST', body: { question: q, summary } }));
+  return cached('ask', { q, summary }, 6 * HOUR, () => aiPost<AskValue & { quota: AiQuota }>('/ai/ask', { question: q, summary }));
 }
 
 export interface PlanValue { total: number; categories: { name: string; amount: number; reason: string }[]; tips: string[]; assumption: string }
@@ -117,7 +124,7 @@ export async function aiBudgetPlan(force = false): Promise<Cached<PlanResult>> {
   const { loadFinanceSummary } = await import('./aisummary');
   const { dailyAllowance } = await import('@/domain/aisummary');
   const { summary, decimals, categories } = await loadFinanceSummary();
-  const r = await cached('budget', { summary, categories }, 12 * HOUR, () => api<PlanValue & { quota: AiQuota }>('/ai/budget-plan', { method: 'POST', body: { summary, categories } }), force);
+  const r = await cached('budget', { summary, categories }, 12 * HOUR, () => aiPost<PlanValue & { quota: AiQuota }>('/ai/budget-plan', { summary, categories }), force);
   const fixedTotal = summary.fixedMonthly.total;
   const value: PlanResult = { ...r.value, fixedTotal, days: summary.nextMonth.days, label: summary.nextMonth.label, currency: summary.currency, decimals,
     daily: dailyAllowance(r.value.total, fixedTotal, summary.nextMonth.days) };
@@ -128,12 +135,12 @@ export interface InsightsValue { headline: string; points: string[]; suggestion:
 
 /** 週報／月報的白話洞察：data 是 domain/aisummary.periodToAi 的輸出 */
 export async function aiInsights(label: string, data: ReturnType<typeof periodToAi>, force = false): Promise<Cached<InsightsValue>> {
-  return cached('insights', { label, data }, 24 * HOUR, () => api<InsightsValue & { quota: AiQuota }>('/ai/insights', { method: 'POST', body: { summary: data, label } }), force);
+  return cached('insights', { label, data }, 24 * HOUR, () => aiPost<InsightsValue & { quota: AiQuota }>('/ai/insights', { summary: data, label }), force);
 }
 
 /** 替一批備註建議分類（備註文字會送出，所以這個功能算在「AI 輔助」開關下，不需要收支統計） */
 export async function aiCategorize(notes: string[], categories: string[], kind: 'expense' | 'income' = 'expense'): Promise<{ items: { index: number; category: string }[]; quota: AiQuota }> {
-  return api('/ai/categorize', { method: 'POST', body: { notes, categories, kind } });
+  return aiPost('/ai/categorize', { notes, categories, kind });
 }
 
 /** 拍照記帳：照片縮小後送出，回傳草稿（和一句話記帳同樣的 DraftEntry，之後可補分類、帳戶） */
@@ -142,7 +149,7 @@ export async function aiReceipt(file: File): Promise<{ drafts: DraftEntry[]; quo
   const image = await compressForAi(file);
   const ctx = await parseContext();
   const names = namesForAi({ today: ctx.today, accounts: ctx.accounts, categories: ctx.categories });
-  const res = await api<{ entries: AiEntry[]; quota: AiQuota }>('/ai/receipt', { method: 'POST', body: { image, ...names, today: ctx.today } });
+  const res = await aiPost<{ entries: AiEntry[]; quota: AiQuota }>('/ai/receipt', { image, ...names, today: ctx.today });
   return { drafts: aiEntriesToDrafts(res.entries, ctx, '拍照記帳'), quota: res.quota };
 }
 
@@ -160,7 +167,7 @@ export async function aiSearchPlan(text: string): Promise<Cached<{ plan: AiSearc
     tags: uniq(tags.map((t) => t.name)).slice(0, 60),
   };
   const r = await cached('search', body, 6 * HOUR, async () => {
-    const { quota, ...plan } = await api<AiSearchPlan & { quota: AiQuota }>('/ai/search-plan', { method: 'POST', body });
+    const { quota, ...plan } = await aiPost<AiSearchPlan & { quota: AiQuota }>('/ai/search-plan', body);
     return { plan, quota };
   });
   return r as Cached<{ plan: AiSearchPlan }>;
@@ -168,7 +175,7 @@ export async function aiSearchPlan(text: string): Promise<Cached<{ plan: AiSearc
 
 /** 專案、帳戶…的白話解說：data 是 domain/aisummary 整理的去識別化統計 */
 export async function aiExplain(subject: string, data: object, force = false): Promise<Cached<InsightsValue>> {
-  return cached('explain', { subject, data }, 12 * HOUR, () => api<InsightsValue & { quota: AiQuota }>('/ai/explain', { method: 'POST', body: { subject, summary: data } }), force);
+  return cached('explain', { subject, data }, 12 * HOUR, () => aiPost<InsightsValue & { quota: AiQuota }>('/ai/explain', { subject, summary: data }), force);
 }
 
 /** 收件匣：規則看不懂的簡訊／通知，請 AI 解析（和一句話記帳同一個後端任務，扣 1 點） */
@@ -202,7 +209,7 @@ export async function autoWeeklyInsight(): Promise<{ label: string; value: Insig
   if (tried && Date.now() - tried < TRY_MS) return null;
   await db.meta.put({ key: triedId, value: Date.now() }).catch(() => undefined);
   try {
-    const r = await cached('autoweek', key, 7 * 24 * HOUR, () => api<InsightsValue & { quota: AiQuota }>('/ai/insights', { method: 'POST', body: { summary: data, label } }));
+    const r = await cached('autoweek', key, 7 * 24 * HOUR, () => aiPost<InsightsValue & { quota: AiQuota }>('/ai/insights', { summary: data, label }));
     return { label, value: r.value };
   } catch { return null; }
 }

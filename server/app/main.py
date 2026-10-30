@@ -114,20 +114,21 @@ async def lifespan(_: FastAPI):
         warn_insecure_defaults()
     except Exception:  # noqa: BLE001 — 只是提醒，不影響啟動
         log.debug("略過安全檢查", exc_info=True)
-    task = None
+    tasks: list[asyncio.Task] = []
     if get_settings().env != "test":
+        from app.service.backup_service import backup_loop
         from app.service.push_service import push_loop
 
-        task = asyncio.create_task(push_loop())
+        tasks = [asyncio.create_task(push_loop()), asyncio.create_task(backup_loop())]
     yield
-    if task:
-        task.cancel()
+    for t in tasks:
+        t.cancel()
 
 
 def create_app() -> FastAPI:
     s = get_settings()
     app = FastAPI(
-        title="Aster API", version="3.4.0", lifespan=lifespan,
+        title="Aster API", version="3.5.0", lifespan=lifespan,
         docs_url="/api/docs" if s.env != "production" else None, redoc_url=None, openapi_url="/api/openapi.json" if s.env != "production" else None,
     )
 

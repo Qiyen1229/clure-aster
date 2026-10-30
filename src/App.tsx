@@ -37,6 +37,7 @@ function VoiceHost() {
   return used.current ? <Suspense fallback={null}><VoiceSheet /></Suspense> : null;
 }
 
+const InsightsPage = lazy(() => import('./features/insights/InsightsPage'));
 const LedgerPage = lazy(() => import('./features/ledger/LedgerPage'));
 const AccountsPage = lazy(() => import('./features/accounts/AccountsPage'));
 const AccountDetailPage = lazy(() => import('./features/accounts/AccountsPage').then((m) => ({ default: m.AccountDetailPage })));
@@ -63,6 +64,7 @@ const HealthPage = lazy(() => import('./features/settings/HealthPage'));
 const WidgetsPage = lazy(() => import('./features/settings/WidgetsPage'));
 const RulesPage = lazy(() => import('./features/settings/RulesPage'));
 const InvoicePage = lazy(() => import('./features/settings/InvoicePage'));
+const AiSentPage = lazy(() => import('./features/settings/AiSentPage'));
 const AiPage = lazy(() => import('./features/settings/AiPage'));
 const AiAssistant = lazy(() => import('./features/ai/AiAssistant'));
 const FirePage = lazy(() => import('./features/reports/FirePage'));
@@ -282,8 +284,10 @@ export default function App() {
             <Route path="/settings/rules" element={<RulesPage />} />
             <Route path="/settings/invoice" element={<InvoicePage />} />
             <Route path="/settings/ai" element={<AiPage />} />
+            <Route path="/settings/ai/sent" element={<AiSentPage />} />
             <Route path="/ai" element={<AiAssistant />} />
             <Route path="/inbox" element={<InboxPage />} />
+            <Route path="/insights" element={<InsightsPage />} />
             <Route path="/admin/*" element={<AdminPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
