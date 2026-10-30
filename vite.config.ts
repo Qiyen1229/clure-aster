@@ -31,6 +31,11 @@ function asterProxy(): Plugin {
   };
 }
 
+/** index.html 裡的 %APP_VERSION% 換成目前版本：圖標網址帶版本號，改版後瀏覽器與 iOS 一定重新下載，不會看到舊圖標 */
+function htmlVersion(): Plugin {
+  return { name: 'aster-html-version', transformIndexHtml: (html) => html.replaceAll('%APP_VERSION%', pkg.version) };
+}
+
 // 預覽與開發固定使用 9122 埠（見 docs/DESIGN.md A10）
 export default defineConfig({
   define: {
@@ -58,6 +63,7 @@ export default defineConfig({
   },
   plugins: [
     asterProxy(),
+    htmlVersion(),
     react(),
     VitePWA({
       strategies: 'injectManifest',
@@ -82,9 +88,9 @@ export default defineConfig({
         background_color: '#000000',
         categories: ['finance', 'productivity'],
         icons: [
-          { src: '/icons/icon-192.png?v=3.2.0', sizes: '192x192', type: 'image/png', purpose: 'any' },
-          { src: '/icons/icon-512.png?v=3.2.0', sizes: '512x512', type: 'image/png', purpose: 'any' },
-          { src: '/icons/maskable-512.png?v=3.2.0', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: `/icons/icon-192.png?v=${pkg.version}`, sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: `/icons/icon-512.png?v=${pkg.version}`, sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: `/icons/maskable-512.png?v=${pkg.version}`, sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
         shortcuts: [
           { name: '快速記帳', short_name: '記帳', url: '/add?source=shortcut', icons: [{ src: '/icons/shortcut-add.png', sizes: '96x96' }] },

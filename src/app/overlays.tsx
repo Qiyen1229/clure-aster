@@ -1,6 +1,7 @@
 /**
  * 全域浮層：Snackbar（復原）、長按動作選單、新版本提示、背景隱私遮罩。
  */
+import { ICON_192 } from '@/ui/assets';
 import { useEffect, useState } from 'react';
 import { useUI } from '@/stores/ui';
 import { useSettings } from '@/stores/settings';
@@ -107,7 +108,7 @@ export function PrivacyShield() {
   if (!enabled || !hidden) return null;
   return (
     <div className="privacy-shield" aria-hidden="true">
-      <img src="/icons/icon-192.png" alt="" />
+      <img src={ICON_192} alt="" />
     </div>
   );
 }

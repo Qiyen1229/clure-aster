@@ -2,6 +2,7 @@
  * 鎖定畫面：6 位數 PIN（連錯 5 次需等待 30 秒，之後倍增）＋ Face ID／Touch ID。
  * 錯誤次數與等待時間存在 localStorage：重新整理或重開 App 不會歸零。
  */
+import { ICON_192 } from '@/ui/assets';
 import { useEffect, useState } from 'react';
 import { useLock, verifyBiometric, verifyPin } from '@/services/lock';
 import { useSettings } from '@/stores/settings';
@@ -81,7 +82,7 @@ export function LockScreen() {
   const waiting = waitUntil > now;
   return (
     <div className="lockscreen" role="dialog" aria-modal="true" aria-label="App 已鎖定">
-      <img src="/icons/icon-192.png" alt="" width={64} height={64} style={{ borderRadius: 14 }} />
+      <img src={ICON_192} alt="" width={64} height={64} style={{ borderRadius: 14 }} />
       <h2 style={{ margin: '12px 0 4px' }}>輸入 PIN 碼</h2>
       <p className="muted" style={{ margin: 0, minHeight: 20 }}>{waiting ? `請稍候 ${Math.ceil((waitUntil - now) / 1000)} 秒` : error ? 'PIN 碼錯誤' : ''}</p>
       <PinPad error={error} disabled={waiting} onComplete={async (pin) => {

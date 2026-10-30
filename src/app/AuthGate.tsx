@@ -7,6 +7,7 @@
  *  - 進入 App 前先與伺服器同步一次（新裝置登入即取得其他裝置的帳目與設定），之後背景持續同步
  *  - 帳號已啟用端對端加密、這台裝置還沒有金鑰 → 先輸入加密密碼（否則拿不到資料，會誤進首次設定）
  */
+import { ICON_192 } from '@/ui/assets';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import App from '../App';
@@ -26,7 +27,7 @@ const ForceChangePasswordPage = lazy(() => import('../features/auth/AuthPages').
 function Splash({ text }: { text?: string }) {
   return (
     <div id="boot" aria-busy="true" aria-label={text ?? '載入中'}>
-      <img src="/icons/icon-192.png" alt="" />
+      <img src={ICON_192} alt="" />
       {text && <p className="boot-text">{text}</p>}
     </div>
   );

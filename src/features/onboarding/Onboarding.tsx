@@ -1,6 +1,7 @@
 /**
  * 首次使用引導：歡迎（本機資料聲明）→ 主幣別 → 外觀 → 第一個帳戶 → 特色功能 → 試試一句話記帳 → 範例資料。
  */
+import { ICON_192 } from '@/ui/assets';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { addAccount, ACCOUNT_TYPES } from '@/db/repo/accounts';
@@ -54,7 +55,7 @@ export default function Onboarding() {
 
       {step === 0 && (
         <>
-          <img src="/icons/icon-192.png" alt="" width={88} height={88} style={{ borderRadius: 20, marginTop: 24 }} />
+          <img src={ICON_192} alt="" width={88} height={88} style={{ borderRadius: 20, marginTop: 24 }} />
           <h1>歡迎使用 Aster 記帳</h1>
           <p>記帳、預算、多帳戶、多幣別、股票投資組合，一個 App 搞定。</p>
           <div className="card">

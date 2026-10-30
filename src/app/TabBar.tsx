@@ -29,6 +29,7 @@ export function isLedgerPath(pathname: string) {
 }
 
 const HOLD_MS = 350;
+const HOME = '/'; // 滑動選取時，中間首頁按鈕的代號
 
 export function TabBar() {
   const { pathname } = useLocation();
@@ -47,7 +48,7 @@ export function TabBar() {
   const [lifted, setLifted] = useState(false);
   const [lens, setLens] = useState<{ x: number; w: number } | null>(null);
   const [ready, setReady] = useState(false);
-  const shownTo = scrubTo ?? activeTo;
+  const shownTo = scrubTo === HOME ? null : (scrubTo ?? activeTo); // 滑到中間首頁時透鏡淡出，由圓珠自己發光
 
   const measure = useCallback(() => {
     const cap = capRef.current;
@@ -108,7 +109,8 @@ export function TabBar() {
       window.setTimeout(() => { swallowClick.current = false; }, 60);
       const to = scrubTo ?? nearestTab(e.clientX);
       setScrubTo(null);
-      if (to && to !== activeTo) navigate(to);
+      if (to === HOME) { if (pathname !== HOME) navigate(HOME); }
+      else if (to && to !== activeTo) navigate(to);
     }
   };
   const onCapCancel = () => { scrub.current = null; setLifted(false); setScrubTo(null); };
@@ -166,9 +168,9 @@ export function TabBar() {
         <div className="tab-group left">{LEFT.map(tab)}</div>
 
         {/* 中央靈動圓球樞紐 */}
-        <div className="tab-center">
+        <div className="tab-center" ref={(el) => { if (el) tabEls.current.set(HOME, el as unknown as HTMLAnchorElement); else tabEls.current.delete(HOME); }}>
           <button
-            className={`dynamic-fab${plusMode ? ' mode-plus' : ' mode-logo'}${pressing ? ' pressing' : ''}${hasAlert ? ' has-alert' : ''}`}
+            className={`dynamic-fab${plusMode ? ' mode-plus' : ' mode-logo'}${pressing ? ' pressing' : ''}${scrubTo === HOME ? ' scrub-target' : ''}${hasAlert ? ' has-alert' : ''}`}
             aria-label={plusMode ? '新增記帳（長按語音記帳）' : '回到記帳主頁'}
             onPointerDown={onDown}
             onPointerUp={onUp}

@@ -2,6 +2,7 @@
  * 登入／註冊／變更密碼頁面。
  * 密碼只在送出時傳給伺服器，前端不保存；權杖由伺服器設定為 HttpOnly Cookie。
  */
+import { ICON_192 } from '@/ui/assets';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '@/services/api';
@@ -12,7 +13,7 @@ function AuthShell({ title, subtitle, children, footer }: { title: string; subti
   return (
     <main className="auth-page">
       <div className="auth-card">
-        <img src="/icons/icon-192.png" alt="" width={64} height={64} className="auth-logo" />
+        <img src={ICON_192} alt="" width={64} height={64} className="auth-logo" />
         <h1>{title}</h1>
         {subtitle && <p className="muted" style={{ margin: '0 0 20px' }}>{subtitle}</p>}
         {children}
