@@ -53,6 +53,9 @@
     <line x1="90" y1="512" x2="934" y2="512" stroke-width="1" stroke-opacity="0.2" stroke-dasharray="6 10"/>
   </g>
 
+  <!-- ★ 圖案位置：改這裡的 translate(X Y) 就能整體移動（單位是 1024 畫布上的像素；X 正數往右、Y 正數往下）。
+       改完執行 npm run icons 重新產生所有圖標。目前是靠右下一點。 -->
+  <g id="art" transform="translate(30 30)">
   <!-- ==================== 3D 包圍層 1：星軌身後部分（Back Ring） ==================== -->
   <g transform="rotate(-26 512 512)">
     <!-- 星軌後半段（在字母 A 身後） -->
@@ -118,4 +121,5 @@
   <!-- 頂部筆尖純粹能量微光（無任何外掛星星，保持尖銳花體筆鋒） -->
   <circle cx="680" cy="110" r="10" fill="#FFFFFF" filter="drop-shadow(0 0 14px #60A5FA)"/>
   <circle cx="680" cy="110" r="4" fill="#E0F2FE"/>
+  </g>
 </svg>

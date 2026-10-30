@@ -60,6 +60,9 @@ export function Icon({ name, size = 22, stroke = 1.8, className }: { name: IconN
 }
 
 /** App 3D 星軌草寫 A 品牌 Logo（與 App 圖標同源） */
+/** ★ 應用程式內 Logo（底部中央按鈕、載入畫面等）的位置微調：x 正數往右、y 正數往下（1024 畫布上的像素） */
+const LOGO_OFFSET = { x: 0, y: 0 };
+
 export function Logo({ className = 'logo' }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 1024 1024" fill="none" aria-hidden="true">
@@ -80,6 +83,7 @@ export function Logo({ className = 'logo' }: { className?: string }) {
         </linearGradient>
       </defs>
 
+      <g transform={`translate(${LOGO_OFFSET.x} ${LOGO_OFFSET.y})`}>
       {/* 身後星軌 */}
       <g transform="rotate(-26 512 512)">
         <path d="M 96,512 A 420 140 0 0 1 928,512" stroke="url(#lg-ring-back)" strokeWidth="28" strokeLinecap="round" />
@@ -133,6 +137,7 @@ export function Logo({ className = 'logo' }: { className?: string }) {
       </g>
 
       <circle cx="680" cy="110" r="12" fill="#FFFFFF" />
+      </g>
     </svg>
   );
 }
