@@ -97,21 +97,16 @@ class AuthService:
     def login(self, req: LoginRequest, client: ClientInfo) -> tuple[User, IssuedTokens]:
         now = utcnow()
         user = self.users.get_by_identifier(req.identifier)
+        if user and user.locked_until and user.locked_until > now:
+            minutes = max(1, int((user.locked_until - now).total_seconds() // 60) + 1)
+            self.audit.record("auth.login_locked", client, success=False, user_id=user.id)
+            self.db.commit()
+            raise ServiceError(423, f"登入失敗次數過多，帳號已暫時鎖定，請於 {minutes} 分鐘後再試")
 
-        # 恆定時間密碼驗證（即使帳號不存在也執行假雜湊，防範計時攻擊）
         ok = verify_password(req.password, user.password_hash if user else None)
-
-        # 情況 1：密碼錯誤 或 帳號不存在
         if not user or not ok:
             detail: dict[str, object] = {"reason": "bad_credentials"}
             if user:
-                # 若帳號正處於被鎖定/攻擊期間，記錄登入失敗審計日誌
-                if user.locked_until and user.locked_until > now:
-                    self.audit.record("auth.login_locked", client, success=False, user_id=user.id)
-                    self.db.commit()
-                    # 統一回傳 401 錯誤，絕不洩漏 423 狀態碼或「已鎖定」字樣，徹底防範帳號枚舉
-                    raise ServiceError(401, "帳號或密碼錯誤")
-
                 user.failed_login_count += 1
                 if user.failed_login_count >= self.settings.lockout_threshold:
                     user.locked_until = now + timedelta(minutes=self.settings.lockout_minutes)
@@ -122,17 +117,10 @@ class AuthService:
             self.db.commit()
             raise ServiceError(401, "帳號或密碼錯誤")
 
-        # 情況 2：密碼正確，但帳號已被管理員停用
         if not user.is_active:
             self.audit.record("auth.login", client, success=False, user_id=user.id, detail={"reason": "frozen"})
             self.db.commit()
             raise ServiceError(403, "此帳號已被停用，請聯絡管理員")
-
-        # 情況 3：密碼正確！防範 Lockout DoS：
-        # 若攻擊者曾用受害者帳號發動連續錯誤登入造成 locked_until，合法使用者輸入正確密碼時自動解除鎖定並登入
-        if user.locked_until and user.locked_until > now:
-            log.info("合法密碼驗證通過，自動清除鎖定狀態 user_id=%s ip=%s", user.id, client.ip)
-            self.audit.record("auth.login_lockout_cleared", client, user_id=user.id)
 
         user.failed_login_count = 0
         user.locked_until = None
