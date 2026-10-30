@@ -2,7 +2,7 @@
  * App 路由與全域外框。首頁（記帳月曆）直接打包進主程式；其他頁面路由懶載入，縮短首屏時間。
  * 深層連結：/add?type=expense&amount=120&category=food&account=<id>&note=午餐&date=2026-10-10&tags=固定支出&project=日本旅行
  */
-import { lazy, Suspense, useEffect, useMemo, useRef } from 'react';
+import { Component, lazy, Suspense, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { TabBar } from './app/TabBar';
 import { ActionSheetHost, PrivacyShield, SnackbarHost, UpdatePrompt } from './app/overlays';
@@ -183,6 +183,26 @@ function useNavDirection(pathname: string): 'right' | 'left' | 'up' {
   }, [pathname]);
 }
 
+class RouteErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(err: Error) { console.error('Route error:', err); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <main className="page" style={{ padding: 24, textAlign: 'center' }}>
+          <div className="card warn">
+            <h3 style={{ margin: '0 0 8px' }}>頁面載入異常</h3>
+            <p className="muted" style={{ fontSize: '0.9rem', marginBottom: 16 }}>可能剛套用新版更新，請重新整理頁面以取得最新元件。</p>
+            <button className="btn" onClick={() => window.location.reload()}>重新整理</button>
+          </div>
+        </main>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   const onboarded = useSettings((s) => s.onboarded);
   const location = useLocation();
@@ -206,48 +226,50 @@ export default function App() {
 
   return (
     <div className="app" data-nav={navDir}>
-      <Suspense fallback={<main className="page"><SkeletonRows n={5} /></main>}>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/add" element={<AddDeepLink />} />
-          <Route path="/ledger" element={<LedgerPage />} />
-          <Route path="/accounts" element={<AccountsPage />} />
-          <Route path="/accounts/:id" element={<AccountDetailPage />} />
-          <Route path="/plan" element={<PlanPage />} />
-          <Route path="/reports" element={<ReportsPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/settings/categories" element={<CategoriesPage />} />
-          <Route path="/settings/tags" element={<TagsPage />} />
-          <Route path="/search" element={<SearchPage />} />
-          <Route path="/onboarding" element={<Onboarding />} />
-          <Route path="/plan/projects/:id" element={<ProjectDetailPage />} />
-          <Route path="/reports/review/:year" element={<YearReview />} />
-          <Route path="/reports/print" element={<PrintReport />} />
-          <Route path="/reports/fire" element={<FirePage />} />
-          <Route path="/reports/tax" element={<TaxPage />} />
-          <Route path="/reports/cashflow" element={<CashflowPage />} />
-          <Route path="/reports/summary" element={<SummaryPage />} />
-          <Route path="/invest/stock/:id" element={<StockDetailPage />} />
-          <Route path="/invest/watchlist" element={<WatchlistPage />} />
-          <Route path="/invest/dividends" element={<DividendsPage />} />
-          <Route path="/invest" element={<Navigate to="/accounts?tab=invest" replace />} />
-          <Route path="/settings/fx" element={<FxPage />} />
-          <Route path="/settings/invest" element={<InvestSettingsPage />} />
-          <Route path="/settings/security" element={<SecurityPage />} />
-          <Route path="/settings/notifications" element={<NotificationsPage />} />
-          <Route path="/settings/backup" element={<BackupPage />} />
-          <Route path="/settings/import" element={<ImportPage />} />
-          <Route path="/settings/health" element={<HealthPage />} />
-          <Route path="/settings/widgets" element={<WidgetsPage />} />
-          <Route path="/settings/rules" element={<RulesPage />} />
-          <Route path="/settings/invoice" element={<InvoicePage />} />
-          <Route path="/settings/ai" element={<AiPage />} />
-          <Route path="/ai" element={<AiAssistant />} />
-          <Route path="/inbox" element={<InboxPage />} />
-          <Route path="/admin/*" element={<AdminPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Suspense>
+      <RouteErrorBoundary>
+        <Suspense fallback={<main className="page"><SkeletonRows n={5} /></main>}>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/add" element={<AddDeepLink />} />
+            <Route path="/ledger" element={<LedgerPage />} />
+            <Route path="/accounts" element={<AccountsPage />} />
+            <Route path="/accounts/:id" element={<AccountDetailPage />} />
+            <Route path="/plan" element={<PlanPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/settings/categories" element={<CategoriesPage />} />
+            <Route path="/settings/tags" element={<TagsPage />} />
+            <Route path="/search" element={<SearchPage />} />
+            <Route path="/onboarding" element={<Onboarding />} />
+            <Route path="/plan/projects/:id" element={<ProjectDetailPage />} />
+            <Route path="/reports/review/:year" element={<YearReview />} />
+            <Route path="/reports/print" element={<PrintReport />} />
+            <Route path="/reports/fire" element={<FirePage />} />
+            <Route path="/reports/tax" element={<TaxPage />} />
+            <Route path="/reports/cashflow" element={<CashflowPage />} />
+            <Route path="/reports/summary" element={<SummaryPage />} />
+            <Route path="/invest/stock/:id" element={<StockDetailPage />} />
+            <Route path="/invest/watchlist" element={<WatchlistPage />} />
+            <Route path="/invest/dividends" element={<DividendsPage />} />
+            <Route path="/invest" element={<Navigate to="/accounts?tab=invest" replace />} />
+            <Route path="/settings/fx" element={<FxPage />} />
+            <Route path="/settings/invest" element={<InvestSettingsPage />} />
+            <Route path="/settings/security" element={<SecurityPage />} />
+            <Route path="/settings/notifications" element={<NotificationsPage />} />
+            <Route path="/settings/backup" element={<BackupPage />} />
+            <Route path="/settings/import" element={<ImportPage />} />
+            <Route path="/settings/health" element={<HealthPage />} />
+            <Route path="/settings/widgets" element={<WidgetsPage />} />
+            <Route path="/settings/rules" element={<RulesPage />} />
+            <Route path="/settings/invoice" element={<InvoicePage />} />
+            <Route path="/settings/ai" element={<AiPage />} />
+            <Route path="/ai" element={<AiAssistant />} />
+            <Route path="/inbox" element={<InboxPage />} />
+            <Route path="/admin/*" element={<AdminPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
+      </RouteErrorBoundary>
       {!fullscreen && <TabBar />}
       <AddSheetHost />
       <VoiceHost />

@@ -17,10 +17,14 @@ class ClientInfo:
 def client_info(request: Request) -> ClientInfo:
     ip = request.client.host if request.client else "unknown"
     if get_settings().trust_proxy_headers:
+        # 優先讀取受信任反向代理（nginx）驗證後注入的 X-Real-IP，若無再檢查 CF-Connecting-IP 與 X-Forwarded-For
         real = request.headers.get("x-real-ip")
+        cf_ip = request.headers.get("cf-connecting-ip")
         fwd = request.headers.get("x-forwarded-for")
         if real:
             ip = real.strip()
+        elif cf_ip:
+            ip = cf_ip.strip()
         elif fwd:
             ip = fwd.split(",")[0].strip()
     ua = (request.headers.get("user-agent") or "")[:512]

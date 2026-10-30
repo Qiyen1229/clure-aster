@@ -17,7 +17,7 @@ import type { Transaction } from '@/db/types';
 import { analyze, pctChange } from '@/domain/reports';
 import { accountingMonth, addMonths, todayKey, yearRange, type Range } from '@/domain/period';
 import { formatMoney } from '@/domain/money';
-import { statAmount } from '@/domain/ledger';
+import { countsInStats, statAmount } from '@/domain/ledger';
 import { netWorthSeries } from '@/services/networth';
 import { useAccounts, useCategories, useProjects, useTags } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
@@ -108,6 +108,13 @@ export default function ReportsPage() {
     if (!data) return;
     const ids = isMain ? new Set([catId, ...cats.all.filter((c) => c.parentId === catId).map((c) => c.id)]) : new Set([catId]);
     setDetail({ title: cats.map.get(catId)?.name ?? '明細', txs: data.cur.filter((x) => ids.has(x.categoryId) && x.type !== 'adjust' && !x.excludeFromStats) });
+  };
+
+  const openKindDetail = (k: 'expense' | 'income' | 'all') => {
+    if (!data) return;
+    const txs = data.cur.filter((x) => countsInStats(x) && (k === 'all' || x.type === k));
+    const title = k === 'expense' ? `支出明細（${txs.length} 筆）` : k === 'income' ? `收入明細（${txs.length} 筆）` : `收支總明細（${txs.length} 筆）`;
+    setDetail({ title, txs });
   };
 
   // ── 趨勢（月：每日；年／自訂：每月） ──
@@ -219,9 +226,27 @@ export default function ReportsPage() {
         <>
           <section className="card glass" aria-label="摘要">
             <div className="stat-grid">
-              <div className="stat"><div className="k">支出</div><div className="v num"><Amount minor={a.expense} currency={base} tone="neg" animate /></div></div>
-              <div className="stat"><div className="k">收入</div><div className="v num"><Amount minor={a.income} currency={base} tone="pos" animate /></div></div>
-              <div className="stat"><div className="k">結餘</div><div className="v num"><Amount minor={a.net} currency={base} tone="auto" animate /></div></div>
+              <button type="button" className="stat clickable" onClick={() => openKindDetail('expense')} aria-label="查看支出明細">
+                <div className="k" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>支出</span>
+                  <Icon name="chevronR" size={12} className="muted" />
+                </div>
+                <div className="v num"><Amount minor={a.expense} currency={base} tone="neg" animate /></div>
+              </button>
+              <button type="button" className="stat clickable" onClick={() => openKindDetail('income')} aria-label="查看收入明細">
+                <div className="k" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>收入</span>
+                  <Icon name="chevronR" size={12} className="muted" />
+                </div>
+                <div className="v num"><Amount minor={a.income} currency={base} tone="pos" animate /></div>
+              </button>
+              <button type="button" className="stat clickable" onClick={() => openKindDetail('all')} aria-label="查看結餘總明細">
+                <div className="k" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>結餘</span>
+                  <Icon name="chevronR" size={12} className="muted" />
+                </div>
+                <div className="v num"><Amount minor={a.net} currency={base} tone="auto" animate /></div>
+              </button>
               <div className="stat"><div className="k">儲蓄率</div><div className="v num">{a.savingRate === null ? '—' : `${a.savingRate.toFixed(1)}%`}</div></div>
               <div className="stat"><div className="k">收支比</div><div className="v num">{a.ratio === null ? '—' : `${a.ratio.toFixed(0)}%`}</div></div>
               <div className="stat"><div className="k">日均花費</div><div className="v num"><Amount minor={a.dailyAvg} currency={base} tone="none" opts={{ decimals: 0 }} /></div></div>

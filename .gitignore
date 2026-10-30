@@ -25,5 +25,6 @@ __pycache__/
 
 # 本機編輯器/工具設定
 .claude/
+.playwright-mcp/
 clure-nas.zip
 clure-nas.tar.gz

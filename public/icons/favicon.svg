@@ -1,28 +1,121 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <!-- Aster App 圖標：深色漸層底 + 幾何三角稜鏡 + 金幣，滿版方形（iOS 會自動裁圓角） -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#101A2E"/>
-      <stop offset="1" stop-color="#03050A"/>
+    <!-- 背景：深曜宇宙黑藍 -->
+    <linearGradient id="cosmic-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#080C1A"/>
+      <stop offset="50%" stop-color="#050711"/>
+      <stop offset="100%" stop-color="#020307"/>
     </linearGradient>
-    <radialGradient id="glow" cx="0.5" cy="0.32" r="0.6">
-      <stop offset="0" stop-color="#22D3EE" stop-opacity="0.28"/>
-      <stop offset="1" stop-color="#22D3EE" stop-opacity="0"/>
+    <radialGradient id="nebula-glow" cx="50%" cy="46%" r="60%">
+      <stop offset="0%" stop-color="#3B82F6" stop-opacity="0.28"/>
+      <stop offset="40%" stop-color="#6366F1" stop-opacity="0.16"/>
+      <stop offset="70%" stop-color="#1E1B4B" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="tri" x1="0.15" y1="0" x2="0.85" y2="1">
-      <stop offset="0" stop-color="#67E8F9"/>
-      <stop offset="0.55" stop-color="#38BDF8"/>
-      <stop offset="1" stop-color="#818CF8"/>
+
+    <!-- 字母 A 主漸層：深藍 -> 寶藍 -> 紫曜（和諧沉穩科技感） -->
+    <linearGradient id="script-flow" x1="0.15" y1="0.9" x2="0.8" y2="0.1">
+      <stop offset="0%" stop-color="#1D4ED8"/>
+      <stop offset="25%" stop-color="#2563EB"/>
+      <stop offset="55%" stop-color="#3B82F6"/>
+      <stop offset="80%" stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#8B5CF6"/>
     </linearGradient>
-    <linearGradient id="coin" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#FDE68A"/>
-      <stop offset="1" stop-color="#F59E0B"/>
+
+    <!-- 3D 星軌漸層 -->
+    <linearGradient id="ring-front" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#60A5FA"/>
+      <stop offset="50%" stop-color="#818CF8"/>
+      <stop offset="100%" stop-color="#A78BFA"/>
     </linearGradient>
+    <linearGradient id="ring-back" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1E3A8A" stop-opacity="0.6"/>
+      <stop offset="50%" stop-color="#312E81" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#4C1D95" stop-opacity="0.6"/>
+    </linearGradient>
+
+    <filter id="bloom" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="16" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
   </defs>
-  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
-  <rect width="1024" height="1024" rx="224" fill="url(#glow)"/>
-  <path d="M512 248 L760 712 H264 Z" fill="none" stroke="url(#tri)" stroke-width="68" stroke-linejoin="round"/>
-  <path d="M512 248 L512 712" stroke="url(#tri)" stroke-width="20" stroke-linecap="round" opacity="0.35"/>
-  <circle cx="512" cy="588" r="74" fill="url(#coin)"/>
-  <circle cx="512" cy="588" r="44" fill="none" stroke="#B45309" stroke-opacity="0.45" stroke-width="10"/>
+
+  <rect width="1024" height="1024" rx="224" fill="url(#cosmic-bg)"/>
+  <rect width="1024" height="1024" rx="224" fill="url(#nebula-glow)"/>
+
+  <!-- 背景天體刻度儀（精緻科技線條） -->
+  <g opacity="0.3" stroke="#3B82F6" fill="none">
+    <circle cx="512" cy="512" r="390" stroke-width="1.5" stroke-dasharray="4 8"/>
+    <circle cx="512" cy="512" r="360" stroke-width="2" stroke-opacity="0.5"/>
+    <circle cx="512" cy="512" r="330" stroke-width="1" stroke-dasharray="2 12"/>
+    <circle cx="512" cy="512" r="230" stroke-width="1" stroke-dasharray="8 16" stroke="#818CF8"/>
+    <line x1="512" y1="90" x2="512" y2="934" stroke-width="1" stroke-opacity="0.2" stroke-dasharray="6 10"/>
+    <line x1="90" y1="512" x2="934" y2="512" stroke-width="1" stroke-opacity="0.2" stroke-dasharray="6 10"/>
+  </g>
+
+  <!-- ==================== 3D 包圍層 1：星軌身後部分（Back Ring） ==================== -->
+  <g transform="rotate(-26 512 512)">
+    <!-- 星軌後半段（在字母 A 身後） -->
+    <path d="M 96,512 A 420 140 0 0 1 928,512" fill="none" stroke="url(#ring-back)" stroke-width="24" stroke-linecap="round" filter="blur(2px)"/>
+    <path d="M 96,512 A 420 140 0 0 1 928,512" fill="none" stroke="#3B82F6" stroke-width="4" stroke-opacity="0.6"/>
+    <path d="M 96,512 A 420 140 0 0 1 928,512" fill="none" stroke="#FFFFFF" stroke-width="1.5" stroke-dasharray="8 60" stroke-opacity="0.5"/>
+  </g>
+
+  <!-- ==================== 核心：草寫大寫 A（花體結構，無頭頂星星） ==================== -->
+  <g filter="url(#bloom)">
+    <!-- 筆劃底層立體深藍陰影 -->
+    <path d="M 120,630 C 120,730 200,770 270,720 C 340,670 380,570 300,500 C 230,440 200,520 280,610 C 330,665 420,530 680,110" 
+          fill="none" stroke="#0F172A" stroke-width="70" stroke-linecap="round" opacity="0.6"/>
+    <path d="M 680,110 C 650,220 540,560 480,750 C 470,780 440,780 435,740" 
+          fill="none" stroke="#0F172A" stroke-width="66" stroke-linecap="round" opacity="0.6"/>
+
+    <!-- 主筆觸 1：左起優雅下弧上鉤 -> 腰際草寫大環 -> 衝刺上揚直上尖銳頂峰 -->
+    <path d="M 120,630 
+             C 120,730 200,770 270,720 
+             C 340,670 380,570 300,500 
+             C 230,440 200,520 280,610 
+             C 330,665 420,530 680,110" 
+          fill="none" stroke="url(#script-flow)" stroke-width="58" stroke-linecap="round" stroke-linejoin="round"
+          filter="drop-shadow(0 16px 32px rgba(37,99,235,0.4))"/>
+
+    <!-- 主筆觸 2：頂峰急轉垂降右幹 -> 到底部收鉤（純粹鋒利筆尖，無星星干擾） -->
+    <path d="M 680,110 
+             C 650,220 540,560 480,750 
+             C 470,780 440,780 435,740" 
+          fill="none" stroke="url(#script-flow)" stroke-width="54" stroke-linecap="round" stroke-linejoin="round"
+          filter="drop-shadow(0 16px 32px rgba(124,58,237,0.4))"/>
+
+    <!-- 主筆觸 3：腰際迴旋橫帶（自草寫環穿過右幹飄揚向右） -->
+    <path d="M 270,595 
+             C 380,580 470,570 590,560 
+             C 660,550 730,525 780,475" 
+          fill="none" stroke="url(#script-flow)" stroke-width="38" stroke-linecap="round"
+          filter="drop-shadow(0 0 16px rgba(99,102,241,0.5))"/>
+
+    <!-- 頂級高光白熱芯線（液態金屬高光） -->
+    <path d="M 120,630 C 120,730 200,770 270,720 C 340,670 380,570 300,500 C 230,440 200,520 280,610 C 330,665 420,530 680,110" 
+          fill="none" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" opacity="0.9"/>
+    <path d="M 680,110 C 650,220 540,560 480,750 C 470,780 440,780 435,740" 
+          fill="none" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round" opacity="0.85"/>
+    <path d="M 270,595 C 380,580 470,570 590,560 C 660,550 730,525 780,475" 
+          fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" opacity="0.9"/>
+  </g>
+
+  <!-- ==================== 3D 包圍層 2：星軌身前部分（Front Ring 橫跨字母前方） ==================== -->
+  <g transform="rotate(-26 512 512)">
+    <!-- 前半段投影在字母上的環境陰影 -->
+    <path d="M 96,512 A 420 140 0 0 0 928,512" fill="none" stroke="#000000" stroke-width="32" opacity="0.45" filter="blur(6px)"/>
+    <!-- 星軌前半段主光帶（實體環抱在前，立體感極強） -->
+    <path d="M 96,512 A 420 140 0 0 0 928,512" fill="none" stroke="url(#ring-front)" stroke-width="18" stroke-linecap="round"
+          filter="drop-shadow(0 8px 24px rgba(59,130,246,0.6))"/>
+    <!-- 軌道中心光輝細線 -->
+    <path d="M 96,512 A 420 140 0 0 0 928,512" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" opacity="0.9"/>
+    <!-- 軌道前端漂浮的微型量子光核 -->
+    <circle cx="760" cy="625" r="7" fill="#FFFFFF" filter="drop-shadow(0 0 10px #60A5FA)"/>
+    <circle cx="260" cy="590" r="5" fill="#A78BFA" filter="drop-shadow(0 0 8px #8B5CF6)"/>
+  </g>
+
+  <!-- 頂部筆尖純粹能量微光（無任何外掛星星，保持尖銳花體筆鋒） -->
+  <circle cx="680" cy="110" r="10" fill="#FFFFFF" filter="drop-shadow(0 0 14px #60A5FA)"/>
+  <circle cx="680" cy="110" r="4" fill="#E0F2FE"/>
 </svg>

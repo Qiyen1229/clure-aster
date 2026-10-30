@@ -55,18 +55,22 @@ def test_login_by_username_or_email_and_generic_error(api: Api) -> None:
 
 def test_lockout_after_5_failures(api: Api) -> None:
     api.register("dave")
-    attacker_ips = [f"10.1.0.{i}" for i in range(6)]  # 換 IP 也會被帳號鎖定擋下
+    attacker_ips = [f"10.1.0.{i}" for i in range(6)]  # 模擬不同 IP 的攻擊者
     for ip in attacker_ips[:5]:
         assert Api(ip).login("dave", "Wrong1234").status_code == 401
-    r = Api(attacker_ips[5]).login("dave", PASSWORD)  # 正確密碼也進不去
-    assert r.status_code == 423 and "鎖定" in r.json()["detail"]
+    # 攻擊者繼續用錯密碼：回傳 401（不洩漏 423 與已鎖定狀態，防範帳號枚舉）
+    bad = Api(attacker_ips[5]).login("dave", "Wrong1234")
+    assert bad.status_code == 401 and bad.json()["detail"] == "帳號或密碼錯誤"
+    # 防範 Lockout DoS：合法使用者輸入正確密碼可成功登入並解除鎖定
+    legit = Api("10.1.0.99").login("dave", PASSWORD)
+    assert legit.status_code == 200 and legit.json()["username"] == "dave"
 
 
 def test_rate_limit_5_per_minute(api: Api) -> None:
     api.register("erin")
     a = Api("10.2.0.1")
     codes = [a.login("erin", "Wrong1234").status_code for _ in range(6)]
-    assert codes[-1] in (429, 423)
+    assert codes[-1] in (429, 401)
     r = a.login("someone-else", "Wrong1234")  # 同 IP 換帳號仍受 IP 總量限制保護
     assert r.status_code in (401, 429)
 
@@ -154,3 +158,14 @@ def test_proxy_auth_check(api: Api) -> None:
     # 同時清除 1.2.1 以前 Path=/api 的舊 Cookie
     assert any(h.startswith("clure_access=") and "Path=/api" in h and "max-age=0" in h.lower() for h in r.headers.get_list("set-cookie"))
     assert api.get("/api/auth/check").status_code == 204
+
+
+def test_cf_connecting_ip_header_recognized() -> None:
+    from unittest.mock import Mock
+    from app.core.request_info import client_info
+
+    req = Mock()
+    req.client.host = "172.64.0.1"  # Cloudflare IP
+    req.headers = {"cf-connecting-ip": "203.0.113.195", "user-agent": "test"}
+    c = client_info(req)
+    assert c.ip == "203.0.113.195"

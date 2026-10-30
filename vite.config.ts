@@ -67,7 +67,7 @@ export default defineConfig({
       injectRegister: false,
       injectManifest: { globPatterns: ['**/*.{js,css,html,svg,png,webp,woff2}'], globIgnores: ['splash/**'] },
       devOptions: { enabled: false },
-      includeAssets: ['icons/*.png', 'icons/*.svg'],
+      includeAssets: ['icons/*.png', 'icons/*.svg', '*.png'],
       manifest: {
         id: '/',
         name: 'Aster 記帳',
@@ -82,9 +82,9 @@ export default defineConfig({
         background_color: '#000000',
         categories: ['finance', 'productivity'],
         icons: [
-          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-          { src: '/icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: '/icons/icon-192.png?v=3.2.0', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icons/icon-512.png?v=3.2.0', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/icons/maskable-512.png?v=3.2.0', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
         shortcuts: [
           { name: '快速記帳', short_name: '記帳', url: '/add?source=shortcut', icons: [{ src: '/icons/shortcut-add.png', sizes: '96x96' }] },

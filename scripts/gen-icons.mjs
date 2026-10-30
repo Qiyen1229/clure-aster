@@ -19,6 +19,12 @@ const sizes = [
   ['icons/maskable-512.png', 512], // 內容已在 80% 安全區內，可直接當 maskable
   ['icons/apple-touch-icon.png', 180],
   ['icons/favicon-32.png', 32],
+  // iOS 根目錄預設搜尋路徑（Safari 加入主畫面相容性）
+  ['apple-touch-icon.png', 180],
+  ['apple-touch-icon-precomposed.png', 180],
+  ['apple-touch-icon-180x180.png', 180],
+  ['apple-touch-icon-180x180-precomposed.png', 180],
+  ['favicon.ico', 32],
 ];
 for (const [file, size] of sizes) {
   await sharp(icon, { density: 384 }).resize(size, size).png().toFile(out(file));
@@ -28,9 +34,11 @@ for (const name of ['shortcut-add', 'shortcut-invest']) {
   await sharp(svg, { density: 384 }).resize(96, 96).png().toFile(out(`icons/${name}.png`));
 }
 // 圓角 SVG favicon（瀏覽器分頁用）
-const rounded = icon.toString().replace('<rect width="1024" height="1024" fill="url(#bg)"/>',
-  '<rect width="1024" height="1024" rx="224" fill="url(#bg)"/>').replace('<rect width="1024" height="1024" fill="url(#glow)"/>',
-  '<rect width="1024" height="1024" rx="224" fill="url(#glow)"/>');
+const rounded = icon.toString()
+  .replace('<rect width="1024" height="1024" fill="url(#cosmic-bg)"/>', '<rect width="1024" height="1024" rx="224" fill="url(#cosmic-bg)"/>')
+  .replace('<rect width="1024" height="1024" fill="url(#nebula-glow)"/>', '<rect width="1024" height="1024" rx="224" fill="url(#nebula-glow)"/>')
+  .replace('<rect width="1024" height="1024" fill="url(#bg)"/>', '<rect width="1024" height="1024" rx="224" fill="url(#bg)"/>')
+  .replace('<rect width="1024" height="1024" fill="url(#glow)"/>', '<rect width="1024" height="1024" rx="224" fill="url(#glow)"/>');
 await writeFile(out('icons/favicon.svg'), rounded);
 
 // 2) iOS 啟動畫面（apple-touch-startup-image）— [CSS 寬, CSS 高, DPR]

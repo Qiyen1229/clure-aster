@@ -127,9 +127,24 @@ export async function handle(req: Request, env: ProxyEnv, opts: { ip?: string; c
     console.warn(`[proxy] 連不上 ${target.host}：${reason}`);
     return json(502, { error: 'upstream fetch failed', detail: `${target.host}：${reason}` }, env);
   }
+
+  // 防禦 SSRF：若目標伺服器發生跳轉，嚴格檢驗最終重定向目標的協定與網域必須在白名單內！
+  if (upstream.url) {
+    try {
+      const finalUrl = new URL(upstream.url);
+      if (finalUrl.protocol !== 'https:' || !ALLOWED_HOSTS.includes(finalUrl.host)) {
+        console.warn(`[proxy] 阻擋未授權的重定向：${finalUrl.host}`);
+        return json(403, { error: `redirect to unallowed host: ${finalUrl.host}` }, env);
+      }
+    } catch {
+      return json(403, { error: 'invalid upstream redirected url' }, env);
+    }
+  }
+
+  const status = upstream.status >= 200 && upstream.status < 600 ? upstream.status : 200;
   const body = await upstream.arrayBuffer();
   const ct = upstream.headers.get('content-type') ?? 'application/json';
-  const res = new Response(body, { status: upstream.status, headers: cors(env, { 'content-type': ct, 'cache-control': `public, max-age=${ttlFor(target)}`, 'x-cache': 'MISS' }) });
+  const res = new Response(body, { status, headers: cors(env, { 'content-type': ct, 'cache-control': `public, max-age=${ttlFor(target)}`, 'x-cache': 'MISS' }) });
   if (opts.cache && upstream.ok) await opts.cache.put(cacheKey, new Response(body, { status: upstream.status, headers: { 'content-type': ct } }), ttlFor(target));
   return res;
 }

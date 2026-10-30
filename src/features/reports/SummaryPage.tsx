@@ -4,15 +4,20 @@
  */
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useCategories } from '@/app/hooks';
+import { useAccounts, useCategories, useTags } from '@/app/hooks';
 import type { PeriodSummary } from '@/domain/summary';
 import { formatMoney } from '@/domain/money';
 import { addDays, todayKey } from '@/domain/period';
 import { lastCompleted, loadSummary, summaryRange, summaryTitle, type SummaryUnit } from '@/services/summary';
 import { useSettings } from '@/stores/settings';
 import { useUI } from '@/stores/ui';
-import { Segmented, SkeletonRows } from '@/ui/controls';
+import { db } from '@/db/schema';
+import type { Transaction } from '@/db/types';
+import { countsInStats } from '@/domain/ledger';
+import { EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { Icon } from '@/ui/Icon';
+import { Sheet } from '@/ui/Sheet';
+import { LedgerRow } from '../ledger/LedgerRow';
 import { AiInsightsCard } from '../ai/AiInsights';
 import { AUTH_ENABLED } from '@/stores/auth';
 
@@ -24,7 +29,10 @@ export default function SummaryPage() {
   const anchor = params.get('date') && /^\d{4}-\d{2}-\d{2}$/.test(params.get('date')!) ? params.get('date')! : lastCompleted(unit, today);
   const base = useSettings((s) => s.baseCurrency);
   const { map: cats } = useCategories();
+  const accounts = useAccounts(true);
+  const tags = useTags();
   const [sum, setSum] = useState<PeriodSummary | null>(null);
+  const [detail, setDetail] = useState<{ title: string; txs: Transaction[] } | null>(null);
   const money = (v: number) => formatMoney(v, base, { decimals: 0 });
 
   useEffect(() => {
@@ -39,6 +47,13 @@ export default function SummaryPage() {
   const isCurrent = range.end >= today;
   const prevLabel = unit === 'week' ? '前一週' : '前一個月';
   const max = Math.max(1, ...(sum?.categories.map((c) => Math.max(c.amount, c.prev)) ?? [1]));
+
+  const openKindDetail = async (kind: 'expense' | 'income' | 'all') => {
+    const all = await db.transactions.where('date').between(range.start, range.end, true, true).toArray();
+    const txs = all.filter((x) => countsInStats(x) && (kind === 'all' || x.type === kind));
+    const title = kind === 'expense' ? `支出明細（${txs.length} 筆）` : kind === 'income' ? `收入明細（${txs.length} 筆）` : `記帳明細（${txs.length} 筆）`;
+    setDetail({ title, txs });
+  };
 
   return (
     <main className="page">
@@ -57,17 +72,34 @@ export default function SummaryPage() {
       {!sum ? <SkeletonRows n={4} /> : (
         <>
           <section className="card glass sum-hero">
-            <div className="k muted">支出</div>
-            <div className="v num">{money(sum.expense)}</div>
+            <button type="button" className="stat clickable" style={{ padding: '8px 12px', background: 'transparent', textAlign: 'center' }} onClick={() => openKindDetail('expense')} aria-label="查看支出明細">
+              <div className="k muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <span>支出</span>
+                <Icon name="chevronR" size={12} />
+              </div>
+              <div className="v num">{money(sum.expense)}</div>
+            </button>
             {sum.changePct !== null && (
               <span className={`sum-chip ${sum.changePct <= 0 ? 'good' : 'bad'}`}>
                 {sum.changePct <= 0 ? '↓' : '↑'} {Math.abs(Math.round(sum.changePct))}% vs {prevLabel}
               </span>
             )}
             <div className="stat-grid" style={{ marginTop: 12 }}>
-              <div className="stat"><div className="k">收入</div><div className="v num">{money(sum.income)}</div></div>
+              <button type="button" className="stat clickable" onClick={() => openKindDetail('income')} aria-label="查看收入明細">
+                <div className="k" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>收入</span>
+                  <Icon name="chevronR" size={12} className="muted" />
+                </div>
+                <div className="v num">{money(sum.income)}</div>
+              </button>
               <div className="stat"><div className="k">日均支出</div><div className="v num">{money(sum.dailyAvg)}</div></div>
-              <div className="stat"><div className="k">記帳</div><div className="v num">{sum.count} 筆</div></div>
+              <button type="button" className="stat clickable" onClick={() => openKindDetail('all')} aria-label="查看記帳明細">
+                <div className="k" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>記帳</span>
+                  <Icon name="chevronR" size={12} className="muted" />
+                </div>
+                <div className="v num">{sum.count} 筆</div>
+              </button>
             </div>
           </section>
 
@@ -122,6 +154,12 @@ export default function SummaryPage() {
           </p>
         </>
       )}
+
+      <Sheet open={!!detail} onClose={() => setDetail(null)} title={detail?.title} full>
+        {detail && (detail.txs.length ? detail.txs.sort((x, y) => (x.date < y.date ? 1 : -1)).map((tx) => (
+          <LedgerRow key={tx.id} item={{ kind: 'tx', id: tx.id, date: tx.date, ts: tx.ts, tx }} cats={cats} accounts={accounts.map} tags={tags.map} showDate />
+        )) : <EmptyState emoji="🫥" title="沒有帳目" />)}
+      </Sheet>
     </main>
   );
 }
