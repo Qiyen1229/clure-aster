@@ -28,6 +28,8 @@ const WEEK = ['週日', '週一', '週二', '週三', '週四', '週五', '週�
 export default function YearReview() {
   const { year = String(new Date().getFullYear()) } = useParams();
   const navigate = useNavigate();
+  // 返回上一頁；若是直接開啟（沒有上一頁），回到報表，不要跳出 App
+  const close = () => { if ((window.history.state as { idx?: number } | null)?.idx) navigate(-1); else navigate('/reports', { replace: true }); };
   const base = useSettings((s) => s.baseCurrency);
   const cats = useCategories();
   const pf = usePortfolio();
@@ -42,7 +44,7 @@ export default function YearReview() {
   const f = (v: number) => formatMoney(v, base);
 
   if (!a || !txs) return <div className="wrapped" style={{ background: GRADIENTS[0] }} />;
-  if (a.count === 0) return <main className="page"><EmptyState emoji="🎁" title={`${year} 年還沒有資料`} action={<button className="btn small" onClick={() => navigate(-1)}>返回</button>} /></main>;
+  if (a.count === 0) return <main className="page"><EmptyState emoji="🎁" title={`${year} 年還沒有資料`} action={<button className="btn small" onClick={close}>返回</button>} /></main>;
 
   const topCat = [...a.byMain].sort((x, y) => y[1] - x[1])[0];
   const topCatInfo = topCat ? cats.map.get(topCat[0]) : undefined;
@@ -77,12 +79,12 @@ export default function YearReview() {
         if (Math.abs(dx) > 40) { go(dx < 0 ? 1 : -1); touch.current = { x: 0, at: Date.now() }; } else touch.current = null;
       }}
       onClick={(e) => { if (touch.current && Date.now() - touch.current.at < 500) return; go(e.clientX > window.innerWidth / 2 ? 1 : -1); }}
-      onKeyDown={(e) => { if (e.key === 'ArrowRight' || e.key === ' ') go(1); if (e.key === 'ArrowLeft') go(-1); if (e.key === 'Escape') navigate(-1); }}
+      onKeyDown={(e) => { if (e.key === 'ArrowRight' || e.key === ' ') go(1); if (e.key === 'ArrowLeft') go(-1); if (e.key === 'Escape') close(); }}
       tabIndex={0} role="region" aria-roledescription="輪播" aria-label={`${year} 年度回顧，第 ${i + 1} 頁，共 ${slides.length} 頁`}>
       <div className="wrapped-progress" aria-hidden="true">
         {slides.map((_, k) => <i key={k} className={k <= i ? 'on' : ''} />)}
       </div>
-      <button className="wrapped-close" aria-label="關閉" onClick={(e) => { e.stopPropagation(); navigate(-1); }}><Icon name="close" /></button>
+      <button className="wrapped-close" aria-label="關閉" onClick={(e) => { e.stopPropagation(); close(); }}><Icon name="close" /></button>
       <div className="wrapped-slide" key={i} aria-live="polite">
         <div className="wrapped-emoji" aria-hidden="true">{s.emoji}</div>
         <div className="wrapped-title">{s.title}</div>

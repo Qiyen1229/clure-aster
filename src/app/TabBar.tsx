@@ -31,7 +31,7 @@ export function isLedgerPath(pathname: string) {
 const HOLD_MS = 350;
 const HOME = '/'; // 滑動選取時，中間首頁按鈕的代號
 
-export function TabBar() {
+export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const openAdd = useUI((s) => s.openAdd);
@@ -155,7 +155,7 @@ export function TabBar() {
   );
 
   return (
-    <nav className="tabbar" aria-label="主要導覽">
+    <nav className={`tabbar${hidden ? ' tabbar-off' : ''}`} aria-label="主要導覽" aria-hidden={hidden || undefined}>
       <div className="tabbar-capsule" ref={capRef} onPointerDown={onCapDown} onPointerMove={onCapMove} onPointerUp={onCapUp} onPointerCancel={onCapCancel}>
         {/* 玻璃透鏡（目前分頁的選取泡泡） */}
         <span

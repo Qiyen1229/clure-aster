@@ -231,6 +231,7 @@ button img, a img, .cat-icon, .tab svg { -webkit-user-drag: none; }
 :root:not([data-theme='dark']) .tabbar-capsule::before {
   background: linear-gradient(150deg, rgba(255, 255, 255, 1), rgba(255, 255, 255, 0.35) 35%, rgba(120, 130, 160, 0.12) 65%, rgba(255, 255, 255, 0.9));
 }
+.tabbar-off { display: none; }
 .tab-group {
   position: relative;
   z-index: 2;

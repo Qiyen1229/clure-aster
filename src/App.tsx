@@ -203,6 +203,24 @@ class RouteErrorBoundary extends Component<{ children: ReactNode }, { hasError: 
   }
 }
 
+/**
+ * 換頁後 .page 的進場動畫是「從透明淡入」。偶爾（例如剛從全螢幕的年度回顧返回）瀏覽器沒有如期開始這個動畫，
+ * 新頁面就會停在透明＝整頁黑掉。這裡在換頁後 0.32 秒（動畫長 0.28 秒）檢查一次，還是透明就直接把動畫跳到結尾，讓畫面一定顯示出來。
+ */
+function usePageStallGuard(pathname: string) {
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      const pg = document.querySelector<HTMLElement>('main.page, .app > .page');
+      if (!pg || Number(getComputedStyle(pg).opacity) > 0.05) return;
+      pg.getAnimations().forEach((a) => { try { a.finish(); } catch { /* 已結束 */ } });
+      pg.style.opacity = '1';
+      pg.style.transform = 'none';
+      window.setTimeout(() => { pg.style.opacity = ''; pg.style.transform = ''; }, 400);
+    }, 320);
+    return () => window.clearTimeout(t);
+  }, [pathname]);
+}
+
 export default function App() {
   const onboarded = useSettings((s) => s.onboarded);
   const location = useLocation();
@@ -221,6 +239,7 @@ export default function App() {
     return () => { clearTimeout(t); stop?.(); };
   }, [onboarded]);
   useEffect(() => installAutoLock(), []);
+  usePageStallGuard(location.pathname);
 
   if (!onboarded && !isOnboarding) return <Navigate to="/onboarding" replace />;
 
@@ -270,7 +289,8 @@ export default function App() {
           </Routes>
         </Suspense>
       </RouteErrorBoundary>
-      {!fullscreen && <TabBar />}
+      {/* 全螢幕頁面（年度回顧、列印、導覽）只是隱藏導覽列、不卸載：返回時不必重新建立玻璃導覽列（backdrop-filter 圖層） */}
+      <TabBar hidden={fullscreen} />
       <AddSheetHost />
       <VoiceHost />
       {onboarded && !fullscreen && <Suspense fallback={null}><WhatsNewSheet /></Suspense>}
