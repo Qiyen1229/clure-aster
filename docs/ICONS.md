@@ -26,4 +26,4 @@ const LOGO_OFFSET = { x: 0, y: 0 };
 載入畫面（開啟 App 的瞬間）用的是 `public/icons/icon-192.png`，它也是由 `npm run icons` 產生的。
 
 ## 3. 底部導覽列其他圖示
-`src/ui/Icon.tsx` 最上面的 `PATHS`：每個圖示是一條 SVG path（24×24 畫布），可以直接換。大小在 `TabBar.tsx` 的 `<Icon size={20} />`。
+`src/ui/Icon.tsx` 最上面的 `P`：每個圖示是一條 SVG path（24×24 畫布），可以直接換。大小在 `TabBar.tsx` 的 `<Icon size={20} />`。
