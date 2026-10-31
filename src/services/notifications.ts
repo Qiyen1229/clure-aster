@@ -45,6 +45,8 @@ export async function notify(title: string, body: string, url = '/', kind: Notif
   if (await db.reminders.get(id)) return;
   const row: Reminder = { id, kind, refId: url, dueAt: Date.now(), done: 0, notifiedAt: Date.now(), title, body };
   await db.reminders.put(row);
+  // 同時轉送到對外通道（Discord／Telegram／LINE／Webhook）；靜音的（system:false）不轉送
+  if (opts.system !== false) void import('./outgoing').then((m) => m.emitFromReminder(kind, title, body, url, id));
   const { notify: cfg } = useSettings.getState();
   if (opts.system === false || !cfg.enabled || notificationSupport() !== 'granted') return;
   try {

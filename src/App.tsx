@@ -59,6 +59,7 @@ const FxPage = lazy(() => import('./features/settings/FxPage'));
 const InvestSettingsPage = lazy(() => import('./features/settings/InvestSettingsPage'));
 const SecurityPage = lazy(() => import('./features/settings/SecurityPage'));
 const NotificationsPage = lazy(() => import('./features/settings/NotificationsPage'));
+const ChannelsPage = lazy(() => import('./features/settings/ChannelsPage'));
 const BackupPage = lazy(() => import('./features/settings/BackupPage'));
 const ImportPage = lazy(() => import('./features/settings/ImportPage'));
 const HealthPage = lazy(() => import('./features/settings/HealthPage'));
@@ -279,6 +280,7 @@ export default function App() {
             <Route path="/settings/invest" element={<InvestSettingsPage />} />
             <Route path="/settings/security" element={<SecurityPage />} />
             <Route path="/settings/notifications" element={<NotificationsPage />} />
+            <Route path="/settings/channels" element={<ChannelsPage />} />
             <Route path="/settings/backup" element={<BackupPage />} />
             <Route path="/settings/import" element={<ImportPage />} />
             <Route path="/settings/health" element={<HealthPage />} />

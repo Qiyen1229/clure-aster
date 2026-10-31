@@ -1,7 +1,7 @@
 # Aster 記帳 — 專案完整總覽（給 AI 閱讀）
 
 > 這份檔案把整個專案（功能、技術、架構、資料模型、API、安全、部署、檔案地圖、慣例）整合在一處，讓 AI 不用逐一翻檔案就能理解全貌。
-> 內容整理自 README、CHANGELOG、docs/*、原始碼與設定檔。版本：**3.9.0**（2026-10-31）。分支：`feature/v1.2`（主分支 `main`）。2.0.0 新增 AI 全面整合，見下方「AI 功能」一節與 `docs/AI.md`。3.0.0 首頁全面重構為原創 Bento 儀表板與膠囊週曆。3.1.0 全面更換 3D 星軌花體 A 品牌圖標與 iOS 18 水漾高透光靈動島懸浮導覽列。3.2.0 報表支援點擊支出／收入即時彈出全明細流，移除導覽列藍點殘留，修復 iOS 主畫面圖標快取與根目錄回退。3.5～3.6 異常與訂閱漲價偵測（習慣→市價→AI 三層判斷）、加密備份、資料庫每日自動備份、首頁簡化、原創 AI 圖示。3.6.5 靈動島大修（按下即彈、合成器彈簧、Q 彈轉場）。測試：前端 478＋後端 118＝596 項。3.7.0 統一發票自動對獎器（`domain/invoice-prize.ts`、`services/invoicePrize.ts`、`/settings/invoice/prize`）；3.8.0 資金流向桑基圖（`domain/sankey.ts`、`features/reports/SankeyCard.tsx`）；3.9.0 耐用品每日持有成本（新資料表 `durables`，`domain/durable.ts`、`db/repo/durables.ts`、`features/plan/durables.tsx`）。
+> 內容整理自 README、CHANGELOG、docs/*、原始碼與設定檔。版本：**3.10.0**（2026-10-31）。分支：`feature/v1.2`（主分支 `main`）。2.0.0 新增 AI 全面整合，見下方「AI 功能」一節與 `docs/AI.md`。3.0.0 首頁全面重構為原創 Bento 儀表板與膠囊週曆。3.1.0 全面更換 3D 星軌花體 A 品牌圖標與 iOS 18 水漾高透光靈動島懸浮導覽列。3.2.0 報表支援點擊支出／收入即時彈出全明細流，移除導覽列藍點殘留，修復 iOS 主畫面圖標快取與根目錄回退。3.5～3.6 異常與訂閱漲價偵測（習慣→市價→AI 三層判斷）、加密備份、資料庫每日自動備份、首頁簡化、原創 AI 圖示。3.6.5 靈動島大修（按下即彈、合成器彈簧、Q 彈轉場）。測試：前端 478＋後端 154＝632 項。3.7.0 統一發票自動對獎器（`domain/invoice-prize.ts`、`services/invoicePrize.ts`、`/settings/invoice/prize`）；3.8.0 資金流向桑基圖（`domain/sankey.ts`、`features/reports/SankeyCard.tsx`）；3.9.0 耐用品每日持有成本（新資料表 `durables`，`domain/durable.ts`、`db/repo/durables.ts`、`features/plan/durables.tsx`）；3.10.0 外部通知 Discord／Telegram／LINE／Webhook（後端 `core/outgoing.py`、`core/secretbox.py`、`service/notify_service.py`、`api/notify.py`、表 `notify_channels`；前端 `services/outgoing.ts`、`features/settings/ChannelsPage.tsx`；文件 `docs/NOTIFY.md`）。下一個 Alembic 遷移是 `0010_…`。
 > 
 > ### 版本號命名與發佈規範（嚴格遵守）
 > 格式：`x.y.z`
@@ -405,7 +405,7 @@ Aster/
 5. **同步相關**：遠端套用須在「遠端」交易中（避免回寫）；E2EE 解密不可放在 IndexedDB 交易內；備份／還原不可帶入 `meta`、`sync_outbox`、App 鎖與通知設定。
 6. **domain 層保持純函式**並補單元測試（`tests/unit/`）；後端新增邏輯補 `server/tests/`。
 7. **後端分層**：路由不碰 DB、repository 才碰 Session；錯誤用 `service/errors.py` 的業務錯誤、訊息用繁體中文且不洩漏內部細節；日誌禁用 `print`、不得記錄密碼／權杖。
-8. **後端 DB 變更**一律新增 Alembic 遷移（下一個是 `0007_…`），啟動時自動套用。
+8. **後端 DB 變更**一律新增 Alembic 遷移（下一個是 `0010_…`），啟動時自動套用。
 9. **iOS 限制**：語音辨識、通知、Face ID 都需要「真正的使用者手勢」與 HTTPS；輸入框在觸控裝置至少 16px 避免縮放；不要在長按計時器內啟動需要手勢的 API。
 10. **Service Worker**：不自動 `skipWaiting`（由使用者同意更新）；導覽 denylist 含 `/proxy/`、`/api/`、`/shortcuts/`。
 11. **CSP**：不能新增 inline `<style>` 元素或 inline script；新增外部連線網域要同步改 `docker/security-headers.conf` 的 `connect-src`，必要時也改 `proxy/src/core.ts` 的 `ALLOWED_HOSTS`。

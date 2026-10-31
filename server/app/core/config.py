@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     # nginx 的 /proxy/ 報價代理是否只允許已登入的使用者（/api/auth/check）
     proxy_require_login: bool = True
 
+    # 對外通知（Discord／Telegram／LINE／自訂 Webhook）：自訂 Webhook 預設只允許公開的 https 網址；
+    # 自架在內網、想通知內網服務時才設為 true（會允許 http 與內網位址，請確認只有信任的人能登入）
+    notify_allow_private: bool = False
+
     # 財政部電子發票應用 API（手機條碼載具自動記帳）：需向財政部申請 AppID；自 112 年起僅受理通過 ISO 27001 等認證的企業組織
     einvoice_app_id: str = ""
     einvoice_api_key: str = ""

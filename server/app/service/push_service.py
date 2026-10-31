@@ -140,8 +140,16 @@ class PushService:
             self.db.commit()
             if not claimed or now - item.at > STALE_MS:
                 continue
+            # 同一則提醒也轉送到使用者開啟的對外通知通道（Discord／Telegram／LINE／Webhook）；重試時不重複送
+            chan = None
+            if _attempts.get(item.id, 0) == 0:
+                try:
+                    from app.service.notify_service import NotifyService, schedule_notice
+                    chan = NotifyService(self.db).fan_out(item.user_id, schedule_notice(item.item_id, item.title, item.body, item.url))
+                except Exception:  # noqa: BLE001 — 對外通知出錯不能影響網頁推播
+                    log.exception("對外通知轉送失敗")
             rep = self.send_detailed(item.user_id, {"title": item.title, "body": item.body, "url": item.url, "tag": item.item_id})
-            if rep.ok:
+            if rep.ok or (chan and chan.sent):
                 sent += 1
                 _attempts.pop(item.id, None)
             elif rep.retry and not rep.ok and _attempts.get(item.id, 0) < MAX_ATTEMPTS:
@@ -149,7 +157,7 @@ class PushService:
                 _attempts[item.id] = _attempts.get(item.id, 0) + 1
                 self.db.execute(update(PushSchedule).where(PushSchedule.id == item.id).values(sent=False))
                 log.warning("推播暫時失敗，稍後重試（第 %s 次）：%s", _attempts[item.id], "；".join(rep.failed))
-            elif rep.devices == 0:
+            elif rep.devices == 0 and not (chan and chan.channels):
                 log.warning("使用者 %s 沒有推播訂閱，略過提醒 %s（請在通知設定重新開啟背景推播）", item.user_id, item.item_id)
             else:
                 log.warning("推播失敗：%s", "；".join(rep.failed))

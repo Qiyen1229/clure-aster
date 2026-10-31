@@ -92,6 +92,8 @@ export interface Settings {
   continuousAdd: boolean;
   lastAccountId: string;
   calendarCollapsed: boolean;
+  /** 對外通知（Discord／Telegram／LINE／Webhook）是否包含金額與名稱；啟用端對端加密時預設關閉才會隱藏 */
+  outgoingDetail: boolean;
   /** 資金流向圖裡算「必要支出」的主分類 id；null＝用預設 */
   sankeyEssential: string[] | null;
   ledgerUnit: 'day' | 'week' | 'month' | 'year';
@@ -178,6 +180,7 @@ export const DEFAULT_SETTINGS: Settings = {
   blurOnHide: true,
   continuousAdd: false,
   lastAccountId: '',
+  outgoingDetail: true,
   sankeyEssential: null,
   calendarCollapsed: true, // 首頁預設只顯示本週（可展開整月）；已經選過的人維持自己的選擇
   ledgerUnit: 'month',

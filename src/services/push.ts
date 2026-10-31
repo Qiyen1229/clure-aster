@@ -150,8 +150,10 @@ export async function upcomingPushItems(days = 14, now = Date.now()): Promise<Pu
 /** 把接下來 14 天的提醒交給伺服器排程（開啟 App、變更提醒設定時呼叫） */
 export async function schedulePush(): Promise<number> {
   const s = useSettings.getState();
-  if (!AUTH_ENABLED || !s.notify.push) return 0;
-  await ensurePushSubscription().catch(() => undefined); // 訂閱遺失時自動補上；補不上也照樣排程
+  // 網頁推播或對外通道（Discord／Telegram／LINE）任一個開著就要排程：到點由伺服器同時送出
+  const external = await import('./outgoing').then((m) => m.hasActiveChannels());
+  if (!AUTH_ENABLED || (!s.notify.push && !external)) return 0;
+  if (s.notify.push) await ensurePushSubscription().catch(() => undefined); // 訂閱遺失時自動補上；補不上也照樣排程
   const items = await upcomingPushItems();
   await api('/push/schedule', { method: 'POST', body: { device_id: await deviceId(), items } });
   return items.length;

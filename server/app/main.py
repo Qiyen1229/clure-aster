@@ -10,7 +10,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from app.api import admin, ai, auth, einvoice, health, inbox, push, sync
+from app.api import admin, ai, auth, einvoice, health, inbox, notify, push, sync
 from app.api.cookies import CSRF_COOKIE, CSRF_HEADER, set_csrf_cookie
 from app.core.config import get_settings
 from app.core.logging import mask_email, setup_logging
@@ -128,7 +128,7 @@ async def lifespan(_: FastAPI):
 def create_app() -> FastAPI:
     s = get_settings()
     app = FastAPI(
-        title="Aster API", version="3.9.0", lifespan=lifespan,
+        title="Aster API", version="3.10.0", lifespan=lifespan,
         docs_url="/api/docs" if s.env != "production" else None, redoc_url=None, openapi_url="/api/openapi.json" if s.env != "production" else None,
     )
 
@@ -164,7 +164,7 @@ def create_app() -> FastAPI:
         log.exception("未處理的錯誤 path=%s", request.url.path, exc_info=exc)
         return JSONResponse({"detail": "伺服器發生錯誤，請稍後再試"}, status_code=500)
 
-    for r in (health.router, auth.router, admin.router, sync.router, push.router, einvoice.router, ai.router, inbox.router, inbox.hook_router):
+    for r in (health.router, auth.router, admin.router, sync.router, push.router, notify.router, einvoice.router, ai.router, inbox.router, inbox.hook_router):
         app.include_router(r)
     return app
 
