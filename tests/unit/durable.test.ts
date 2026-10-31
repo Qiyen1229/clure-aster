@@ -61,3 +61,19 @@ describe('耐用物品每日成本', () => {
     expect(total).toBe(durableStats(phone, '2026-10-25').perDayMinor + durableStats(list[1], '2026-10-25').perDayMinor);
   });
 });
+
+import { lifeLabel, lifeYearsFrom, splitLife } from '@/domain/durable';
+describe('預計使用期限（年＋月）', () => {
+  it('年月互換與顯示', () => {
+    expect(lifeYearsFrom(1, 6)).toBe(1.5);
+    expect(lifeYearsFrom(0, 8)).toBeCloseTo(8 / 12, 10);
+    expect(lifeYearsFrom(0, 0)).toBe(0);
+    expect(lifeYearsFrom(500, 0)).toBe(100); // 上限 100 年
+    expect(splitLife(8 / 12)).toEqual({ years: 0, months: 8 });
+    expect(splitLife(2.5)).toEqual({ years: 2, months: 6 });
+    expect(lifeLabel(1.5)).toBe('1 年 6 個月');
+    expect(lifeLabel(8 / 12)).toBe('8 個月');
+    expect(lifeLabel(3)).toBe('3 年');
+    expect(lifeLabel(0)).toBe('不設定');
+  });
+});

@@ -67,3 +67,20 @@ export function durableStats(d: DurableCalcInput, today: string): DurableStats {
 export function totalDailyBurn(list: (DurableCalcInput & { currency: string })[], today: string, currency: string): number {
   return list.filter((d) => d.status === 'active' && d.currency === currency).reduce((s, d) => s + durableStats(d, today).perDayMinor, 0);
 }
+
+/** 預計使用期限的年月互換（內部仍以「年」存，沿用原本的 lifeYears 欄位）。總月數限制在 1～1200（100 年） */
+export const MAX_LIFE_MONTHS = 1200;
+export function lifeYearsFrom(years: number, months: number): number {
+  const total = Math.round(Math.max(0, years) * 12 + Math.max(0, months));
+  return total < 1 ? 0 : Math.min(MAX_LIFE_MONTHS, total) / 12;
+}
+export function splitLife(lifeYears: number): { years: number; months: number } {
+  const total = Math.max(0, Math.round(lifeYears * 12));
+  return { years: Math.floor(total / 12), months: total % 12 };
+}
+/** 「1 年 6 個月」「8 個月」「3 年」 */
+export function lifeLabel(lifeYears: number): string {
+  const { years, months } = splitLife(lifeYears);
+  if (!years && !months) return '不設定';
+  return [years ? `${years} 年` : '', months ? `${months} 個月` : ''].filter(Boolean).join(' ');
+}

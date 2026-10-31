@@ -9,7 +9,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
 import type { Durable } from '@/db/types';
 import { addDurable, addUse, deleteDurable, reopenDurable, sellDurable, updateDurable } from '@/db/repo/durables';
-import { durableStats, totalDailyBurn } from '@/domain/durable';
+import { durableStats, lifeLabel, totalDailyBurn } from '@/domain/durable';
 import { evaluate } from '@/domain/calc-expr';
 import { currencyInfo, formatMoney, fromMinor, toMinor } from '@/domain/money';
 import { todayKey } from '@/domain/period';
@@ -20,14 +20,17 @@ import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { AccountField, AmountField, CategoryField, DateField, SelectField, SwitchField, TextField } from '@/ui/form';
 import { Sheet } from '@/ui/Sheet';
 import { SectionHead } from './PlanPage';
+import { LifeSpanSheet } from './LifeSpanSheet';
 
 /** 金額：一般顯示到整數，小額（< 10 元）留一位小數，才看得出每天幾毛錢的差別 */
 const fm = (minor: number, cur: string) => formatMoney(minor, cur, { decimals: currencyInfo(cur).exp === 0 || Math.abs(minor) >= 1000 ? 0 : 1 });
 
 const LIFE_PRESETS = [1, 2, 3, 5, 7, 10];
-const LIFE_OPTIONS = [...[0, ...LIFE_PRESETS].map((y) => ({ value: y, label: y ? `${y} 年` : '不設定' })), { value: -1, label: '自訂年限…' }];
-/** 自訂年限：可輸入小數（1.5 年），限制在 0.1～100 年 */
-const parseYears = (t: string) => { const n = parseFloat(t); return Number.isFinite(n) && n > 0 ? Math.min(100, Math.max(0.1, Math.round(n * 10) / 10)) : 0; };
+const lifeOptions = (custom: number) => [
+  ...[0, ...LIFE_PRESETS].map((y) => ({ value: y, label: y ? `${y} 年` : '不設定' })),
+  { value: -1, label: custom > 0 ? `${lifeLabel(custom)}（自訂）` : '自訂期限…' },
+  ...(custom > 0 ? [{ value: -2, label: '修改自訂期限…' }] : []),
+];
 const ICONS = ['📱', '💻', '🎧', '📷', '⌚', '🛵', '🚲', '👜', '👟', '🧊', '📺', '🛋️', '🎮', '🎸', '📦'];
 
 export default function DurableSection() {
@@ -100,8 +103,8 @@ function ActiveCard({ d, today, onEdit, onSell }: { d: Durable; today: string; o
           <div className="bar" style={{ margin: '12px 0 6px' }}><i style={{ width: `${pct}%`, ['--c' as string]: over ? 'var(--success)' : 'var(--accent)' }} /></div>
           <div className="row-sub" style={{ whiteSpace: 'normal' }}>
             {over
-              ? `✅ 已超過預計的 ${d.lifeYears} 年，每天只要 ${fm(s.perDayMinor, d.currency)}，已經很划算`
-              : `已攤提 ${Math.round(pct)}%（預計用 ${d.lifeYears} 年，目標每天 ${fm(s.targetPerDayMinor!, d.currency)}）・再用 ${s.remainingDays} 天用滿`}
+              ? `✅ 已超過預計的 ${lifeLabel(d.lifeYears ?? 0)}，每天只要 ${fm(s.perDayMinor, d.currency)}，已經很划算`
+              : `已攤提 ${Math.round(pct)}%（預計用 ${lifeLabel(d.lifeYears ?? 0)}，目標每天 ${fm(s.targetPerDayMinor!, d.currency)}）・再用 ${s.remainingDays} 天用滿`}
           </div>
         </>
       )}
@@ -161,8 +164,9 @@ function DurableForm({ edit, onClose }: { edit?: Durable; onClose: () => void })
   const [price, setPrice] = useState(edit ? fromMinor(edit.costMinor, edit.currency).toString() : '');
   const [date, setDate] = useState(edit?.purchaseDate ?? todayKey());
   const [years, setYears] = useState(edit?.lifeYears ?? 3);
-  const [customLife, setCustomLife] = useState(!!edit?.lifeYears && !LIFE_PRESETS.includes(edit.lifeYears));
-  const [customTxt, setCustomTxt] = useState(customLife ? String(edit?.lifeYears) : '');
+  /** 自訂期限（年；0＝沒有自訂）。目前值不是預設選項時視為自訂 */
+  const [custom, setCustom] = useState(edit?.lifeYears && !LIFE_PRESETS.includes(edit.lifeYears) ? edit.lifeYears : 0);
+  const [lifeOpen, setLifeOpen] = useState(false);
   const [trackUses, setTrackUses] = useState(!!edit?.trackUses);
   const [uses, setUses] = useState(String(edit?.uses ?? 0));
   const [note, setNote] = useState(edit?.note ?? '');
@@ -171,7 +175,7 @@ function DurableForm({ edit, onClose }: { edit?: Durable; onClose: () => void })
     const v = evaluate(price || '0');
     if (!name.trim() || !v || v.lte(0)) { useUI.getState().showSnack({ text: '請輸入名稱與購入價' }); return; }
     const patch = {
-      name: name.trim(), icon, purchaseDate: date, costMinor: toMinor(v, cur), currency: cur, lifeYears: (customLife ? parseYears(customTxt) : years) || undefined,
+      name: name.trim(), icon, purchaseDate: date, costMinor: toMinor(v, cur), currency: cur, lifeYears: years || undefined,
       trackUses, uses: trackUses ? Math.max(0, Math.round(Number(uses) || 0)) : undefined, note: note.trim() || undefined,
     };
     if (edit) await updateDurable(edit.id, patch); else await addDurable(patch);
@@ -190,13 +194,14 @@ function DurableForm({ edit, onClose }: { edit?: Durable; onClose: () => void })
         </div>
         <AmountField label="購入價" value={price} onChange={setPrice} currency={cur} />
         <DateField label="購入日" value={date} onChange={setDate} max={todayKey()} />
-        <SelectField label="預計使用" value={customLife ? -1 : years} onChange={(v) => { if (v === -1) setCustomLife(true); else { setCustomLife(false); setYears(v); } }} options={LIFE_OPTIONS} />
-        {customLife && <TextField label="自訂年限（年）" value={customTxt} onChange={(v) => setCustomTxt(v.replace(/[^0-9.]/g, ''))} inputMode="decimal" maxLength={5} placeholder="例如 4 或 1.5" />}
+        <SelectField label="預計使用" value={custom > 0 && years === custom ? -1 : years} options={lifeOptions(custom)}
+          onChange={(v) => { if (v < 0) setLifeOpen(true); else setYears(v); }} />
         <SwitchField label="追蹤使用次數" sub="單車、相機、樂器這類用「次」比用「天」有意義的物品，可以算每次使用成本" checked={trackUses} onChange={setTrackUses} />
         {trackUses && <TextField label="目前已使用" value={uses} onChange={(v) => setUses(v.replace(/\D/g, ''))} inputMode="numeric" maxLength={6} />}
         <TextField label="備註" value={note} onChange={setNote} maxLength={100} />
       </div>
       <button className="btn" onClick={() => void save()}>{edit ? '儲存' : '開始追蹤'}</button>
+      <LifeSpanSheet open={lifeOpen} initialYears={custom || years} onClose={() => setLifeOpen(false)} onConfirm={(y) => { setCustom(y); setYears(y); }} />
     </>
   );
 }

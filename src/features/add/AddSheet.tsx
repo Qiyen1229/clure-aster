@@ -30,6 +30,8 @@ import { Icon } from '@/ui/Icon';
 import { Keypad } from './Keypad';
 import { AccountPicker, CurrencyPicker, ProjectPicker, TagPicker } from './pickers';
 import { computeSplit, SplitSheet, type SplitState } from './SplitSheet';
+import { lifeLabel } from '@/domain/durable';
+import { LifeSpanSheet } from '../plan/LifeSpanSheet';
 import { addDebts, addLoan, findOrCreatePerson, removeLoan } from '@/db/repo/plan';
 import { addDurable } from '@/db/repo/durables';
 import { countRuleHit, recentNoteSuggestions, suggestCategory, type CategorySuggestion } from '@/services/autocat';
@@ -94,9 +96,9 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
   const [durableYears, setDurableYears] = useState(0);
   /** 不計入預算（仍計入收支統計）：預算進度與「今日還可花」都不算這一筆 */
   const [skipBudget, setSkipBudget] = useState(false);
-  /** 耐用品年限選了「自訂」：用輸入的年數（可小數） */
-  const [durableCustom, setDurableCustom] = useState(false);
-  const [durableTxt, setDurableTxt] = useState('');
+  /** 耐用品「自訂期限」彈窗與目前的自訂值（年；0＝沒有自訂） */
+  const [lifeOpen, setLifeOpen] = useState(false);
+  const [durableCustom, setDurableCustom] = useState(0);
   const [atts, setAtts] = useState<{ id: string; url: string; fresh: boolean }[]>([]);
   const [split, setSplit] = useState<SplitState>({ mode: 'equal', people: [] });
   /** 應收／應付：對象、是否同時動到帳戶（借出／借入） */
@@ -228,7 +230,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
   const onKey = useCallback((k: string) => setExpr((e) => pressKey(e, k, exp)), [exp]);
 
   const reset = () => {
-    setExpr(''); setNote(''); setAtts([]); setFee(''); setToAmount(''); setPersonName(''); setDurableYears(0); setDurableCustom(false); setDurableTxt(''); setSkipBudget(false);
+    setExpr(''); setNote(''); setAtts([]); setFee(''); setToAmount(''); setPersonName(''); setDurableYears(0); setDurableCustom(0); setSkipBudget(false);
     setTime(nowTime());
   };
 
@@ -714,24 +716,16 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
               </>
             )}
             {mode === 'expense' && !editing && (
-              <span className="pill" style={{ position: 'relative' }} aria-pressed={durableYears > 0 || durableCustom}>
-                <Icon name="chart" size={16} />{durableYears > 0 ? `耐用品 ${durableYears} 年` : durableCustom ? '耐用品 自訂' : '耐用品'}
-                <select value={durableCustom ? -1 : durableYears} aria-label="標記為耐用品（追蹤每日持有成本）"
-                  onChange={(e) => { const v = Number(e.target.value); setDurableCustom(v === -1); setDurableTxt(''); setDurableYears(v === -1 ? 0 : v); }}
+              <span className="pill" style={{ position: 'relative' }} aria-pressed={durableYears > 0}>
+                <Icon name="chart" size={16} />{durableYears > 0 ? `耐用品 ${lifeLabel(durableYears)}` : '耐用品'}
+                <select value={durableCustom > 0 && durableYears === durableCustom ? -1 : durableYears} aria-label="標記為耐用品（追蹤每日持有成本）"
+                  onChange={(e) => { const v = Number(e.target.value); if (v < 0) setLifeOpen(true); else setDurableYears(v); }}
                   style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%' }}>
                   <option value={0}>不追蹤</option>
                   {[1, 2, 3, 5, 7, 10].map((y) => <option key={y} value={y}>預計使用 {y} 年</option>)}
-                  <option value={-1}>自訂年限…</option>
+                  <option value={-1}>{durableCustom > 0 ? `${lifeLabel(durableCustom)}（自訂）` : '自訂期限…'}</option>
+                  {durableCustom > 0 && <option value={-2}>修改自訂期限…</option>}
                 </select>
-              </span>
-            )}
-            {mode === 'expense' && !editing && durableCustom && (
-              <span className="pill">
-                使用
-                <input inputMode="decimal" value={durableTxt} placeholder="年數" aria-label="耐用品預計使用年數"
-                  onChange={(e) => { const t = e.target.value.replace(/[^0-9.]/g, ''); setDurableTxt(t); const n = parseFloat(t); setDurableYears(Number.isFinite(n) && n > 0 ? Math.min(100, n) : 0); }}
-                  style={{ width: 48, border: 0, background: 'transparent', outline: 'none', textAlign: 'center' }} />
-                年
               </span>
             )}
             {mode === 'expense' && (
@@ -840,6 +834,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
       <AccountPicker open={picker === 'toAccount'} onClose={() => setPicker(null)} accounts={accounts} value={toAccountId}
         title="轉入帳戶" exclude={accountId} onPick={(id) => { setToAccountId(id); setFxRate(''); setToAmount(''); }} />
       <CurrencyPicker open={picker === 'currency'} onClose={() => setPicker(null)} value={txCurrency} onPick={(c) => { setCurrency(c); setFxRate(''); }} />
+      <LifeSpanSheet open={lifeOpen} initialYears={durableCustom || durableYears} onClose={() => setLifeOpen(false)} onConfirm={(y) => { setDurableCustom(y); setDurableYears(y); }} />
       <SplitSheet open={picker === 'split'} onClose={() => setPicker(null)} value={split} onChange={setSplit}
         totalMinor={value && value.gt(0) ? toMinor(value, txCurrency) : 0} currency={txCurrency} />
       <TagPicker open={picker === 'tags'} onClose={() => setPicker(null)} tags={tags} value={tagIds} onChange={setTagIds} />
