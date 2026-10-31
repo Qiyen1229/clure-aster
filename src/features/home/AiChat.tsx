@@ -18,7 +18,7 @@ import { ask } from '@/services/nlquery';
 import { bookDrafts, draftsFromText, draftsSmart, type ResolvedDraft } from '@/services/quickentry';
 import { useSettings } from '@/stores/settings';
 import { snackUndo, useUI } from '@/stores/ui';
-import { Icon } from '@/ui/Icon';
+import { AiMark, Icon } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
 
 type Msg =
@@ -113,7 +113,7 @@ export function AiOrb() {
   const hasHistory = useChat((s) => s.msgs.length > 0);
   return (
     <button className={`ai-orb${hasHistory ? ' has-history' : ''}`} aria-label="AI 助理：說一句話記帳或問問題" onClick={openAiChat}>
-      <Icon name="sparkle" size={18} stroke={2.2} />
+      <Icon name="ai" size={21} stroke={1.9} />
     </button>
   );
 }
@@ -144,7 +144,7 @@ function EntriesBubble({ m }: { m: Extract<Msg, { kind: 'entries' }> }) {
   };
   return (
     <div>
-      <div>{m.via === 'ai' ? '✨ AI 幫你整理成這樣：' : '看起來是這幾筆：'}</div>
+      <div>{m.via === 'ai' ? <><AiMark /> AI 幫你整理成這樣：</> : '看起來是這幾筆：'}</div>
       <div className="list" style={{ marginTop: 6 }}>
         {m.drafts.map((d, i) => (
           <div key={i} className="row">

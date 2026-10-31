@@ -23,7 +23,7 @@ import { useSettings } from '@/stores/settings';
 import { snackUndo, useUI } from '@/stores/ui';
 import { AccountField, SwitchField } from '@/ui/form';
 import { EmptyState, SkeletonRows } from '@/ui/controls';
-import { Icon } from '@/ui/Icon';
+import { AiMark, Icon } from '@/ui/Icon';
 
 const snack = (text: string, duration?: number) => useUI.getState().showSnack({ text, duration });
 
@@ -213,7 +213,7 @@ export default function InboxPage() {
                       <span className="row-sub">{src.label} · 看不懂金額，請手動記</span>
                     </span>
                     <span className="inbox-actions">
-                      {aiEnabledLocally() && (e.item.text || e.item.merchant) && <button className="pill accent-pill" disabled={aiBusyId === e.item.id} onClick={() => void aiParse(e)}>{aiBusyId === e.item.id ? '解析中…' : '✨ AI 解析'}</button>}
+                      {aiEnabledLocally() && (e.item.text || e.item.merchant) && <button className="pill accent-pill" disabled={aiBusyId === e.item.id} onClick={() => void aiParse(e)}>{aiBusyId === e.item.id ? '解析中…' : <><AiMark /> AI 解析</>}</button>}
                       <button className="pill" onClick={() => edit(e)}>手動記</button>
                       <button className="pill" onClick={() => void skip(e)} aria-label="略過">略過</button>
                     </span>

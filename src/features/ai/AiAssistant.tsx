@@ -21,7 +21,7 @@ import { aiAsk, aiBudgetPlan, aiCategorize, aiReceipt, getAiStatus, quotaLabel, 
 import { bookDrafts, fallbackAccount, resolveDraft, type ResolvedDraft } from '@/services/quickentry';
 import { useSettings } from '@/stores/settings';
 import { snackUndo, useUI } from '@/stores/ui';
-import { Icon } from '@/ui/Icon';
+import { AiMark, Icon } from '@/ui/Icon';
 import { AiInsightsCard } from './AiInsights';
 import { lastCompleted } from '@/services/summary';
 
@@ -297,7 +297,7 @@ export default function AiAssistant() {
     return (
       <main className="page">{header}
         <section className="card" style={{ margin: '12px 0' }}>
-          <div className="row-title">✨ 讓記帳更輕鬆</div>
+          <div className="row-title"><AiMark /> 讓記帳更輕鬆</div>
           <p style={{ whiteSpace: 'normal' }}>問問題、下個月預算建議、白話解讀、整理分類、拍照記帳。預設關閉，需要先在設定開啟，並看過會送出哪些內容。</p>
           <button className="btn" onClick={() => navigate('/settings/ai')}>前往 AI 設定</button>
         </section>
@@ -318,7 +318,7 @@ export default function AiAssistant() {
           </>
         ) : (
           <section className="card">
-            <div className="row-title">💬 問 AI、📅 預算建議、✨ 白話解讀</div>
+            <div className="row-title">💬 問 AI、📅 預算建議、<AiMark /> 白話解讀</div>
             <p style={{ whiteSpace: 'normal' }}>這幾項需要讓 AI 看你「去識別化的收支統計」（各月與各分類合計，不含單筆帳目與備註）。</p>
             <button className="btn" onClick={() => navigate('/settings/ai')}>前往允許</button>
           </section>

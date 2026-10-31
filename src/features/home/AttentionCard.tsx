@@ -10,7 +10,7 @@ import { autoWeeklyInsight } from '@/services/ai';
 import { useInboxCount } from '@/services/inbox';
 import { loadSnapshot } from '@/services/insights';
 import { useSettings } from '@/stores/settings';
-import { Icon } from '@/ui/Icon';
+import { AiMark, Icon } from '@/ui/Icon';
 
 const KEY = 'aster.home.weekly.open';
 const readOpen = () => { try { return localStorage.getItem(KEY) === '1'; } catch { return false; } };
@@ -54,7 +54,7 @@ export function AttentionCard() {
       {weekly && (
         <>
           <button className="attn-row" onClick={toggleWeekly} aria-expanded={open}>
-            <span className="attn-ico" aria-hidden="true">✨</span>
+            <span className="attn-ico" aria-hidden="true"><AiMark /></span>
             <span className={`attn-text${open ? '' : ' one'}`}><b>{weekly.label}：</b>{weekly.value.headline}</span>
             <span className={`attn-chev${open ? ' open' : ''}`} aria-hidden="true"><Icon name="chevronD" size={16} /></span>
           </button>

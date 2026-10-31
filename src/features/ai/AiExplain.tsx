@@ -2,6 +2,7 @@
  * 「AI 解說」卡片：專案、帳戶等頁面共用。
  * build() 回傳 domain/aisummary 整理的去識別化統計；結果快取在本機，同樣的資料不會重複扣額度。
  */
+import { AiMark } from '@/ui/Icon';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { aiExplain, quotaLabel, type InsightsValue } from '@/services/ai';
@@ -27,7 +28,7 @@ export function AiExplainCard({ subject, build, hint }: { subject: string; build
   if (!enabled) {
     return (
       <section className="card" style={{ marginBottom: 12 }}>
-        <div className="row-title">✨ AI 解說</div>
+        <div className="row-title"><AiMark /> AI 解說</div>
         <div className="row-sub" style={{ whiteSpace: 'normal' }}>{hint ?? '讓 AI 用幾句話說明重點與建議。'}需要先在設定允許 AI 分析收支統計。</div>
         <button className="btn small tinted" style={{ marginTop: 8 }} onClick={() => navigate('/settings/ai')}>前往 AI 設定</button>
       </section>
@@ -36,7 +37,7 @@ export function AiExplainCard({ subject, build, hint }: { subject: string; build
   return (
     <section className="card" style={{ marginBottom: 12 }} aria-live="polite">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-        <div className="row-title">✨ AI 解說</div>
+        <div className="row-title"><AiMark /> AI 解說</div>
         <button className="btn small" disabled={busy} onClick={() => void run(!!res)}>{busy ? '分析中…' : res ? '重新分析' : '請 AI 解說'}</button>
       </div>
       {err && <p className="row-sub" style={{ color: 'var(--danger)', whiteSpace: 'normal' }}>{err}</p>}

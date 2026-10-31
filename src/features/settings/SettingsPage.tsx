@@ -268,7 +268,7 @@ export default function SettingsPage() {
 
       {AUTH_ENABLED && (
         <Group title="AI">
-          <Row icon="sparkle" tint="#BF5AF2" label="AI 助理" sub="問答、下月預算建議、白話解讀、整理分類、拍照記帳" onClick={() => navigate('/ai')} />
+          <Row icon="ai" tint="#BF5AF2" label="AI 助理" sub="問答、下月預算建議、白話解讀、整理分類、拍照記帳" onClick={() => navigate('/ai')} />
           <Row icon="sliders" tint="#8E8E93" label="AI 設定與額度" sub="開關、會送出哪些內容、每日／週／月額度" onClick={() => navigate('/settings/ai')} />
         </Group>
       )}
@@ -282,7 +282,7 @@ export default function SettingsPage() {
           <div className="field"><span className="label" style={{ flex: 1 }}>規則判斷不了時，請 AI 查市價<span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>{s.ai?.enabled ? '只在新支出比平常高很多、又查不到行情時才問，每筆只問一次，不計額度；送出的內容可在「AI 設定 → 查看送出過什麼」檢查' : '需要先到「AI 設定」開啟 AI 功能；沒開時只在金額離譜到極端才提醒'}</span></span>
             <Switch checked={s.insights.aiPrice && !!s.ai?.enabled} label="請 AI 查市價" onChange={(v) => { if (s.ai?.enabled) s.set('insights', { ...s.insights, aiPrice: v }); }} /></div>
         )}
-        {(s.insights.anomaly || s.insights.budgetWarn) && <Row icon="sparkle" tint="#FF9F0A" label="查看目前的偵測結果" onClick={() => navigate('/insights')} />}
+        {(s.insights.anomaly || s.insights.budgetWarn) && <Row icon="bell" tint="#FF9F0A" label="查看目前的偵測結果" onClick={() => navigate('/insights')} />}
       </Group>
 
       <Group title="自動化與整合">
@@ -324,7 +324,7 @@ export default function SettingsPage() {
             } catch { snack('無法連線到伺服器，請稍後再試'); } finally { setChecking(false); }
           }}>{checking ? '檢查中…' : '檢查更新'}</button>
         </Row>
-        <Row icon="sparkle" tint="#FF9F0A" label="重新執行首次引導" onClick={() => { s.set('onboarded', false); navigate('/onboarding'); }} />
+        <Row icon="info" tint="#FF9F0A" label="重新執行首次引導" onClick={() => { s.set('onboarded', false); navigate('/onboarding'); }} />
         <details className="set-details">
           <summary>資料隱私說明</summary>
           <p>記帳資料存在本機（IndexedDB，每個帳號獨立），並同步到你自己架設的伺服器，讓同一帳號的所有裝置看到相同資料；未啟用端對端加密時，伺服器上的資料為明文。收據照片只留在拍照的裝置。App 鎖 PIN、通知設定不會同步。匯率與股價查詢只會送出幣別／股票代號。</p>

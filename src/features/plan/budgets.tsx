@@ -2,6 +2,7 @@
  * 預算：月／週／自訂週期、總額或分類／專案預算、結轉、警示門檻。
  * 卡片顯示進度條、剩餘金額、剩餘天數、今日可用（Moze 式動態每日額度）、推估期末花費、超支警示。
  */
+import { AiMark } from '@/ui/Icon';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -45,7 +46,7 @@ export default function BudgetSection() {
       <SectionHead title="預算" onAdd={() => setEdit('new')} />
       {AUTH_ENABLED && (
         <button className="card" style={{ width: '100%', textAlign: 'left', marginBottom: 8 }} onClick={() => navigate('/ai?tool=budget')}>
-          <span className="row-title">✨ 讓 AI 建議下個月預算</span>
+          <span className="row-title"><AiMark /> 讓 AI 建議下個月預算</span>
           <span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>依過去花費與固定支出，算出總預算與每天的日常預算</span>
         </button>
       )}

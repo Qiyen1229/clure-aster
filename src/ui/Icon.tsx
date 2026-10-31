@@ -1,6 +1,8 @@
 /**
  * 內建線條圖示（24×24，stroke 1.8，currentColor）。避免引入整包圖示庫以縮小首屏體積。
  */
+import { useId } from 'react';
+
 const P: Record<string, string> = {
   plus: 'M12 5v14M5 12h14',
   bell: 'M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0',
@@ -39,7 +41,7 @@ const P: Record<string, string> = {
   download: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3',
   lock: 'M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4',
   globe: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM2 12h20M12 2a15.3 15.3 0 0 1 0 20M12 2a15.3 15.3 0 0 0 0 20',
-  sparkle: 'M12 3l1.9 5.8L20 10l-6.1 1.2L12 17l-1.9-5.8L4 10l6.1-1.2z',
+  ai: '',
   more: 'M5 12h.01M12 12h.01M19 12h.01',
   target: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
   card: 'M2 5h20v14H2zM2 10h20',
@@ -50,7 +52,37 @@ const P: Record<string, string> = {
 
 export type IconName = keyof typeof P;
 
+/**
+ * Aster 自創的 AI 圖示：對話泡＋兩行文字，右上角壓著一大一小的圓（泡的外框在圓周圍留出缺口）。
+ * 缺口用遮罩挖出，所以放在任何底色上都成立；顏色跟著 currentColor。
+ */
+function AiGlyph({ size, stroke, className }: { size: number; stroke: number; className?: string }) {
+  const id = `ai-${useId().replace(/:/g, '')}`;
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={stroke}
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className}>
+      <mask id={id} maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24">
+        <rect width="24" height="24" fill="#fff" />
+        <circle cx="18" cy="6.2" r="4.4" fill="#000" stroke="none" />
+        <circle cx="14.6" cy="3" r="2.4" fill="#000" stroke="none" />
+      </mask>
+      <g mask={`url(#${id})`}>
+        <path d="M6 6h9a2.5 2.5 0 0 1 2.5 2.5V14a2.5 2.5 0 0 1-2.5 2.5H10l-3.5 3v-3H6A2.5 2.5 0 0 1 3.5 14V8.5A2.5 2.5 0 0 1 6 6z" />
+        <path d="M7.2 10.2h5M7.2 13h3" />
+      </g>
+      <circle cx="18.2" cy="6.2" r="2.6" fill="currentColor" stroke="none" />
+      <circle cx="14.4" cy="3.2" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+/** 文字行內用的小 AI 圖示（取代 ✨），大小跟著字 */
+export function AiMark({ className }: { className?: string }) {
+  return <AiGlyph size={16} stroke={2} className={`ai-mark${className ? ` ${className}` : ''}`} />;
+}
+
 export function Icon({ name, size = 22, stroke = 1.8, className }: { name: IconName; size?: number; stroke?: number; className?: string }) {
+  if (name === 'ai') return <AiGlyph size={size} stroke={stroke} className={className} />;
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={stroke}
       strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className}>

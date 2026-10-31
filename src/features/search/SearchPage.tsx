@@ -14,7 +14,7 @@ import type { LedgerItem } from '@/db/repo/ledger';
 import { todayKey } from '@/domain/period';
 import { searchLedger } from '@/services/search';
 import { useSettings } from '@/stores/settings';
-import { Icon } from '@/ui/Icon';
+import { AiMark, Icon } from '@/ui/Icon';
 import { EmptyState, SkeletonRows } from '@/ui/controls';
 import { LedgerRow } from '../ledger/LedgerRow';
 import { isQuestion, looksLikeAiQuestion, rangeText } from '@/domain/nlquery';
@@ -80,14 +80,14 @@ export default function SearchPage() {
 
   const aiPrompt = (found: number) => (aiEnabledLocally() && dq.length >= 4 && found >= 0 && (found === 0 || dq.length >= 8) && !aiRes ? (
     <section className="card ask-answer">
-      <p className="ask-text">✨ {found === 0 ? '找不到？' : '想用說的找？'}讓 AI 把「{dq.length > 18 ? `${dq.slice(0, 18)}…` : dq}」轉成搜尋條件。</p>
+      <p className="ask-text"><AiMark /> {found === 0 ? '找不到？' : '想用說的找？'}讓 AI 把「{dq.length > 18 ? `${dq.slice(0, 18)}…` : dq}」轉成搜尋條件。</p>
       {aiErr && <p className="row-sub" role="alert" style={{ color: 'var(--danger)', whiteSpace: 'normal' }}>{aiErr}</p>}
       <button className="btn small" disabled={aiBusy} onClick={() => void runAi()}>{aiBusy ? 'AI 理解中…' : '用 AI 找'}</button>
     </section>
   ) : null);
   const aiResults = aiRes && aiRes.q === dq ? (
     <>
-      <div className="section-title">✨ AI 找到（{aiRes.items.length}{aiRes.truncated ? '+' : ''}）</div>
+      <div className="section-title"><AiMark /> AI 找到（{aiRes.items.length}{aiRes.truncated ? '+' : ''}）</div>
       <div className="ask-chips" aria-label="AI 理解的搜尋條件" style={{ margin: '0 4px 8px' }}>{aiRes.chips.map((c, i) => <span key={i} className="chip">{c}</span>)}</div>
       {aiRes.items.length === 0 && <p className="muted" style={{ margin: '0 8px' }}>用這些條件沒有找到帳目，可以換個說法再試。</p>}
       {aiRes.items.map((it) => <LedgerRow key={`ai:${it.kind}:${it.id}`} item={it} cats={cats.map} accounts={accounts.map} tags={tags.map} showDate />)}
@@ -148,13 +148,13 @@ export default function SearchPage() {
             <section className="card ask-answer">
               <p className="ask-text">💬 這個問題我用規則看不懂，先列出可能相關的帳目。</p>
               {aiEnabledLocally()
-                ? <button className="btn small" onClick={() => navigate(`/ai?q=${encodeURIComponent(q.trim())}`)}>✨ 問 AI</button>
+                ? <button className="btn small" onClick={() => navigate(`/ai?q=${encodeURIComponent(q.trim())}`)}><AiMark /> 問 AI</button>
                 : <p className="muted" style={{ margin: '4px 0 0' }}>到「設定 → AI 助理」開啟 AI 後，可以問更複雜的問題。</p>}
             </section>
           )}
           {!ruleFailed && aiEnabledLocally() && looksLikeAiQuestion(q) && (
             <section className="card ask-answer">
-              <p className="ask-text">✨ 這像是一個請教的問題，要問 AI 嗎？</p>
+              <p className="ask-text"><AiMark /> 這像是一個請教的問題，要問 AI 嗎？</p>
               <button className="btn small" onClick={() => navigate(`/ai?q=${encodeURIComponent(q.trim())}`)}>問 AI</button>
             </section>
           )}

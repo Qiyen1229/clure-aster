@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { getAiStatus, type AiQuotaWindow, type AiStatus } from '@/services/ai';
 import { useSettings } from '@/stores/settings';
 import { SwitchField } from '@/ui/form';
-import { Icon } from '@/ui/Icon';
+import { AiMark, Icon } from '@/ui/Icon';
 
 const resetText = (iso: string) => new Date(iso + 'Z').toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 
@@ -57,7 +57,7 @@ export default function AiPage() {
         一句話記帳只有規則解析找不到金額時才會用到，輸入過程中的即時預覽不會用到額度。
         <b>新支出的市價檢查</b>（設定 → 智慧提醒，可關閉）：規則判斷不了的新支出（比平常高很多、又沒有行情資料），會送出<b>那一筆</b>的分類名稱、備註、金額與你這個分類平常一筆約多少，請 AI 查市價；每筆只問一次、<b>不計額度</b>，送出的原文可在「查看送出過什麼」檢查。
         <b>搜尋</b>的「用 AI 找」只送你輸入的描述與分類、帳戶、標籤名稱，不送任何帳目。
-        <b>收件匣</b>的「✨ AI 解析」會送出那則簡訊／通知的文字（已先去掉網址、身分證、卡號與連續 10 碼以上的數字），只有你按下按鈕才會送。
+        <b>收件匣</b>的「<AiMark /> AI 解析」會送出那則簡訊／通知的文字（已先去掉網址、身分證、卡號與連續 10 碼以上的數字），只有你按下按鈕才會送。
       </p>
       <p className="set-note">
         <b>收支統計</b>（需另外允許）：最近約 6 個月每月的收入、支出與各分類合計、每月固定支出（訂閱／分期／貸款）、各預算的上限與已花、存錢目標進度與淨資產，全部是整數統計。

@@ -1,5 +1,6 @@
 /**
- * 底部抽屜（Bottom Sheet）：拖曳把手下滑關閉、點背景（空白處）關閉、Esc 關閉、鎖定背景捲動。
+ * 底部抽屜（Bottom Sheet）：視窗任何空白處或把手都能往下滑關閉（1:1 跟手、依速度與距離決定關閉或彈回）、
+ * 點背景關閉、Esc 關閉、鎖定背景捲動。內容還能捲動時，捲動優先，不會誤關。
  * 關閉時先播放退出動畫再卸載。
  * 巢狀開啟時（例如記帳面板內再開帳戶選擇），後開的抽屜與其背景會疊在前一層之上，
  * 因此點任何空白處都只會關閉最上層，避免誤觸後無法退出。
@@ -29,6 +30,8 @@ export function Sheet({ open, onClose, title, left, right, full, children, confi
   const [mounted, setMounted] = useState(open);
   const [closing, setClosing] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
+  const requestCloseRef = useRef<() => void>(() => {});
   const drag = useRef<{ y0: number; dy: number } | null>(null);
   const idRef = useRef(0);
   const [depth, setDepth] = useState(0);
@@ -66,6 +69,94 @@ export function Sheet({ open, onClose, title, left, right, full, children, confi
     if (confirmClose && !confirmClose()) return;
     onClose();
   };
+  requestCloseRef.current = requestClose;
+
+  // 空白處下滑關閉：原生 touch 事件（要能 preventDefault 擋掉頁面捲動），位移 1:1 跟著手指
+  useEffect(() => {
+    const el = sheetRef.current;
+    if (!mounted || !el) return;
+    const bd = backdropRef.current;
+    type Mode = 'idle' | 'ignore' | 'drag';
+    let mode: Mode = 'idle';
+    let x0 = 0, y0 = 0, yBase = 0, dy = 0;
+    let samples: { t: number; y: number }[] = [];
+
+    const blocked = (target: EventTarget | null) => {
+      let n = target as HTMLElement | null;
+      if (n?.closest?.('.sheet-grab, input, textarea, select, [data-no-sheet-drag]')) return true;
+      // 沿途有還沒捲到頂的可捲動區：讓它先捲
+      while (n && n !== el) {
+        if (n.nodeType === 1) {
+          const oy = getComputedStyle(n).overflowY;
+          if ((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight + 1 && n.scrollTop > 0) return true;
+        }
+        n = n.parentElement;
+      }
+      return false;
+    };
+
+    const onStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) { mode = 'ignore'; return; }
+      const t = e.touches[0];
+      x0 = t.clientX; y0 = t.clientY; dy = 0;
+      samples = [{ t: e.timeStamp, y: t.clientY }];
+      mode = blocked(e.target) ? 'ignore' : 'idle';
+    };
+    const onMove = (e: TouchEvent) => {
+      if (mode === 'ignore' || e.touches.length !== 1) return;
+      const t = e.touches[0];
+      if (mode === 'idle') {
+        const mx = t.clientX - x0, my = t.clientY - y0;
+        if (Math.abs(mx) > Math.abs(my) && Math.abs(mx) > 6) { mode = 'ignore'; return; }
+        if (my < -6) { mode = 'ignore'; return; }
+        if (my <= 6) return;
+        mode = 'drag';
+        yBase = t.clientY; // 從啟動點開始算，畫面不會突然跳一格
+        el.style.transition = 'none';
+        el.style.animation = 'none';
+        if (bd) bd.style.animation = 'none';
+      }
+      e.preventDefault();
+      dy = Math.max(0, t.clientY - yBase);
+      el.style.transform = `translateY(${dy}px)`;
+      if (bd) bd.style.opacity = String(1 - Math.min(1, dy / (el.offsetHeight || 1)) * 0.9);
+      samples.push({ t: e.timeStamp, y: t.clientY });
+      if (samples.length > 8) samples.shift();
+    };
+    const onEnd = (e: TouchEvent) => {
+      if (mode !== 'drag') { mode = 'idle'; return; }
+      mode = 'idle';
+      const last = samples[samples.length - 1];
+      const ref = samples.find((p) => last.t - p.t <= 100) ?? last;
+      const v = last.t > ref.t ? (last.y - ref.y) / (last.t - ref.t) : 0; // px/ms，向下為正
+      const h = el.offsetHeight || 1;
+      const shouldClose = e.type === 'touchend' && (dy > h * 0.28 || (v > 0.45 && dy > 24));
+      if (shouldClose && (!confirmClose || confirmClose())) {
+        // 關閉動畫從目前位置接著往下滑出（keyframe 只有 to，起點取當下的 transform）
+        el.style.animation = '';
+        el.style.transition = 'none';
+        if (bd) bd.style.animation = '';
+        requestCloseRef.current();
+        return;
+      }
+      // 彈回原位
+      el.style.animation = '';
+      el.style.transition = 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)';
+      el.style.transform = '';
+      if (bd) { bd.style.transition = 'opacity 320ms ease'; bd.style.opacity = ''; }
+      window.setTimeout(() => { el.style.transition = ''; if (bd) { bd.style.transition = ''; bd.style.animation = ''; } }, 340);
+    };
+    el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchmove', onMove, { passive: false });
+    el.addEventListener('touchend', onEnd);
+    el.addEventListener('touchcancel', onEnd);
+    return () => {
+      el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchmove', onMove);
+      el.removeEventListener('touchend', onEnd);
+      el.removeEventListener('touchcancel', onEnd);
+    };
+  }, [mounted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onPointerDown = (e: React.PointerEvent) => {
     drag.current = { y0: e.clientY, dy: 0 };
@@ -91,7 +182,7 @@ export function Sheet({ open, onClose, title, left, right, full, children, confi
   const z = 60 + Math.max(0, depth - 1) * 2;
   return createPortal(
     <>
-      <div className={`sheet-backdrop${closing ? ' closing' : ''}`} style={{ zIndex: z }}
+      <div ref={backdropRef} className={`sheet-backdrop${closing ? ' closing' : ''}`} style={{ zIndex: z }}
         onClick={requestClose} onPointerDown={(e) => e.stopPropagation()} aria-hidden="true" />
       <div ref={sheetRef} className={`sheet${full ? ' full' : ''}${closing ? ' closing' : ''}`} style={{ zIndex: z + 1 }}
         role="dialog" aria-modal="true" tabIndex={-1} aria-label={typeof title === 'string' ? title : undefined}>
