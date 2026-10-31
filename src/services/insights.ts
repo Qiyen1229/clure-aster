@@ -238,4 +238,15 @@ export function installNewTxWatcher(): void {
     clearTimeout(timer);
     timer = setTimeout(flush, 1500);
   });
+  // 帳目被刪除、改金額、還原或新增時，預算預警與異常結果都會跟著變：稍後重算一次（合併連續變動）。
+  // 否則刪掉那筆大額支出後，首頁「需要你看一下」仍停在舊的快取，要等 10 分鐘或重開 App 才會消失
+  let refresh: ReturnType<typeof setTimeout> | undefined;
+  const scheduleRefresh = () => {
+    if (!insightsOn()) return;
+    clearTimeout(refresh);
+    refresh = setTimeout(() => { void runInsights({ force: true }).catch(() => undefined); }, 1200);
+  };
+  db.transactions.hook('creating', () => { scheduleRefresh(); });
+  db.transactions.hook('updating', () => { scheduleRefresh(); });
+  db.transactions.hook('deleting', () => { scheduleRefresh(); });
 }

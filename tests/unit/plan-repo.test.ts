@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/schema';
 import { buildDefaultCategories } from '@/db/seed/categories';
 import { addAccount } from '@/db/repo/accounts';
-import { addTransaction } from '@/db/repo/ledger';
+import { addTransaction, updateTransaction } from '@/db/repo/ledger';
 import {
   addDebts, addInstallment, computeBudgets, confirmPending, processInstallments, processRecurring, saveBudget, saveRecurring, settleDebt, findOrCreatePerson,
 } from '@/db/repo/plan';
@@ -68,6 +68,23 @@ describe('plan repo', () => {
     const [v] = await computeBudgets('2026-10-10');
     expect(v.status.spent).toBe(10000);
     expect(totals(await db.transactions.toArray()).expense).toBe(109900);
+  });
+
+  it('不計入預算：預算進度與今日還可花都不算，但收支統計仍計入；編輯可取消', async () => {
+    const a = await mkAcc();
+    await saveBudget({ name: '總預算', periodType: 'month', startDate: '2026-10-01', amountMinor: 3100000, currency: 'TWD', categoryId: '', projectId: '', rollover: false, alertPercents: [80], active: 1 });
+    const base = { accountId: a.id, currency: 'TWD', date: '2026-10-10', ts: 1, type: 'expense' as const, categoryId: 'exp-food' };
+    await addTransaction({ ...base, amountMinor: 20000 });
+    const big = await addTransaction({ ...base, amountMinor: 5000000, excludeFromBudget: true });
+    let [v] = await computeBudgets('2026-10-10');
+    expect(v.status.spent).toBe(20000);
+    expect(v.status.spentToday).toBe(20000);
+    expect(v.status.level).toBe('ok');
+    expect(totals(await db.transactions.toArray()).expense).toBe(5020000);
+    await updateTransaction(big.id, { ...base, amountMinor: 5000000, excludeFromBudget: false });
+    [v] = await computeBudgets('2026-10-10');
+    expect(v.status.spent).toBe(5020000);
+    expect(v.status.level).toBe('over');
   });
 
   it('分帳結清：對方還款入帳且不計入收入', async () => {

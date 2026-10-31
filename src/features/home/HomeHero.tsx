@@ -37,7 +37,7 @@ export function HomeHero({ selected }: { selected: string }) {
         <span>結餘 <Amount minor={t?.net ?? 0} currency={base} tone={(t?.net ?? 0) >= 0 ? 'pos' : 'neg'} opts={{ decimals: 0, sign: (t?.net ?? 0) > 0 ? 'always' : undefined }} /></span>
         <i aria-hidden="true">·</i>
         {data?.left !== null && data?.left !== undefined ? (
-          <span>今日還可花 <Amount minor={data.left} currency={base} tone={data.left < 0 ? 'neg' : 'none'} opts={{ decimals: 0 }} /></span>
+          <span>今日還可花 <span style={{ color: data.left > 0 ? 'var(--danger)' : data.left < 0 ? 'var(--success)' : undefined }}><Amount minor={data.left} currency={base} tone="none" opts={{ decimals: 0 }} /></span></span>
         ) : (
           <span>日均 <Amount minor={Math.round((t?.expense ?? 0) / days)} currency={base} tone="none" opts={{ decimals: 0 }} /></span>
         )}

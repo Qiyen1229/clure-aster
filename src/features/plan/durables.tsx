@@ -24,7 +24,10 @@ import { SectionHead } from './PlanPage';
 /** 金額：一般顯示到整數，小額（< 10 元）留一位小數，才看得出每天幾毛錢的差別 */
 const fm = (minor: number, cur: string) => formatMoney(minor, cur, { decimals: currencyInfo(cur).exp === 0 || Math.abs(minor) >= 1000 ? 0 : 1 });
 
-const LIFE_OPTIONS = [0, 1, 2, 3, 5, 7, 10].map((y) => ({ value: y, label: y ? `${y} 年` : '不設定' }));
+const LIFE_PRESETS = [1, 2, 3, 5, 7, 10];
+const LIFE_OPTIONS = [...[0, ...LIFE_PRESETS].map((y) => ({ value: y, label: y ? `${y} 年` : '不設定' })), { value: -1, label: '自訂年限…' }];
+/** 自訂年限：可輸入小數（1.5 年），限制在 0.1～100 年 */
+const parseYears = (t: string) => { const n = parseFloat(t); return Number.isFinite(n) && n > 0 ? Math.min(100, Math.max(0.1, Math.round(n * 10) / 10)) : 0; };
 const ICONS = ['📱', '💻', '🎧', '📷', '⌚', '🛵', '🚲', '👜', '👟', '🧊', '📺', '🛋️', '🎮', '🎸', '📦'];
 
 export default function DurableSection() {
@@ -158,6 +161,8 @@ function DurableForm({ edit, onClose }: { edit?: Durable; onClose: () => void })
   const [price, setPrice] = useState(edit ? fromMinor(edit.costMinor, edit.currency).toString() : '');
   const [date, setDate] = useState(edit?.purchaseDate ?? todayKey());
   const [years, setYears] = useState(edit?.lifeYears ?? 3);
+  const [customLife, setCustomLife] = useState(!!edit?.lifeYears && !LIFE_PRESETS.includes(edit.lifeYears));
+  const [customTxt, setCustomTxt] = useState(customLife ? String(edit?.lifeYears) : '');
   const [trackUses, setTrackUses] = useState(!!edit?.trackUses);
   const [uses, setUses] = useState(String(edit?.uses ?? 0));
   const [note, setNote] = useState(edit?.note ?? '');
@@ -166,7 +171,7 @@ function DurableForm({ edit, onClose }: { edit?: Durable; onClose: () => void })
     const v = evaluate(price || '0');
     if (!name.trim() || !v || v.lte(0)) { useUI.getState().showSnack({ text: '請輸入名稱與購入價' }); return; }
     const patch = {
-      name: name.trim(), icon, purchaseDate: date, costMinor: toMinor(v, cur), currency: cur, lifeYears: years || undefined,
+      name: name.trim(), icon, purchaseDate: date, costMinor: toMinor(v, cur), currency: cur, lifeYears: (customLife ? parseYears(customTxt) : years) || undefined,
       trackUses, uses: trackUses ? Math.max(0, Math.round(Number(uses) || 0)) : undefined, note: note.trim() || undefined,
     };
     if (edit) await updateDurable(edit.id, patch); else await addDurable(patch);
@@ -185,7 +190,8 @@ function DurableForm({ edit, onClose }: { edit?: Durable; onClose: () => void })
         </div>
         <AmountField label="購入價" value={price} onChange={setPrice} currency={cur} />
         <DateField label="購入日" value={date} onChange={setDate} max={todayKey()} />
-        <SelectField label="預計使用" value={years} onChange={setYears} options={LIFE_OPTIONS} />
+        <SelectField label="預計使用" value={customLife ? -1 : years} onChange={(v) => { if (v === -1) setCustomLife(true); else { setCustomLife(false); setYears(v); } }} options={LIFE_OPTIONS} />
+        {customLife && <TextField label="自訂年限（年）" value={customTxt} onChange={(v) => setCustomTxt(v.replace(/[^0-9.]/g, ''))} inputMode="decimal" maxLength={5} placeholder="例如 4 或 1.5" />}
         <SwitchField label="追蹤使用次數" sub="單車、相機、樂器這類用「次」比用「天」有意義的物品，可以算每次使用成本" checked={trackUses} onChange={setTrackUses} />
         {trackUses && <TextField label="目前已使用" value={uses} onChange={(v) => setUses(v.replace(/\D/g, ''))} inputMode="numeric" maxLength={6} />}
         <TextField label="備註" value={note} onChange={setNote} maxLength={100} />

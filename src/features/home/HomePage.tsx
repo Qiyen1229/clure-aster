@@ -170,10 +170,11 @@ export default function HomePage() {
         )}
       </section>
 
-      {/* 需要你看一下：收件匣、預算預警、異常偵測、AI 上週重點（同一張卡，沒事就不出現） */}
-      <AttentionCard />
-
-      {homeWidgets.length > 0 && <Widgets />}
+      {/* 下半部獨立區塊：需要你看一下（收件匣、預算預警、異常偵測、AI 上週重點）與小工具；都沒有內容時整塊隱藏 */}
+      <div className="home-lower" aria-label="提醒與快覽">
+        <AttentionCard />
+        {homeWidgets.length > 0 && <Widgets />}
+      </div>
 
       <MonthPicker open={monthOpen} onClose={() => setMonthOpen(false)} year={year} month0={month0} onPick={goMonth} />
       <RemindersSheet open={remindersOpen} onClose={() => setRemindersOpen(false)} />

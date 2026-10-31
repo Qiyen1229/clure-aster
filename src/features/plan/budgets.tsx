@@ -122,7 +122,7 @@ function BudgetCard({ v, onEdit }: { v: BudgetView; onEdit: () => void }) {
         <div className="today-allow">
           <div>
             <div className="muted" style={{ fontSize: '0.75rem' }}>今日還可花</div>
-            <div className="num" style={{ fontSize: '1.5rem', fontWeight: 800, color: s.todayLeft < 0 ? 'var(--danger)' : 'var(--accent-text)' }}>
+            <div className="num" style={{ fontSize: '1.5rem', fontWeight: 800, color: s.todayLeft > 0 ? 'var(--danger)' : s.todayLeft < 0 ? 'var(--success)' : 'var(--text)' }}>
               <Amount minor={s.todayLeft} currency={b.currency} tone="none" opts={{ decimals: 0 }} />
             </div>
           </div>

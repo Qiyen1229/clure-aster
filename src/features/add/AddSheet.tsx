@@ -92,6 +92,11 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
   const [projectId, setProjectId] = useState(prefill?.projectId ?? '');
   /** 標記為耐用品（預計用幾年）；0＝不追蹤 */
   const [durableYears, setDurableYears] = useState(0);
+  /** 不計入預算（仍計入收支統計）：預算進度與「今日還可花」都不算這一筆 */
+  const [skipBudget, setSkipBudget] = useState(false);
+  /** 耐用品年限選了「自訂」：用輸入的年數（可小數） */
+  const [durableCustom, setDurableCustom] = useState(false);
+  const [durableTxt, setDurableTxt] = useState('');
   const [atts, setAtts] = useState<{ id: string; url: string; fresh: boolean }[]>([]);
   const [split, setSplit] = useState<SplitState>({ mode: 'equal', people: [] });
   /** 應收／應付：對象、是否同時動到帳戶（借出／借入） */
@@ -174,6 +179,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
         setNote(t.note);
         setTagIds(t.tagIds);
         setProjectId(t.projectId ?? '');
+        setSkipBudget(!!t.excludeFromBudget);
         const rows = await db.attachments.bulkGet(t.attachmentIds);
         setAtts(rows.filter(Boolean).map((r) => ({ id: r!.id, url: URL.createObjectURL(r!.thumb), fresh: false })));
       } else if (editTransferId) {
@@ -222,7 +228,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
   const onKey = useCallback((k: string) => setExpr((e) => pressKey(e, k, exp)), [exp]);
 
   const reset = () => {
-    setExpr(''); setNote(''); setAtts([]); setFee(''); setToAmount(''); setPersonName(''); setDurableYears(0);
+    setExpr(''); setNote(''); setAtts([]); setFee(''); setToAmount(''); setPersonName(''); setDurableYears(0); setDurableCustom(false); setDurableTxt(''); setSkipBudget(false);
     setTime(nowTime());
   };
 
@@ -298,6 +304,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
           currency: mode === 'adjust' ? acc.currency : txCurrency,
           fxRateDec: needRate && mode !== 'adjust' ? fxRate || undefined : undefined,
           date, ts, note, tagIds, projectId, attachmentIds: atts.map((a) => a.id),
+          ...(mode === 'expense' ? { excludeFromBudget: skipBudget } : {}),
           ...(editTxId ? {} : { merchant: prefill?.merchant, invoiceNo: prefill?.invoiceNo }),
         };
         if (autoCat?.ruleId && autoCat.categoryId === catId) void countRuleHit(autoCat.ruleId).catch(() => undefined);
@@ -360,7 +367,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
     } finally {
       setBusy(false);
     }
-  }, [busy, expr, exp, account, toAccount, mode, loan, loanViaAccount, personName, date, time, note, tagIds, projectId, atts, categoryId, txCurrency, fxRate, fee, toAmount, computedToAmount, needRate, editTxId, editTransferId, editing, settings, split, catMap, editAdjust, durableYears]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [busy, expr, exp, account, toAccount, mode, loan, loanViaAccount, personName, date, time, note, tagIds, projectId, atts, categoryId, txCurrency, fxRate, fee, toAmount, computedToAmount, needRate, editTxId, editTransferId, editing, settings, split, catMap, editAdjust, durableYears, skipBudget]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 選取的子分類自動捲到可見位置
   useEffect(() => {
@@ -707,14 +714,30 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
               </>
             )}
             {mode === 'expense' && !editing && (
-              <span className="pill" style={{ position: 'relative' }} aria-pressed={durableYears > 0}>
-                <Icon name="chart" size={16} />{durableYears ? `耐用品 ${durableYears} 年` : '耐用品'}
-                <select value={durableYears} onChange={(e) => setDurableYears(Number(e.target.value))} aria-label="標記為耐用品（追蹤每日持有成本）"
+              <span className="pill" style={{ position: 'relative' }} aria-pressed={durableYears > 0 || durableCustom}>
+                <Icon name="chart" size={16} />{durableYears > 0 ? `耐用品 ${durableYears} 年` : durableCustom ? '耐用品 自訂' : '耐用品'}
+                <select value={durableCustom ? -1 : durableYears} aria-label="標記為耐用品（追蹤每日持有成本）"
+                  onChange={(e) => { const v = Number(e.target.value); setDurableCustom(v === -1); setDurableTxt(''); setDurableYears(v === -1 ? 0 : v); }}
                   style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%' }}>
                   <option value={0}>不追蹤</option>
                   {[1, 2, 3, 5, 7, 10].map((y) => <option key={y} value={y}>預計使用 {y} 年</option>)}
+                  <option value={-1}>自訂年限…</option>
                 </select>
               </span>
+            )}
+            {mode === 'expense' && !editing && durableCustom && (
+              <span className="pill">
+                使用
+                <input inputMode="decimal" value={durableTxt} placeholder="年數" aria-label="耐用品預計使用年數"
+                  onChange={(e) => { const t = e.target.value.replace(/[^0-9.]/g, ''); setDurableTxt(t); const n = parseFloat(t); setDurableYears(Number.isFinite(n) && n > 0 ? Math.min(100, n) : 0); }}
+                  style={{ width: 48, border: 0, background: 'transparent', outline: 'none', textAlign: 'center' }} />
+                年
+              </span>
+            )}
+            {mode === 'expense' && (
+              <button className="pill" onClick={() => setSkipBudget((x) => !x)} aria-pressed={skipBudget}>
+                <Icon name="chart" size={16} />不計入預算
+              </button>
             )}
             {mode === 'expense' && !editing && (
               <button className="pill" onClick={() => setPicker('split')} aria-pressed={split.people.length > 0}>

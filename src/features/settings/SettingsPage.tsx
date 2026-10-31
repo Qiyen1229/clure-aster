@@ -114,7 +114,7 @@ function Row({ label, children, onClick, sub, icon, tint, danger }: {
   const Tag = onClick ? 'button' : 'div';
   return (
     <Tag className={`row${icon ? ' with-icon' : ''}`} onClick={onClick}>
-      {icon && <span className="set-tile" style={tint ? { ['--c' as string]: tint } : undefined} aria-hidden="true"><Icon name={icon} size={18} /></span>}
+      {icon && <span className={`set-tile${icon === 'ai' ? ' big' : ''}`} style={tint ? { ['--c' as string]: tint } : undefined} aria-hidden="true"><Icon name={icon} size={icon === 'ai' ? 34 : 18} /></span>}
       <div className="row-main">
         <div className="row-title" style={danger ? { color: 'var(--danger)' } : undefined}>{label}</div>
         {sub && <div className="row-sub" style={{ whiteSpace: 'normal' }}>{sub}</div>}

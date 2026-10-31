@@ -918,6 +918,16 @@ a { color: inherit; text-decoration: none; }
 .day-ledger-section {
   margin-bottom: 16px;
 }
+/* 首頁下半部：提醒與小工具自成一個區塊，和上面的收支／日曆／當日帳目分開；沒有內容時整塊不顯示 */
+.home-lower {
+  margin: 26px 0 var(--gap-l); padding: 10px 10px 2px; border-radius: calc(var(--radius) + 6px);
+  background: color-mix(in srgb, var(--text) 4.5%, transparent);
+  border: 0.5px solid var(--sep);
+}
+.home-lower:empty { display: none; }
+.home-lower::before { content: '提醒與快覽'; display: block; padding: 2px 6px 8px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; color: var(--text-3); }
+.home-lower .attn-card { margin: 0 0 10px; }
+.home-lower .attn-card:last-child { margin-bottom: 8px; }
 .day-ledger-list {
   display: flex;
   flex-direction: column;
@@ -1502,6 +1512,8 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
   background: var(--c, var(--accent)); color: #fff;
 }
 .set-tile svg { width: 18px; height: 18px; }
+.set-tile.big { width: 40px; height: 40px; border-radius: 11px; }
+.set-tile.big svg { width: 32px; height: 32px; }
 .list > .row.with-icon + .row.with-icon::before, .list > .row.with-icon + .row::before { left: 58px; }
 .set-stack { flex-direction: column; align-items: stretch; gap: 10px; }
 .set-profile { display: flex; align-items: center; gap: 14px; padding: 4px 16px 14px; }
