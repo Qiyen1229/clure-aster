@@ -17,16 +17,10 @@ import { EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { SwitchField, TextField } from '@/ui/form';
 import { Icon } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
+import { Guide } from './GuideView';
 
 const snack = (text: string, duration?: number) => useUI.getState().showSnack({ text, duration });
 const when = (iso: string | null) => (iso ? new Date(iso.endsWith('Z') ? iso : `${iso}Z`).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '');
-
-const GUIDE: Record<ChannelKind, string[]> = {
-  discord: ['在要接收通知的頻道：頻道設定 → 整合 → Webhook → 新 Webhook，複製「Webhook 網址」。', '建議開一個只有自己或家人的頻道，網址等於發言權限，外流請直接刪除重建。'],
-  telegram: ['在 Telegram 找 @BotFather，傳 /newbot 建立機器人，取得「Bot 權杖」。', '對你的機器人（或把它加進群組）傳一則訊息，再開啟 api.telegram.org/bot<權杖>/getUpdates 找到 chat 的 id（群組是負數）。'],
-  line: ['LINE Notify 已在 2025 年 3 月終止，改用 LINE 官方帳號的 Messaging API。', '到 LINE Developers 建立 Messaging API 頻道，簽發「Channel access token（長期）」；「Your user ID」就是接收對象（先把官方帳號加為好友）。'],
-  webhook: ['任何接受 JSON POST 的網址（n8n、Make、Home Assistant、自己的程式…）。內容含 event、title、body、url、fields。', '填了「簽章密鑰」會在 X-Aster-Signature 標頭附上 sha256 HMAC，接收端可驗證是 Aster 送的。只允許公開的 https 網址（內網需管理員設定 CLURE_NOTIFY_ALLOW_PRIVATE）。'],
-};
 
 export default function ChannelsPage() {
   const navigate = useNavigate();
@@ -70,6 +64,9 @@ export default function ChannelsPage() {
           {list.length === 0 && !err ? (
             <EmptyState emoji="📣" title="還沒有通知通道" text="新增一個通道，異常和預算警示就會直接傳到你的聊天軟體。" action={<button className="btn small" onClick={() => setAdding(true)}>新增通道</button>} />
           ) : list.map((c) => <ChannelCard key={c.id} c={c} busy={busy === c.id} onTest={() => void test(c)} onChange={changed} />)}
+
+          <div className="section-title">設定教學（點開看步驟）</div>
+          {(['discord', 'telegram', 'line', 'webhook'] as ChannelKind[]).map((k) => <Guide key={k} kind={k} />)}
 
           <div className="section-title">隱私</div>
           <div className="list">
@@ -138,9 +135,7 @@ function ConfigFields({ kind, submitLabel, onSubmit }: { kind: ChannelKind; subm
   };
   return (
     <>
-      <div className="card" style={{ fontSize: '0.82rem', margin: '0 0 12px' }}>
-        {GUIDE[kind].map((t, i) => <p key={i} className="muted" style={{ margin: i ? '6px 0 0' : 0 }}>{t}</p>)}
-      </div>
+      <Guide kind={kind} />
       <div className="list">
         {kind === 'discord' && <TextField label="Webhook 網址" value={v.url ?? ''} onChange={f('url')} placeholder="https://discord.com/api/webhooks/…" maxLength={300} type="url" />}
         {kind === 'telegram' && <><TextField label="Bot 權杖" value={v.token ?? ''} onChange={f('token')} placeholder="123456:ABC…" maxLength={80} /><TextField label="Chat ID" value={v.chat_id ?? ''} onChange={f('chat_id')} placeholder="例如 123456789 或 -100…" maxLength={40} /></>}

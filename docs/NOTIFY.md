@@ -12,6 +12,8 @@ App 偵測到事件（異常大額、預算超支、發票中獎…）──┐
                                           你勾選了這類通知的通道（Discord／Telegram／LINE／Webhook）
 ```
 
+> 逐步設定教學（含常見問題）也直接放在 App：設定 → 外部通知 → 設定教學；內容在 `src/features/settings/channelGuides.ts`。
+
 ## 通知類型
 
 每個通道各自勾選要收哪些：
