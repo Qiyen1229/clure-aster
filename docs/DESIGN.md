@@ -36,7 +36,7 @@
 | 精確運算 | **decimal.js**（股票）＋自寫 `Money`（BigInt-safe 整數，金額） | 禁用浮點直接運算金額。 |
 | 圖表 | **ECharts 5（按需引入 + 路由懶載入）** | 下鑽、深淺色主題、進場動畫、點擊事件取明細；懶載入不影響首屏。 |
 | 日期 | **date-fns** + `date-fns-tz`（台北/紐約時區判斷市場狀態） | |
-| i18n | **i18next + react-i18next**（zh-TW 預設，預留 en / ja） | |
+| 多語系 | 無（3.6.5 已移除 i18next；目前只提供繁體中文，見 KNOWN_LIMITS） | |
 | 手勢/動效 | 自寫 Pointer Events 手勢 hook + CSS transform/transition，`framer-motion` 僅用於頁面轉場與 bottom sheet（可 tree-shake） | 確保 60fps；`prefers-reduced-motion` 全域降級。 |
 | 匯入匯出 | PapaParse（CSV）、SheetJS（xlsx，懶載入）、jsPDF + autotable（PDF，懶載入，內嵌思源黑體子集） | |
 | 圖片壓縮 | `browser-image-compression`（WebWorker，長邊 1600px、WebP/JPEG 0.75） | |
@@ -65,7 +65,6 @@ Aster/
 │  ├─ ui/                    設計系統元件：Card、Sheet、ListRow、SwipeRow、Keypad、
 │  │                         Segmented、Toggle、Snackbar、Skeleton、EmptyState、AmountText…
 │  ├─ theme/                 tokens.css、6–8 組主題色、深淺色、echarts 主題
-│  ├─ i18n/                  zh-TW.json、en.json、ja.json
 │  ├─ db/
 │  │  ├─ schema.ts           Dexie 資料表與索引（下方第 3 節）
 │  │  ├─ migrations.ts

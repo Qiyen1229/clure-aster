@@ -42,7 +42,8 @@ function TradeForm({ stockId, trade, initialType, onClose }: { stockId?: string;
   const [stock, setStock] = useState<Stock | undefined>();
   const stockFromDb = useLiveQuery(() => (stockId ? db.stocks.get(stockId) : Promise.resolve(undefined as Stock | undefined)), [stockId]);
   useEffect(() => { if (stockFromDb) setStock(stockFromDb); }, [stockFromDb]);
-  const trades = useLiveQuery(() => (stock ? db.stock_trades.where('stockId').equals(stock.id).toArray() : Promise.resolve([] as StockTrade[])), [stock?.id]) ?? [];
+  const tradesQ = useLiveQuery(() => (stock ? db.stock_trades.where('stockId').equals(stock.id).toArray() : Promise.resolve([] as StockTrade[])), [stock?.id]);
+  const trades = useMemo(() => tradesQ ?? [], [tradesQ]);
 
   const isTW = stock ? stock.currency === 'TWD' && stock.market !== 'US' && stock.market !== 'HK' : true;
   const lot = stock?.lotSize ?? 1000;

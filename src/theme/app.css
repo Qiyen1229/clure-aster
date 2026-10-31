@@ -243,35 +243,49 @@ button img, a img, .cat-icon, .tab svg { -webkit-user-drag: none; }
   height: 100%;
 }
 
-/* 玻璃透鏡（目前分頁的選取泡泡）：用 transform 位移，彈簧回彈 */
+/* 玻璃透鏡（目前分頁的選取泡泡）。
+   外層 .dock-lens：位置由 TabBar 的彈簧寫入 transform（寬度固定，位移不觸發版面）。
+   內層 .dock-lens-in：玻璃外觀與「按住鼓起」——鼓起用 CSS 彈簧（合成器執行），不佔主執行緒。 */
 .dock-lens {
   position: absolute;
   z-index: 1;
   top: 5px;
   bottom: 5px;
   left: 0;
-  width: 60px;
+  width: 62px;
   border-radius: 999px;
-  /* 位置與大小由 TabBar 的彈簧物理逐幀寫入（transform／width），這裡只做淡入淡出 */
-  transition: opacity 260ms ease;
+  transition: opacity 220ms ease;
+  pointer-events: none;
+  will-change: transform;
+  contain: layout style;
+}
+.dock-lens-in {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
   background:
-    radial-gradient(120% 90% at 30% 0%, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 60%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.04));
+    radial-gradient(120% 90% at 30% 0%, rgba(255, 255, 255, 0.40), rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.17), rgba(255, 255, 255, 0.05));
   box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, 0.5),
-    inset 0 -1px 2px rgba(255, 255, 255, 0.10),
+    inset 0 1px 1px rgba(255, 255, 255, 0.55),
+    inset 0 -1px 2px rgba(255, 255, 255, 0.12),
+    inset 1px 0 1px rgba(130, 200, 255, 0.28),
+    inset -1px 0 1px rgba(255, 150, 210, 0.22),
     inset 0 0 10px rgba(120, 190, 255, 0.16),
     0 4px 14px rgba(0, 0, 0, 0.22);
-  pointer-events: none;
-  will-change: transform, width;
+  transform-origin: 50% 50%;
+  transition: transform 460ms var(--spring-linear, var(--spring)), filter 200ms ease;
 }
-:root:not([data-theme='dark']) .dock-lens {
+.dock-lens[data-lift='1'] .dock-lens-in { transform: scale(1.16, 1.2); filter: brightness(1.12); transition-duration: 300ms; }
+:root:not([data-theme='dark']) .dock-lens-in {
   background:
-    radial-gradient(120% 90% at 30% 0%, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 60%),
-    linear-gradient(180deg, rgba(10, 132, 255, 0.12), rgba(10, 132, 255, 0.04));
+    radial-gradient(120% 90% at 30% 0%, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, rgba(10, 132, 255, 0.13), rgba(10, 132, 255, 0.04));
   box-shadow:
     inset 0 1px 1px rgba(255, 255, 255, 1),
     inset 0 -1px 2px rgba(10, 132, 255, 0.12),
+    inset 1px 0 1px rgba(90, 170, 255, 0.25),
+    inset -1px 0 1px rgba(255, 130, 190, 0.18),
     0 4px 12px rgba(30, 60, 120, 0.14);
 }
 .dock-lens.hidden { opacity: 0; }
@@ -300,7 +314,7 @@ button img, a img, .cat-icon, .tab svg { -webkit-user-drag: none; }
   width: 21px;
   height: 21px;
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3));
-  transition: transform 280ms var(--spring), color 200ms ease;
+  transition: transform 460ms var(--spring-linear, var(--spring)), color 200ms ease;
 }
 .tab .tab-label {
   font-size: 0.64rem;
@@ -314,7 +328,7 @@ button img, a img, .cat-icon, .tab svg { -webkit-user-drag: none; }
 .tab[aria-current='page'] .tab-label,
 .tab.scrub-target .tab-label { font-weight: 650; }
 .tab[aria-current='page'] svg,
-.tab.scrub-target svg { transform: scale(1.08); }
+.tab.scrub-target svg { transform: scale(1.14) translateY(-1px); }
 :root:not([data-theme='dark']) .tab[aria-current='page'],
 :root:not([data-theme='dark']) .tab.scrub-target { color: var(--accent); }
 /* 有透鏡時選取狀態不再需要自己的背景與彈跳動畫（透鏡負責） */
@@ -1283,13 +1297,23 @@ body:has(.sheet) .snackbar { animation-name: snack-in-top; }
    動態效果（轉場、按壓回饋、進場）
    全部只用 transform／opacity（GPU 合成，不影響版面），並在「減少動態效果」時關閉
    ========================================================================== */
-:root { --spring: cubic-bezier(0.34, 1.56, 0.64, 1); }
+:root {
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+/* 真正的彈簧曲線（ω=15、ζ=0.58，過衝約 10%）；不支援 linear() 的舊瀏覽器沒有這個變數，會退回 cubic-bezier 的 --spring */
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    --spring-linear: linear(0, 0.053, 0.168, 0.317, 0.477, 0.63, 0.766, 0.879, 0.967, 1.03, 1.071, 1.093, 1.1, 1.097, 1.086, 1.072, 1.056, 1.04, 1.026, 1.014, 1.005, 0.998, 0.994, 0.991, 0.99, 0.99, 0.991, 0.992, 0.994, 0.996, 1);
+  }
+}
 
 /* 頁面轉場：依導覽方向滑入（App 根元素的 data-nav） */
 .app[data-nav='right'] .page { animation-name: page-in-right; }
 .app[data-nav='left'] .page { animation-name: page-in-left; }
-@keyframes page-in-right { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
-@keyframes page-in-left { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
+/* 切換分頁：像首頁那樣 Q 彈地彈過去——彈簧曲線＋輕微過衝，只動 transform／opacity */
+.app[data-nav='right'] .page, .app[data-nav='left'] .page { animation-duration: 520ms; animation-timing-function: var(--spring-linear, var(--ease)); }
+@keyframes page-in-right { from { opacity: 0; transform: translate3d(44px, 0, 0) scale(0.985); } to { opacity: 1; transform: none; } }
+@keyframes page-in-left { from { opacity: 0; transform: translate3d(-44px, 0, 0) scale(0.985); } to { opacity: 1; transform: none; } }
 
 /* 清單、卡片、小工具：進場時依序淡入上移（前 12 項，之後的不延遲） */
 @keyframes item-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
@@ -1548,3 +1572,11 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
 .insight-actions { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 6px; font-size: 0.88rem; }
 .insight-actions button { padding: 6px 0; min-height: 32px; font-weight: 600; }
 .ai-sent-pre { margin: 8px 0 0; padding: 10px 12px; max-height: 320px; overflow: auto; border-radius: var(--radius-s); background: var(--surface-2); font-size: 0.75rem; line-height: 1.5; white-space: pre-wrap; word-break: break-all; user-select: text; -webkit-user-select: text; }
+
+/* ⓘ「為什麼這樣算」按鈕與說明內容 */
+.explain-btn { display: inline-grid; place-items: center; width: 28px; height: 28px; margin: -6px 0 -6px 2px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text-2); cursor: pointer; vertical-align: middle; -webkit-tap-highlight-color: transparent; }
+.explain-btn:active { background: var(--surface-2); }
+.explain-body { padding: 0 16px 24px; }
+.explain-title { margin: 4px 0 8px; font-size: 1.05rem; }
+.explain-formula { margin: 0; padding: 12px; border-radius: 12px; background: var(--surface-2); font-size: 0.85rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.explain-note { font-size: 0.8rem; margin: 10px 2px 0; }

@@ -1,6 +1,7 @@
 /**
  * 財務自由試算：以目前淨資產、近 12 個月收支（可手動覆蓋）與報酬假設，跑 1,000 次蒙地卡羅模擬。
  */
+import { ExplainButton } from '@/ui/Explain';
 import { lazy, Suspense, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -98,7 +99,18 @@ export default function FirePage() {
             {result ? (
               <>
                 <div className="stat-grid">
-                  <div className="stat"><div className="k">達成年齡（中位數）</div><div className="v num">{result.medianFiAge ?? '—'}{result.medianFiAge ? ' 歲' : ''}</div></div>
+                  <div className="stat"><div className="k">達成年齡（中位數）<ExplainButton title="財務自由怎麼算？（蒙地卡羅模擬）" formula={'自由門檻 = 年支出 ÷ 安全提領率（隨通膨成長）\n每年資產 = 上年資產 × (1 + 報酬) + 每年可存 × 通膨\n報酬 = 預期報酬 + 波動 × 隨機常態數\n資產 ≥ 門檻的那一年，就是達成年齡'}
+              rows={[
+                { label: '起始資產', value: money(start) },
+                { label: '年支出', value: money(expense) },
+                { label: '每年可存', value: money(saving) },
+                { label: '安全提領率', value: `${draft.swrPct}%` },
+                { label: '自由門檻（今日幣值）', value: money(expense / (draft.swrPct / 100)), strong: true },
+                { label: '預期報酬／波動', value: `${draft.returnPct}% ／ ${draft.volPct}%` },
+                { label: '通膨', value: `${draft.inflationPct}%` },
+                { label: '模擬次數', value: '1,000 次' },
+              ]}
+              notes={['跑 1,000 條隨機的市場路徑：每條路徑每年的報酬都不同（平均＝預期報酬，起伏＝波動），再統計有幾條在某年齡前達成。「中位數」就是第 500 條的達成年齡。', '亂數種子固定，同樣的設定每次結果相同；改任何假設才會變。', '「撐到 N 歲」：到退休年齡後停止儲蓄、每年按通膨提領支出，統計資產沒有歸零的比例。', '不考慮波動時的確定性試算只是參考，真實市場有起伏，所以用機率看比較誠實。這不是投資建議。']} /></div><div className="v num">{result.medianFiAge ?? '—'}{result.medianFiAge ? ' 歲' : ''}</div></div>
                   <div className="stat"><div className="k">{draft.retireAge} 歲前達成機率</div><div className="v num">{Math.round(pAt(draft.retireAge) * 100)}%</div></div>
                   <div className="stat"><div className="k">{draft.retireAge} 歲退休撐到 {draft.endAge} 歲</div><div className="v num" style={{ color: result.retireSuccess < 0.7 ? 'var(--danger)' : undefined }}>{Math.round(result.retireSuccess * 100)}%</div></div>
                 </div>

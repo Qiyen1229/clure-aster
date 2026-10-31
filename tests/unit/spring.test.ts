@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { makeSpring, projectEnd, stepSpring } from '@/domain/spring';
+import { makeSpring, projectEnd, sampleSpring, stepSpring, trackAt } from '@/domain/spring';
 
 const run = (s: ReturnType<typeof makeSpring>, omega: number, zeta: number, seconds: number, fps = 60) => {
   const trace: number[] = [];
@@ -37,5 +37,38 @@ describe('透鏡彈簧', () => {
     expect(projectEnd(100, 0)).toBe(100);
     expect(projectEnd(100, 1000)).toBeGreaterThan(projectEnd(100, 400));
     expect(projectEnd(100, -1000)).toBeLessThan(100);
+  });
+});
+
+describe('彈簧軌跡（交給合成器播放）', () => {
+  it('起點與終點正確、會收斂', () => {
+    const tr = sampleSpring(10, 210, 0, 16, 0.6);
+    expect(tr.pos[0]).toBe(10);
+    expect(tr.pos[tr.pos.length - 1]).toBe(210);
+    expect(tr.duration).toBeLessThan(1);
+  });
+  it('Q 彈：欠阻尼會過衝一點再回來，過衝幅度適中（約 3%～15%）', () => {
+    const tr = sampleSpring(0, 100, 0, 16, 0.6);
+    const peak = Math.max(...tr.pos);
+    expect(peak).toBeGreaterThan(103);
+    expect(peak).toBeLessThan(115);
+  });
+  it('臨界阻尼不過衝', () => {
+    expect(Math.max(...sampleSpring(0, 100, 0, 14, 1).pos)).toBeLessThanOrEqual(100.0001);
+  });
+  it('trackAt：內插、超出範圍取兩端；被打斷時可接續目前位置與速度', () => {
+    const tr = sampleSpring(0, 100, 0, 16, 0.6);
+    expect(trackAt(tr, -1).p).toBe(0);
+    expect(trackAt(tr, 99).p).toBe(100);
+    const mid = trackAt(tr, 0.1);
+    expect(mid.p).toBeGreaterThan(0);
+    expect(mid.v).toBeGreaterThan(0);
+    const next = sampleSpring(mid.p, 0, mid.v, 16, 0.6); // 中途改去反方向
+    expect(next.pos[next.pos.length - 1]).toBe(0);
+  });
+  it('往左走（終點小於起點）與初速度同樣正確', () => {
+    const tr = sampleSpring(200, 50, -300, 16, 0.6);
+    expect(tr.pos[tr.pos.length - 1]).toBe(50);
+    expect(Math.min(...tr.pos)).toBeLessThan(50); // 往左過衝
   });
 });

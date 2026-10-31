@@ -21,6 +21,7 @@ import { convertMinor, formatMoney } from '@/domain/money';
 import { useAccounts } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
 import { useUI } from '@/stores/ui';
+import { ExplainButton } from '@/ui/Explain';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { Icon } from '@/ui/Icon';
 import { AccountSheet } from './AccountSheet';
@@ -245,7 +246,18 @@ export function AccountDetailPage() {
         {account.credit && st && avail && (
           <div style={{ marginTop: 14, textAlign: 'left' }} aria-label="信用額度">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-              <span className="muted" style={{ fontSize: '0.8rem' }}>剩餘可用額度</span>
+              <span className="muted" style={{ fontSize: '0.8rem' }}>剩餘可用額度
+                <ExplainButton title="剩餘可用額度" formula={'可用額度 = 總額度 − 已使用\n已使用 = 目前欠款（已出帳未繳 + 未出帳）+ 未到期分期本金\n使用率 = 已使用 ÷ 總額度'}
+                  rows={[
+                    { label: '總額度', value: <Amount minor={account.credit.limitMinor} currency={account.currency} tone="none" /> },
+                    { label: '− 已出帳未繳', value: <Amount minor={avail.billedUnpaidMinor} currency={account.currency} tone="none" /> },
+                    { label: '− 未出帳', value: <Amount minor={avail.unbilledMinor} currency={account.currency} tone="none" /> },
+                    { label: '− 分期未到期本金', value: <Amount minor={avail.installmentReservedMinor} currency={account.currency} tone="none" /> },
+                    { label: '= 剩餘可用', value: <Amount minor={avail.availableMinor} currency={account.currency} tone="none" />, strong: true },
+                    { label: '使用率', value: `${avail.usagePct.toFixed(1)}%` },
+                  ]}
+                  notes={['分期尚未到期的本金也算佔用額度（銀行通常這樣算）；實際可刷額度請以發卡銀行為準。']} />
+              </span>
               <b className="num" style={{ fontSize: '1.2rem', color: avail.availableMinor < 0 ? 'var(--danger)' : undefined }}><Amount minor={avail.availableMinor} currency={account.currency} tone="none" /></b>
             </div>
             {/* 額度佔用：已出帳未繳｜未出帳｜分期圈存｜可用 */}

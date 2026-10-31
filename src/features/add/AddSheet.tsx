@@ -216,7 +216,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
     catch { return ''; }
   }, [mode, needRate, fxRate, amountMinor]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const onKey = useCallback((k: string) => setExpr((e) => pressKey(e, k, exp)), [exp, mode]);
+  const onKey = useCallback((k: string) => setExpr((e) => pressKey(e, k, exp)), [exp]);
 
   const reset = () => {
     setExpr(''); setNote(''); setAtts([]); setFee(''); setToAmount(''); setPersonName('');

@@ -29,7 +29,7 @@ export function dayGap(a: string, b: string): number {
   return Math.abs(Math.round((fromDateKey(a).getTime() - fromDateKey(b).getTime()) / 86_400_000));
 }
 
-const NOISE = /[\s\d.,，。:：;；()（）\[\]「」\-_/\\#*＊·・]|nt\$|twd|台幣|新台幣|元|刷卡|消費|交易|付款|支付|行動支付|apple\s*pay/gi;
+const NOISE = /[\s\d.,，。:：;；()（）[\]「」\-_/\\#*＊·・]|nt\$|twd|台幣|新台幣|元|刷卡|消費|交易|付款|支付|行動支付|apple\s*pay/gi;
 
 /** 比對用的店名：去掉空白、數字、標點與「刷卡」「消費」等通用字 */
 export function normalizeShop(s: string): string {

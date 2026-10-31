@@ -1,7 +1,7 @@
 # Aster 記帳 — 專案完整總覽（給 AI 閱讀）
 
 > 這份檔案把整個專案（功能、技術、架構、資料模型、API、安全、部署、檔案地圖、慣例）整合在一處，讓 AI 不用逐一翻檔案就能理解全貌。
-> 內容整理自 README、CHANGELOG、docs/*、原始碼與設定檔。版本：**3.2.0**（2026-10-30）。分支：`feature/v1.2`（主分支 `main`）。2.0.0 新增 AI 全面整合，見下方「AI 功能」一節與 `docs/AI.md`。3.0.0 首頁全面重構為原創 Bento 儀表板與膠囊週曆。3.1.0 全面更換 3D 星軌花體 A 品牌圖標與 iOS 18 水漾高透光靈動島懸浮導覽列。3.2.0 報表支援點擊支出／收入即時彈出全明細流，移除導覽列藍點殘留，修復 iOS 主畫面圖標快取與根目錄回退。
+> 內容整理自 README、CHANGELOG、docs/*、原始碼與設定檔。版本：**3.6.5**（2026-10-31）。分支：`feature/v1.2`（主分支 `main`）。2.0.0 新增 AI 全面整合，見下方「AI 功能」一節與 `docs/AI.md`。3.0.0 首頁全面重構為原創 Bento 儀表板與膠囊週曆。3.1.0 全面更換 3D 星軌花體 A 品牌圖標與 iOS 18 水漾高透光靈動島懸浮導覽列。3.2.0 報表支援點擊支出／收入即時彈出全明細流，移除導覽列藍點殘留，修復 iOS 主畫面圖標快取與根目錄回退。3.5～3.6 異常與訂閱漲價偵測（習慣→市價→AI 三層判斷）、加密備份、資料庫每日自動備份、首頁簡化、原創 AI 圖示。3.6.5 靈動島大修（按下即彈、合成器彈簧、Q 彈轉場）。測試：前端 446＋後端 118＝564 項。
 > 
 > ### 版本號命名與發佈規範（嚴格遵守）
 > 格式：`x.y.z`
@@ -39,7 +39,7 @@
 | 圖片 | browser-image-compression | Web Worker 壓縮收據（長邊 1600px、≈300KB） |
 | 壓縮 | fflate | 自寫精簡 XLSX 產生器 |
 | QR | jsqr | 掃電子發票左側 QR Code |
-| i18n | i18next + react-i18next | 設定保留但**介面未使用**（為縮小首屏已不載入） |
+| 多語系 | （無） | 只提供繁體中文；3.6.5 已移除未使用的 i18next 依賴 |
 | PWA | vite-plugin-pwa（Workbox **injectManifest**）+ 自訂 `src/sw.ts` | 預快取、離線、更新提示（不自動 skipWaiting）、Web Push |
 | 測試 | Vitest 2 + fake-indexeddb + jsdom | `tests/unit/*.test.ts`（172 項） |
 | 圖示 | sharp（`npm run icons`） | `assets/icon.svg` → 全尺寸圖標＋iOS 啟動畫面 |
@@ -120,8 +120,11 @@ PWA（離線、更新提示、主畫面、啟動畫面）；深淺色＋8 主題
 ### v1.3
 **一句話／語音記帳**（規則式中文解析，不經任何 AI 服務：金額含「兩千三」「5萬2」、日期含「昨天」「上週五」「10/25」、帳戶、分類、一次多筆；深層連結 `/add?text=…`）；**自動記帳收件匣**（iPhone 捷徑：Apple Pay 交易、銀行簡訊、Siri → `/api/hook/inbox`，含來源去重）；**現金流預測**（30/90/180 天）；**週報／月報**；**用問的查帳**（`nlquery`，「上個月吃飯花多少」）；導覽與新功能介紹。1.3.1 更名 Aster、設定頁重排、預算建議、分帳「別人先付」。1.3.2 備註「最近常記」。1.3.3 一句話備註／分類辨識修正。
 
-### v1.4（目前）
+### v1.4
 1.4.0 語音記帳彈窗（波浪動畫、即時顯示「將會記成」）。1.4.1 **長按導覽列中間按鈕語音記帳**（按住說話、放開入帳）、科技感多層絲帶波浪。1.4.2～1.4.4 為 **iPhone 長按語音**的連續修正：iOS 只認「真正的點擊」為使用者手勢，長按計時器內啟動語音辨識會假裝開始卻收不到聲音 → 現在 iPhone 長按放開後彈窗顯示「點一下下方麥克風開始說話」，Android／桌機維持按住說話、放開入帳；長按期間整頁禁止選取與長按選單。語音引擎在 `services/voice.ts`（全域），UI 在 `features/home/VoiceSheet.tsx`。
+
+### v2.0 ～ v3.6.5（目前）
+2.x：AI 全面整合（Gemini／OpenAI 等可插拔、限流、送出紀錄）、搜尋與首頁對話框、忘記密碼。3.0 Bento 首頁；3.1 Liquid Glass 靈動島；3.5 異常與訂閱漲價偵測、加密備份、SQLite 每日自動備份、就緒檢查、CI；3.6 異常判斷改「習慣→分類市價→AI」並每筆自動檢查、首頁簡化、原創 AI 圖示、彈窗空白處下滑關閉；3.6.5 靈動島大修：按下即切換（透鏡 Q 彈）、彈簧軌跡交給 WAAPI 在合成器播放、頁面轉場帶過衝的彈簧。完整紀錄見 `CHANGELOG.md`。
 
 ---
 
@@ -134,7 +137,6 @@ sw.ts                     Service Worker（Workbox injectManifest）
 app/                      AuthGate、LockScreen、TabBar、hooks（liveQuery 資料 hooks）、overlays（Snackbar/動作選單/更新提示/隱私模糊）、viewport（iOS 視窗處理）
 ui/                       設計系統元件：Icon（內建線條圖示）、Sheet（底部抽屜、堆疊 z-index）、SwipeRow、PullToRefresh、controls（分段/開關/金額文字）、form（iOS 設定風格表單列）
 theme/app.css             單一大型樣式檔（design tokens、主題色、深淺色、動畫）
-i18n/                     i18next 設定（未使用於介面）
 stores/                   Zustand：auth、settings、ui
 db/                       Dexie schema、types、bootstrap、sync-tracking、repo/*、seed/*
 domain/                   純函式業務邏輯（見第 7 節）
@@ -408,8 +410,8 @@ Aster/
 10. **Service Worker**：不自動 `skipWaiting`（由使用者同意更新）；導覽 denylist 含 `/proxy/`、`/api/`、`/shortcuts/`。
 11. **CSP**：不能新增 inline `<style>` 元素或 inline script；新增外部連線網域要同步改 `docker/security-headers.conf` 的 `connect-src`，必要時也改 `proxy/src/core.ts` 的 `ALLOWED_HOSTS`。
 12. **相容性命名**：保留 `CLURE_*`、`clure-u{id}`、`x-clure-token` 等舊名（見第 1 節）。
-13. **解析類功能是規則式**（`nlp.ts`、收件匣簡訊、`nlquery.ts`），不呼叫任何 AI／LLM 服務；改規則時請同步更新對應單元測試。
-14. 工作樹乾淨起點：目前分支 `feature/v1.2`，最近提交為 v1.4.1～v1.4.4 的 iPhone 長按語音修正。
+13. **解析類功能先走規則式**（`nlp.ts`、收件匣簡訊、`nlquery.ts`、異常偵測的 `pricing.ts`），規則解析不了時才由使用者開啟的 AI 後備（v2.0 起，見 `docs/AI.md`；送出內容都記在 AI 送出紀錄）；改規則時請同步更新對應單元測試。
+14. 目前分支 `feature/v1.2`（開發分支，比 `main` 新很多）；最新版 3.6.5，提交格式見第 1 條。
 
 ---
 

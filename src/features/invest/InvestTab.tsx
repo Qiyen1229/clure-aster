@@ -3,6 +3,7 @@
  * 市場狀態與最後更新、下拉／按鈕重新整理、總覽（市值、成本、未實現、已實現、今日、報酬率、含股利、XIRR、股價／匯差損益）、
  * 配置圓餅（個股／產業／市場／幣別）、資產與損益曲線（每日快照）、持股列表、損益排行、已出清、免責聲明。
  */
+import { ExplainButton } from '@/ui/Explain';
 import { lazy, Suspense, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -118,7 +119,9 @@ export default function InvestTab() {
               <div className="stat"><div className="k">累計股利</div><div className="v num"><Amount minor={pf.dividendsBase} currency={base} tone="none" opts={{ compact: true }} /></div></div>
               <div className="stat"><div className="k">總報酬率</div><div className={`v num ${pf.totalReturnPct >= 0 ? 'pos' : 'neg'}`}>{pct(pf.totalReturnPct)}</div></div>
               <div className="stat"><div className="k">含股利</div><div className={`v num ${pf.totalReturnWithDivPct >= 0 ? 'pos' : 'neg'}`}>{pct(pf.totalReturnWithDivPct)}</div></div>
-              <div className="stat"><div className="k">年化 XIRR</div><div className={`v num ${(pf.xirr ?? 0) >= 0 ? 'pos' : 'neg'}`}>{pf.xirr === null ? '—' : pct(pf.xirr * 100)}</div></div>
+              <div className="stat"><div className="k">年化 XIRR<ExplainButton title="年化 XIRR（不定期現金流年化報酬率）" formula={'找出一個年利率 r，使\nΣ 現金流ᵢ ÷ (1 + r)^(天數ᵢ ÷ 365) = 0\n（與 Excel 的 XIRR 同定義）'}
+            rows={[{ label: '目前算出的 XIRR', value: pf.xirr === null ? '—（現金流不足）' : pct(pf.xirr * 100), strong: true }, { label: '總報酬率（不計時間）', value: pct(pf.totalReturnPct) }, { label: '含股利總報酬率', value: pct(pf.totalReturnWithDivPct) }]}
+            notes={['買進與手續費當成「投入」（負數），賣出與股利當成「取回」（正數），目前持股的市值視為最後一天賣出的取回。', '總報酬率只看賺了幾 %；XIRR 還考慮「錢放了多久」，所以放越久同樣的獲利年化越低。', '算法：先用牛頓法逼近，不收斂時改用二分法；投入與取回方向不全時顯示「—」。']} /></div><div className={`v num ${(pf.xirr ?? 0) >= 0 ? 'pos' : 'neg'}`}>{pf.xirr === null ? '—' : pct(pf.xirr * 100)}</div></div>
             </div>
             {pf.fxPnlBase !== 0 && (
               <p className="muted num" style={{ fontSize: '0.8rem', margin: '10px 0 0' }}>

@@ -43,6 +43,19 @@
 
 ---
 
+## v3.x 亮點（3.0 ～ 3.6.5）
+
+| 版本 | 重點 |
+|---|---|
+| 3.0 | 首頁全面重構為原創 **Bento 儀表板**與膠囊週曆 |
+| 3.1 | 全新品牌圖標；iOS 18 風格 **Liquid Glass 靈動島**懸浮導覽列（彈簧物理的玻璃透鏡） |
+| 3.2 | 報表可點擊支出／收入即時彈出全明細；修復 iOS 主畫面圖標快取 |
+| 3.5 | **異常與訂閱漲價偵測**（`/insights`）、預算預警、AI 送出紀錄（每次送出什麼都看得到）、**加密備份**、SQLite **每日自動備份**、就緒檢查、ESLint＋GitHub Actions CI |
+| 3.6 | 異常判斷三層：**你的習慣 → 分類市價 → AI**（大額不等於異常；每筆新支出自動檢查，AI 市價檢查不計額度）；首頁「一個畫面一個重點」；原創 AI 圖示；彈窗空白處 1:1 跟手下滑關閉 |
+| 3.6.5 | **靈動島大修**：手指一按下透鏡就 Q 彈到該分頁（Apple 的做法）、彈簧軌跡交給合成器播放換頁不掉幀、切換分頁帶過衝的彈簧轉場；清零 ESLint 警告、移除未使用的 i18n 依賴 |
+
+**品質**：前端單元測試 **446 項**＋後端 pytest **118 項**＝**564 項**全數通過；ESLint 零警告；TypeScript 嚴格模式；CI 每次推送自動跑。
+
 ## v2.2：忘記密碼與帳號管理
 
 - **忘記密碼**：登入頁 →「忘記密碼？」→ 信箱收到一次性重設連結。需在 `.env` 設定 `CLURE_SMTP_HOST`、`CLURE_SMTP_FROM`（與帳密）和 `CLURE_PUBLIC_URL`；管理後台 → 總覽可看到設定狀態並寄測試信。
@@ -150,7 +163,7 @@ cd server && .venv/bin/python -m pytest -q
 
 | 指令 | 說明 |
 |---|---|
-| `npm test` | 前端單元測試（172 項：金額、計算機、期間、帳目與餘額一致性、預算、週期、分期、分帳、平均成本、FIFO、台股費稅、XIRR、市場時間、報表、CSV／Excel、Moze 與銀行對帳單匯入、PIN、「其他」子分類、應收應付、同步變更追蹤、兩台裝置同步、端對端加密、備份還原、自動分類、電子發票、財務自由、稅務、貸款、推播排程、一句話記帳、收件匣解析、現金流預測、週報、用問的查帳） |
+| `npm test` | 前端單元測試（446 項；另有後端 pytest 118 項：金額、計算機、期間、帳目與餘額一致性、預算、週期、分期、分帳、平均成本、FIFO、台股費稅、XIRR、市場時間、報表、CSV／Excel、Moze 與銀行對帳單匯入、PIN、「其他」子分類、應收應付、同步變更追蹤、兩台裝置同步、端對端加密、備份還原、自動分類、電子發票、財務自由、稅務、貸款、推播排程、一句話記帳、收件匣解析、現金流預測、週報、用問的查帳） |
 | `npm run build` | 型別檢查＋正式建置到 `dist/` |
 | `npm run preview` | 以正式建置在 http://localhost:9122 預覽（Service Worker 生效、含 `/proxy`） |
 | `npm run icons` | 由 `assets/icon.svg` 重新產生所有圖標與 iOS 啟動畫面 |
@@ -328,7 +341,7 @@ src/
   services/      fx、quotes/{http,providers,registry,search}、portfolio、snapshots、networth、startup、
                  notifications、push、lock、backup、csv、xlsx、importer、einvoice、autocat、tax、sync、e2ee、health、attachments
   features/      home、add、ledger、accounts、plan、reports、invest、settings、search、onboarding
-  ui/ app/ theme/ i18n/ stores/
+  ui/ app/ theme/ stores/
 proxy/           報價代理核心＋Cloudflare Worker＋Node 入口
 docker/          Dockerfile、nginx 設定
 tests/unit/      Vitest

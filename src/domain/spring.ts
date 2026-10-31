@@ -24,3 +24,30 @@ export function stepSpring(s: Spring1D, omega: number, zeta: number, dtSec: numb
 
 /** 依放開時的速度（px/s）推算慣性終點：手指甩得越快，會滑得越遠一點 */
 export const projectEnd = (pos: number, velocity: number, seconds = 0.12) => pos + velocity * seconds;
+
+/** 預先算好的彈簧軌跡：每 dt 秒一格的位置與速度；交給 WAAPI（合成器）播放，主執行緒忙碌時也不掉幀 */
+export interface SpringTrack { pos: number[]; vel: number[]; dt: number; duration: number }
+
+/** 從 from（初速 v0，px/s）彈到 to，回傳整段軌跡；最長 maxSec 秒，收斂後最後一格剛好等於 to */
+export function sampleSpring(from: number, to: number, v0: number, omega: number, zeta: number, maxSec = 1.2, fps = 60): SpringTrack {
+  const dt = 1 / fps;
+  const s: Spring1D = { p: from, v: v0, t: to };
+  const pos = [from];
+  const vel = [v0];
+  for (let i = 0; i < maxSec * fps; i++) {
+    const moving = stepSpring(s, omega, zeta, dt);
+    pos.push(s.p);
+    vel.push(s.v);
+    if (!moving) break;
+  }
+  return { pos, vel, dt, duration: (pos.length - 1) * dt };
+}
+
+/** 取軌跡在 tSec 秒時的位置與速度（線性內插）；超過終點就是終點 */
+export function trackAt(tr: SpringTrack, tSec: number): { p: number; v: number } {
+  const f = Math.max(0, tSec) / tr.dt;
+  const i = Math.floor(f);
+  if (i >= tr.pos.length - 1) return { p: tr.pos[tr.pos.length - 1], v: tr.vel[tr.vel.length - 1] };
+  const k = f - i;
+  return { p: tr.pos[i] + (tr.pos[i + 1] - tr.pos[i]) * k, v: tr.vel[i] + (tr.vel[i + 1] - tr.vel[i]) * k };
+}

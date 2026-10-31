@@ -168,20 +168,20 @@ const depth = (path: string) => path.split('/').filter(Boolean).length;
  * - 其他 → 淡入上移
  */
 function useNavDirection(pathname: string): 'right' | 'left' | 'up' {
-  const prev = useRef(pathname);
+  // 同一個路徑重算（開發模式 StrictMode 會把 useMemo 跑兩次）要回傳同一個方向，否則第二次會變成 'up' 而吃掉轉場
+  const last = useRef<{ path: string; dir: 'right' | 'left' | 'up' }>({ path: pathname, dir: 'up' });
   return useMemo(() => {
-    const from = prev.current;
-    prev.current = pathname;
-    if (from === pathname) return 'up';
+    if (last.current.path === pathname) return last.current.dir;
+    const from = last.current.path;
     const df = depth(from), dt = depth(pathname);
+    let dir: 'right' | 'left' | 'up' = 'up';
     if (df <= 1 && dt <= 1) {
       const a = tabIndex(from), b = tabIndex(pathname);
-      if (a >= 0 && b >= 0 && a !== b) return b > a ? 'right' : 'left';
-      return 'up';
-    }
-    if (dt > df) return 'right';
-    if (dt < df) return 'left';
-    return 'up';
+      if (a >= 0 && b >= 0 && a !== b) dir = b > a ? 'right' : 'left';
+    } else if (dt > df) dir = 'right';
+    else if (dt < df) dir = 'left';
+    last.current = { path: pathname, dir };
+    return dir;
   }, [pathname]);
 }
 
