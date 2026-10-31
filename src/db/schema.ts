@@ -4,7 +4,7 @@
  */
 import Dexie, { type Table } from 'dexie';
 import type {
-  Account, Attachment, Budget, CategoryRule, BudgetPeriod, Category, Debt, Dividend, ExchangeRate, Goal,
+  Account, Attachment, Budget, CategoryRule, BudgetPeriod, Category, Debt, Dividend, Durable, ExchangeRate, Goal,
   Installment, Person, PortfolioSnapshot, PriceCache, PriceHistory, Project, RecurringRule,
   Reminder, SavedFilter, SettingRow, Stock, StockTrade, Tag, Template, Transaction, Transfer, WatchItem, Wish,
 } from './types';
@@ -39,6 +39,7 @@ export class AsterDB extends Dexie {
   settings!: Table<SettingRow, string>;
   meta!: Table<SettingRow, string>;
   wishes!: Table<Wish, string>;
+  durables!: Table<Durable, string>;
   sync_outbox!: Table<OutboxEntry, string>;
   rules!: Table<CategoryRule, string>;
 
@@ -100,6 +101,10 @@ export class AsterDB extends Dexie {
       watchlist: 'id, stockId, sort',
       tags: 'id, name, sort',
       people: 'id, name',
+    });
+    // v6：耐用物品（只新增資料表，既有資料不需轉換）
+    this.version(6).stores({
+      durables: 'id, status, purchaseDate, txId',
     });
     this.use(syncTracking);
   }

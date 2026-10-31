@@ -436,6 +436,30 @@ export interface SettingRow {
   value: unknown;
 }
 
+/** 耐用物品：3C、家電、機車、名牌包等大額消費，追蹤「每日持有成本」與「每次使用成本」 */
+export interface Durable extends BaseRow {
+  name: string;
+  icon: string;
+  purchaseDate: string;
+  /** 購入價（currency 的最小單位） */
+  costMinor: number;
+  currency: string;
+  /** 預計使用幾年（用來畫進度與目標每日成本）；沒設定就不畫 */
+  lifeYears?: number;
+  /** 使用次數（單車、相機這類用「次」比用「天」有意義的物品才記） */
+  uses?: number;
+  trackUses?: boolean;
+  status: 'active' | 'sold' | 'retired';
+  /** 賣掉／淘汰的日期 */
+  endDate?: string;
+  /** 二手賣出金額 */
+  saleMinor?: number;
+  /** 購入時記的支出帳目、賣出時記的收入帳目 */
+  txId?: string;
+  saleTxId?: string;
+  note?: string;
+}
+
 /** 心願清單：想買的非必需品先放冷靜期，到期再決定買或不買 */
 export interface Wish extends BaseRow {
   name: string;

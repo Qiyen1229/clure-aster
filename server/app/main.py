@@ -128,7 +128,7 @@ async def lifespan(_: FastAPI):
 def create_app() -> FastAPI:
     s = get_settings()
     app = FastAPI(
-        title="Aster API", version="3.8.0", lifespan=lifespan,
+        title="Aster API", version="3.9.0", lifespan=lifespan,
         docs_url="/api/docs" if s.env != "production" else None, redoc_url=None, openapi_url="/api/openapi.json" if s.env != "production" else None,
     )
 

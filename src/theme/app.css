@@ -1605,3 +1605,8 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
 .prize-emoji { font-size: 2.4rem; line-height: 1.2; }
 .prize-sub { font-size: 0.78rem; margin-top: 8px; }
 .prize-note { font-size: 0.78rem; margin: 8px 4px 0; }
+
+/* 耐用品 */
+.dur-icon { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; font-size: 1.5rem; background: var(--surface-2); flex: none; }
+.dur-perday { font-weight: 700; font-size: 1.15rem; }
+.dur-unit { font-size: 0.75rem; font-weight: 500; margin-left: 2px; }

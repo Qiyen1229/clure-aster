@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 SYNC_TABLES = frozenset({
     "accounts", "categories", "transactions", "transfers", "templates", "budgets", "budget_periods", "projects", "tags",
     "saved_filters", "recurring_rules", "installments", "people", "debts", "goals", "exchange_rates", "stocks",
-    "stock_trades", "dividends", "watchlist", "portfolio_snapshots", "wishes", "settings", "rules",
+    "stock_trades", "dividends", "watchlist", "portfolio_snapshots", "wishes", "durables", "settings", "rules",
 })
 DEVICE_ID_PATTERN = r"^[A-Za-z0-9_-]{8,64}$"
 MAX_TIMESTAMP = 2**53

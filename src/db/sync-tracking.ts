@@ -18,7 +18,7 @@ export const OUTBOX = 'sync_outbox';
 export const SYNCED_TABLES = [
   'accounts', 'categories', 'transactions', 'transfers', 'templates', 'budgets', 'budget_periods', 'projects', 'tags',
   'saved_filters', 'recurring_rules', 'installments', 'people', 'debts', 'goals', 'exchange_rates', 'stocks',
-  'stock_trades', 'dividends', 'watchlist', 'portfolio_snapshots', 'wishes', 'settings', 'rules',
+  'stock_trades', 'dividends', 'watchlist', 'portfolio_snapshots', 'wishes', 'durables', 'settings', 'rules',
 ] as const;
 export type SyncedTable = (typeof SYNCED_TABLES)[number];
 const SYNCED = new Set<string>(SYNCED_TABLES);

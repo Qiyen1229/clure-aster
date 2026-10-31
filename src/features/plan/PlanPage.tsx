@@ -1,5 +1,5 @@
 /**
- * 專案與預算（Tab 2）：預算｜專案｜週期｜分期｜分帳｜目標
+ * 專案與預算（Tab 2）：預算｜專案｜週期｜分期｜應收應付｜目標｜心願｜耐用品
  */
 import { lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -13,6 +13,7 @@ const InstallmentSection = lazy(() => import('./installments'));
 const DebtSection = lazy(() => import('./debts'));
 const GoalSection = lazy(() => import('./goals'));
 const WishlistSection = lazy(() => import('./wishlist'));
+const DurableSection = lazy(() => import('./durables'));
 
 const TABS = [
   { key: 'budget', label: '預算', icon: '🎯' },
@@ -22,6 +23,7 @@ const TABS = [
   { key: 'debt', label: '應收應付', icon: '🤝' },
   { key: 'goal', label: '目標', icon: '🐷' },
   { key: 'wish', label: '心願', icon: '🧊' },
+  { key: 'durable', label: '耐用品', icon: '🧰' },
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
 
@@ -48,6 +50,7 @@ export default function PlanPage() {
         {tab === 'debt' && <DebtSection />}
         {tab === 'goal' && <GoalSection />}
         {tab === 'wish' && <WishlistSection />}
+        {tab === 'durable' && <DurableSection />}
       </Suspense>
       <p className="disclaimer"><Icon name="info" size={14} /> 週期帳目與分期會在每次開啟 App 時自動補齊到今天。</p>
     </main>

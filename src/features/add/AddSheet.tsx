@@ -31,6 +31,7 @@ import { Keypad } from './Keypad';
 import { AccountPicker, CurrencyPicker, ProjectPicker, TagPicker } from './pickers';
 import { computeSplit, SplitSheet, type SplitState } from './SplitSheet';
 import { addDebts, addLoan, findOrCreatePerson, removeLoan } from '@/db/repo/plan';
+import { addDurable } from '@/db/repo/durables';
 import { countRuleHit, recentNoteSuggestions, suggestCategory, type CategorySuggestion } from '@/services/autocat';
 import type { NoteSuggestion } from '@/domain/notesuggest';
 import type { ResolvedDraft } from '@/services/quickentry';
@@ -89,6 +90,8 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
   const [note, setNote] = useState(prefill?.note ?? '');
   const [tagIds, setTagIds] = useState<string[]>(prefill?.tagIds ?? []);
   const [projectId, setProjectId] = useState(prefill?.projectId ?? '');
+  /** 標記為耐用品（預計用幾年）；0＝不追蹤 */
+  const [durableYears, setDurableYears] = useState(0);
   const [atts, setAtts] = useState<{ id: string; url: string; fresh: boolean }[]>([]);
   const [split, setSplit] = useState<SplitState>({ mode: 'equal', people: [] });
   /** 應收／應付：對象、是否同時動到帳戶（借出／借入） */
@@ -219,7 +222,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
   const onKey = useCallback((k: string) => setExpr((e) => pressKey(e, k, exp)), [exp]);
 
   const reset = () => {
-    setExpr(''); setNote(''); setAtts([]); setFee(''); setToAmount(''); setPersonName('');
+    setExpr(''); setNote(''); setAtts([]); setFee(''); setToAmount(''); setPersonName(''); setDurableYears(0);
     setTime(nowTime());
   };
 
@@ -324,8 +327,18 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
             await db.transactions.update(tx.id, { split: { myShareMinor: sp.myShare, debtIds } });
             setSplit({ mode: split.mode, people: [] });
           }
-          snackUndo(mode === 'adjust' ? '已調整餘額' : `已記下 ${formatMoney(tx.amountMinor, tx.currency)}${sp ? `（我的份額 ${formatMoney(sp.myShare, tx.currency)}）` : ''}`,
-            async () => { await deleteTransactions([tx.id]); if (sp) await db.debts.where('transactionId').equals(tx.id).delete(); });
+          // 標記為耐用品：用這筆支出的購入日與金額（分帳只算我的份額）建立一筆耐用品，開始算每日持有成本
+          let durableId = '';
+          if (mode === 'expense' && durableYears > 0) {
+            const cat = catMap.get(catId);
+            const d = await addDurable({
+              name: note.trim() || cat?.name || '耐用品', icon: cat?.icon || '📦', purchaseDate: date, currency: settings.baseCurrency, lifeYears: durableYears, txId: tx.id,
+              costMinor: sp ? Math.round((tx.baseAmountMinor * sp.myShare) / Math.max(1, tx.amountMinor)) : tx.baseAmountMinor,
+            });
+            durableId = d.id;
+          }
+          snackUndo(mode === 'adjust' ? '已調整餘額' : `已記下 ${formatMoney(tx.amountMinor, tx.currency)}${sp ? `（我的份額 ${formatMoney(sp.myShare, tx.currency)}）` : ''}${durableId ? '，已加入耐用品追蹤' : ''}`,
+            async () => { await deleteTransactions([tx.id]); if (sp) await db.debts.where('transactionId').equals(tx.id).delete(); if (durableId) await db.durables.delete(durableId); });
         }
       }
       if (account) settings.set('lastAccountId', account.id);
@@ -347,7 +360,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
     } finally {
       setBusy(false);
     }
-  }, [busy, expr, exp, account, toAccount, mode, loan, loanViaAccount, personName, date, time, note, tagIds, projectId, atts, categoryId, txCurrency, fxRate, fee, toAmount, computedToAmount, needRate, editTxId, editTransferId, editing, settings, split, catMap, editAdjust]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [busy, expr, exp, account, toAccount, mode, loan, loanViaAccount, personName, date, time, note, tagIds, projectId, atts, categoryId, txCurrency, fxRate, fee, toAmount, computedToAmount, needRate, editTxId, editTransferId, editing, settings, split, catMap, editAdjust, durableYears]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 選取的子分類自動捲到可見位置
   useEffect(() => {
@@ -692,6 +705,16 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
                   </button>
                 )}
               </>
+            )}
+            {mode === 'expense' && !editing && (
+              <span className="pill" style={{ position: 'relative' }} aria-pressed={durableYears > 0}>
+                <Icon name="chart" size={16} />{durableYears ? `耐用品 ${durableYears} 年` : '耐用品'}
+                <select value={durableYears} onChange={(e) => setDurableYears(Number(e.target.value))} aria-label="標記為耐用品（追蹤每日持有成本）"
+                  style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%' }}>
+                  <option value={0}>不追蹤</option>
+                  {[1, 2, 3, 5, 7, 10].map((y) => <option key={y} value={y}>預計使用 {y} 年</option>)}
+                </select>
+              </span>
             )}
             {mode === 'expense' && !editing && (
               <button className="pill" onClick={() => setPicker('split')} aria-pressed={split.people.length > 0}>
