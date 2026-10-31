@@ -110,3 +110,30 @@ def test_transient_failure_is_retried_not_lost(api: Api, monkeypatch) -> None:  
     for s in session_scope():
         assert PushService(s).deliver_due() == 1
     assert api.get("/api/push/status", params={"device_id": DEV}).json()["scheduled"] == 0
+
+
+def test_same_reminder_from_several_devices_is_sent_once(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    """多台裝置（或重裝後的舊裝置）各排一份同樣的提醒時，只能送一次，不然使用者一次收到好幾則。"""
+    api.register("alice")
+    assert api.post("/api/push/subscribe", _sub_body()).status_code == 200
+    now = int(time.time() * 1000)
+    item = {"id": "daily:2026-10-31", "at": now - 1000, "title": "記帳", "body": "今天還沒記帳", "url": "/add"}
+    assert api.post("/api/push/schedule", {"device_id": "device-aaaa-1111", "items": [item]}).status_code == 200
+    # 另外兩台裝置排同一則：排程階段就不再重複排
+    api.post("/api/push/schedule", {"device_id": "device-bbbb-2222", "items": [item]})
+    assert api.get("/api/push/status", params={"device_id": "device-bbbb-2222"}).json()["scheduled"] == 0
+
+    # 即使資料庫裡已經有舊版留下的重複排程，送出時也只送一次
+    from app import db as dbmod
+    from app.model.e2ee_push import PushSchedule
+    from app.service.push_service import PushService
+    for s in dbmod.session_scope():
+        first = s.query(PushSchedule).first()
+        for dev in ("device-bbbb-2222", "device-cccc-3333"):
+            s.add(PushSchedule(user_id=first.user_id, device_id=dev, item_id=first.item_id, at=first.at, title=first.title, body=first.body, url=first.url))
+        s.flush()
+    sent: list[dict] = []
+    monkeypatch.setattr(webpush, "send", lambda endpoint, p, a, msg, **kw: (sent.append(msg), webpush.SendResult(True, 201, False))[1])
+    for s in dbmod.session_scope():
+        PushService(s).deliver_due()
+    assert len(sent) == 1

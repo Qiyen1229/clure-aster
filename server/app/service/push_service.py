@@ -100,9 +100,8 @@ class PushService:
             if it.id in seen or it.at < now - 60_000:
                 continue
             seen.add(it.id)
-            # 已送出的同一個提醒不再排
-            exists = self.db.scalar(select(PushSchedule.id).where(PushSchedule.user_id == user.id, PushSchedule.device_id == body.device_id,
-                                                                  PushSchedule.item_id == it.id))
+            # 已送出、或別台裝置已排過的同一個提醒不再排（送出時本來就會送給所有訂閱）
+            exists = self.db.scalar(select(PushSchedule.id).where(PushSchedule.user_id == user.id, PushSchedule.item_id == it.id).limit(1))
             if exists:
                 continue
             self.db.add(PushSchedule(user_id=user.id, device_id=body.device_id, item_id=it.id, at=it.at, title=it.title, body=it.body, url=it.url))
@@ -137,6 +136,12 @@ class PushService:
         sent = 0
         for item in due:
             claimed = self.db.execute(update(PushSchedule).where(PushSchedule.id == item.id, PushSchedule.sent.is_(False)).values(sent=True)).rowcount
+            self.db.commit()
+            # 同一個使用者的同一則提醒（item_id 相同）可能由多台裝置各排一份：只送一次，其餘標為已送出。
+            # send_detailed 本來就會送給這位使用者的所有訂閱，各裝置各送一次就會一次收到好幾則
+            if claimed:
+                self.db.execute(update(PushSchedule).where(PushSchedule.user_id == item.user_id, PushSchedule.item_id == item.item_id,
+                                                           PushSchedule.id != item.id, PushSchedule.sent.is_(False)).values(sent=True))
             self.db.commit()
             if not claimed or now - item.at > STALE_MS:
                 continue

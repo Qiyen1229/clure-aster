@@ -28,7 +28,11 @@ export function SwipeRow({ children, onTap, onEdit, onDelete, onLongPress, disab
     if (!el) return;
     el.classList.toggle('animating', animate);
     el.style.transform = x ? `translate3d(${x}px,0,0)` : '';
-    if (wrap.current && x !== 0) wrap.current.dataset.dir = x > 0 ? 'r' : 'l';
+    if (wrap.current) {
+      if (x !== 0) wrap.current.dataset.dir = x > 0 ? 'r' : 'l';
+      // 只有真的在滑動時才顯示底下的編輯／刪除色塊；平常藏起來，不然圓角邊緣會透出紅色
+      wrap.current.toggleAttribute('data-active', x !== 0);
+    }
   };
 
   const down = (e: React.PointerEvent) => {
