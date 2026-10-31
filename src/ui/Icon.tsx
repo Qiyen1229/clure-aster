@@ -53,36 +53,57 @@ const P: Record<string, string> = {
 export type IconName = keyof typeof P;
 
 /**
- * Aster 自創的 AI 圖示：對話泡＋兩行文字，右上角壓著一大一小的圓（泡的外框在圓周圍留出缺口）。
- * 缺口用遮罩挖出，所以放在任何底色上都成立；顏色跟著 currentColor。
+ * Aster 自創的 AI 圖示：一顆彩虹光澤的多面寶石（珍珠白、薰衣草紫、天空藍的切面）。
+ * 是彩色圖示、不吃 currentColor，要放在深色底上（首頁小圓球是深色圓底）。
  */
-function AiGlyph({ size, stroke, className }: { size: number; stroke: number; className?: string }) {
-  const id = `ai-${useId().replace(/:/g, '')}`;
+const GEM_PTS: Record<string, [number, number]> = {
+  top: [12, 3.6], ur: [18.4, 7.2], r: [20, 12], lr: [18.5, 16.7], bot: [12, 20.5], ll: [5.6, 16.8], l: [4, 12], ul: [5.4, 7.4],
+  p1: [10.4, 7.3], p2: [14.4, 7.6], p3: [9, 12.7], p4: [15.8, 11.2], p5: [13.4, 15.8], p6: [8.6, 15.9],
+};
+const GEM_FACETS: [string[], 'warm' | 'lav' | 'cool' | 'white' | 'rose'][] = [
+  [['top', 'p1', 'p2'], 'white'],
+  [['ul', 'top', 'p1'], 'warm'],
+  [['top', 'ur', 'p2'], 'rose'],
+  [['ul', 'p1', 'p3', 'l'], 'warm'],
+  [['p1', 'p2', 'p4', 'p3'], 'lav'],
+  [['p2', 'ur', 'r', 'p4'], 'rose'],
+  [['l', 'p3', 'p6', 'll'], 'warm'],
+  [['p3', 'p4', 'p5', 'p6'], 'lav'],
+  [['p4', 'r', 'lr', 'p5'], 'cool'],
+  [['ll', 'p6', 'bot'], 'white'],
+  [['p6', 'p5', 'bot'], 'lav'],
+  [['p5', 'lr', 'bot'], 'cool'],
+];
+const GEM_FILL: Record<string, [string, string]> = {
+  white: ['#ffffff', '#e9e5ff'], warm: ['#fff6e3', '#e4d9f7'], rose: ['#f6d4ea', '#cdbcf3'], lav: ['#cfc4f6', '#9fb0ee'], cool: ['#c4f0f4', '#9fc3f0'],
+};
+
+function AiGem({ size, className }: { size: number; className?: string }) {
+  const uid = useId().replace(/:/g, '');
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={stroke}
-      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className}>
-      <mask id={id} maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24">
-        <rect width="24" height="24" fill="#fff" />
-        <circle cx="18" cy="6.2" r="4.4" fill="#000" stroke="none" />
-        <circle cx="14.6" cy="3" r="2.4" fill="#000" stroke="none" />
-      </mask>
-      <g mask={`url(#${id})`}>
-        <path d="M6 6h9a2.5 2.5 0 0 1 2.5 2.5V14a2.5 2.5 0 0 1-2.5 2.5H10l-3.5 3v-3H6A2.5 2.5 0 0 1 3.5 14V8.5A2.5 2.5 0 0 1 6 6z" />
-        <path d="M7.2 10.2h5M7.2 13h3" />
-      </g>
-      <circle cx="18.2" cy="6.2" r="2.6" fill="currentColor" stroke="none" />
-      <circle cx="14.4" cy="3.2" r="1" fill="currentColor" stroke="none" />
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" className={className}>
+      <defs>
+        {Object.entries(GEM_FILL).map(([k, [c1, c2]]) => (
+          <linearGradient key={k} id={`g-${uid}-${k}`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor={c1} /><stop offset="1" stopColor={c2} />
+          </linearGradient>
+        ))}
+      </defs>
+      {GEM_FACETS.map(([ids, fill], i) => (
+        <polygon key={i} points={ids.map((id) => GEM_PTS[id].join(',')).join(' ')} fill={`url(#g-${uid}-${fill})`}
+          stroke="#ffffff" strokeOpacity="0.75" strokeWidth="0.3" strokeLinejoin="round" />
+      ))}
     </svg>
   );
 }
 
 /** 文字行內用的小 AI 圖示（取代 ✨），大小跟著字 */
 export function AiMark({ className }: { className?: string }) {
-  return <AiGlyph size={16} stroke={2} className={`ai-mark${className ? ` ${className}` : ''}`} />;
+  return <AiGem size={16} className={`ai-mark${className ? ` ${className}` : ''}`} />;
 }
 
 export function Icon({ name, size = 22, stroke = 1.8, className }: { name: IconName; size?: number; stroke?: number; className?: string }) {
-  if (name === 'ai') return <AiGlyph size={size} stroke={stroke} className={className} />;
+  if (name === 'ai') return <AiGem size={size} className={className} />;
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={stroke}
       strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className}>

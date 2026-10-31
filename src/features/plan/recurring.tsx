@@ -26,8 +26,8 @@ const PRESETS: { name: string; amount: string; currency: string; cat: string }[]
   { name: 'Disney+', amount: '270', currency: 'TWD', cat: 'exp-subscription-video' },
   { name: 'iCloud+', amount: '90', currency: 'TWD', cat: 'exp-subscription-cloud' },
   { name: 'Apple Music', amount: '165', currency: 'TWD', cat: 'exp-subscription-musicsub' },
-  { name: 'ChatGPT Plus', amount: '20', currency: 'USD', cat: 'exp-subscription-cloud' },
-  { name: 'Claude Pro', amount: '20', currency: 'USD', cat: 'exp-subscription-cloud' },
+  { name: 'ChatGPT', amount: '20', currency: 'USD', cat: 'exp-subscription-cloud' },
+  { name: 'Claude', amount: '20', currency: 'USD', cat: 'exp-subscription-cloud' },
 ];
 
 export default function RecurringSection() {
@@ -187,10 +187,10 @@ function RecurringForm({ rule, subscription, onClose }: { rule?: RecurringRule; 
   return (
     <>
       <Segmented value={kind} onChange={setKind} options={[{ value: 'normal', label: '一般週期' }, { value: 'subscription', label: '訂閱服務' }]} ariaLabel="種類" />
-      {kind === 'subscription' && !rule && (
+      {kind === 'subscription' && !rule && type === 'expense' && (
         <div className="sub-row" aria-label="常見訂閱">
           {PRESETS.map((p) => (
-            <button key={p.name} className="pill" onClick={() => { setName(p.name); setAmount(p.amount); setCurrency(p.currency); setCategoryId(p.cat); }}>{p.name}</button>
+            <button key={p.name} className="pill" onClick={() => { setName(p.name); setAmount(p.amount); setCurrency(p.currency); setCategoryId(p.cat); setType('expense'); }}>{p.name}</button>
           ))}
         </div>
       )}

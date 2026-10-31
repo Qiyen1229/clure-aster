@@ -268,7 +268,7 @@ export default function SettingsPage() {
 
       {AUTH_ENABLED && (
         <Group title="AI">
-          <Row icon="ai" tint="#BF5AF2" label="AI 助理" sub="問答、下月預算建議、白話解讀、整理分類、拍照記帳" onClick={() => navigate('/ai')} />
+          <Row icon="ai" tint="#17181c" label="AI 助理" sub="問答、下月預算建議、白話解讀、整理分類、拍照記帳" onClick={() => navigate('/ai')} />
           <Row icon="sliders" tint="#8E8E93" label="AI 設定與額度" sub="開關、會送出哪些內容、每日／週／月額度" onClick={() => navigate('/settings/ai')} />
         </Group>
       )}
