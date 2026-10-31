@@ -102,6 +102,14 @@ export default function InvoicePage() {
         <div style={{ width: 44 }} />
       </header>
 
+      <div className="section-title">對獎</div>
+      <div className="list">
+        <button className="row accent" onClick={() => navigate('/settings/invoice/prize')}>
+          <span className="row-main">🎉 統一發票對獎<span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>每期開獎後自動拿你記過的發票對獎，中了一鍵記成收入</span></span>
+          <Icon name="chevronR" className="row-chev" />
+        </button>
+      </div>
+
       <div className="section-title">手機條碼載具</div>
       <div className="list">
         <div className="field">

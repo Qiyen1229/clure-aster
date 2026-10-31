@@ -405,7 +405,7 @@ export interface WatchItem extends BaseRow {
 
 export interface Reminder {
   id: string;
-  kind: 'daily_log' | 'card_due' | 'budget' | 'subscription' | 'price_alert' | 'backup' | 'sync' | 'insight';
+  kind: 'daily_log' | 'card_due' | 'budget' | 'subscription' | 'price_alert' | 'backup' | 'sync' | 'insight' | 'invoice';
   refId: string;
   dueAt: number;
   done: 0 | 1;

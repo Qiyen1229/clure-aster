@@ -34,11 +34,13 @@ export const ALLOWED_HOSTS = [
   'api.twelvedata.com',
   'www.alphavantage.co',
   'open.er-api.com',
+  'invoice.etax.nat.gov.tw', // 財政部統一發票中獎號碼 RSS
 ];
 
 /** 不同來源的快取秒數（盤中即時報價短、名單長） */
 function ttlFor(url: URL): number {
   if (url.host === 'mis.twse.com.tw') return 10;
+  if (url.host === 'invoice.etax.nat.gov.tw') return 3600;
   if (url.pathname.includes('TaiwanStockInfo') || url.pathname.includes('STOCK_DAY_ALL') || url.pathname.includes('daily_close_quotes')) return 1800;
   if (url.pathname.includes('/search')) return 300;
   if (url.host.includes('yahoo')) return 20;

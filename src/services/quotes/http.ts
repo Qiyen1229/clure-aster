@@ -58,6 +58,15 @@ async function refreshLogin(): Promise<boolean> {
  * 取得 JSON。direct=true 時直接呼叫（對方支援 CORS，例如 Finnhub），失敗再改走代理。
  */
 export async function getJson<T = any>(url: string, opts: { direct?: boolean; retries?: number; timeoutMs?: number } = {}): Promise<T> {
+  return getBody(url, opts, (text) => JSON.parse(text) as T);
+}
+
+/** 取得純文字（例如財政部統一發票中獎號碼的 RSS）；同樣走代理、含逾時與重試 */
+export function getText(url: string, opts: { direct?: boolean; retries?: number; timeoutMs?: number } = {}): Promise<string> {
+  return getBody(url, opts, (text) => text);
+}
+
+async function getBody<T>(url: string, opts: { direct?: boolean; retries?: number; timeoutMs?: number }, parse: (text: string) => T): Promise<T> {
   const { direct = false, retries = 2, timeoutMs = 9000 } = opts;
   const host = new URL(url).host;
   let lastErr: unknown;
@@ -78,8 +87,7 @@ export async function getJson<T = any>(url: string, opts: { direct?: boolean; re
         try { const j = JSON.parse(await res.text()); why = String(j.detail ?? j.error ?? ''); } catch { /* 不是 JSON */ }
         throw new HttpError(res.status, `HTTP ${res.status}${why ? `（${why}）` : ''}`);
       }
-      const text = await res.text();
-      return JSON.parse(text) as T;
+      return parse(await res.text());
     } catch (e) {
       lastErr = e;
       // 4xx（除了 429）不重試

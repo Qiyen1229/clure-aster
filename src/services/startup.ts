@@ -71,6 +71,8 @@ export async function runStartupTasks() {
   await step('fx', () => refreshRatesIfStale(base));
   await step('holidays', () => loadTwHolidays());
   await step('quotes', () => updateAllQuotes({ silent: true }));
+  // 統一發票對獎：領獎期間內有中獎的發票就通知（失敗不影響其他啟動工作）
+  idle(() => void step('invoicePrize', () => import('./invoicePrize').then((m) => m.checkPrizesOnStartup())));
   await step('snapshot', () => takeSnapshot());
   await step('reminders', () => runReminderChecks());
   // 異常／訂閱偵測與預算預警：排在閒置時間，不拖慢首屏；結果有快取，10 分鐘內不重算
