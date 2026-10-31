@@ -92,6 +92,8 @@ export interface Settings {
   continuousAdd: boolean;
   lastAccountId: string;
   calendarCollapsed: boolean;
+  /** 資金流向圖裡算「必要支出」的主分類 id；null＝用預設 */
+  sankeyEssential: string[] | null;
   ledgerUnit: 'day' | 'week' | 'month' | 'year';
   homeWidgets: WidgetKey[];
   /** 首頁的對話框（記帳、查帳、問 AI 共用一個輸入框） */
@@ -176,6 +178,7 @@ export const DEFAULT_SETTINGS: Settings = {
   blurOnHide: true,
   continuousAdd: false,
   lastAccountId: '',
+  sankeyEssential: null,
   calendarCollapsed: true, // 首頁預設只顯示本週（可展開整月）；已經選過的人維持自己的選擇
   ledgerUnit: 'month',
   homeWidgets: [], // 3.6.1 起首頁預設不放小工具（淨資產、投資、帳單在「帳戶」頁；設定 → 首頁小工具可加回）

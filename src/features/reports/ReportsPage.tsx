@@ -26,6 +26,7 @@ import { Icon } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
 import { LedgerRow } from '../ledger/LedgerRow';
 import { chartTheme } from './chart-theme';
+import { SankeyCard } from './SankeyCard';
 
 const EChart = lazy(() => import('./EChart'));
 const WEEK = ['日', '一', '二', '三', '四', '五', '六'];
@@ -311,6 +312,8 @@ export default function ReportsPage() {
               </>
             ) : <p className="muted" style={{ textAlign: 'center' }}>沒有{kind === 'expense' ? '支出' : '收入'}資料</p>}
           </section>
+
+          <SankeyCard txs={data.cur} cats={cats.map} accounts={accounts.map} base={base} onOpenCategory={openCategory} />
 
           {trend && unit !== 'custom' && (
             <section className="card" aria-label="趨勢">
