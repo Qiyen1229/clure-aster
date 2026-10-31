@@ -100,20 +100,21 @@ async function send(text: string) {
   } finally { useChat.setState({ busy: false }); }
 }
 
-// ───────────── 首頁上的輸入列 ─────────────
+// ───────────── 首頁頂部的 AI 小圓球 ─────────────
 
-export function AiChatBar() {
-  const [q, setQ] = useState('');
+/** 開啟對話視窗（輸入框會自動取得焦點） */
+export const openAiChat = () => useChat.getState().setOpen(true);
+
+/**
+ * 首頁頂部（搜尋旁）的小圓球：點一下開啟對話，說一句話記帳或問問題。
+ * 圓球顏色跟著主題色；有未清除的對話時右上角有一個小點，提醒你還有紀錄可看。
+ */
+export function AiOrb() {
   const hasHistory = useChat((s) => s.msgs.length > 0);
-  const submit = (e: React.FormEvent) => { e.preventDefault(); const t = q; setQ(''); void send(t); };
   return (
-    <form className="ai-bar" onSubmit={submit} aria-label="對話框">
-      <span className="ai-bar-icon" aria-hidden="true">✨</span>
-      <input value={q} onChange={(e) => setQ(e.target.value)} maxLength={300} enterKeyHint="send" aria-label="對話框輸入"
-        placeholder="AI 記帳或問問題" />
-      {hasHistory && !q && <button type="button" className="icon-btn plain" aria-label="開啟對話紀錄" onClick={() => useChat.getState().setOpen(true)}><Icon name="list" size={20} /></button>}
-      <button type="submit" className="btn small" disabled={!q.trim()}>送出</button>
-    </form>
+    <button className={`ai-orb${hasHistory ? ' has-history' : ''}`} aria-label="AI 助理：說一句話記帳或問問題" onClick={openAiChat}>
+      <Icon name="sparkle" size={18} stroke={2.2} />
+    </button>
   );
 }
 
@@ -199,7 +200,7 @@ export function AiChatSheet() {
           <div ref={end} />
         </div>
         <form className="chat-input" onSubmit={submit}>
-          <input value={q} onChange={(e) => setQ(e.target.value)} maxLength={300} enterKeyHint="send" aria-label="輸入訊息" placeholder="輸入訊息…" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} maxLength={300} enterKeyHint="send" aria-label="輸入訊息" placeholder="AI 記帳或問問題" autoFocus />
           <button className="btn small" type="submit" disabled={busy || !q.trim()}>送出</button>
         </form>
       </div>

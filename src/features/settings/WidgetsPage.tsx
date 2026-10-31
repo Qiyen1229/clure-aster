@@ -30,11 +30,11 @@ export default function WidgetsPage() {
       </header>
       <div className="list" style={{ marginBottom: 12 }}>
         <div className="row">
-          <span className="row-main"><span className="row-title">對話框</span><span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>首頁的輸入框：直接說「昨天午餐 150」記帳、問「這個月花多少」，開啟 AI 後還能問更多</span></span>
-          <Switch checked={homeAiChat} label="顯示首頁對話框" onChange={(v) => set('homeAiChat', v)} />
+          <span className="row-main"><span className="row-title">AI 小圓球</span><span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>首頁右上角（搜尋左邊）的圓球：點開後說「昨天午餐 150」記帳、問「這個月花多少」，開啟 AI 後還能問更多</span></span>
+          <Switch checked={homeAiChat} label="顯示 AI 小圓球" onChange={(v) => set('homeAiChat', v)} />
         </div>
       </div>
-      <div className="section-title">顯示中（依序排列在記帳月曆下方）</div>
+      <div className="section-title">顯示中（依序排列在首頁最下方；預設是空的，首頁保持簡潔）</div>
       <div className="list">
         {keys.map((k, i) => (
           <div key={k} className="row">
@@ -44,7 +44,7 @@ export default function WidgetsPage() {
             <Switch checked label={`顯示 ${label(k)}`} onChange={() => set('homeWidgets', keys.filter((x) => x !== k))} />
           </div>
         ))}
-        {keys.length === 0 && <div className="row muted">全部隱藏</div>}
+        {keys.length === 0 && <div className="row muted">目前首頁沒有小工具（淨資產、投資、帳單可以在「帳戶」頁看到）；要的話從下面加回來</div>}
       </div>
       {hidden.length > 0 && (
         <>

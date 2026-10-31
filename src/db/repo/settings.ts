@@ -176,9 +176,9 @@ export const DEFAULT_SETTINGS: Settings = {
   blurOnHide: true,
   continuousAdd: false,
   lastAccountId: '',
-  calendarCollapsed: false,
+  calendarCollapsed: true, // 首頁預設只顯示本週（可展開整月）；已經選過的人維持自己的選擇
   ledgerUnit: 'month',
-  homeWidgets: ['today', 'budget', 'networth', 'invest', 'bills'],
+  homeWidgets: [], // 3.6.1 起首頁預設不放小工具（淨資產、投資、帳單在「帳戶」頁；設定 → 首頁小工具可加回）
   homeAiChat: true,
   quote: {
     proxyUrl: '/proxy',
@@ -220,8 +220,12 @@ export async function loadSettings(): Promise<Settings> {
     // 物件型設定與預設值合併，新版本新增的欄位才有預設
     s[r.key] = def && typeof def === 'object' && !Array.isArray(def) && r.value && typeof r.value === 'object' ? { ...def, ...(r.value as object) } : r.value;
   }
+  // 3.6.1：首頁改成簡潔版，舊的預設小工具組合（沒有自己調整過）不再預設顯示；調整過的維持原樣
+  if (JSON.stringify(s.homeWidgets) === JSON.stringify(LEGACY_HOME_WIDGETS)) s.homeWidgets = [];
   return s as unknown as Settings;
 }
+
+const LEGACY_HOME_WIDGETS = ['today', 'budget', 'networth', 'invest', 'bills'];
 
 export async function saveSetting<K extends keyof Settings>(key: K, value: Settings[K]): Promise<void> {
   await db.settings.put({ key, value });

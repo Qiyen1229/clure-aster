@@ -1,10 +1,11 @@
 /**
- * Aster 智慧財務首頁（中央 Tab）：
- * - 頂部：月份選擇器、快速「回今天」、提醒通知、全域搜尋與帳目列表。
- * - 頂部膠囊週曆：7 天極簡膠囊，顯示微型小光點（•），支援左右滑動切換週與「展開整月」。
- * - 當日收支脈搏 Bento 卡片：直觀呈現選取日之支出/收入雙欄與一鍵「＋ 記一筆」。
- * - 當日帳目明細流：專注呈現選取日的交易卡片。
- * - 延伸區塊：AI 洞察分析卡片與財務小工具（投資損益、預算燃盡、淨資產）。
+ * Aster 首頁（中央 Tab）——一個畫面一個重點：
+ * - 頂部：月份、（不是今天時的）回今天、AI 小圓球、搜尋、提醒。
+ * - 主角：這個月花了多少（一個大數字＋結餘／今日還可花）。
+ * - 週曆（預設收成一週，可展開整月）。
+ * - 當日：一行標題（日期＋支出／收入）＋帳目清單；「全部 ›」進帳目列表。
+ * - 「需要你看一下」：收件匣、預算預警、異常偵測、AI 上週重點併成一張卡，沒事就不出現。
+ * - 小工具預設不在首頁（設定 → 首頁小工具可加回）。
  */
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -20,12 +21,11 @@ import { Icon } from '@/ui/Icon';
 import { Amount, EmptyState, SkeletonRows } from '@/ui/controls';
 import { Calendar } from './Calendar';
 import { Widgets } from './Widgets';
-import { AiChatBar, AiChatSheet } from './AiChat';
-import { AiAutoCard } from '../ai/AiAutoCard';
-import { InsightsBanner } from '../insights/InsightsBanner';
+import { AiChatSheet, AiOrb } from './AiChat';
+import { AttentionCard } from './AttentionCard';
+import { HomeHero } from './HomeHero';
 import { RemindersSheet, useUnreadCount } from './RemindersSheet';
 import { LedgerRow } from '../ledger/LedgerRow';
-import { useInboxCount } from '@/services/inbox';
 
 const WEEK_NAMES = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
 
@@ -34,11 +34,10 @@ export default function HomePage() {
   const selected = useUI((s) => s.selectedDate);
   const setSelected = useUI((s) => s.setSelectedDate);
   const openAdd = useUI((s) => s.openAdd);
-  const { weekStart, calendarCollapsed, baseCurrency, homeAiChat, set } = useSettings();
+  const { weekStart, calendarCollapsed, baseCurrency, homeAiChat, homeWidgets, set } = useSettings();
   const dateInput = useRef<HTMLInputElement>(null);
   const [remindersOpen, setRemindersOpen] = useState(false);
   const unread = useUnreadCount();
-  const inboxCount = useInboxCount((s) => s.n);
 
   const sel = fromDateKey(selected);
   const year = sel.getFullYear();
@@ -79,10 +78,8 @@ export default function HomePage() {
   };
 
   const isToday = selected === todayKey();
-  const expenseCount = items?.filter((it) => it.kind === 'tx' && it.tx.type === 'expense').length ?? 0;
   const incomeTotal = dayTotal?.income ?? 0;
   const expenseTotal = dayTotal?.expense ?? 0;
-  const netBalance = incomeTotal - expenseTotal;
 
   return (
     <main className="page home-page">
@@ -114,9 +111,13 @@ export default function HomePage() {
         <div className="home-topbar-actions">
           {!isToday && (
             <button className="chip-today-btn" onClick={() => setSelected(todayKey())}>
-              回今天
+              今天
             </button>
           )}
+          {homeAiChat && <AiOrb />}
+          <button className="icon-btn" aria-label="搜尋" onClick={() => navigate('/search')}>
+            <Icon name="search" />
+          </button>
           <button
             className="icon-btn"
             aria-label={`提醒${unread ? `（${unread} 則未讀）` : ''}`}
@@ -126,14 +127,10 @@ export default function HomePage() {
             <Icon name="bell" />
             {unread > 0 && <span className="badge" aria-hidden="true">{unread > 9 ? '9+' : unread}</span>}
           </button>
-          <button className="icon-btn" aria-label="搜尋" onClick={() => navigate('/search')}>
-            <Icon name="search" />
-          </button>
-          <button className="icon-btn" aria-label="帳目列表" onClick={() => navigate('/ledger')}>
-            <Icon name="list" />
-          </button>
         </div>
       </header>
+
+      <HomeHero selected={selected} />
 
       {/* 膠囊週曆（可平滑展開為全月） */}
       <Calendar
@@ -150,45 +147,19 @@ export default function HomePage() {
         onToggleCollapse={() => set('calendarCollapsed', !calendarCollapsed)}
       />
 
-      {/* 當日收支脈搏 Bento 卡片 */}
-      <section className="day-bento-card" aria-label="當日收支總覽">
-        <div className="day-bento-header">
-          <div className="day-bento-title">
-            <span className="date-text num">{Number(selected.slice(5, 7))} 月 {Number(selected.slice(8))} 日</span>
-            <span className="weekday-text">{WEEK_NAMES[sel.getDay()]}</span>
-            {isToday && <span className="today-badge">今天</span>}
-          </div>
+      {/* 當日：一行標題（日期＋支出／收入） */}
+      <div className="day-head">
+        <div className="day-head-title">
+          <span className="date-text num">{Number(selected.slice(5, 7))}/{Number(selected.slice(8))}</span>
+          <span className="weekday-text">{WEEK_NAMES[sel.getDay()]}</span>
+          {isToday && <span className="today-badge">今天</span>}
         </div>
-
-        <div className="day-bento-grid">
-          <div className="day-bento-tile expense">
-            <div className="tile-label">本日支出</div>
-            <div className="tile-amount num">
-              <Amount minor={expenseTotal} currency={baseCurrency} tone="none" />
-            </div>
-            <div className="tile-sub">
-              {items ? `${expenseCount} 筆支出` : '計算中…'}
-            </div>
-          </div>
-
-          <div className="day-bento-tile income">
-            <div className="tile-label">本日收入</div>
-            <div className="tile-amount num">
-              <Amount minor={incomeTotal} currency={baseCurrency} tone={incomeTotal > 0 ? 'pos' : 'none'} />
-            </div>
-            <div className="tile-sub">
-              {incomeTotal > 0 ? (
-                <>
-                  淨結餘{' '}
-                  <Amount minor={netBalance} currency={baseCurrency} tone={netBalance >= 0 ? 'pos' : 'neg'} />
-                </>
-              ) : (
-                '尚無入帳'
-              )}
-            </div>
-          </div>
+        <div className="day-head-sum num">
+          <span>支出 <Amount minor={expenseTotal} currency={baseCurrency} tone="none" opts={{ decimals: 0 }} /></span>
+          {incomeTotal > 0 && <span>收入 <Amount minor={incomeTotal} currency={baseCurrency} tone="pos" opts={{ decimals: 0 }} /></span>}
         </div>
-      </section>
+        <button className="day-head-all" onClick={() => navigate('/ledger')} aria-label="全部帳目">全部 <Icon name="chevronR" size={14} /></button>
+      </div>
 
       {/* 當日帳目明細清單 */}
       <section className="day-ledger-section" aria-label="當日帳目明細">
@@ -210,20 +181,10 @@ export default function HomePage() {
         )}
       </section>
 
-      {/* 延伸模組：收件匣、AI 洞察與即時財務小工具 */}
-      {inboxCount > 0 && (
-        <button className="inbox-banner" onClick={() => navigate('/inbox')}>
-          <span aria-hidden="true">📥</span>
-          <span className="row-main">收件匣有 <b>{inboxCount}</b> 筆待確認</span>
-          <Icon name="chevronR" size={18} />
-        </button>
-      )}
+      {/* 需要你看一下：收件匣、預算預警、異常偵測、AI 上週重點（同一張卡，沒事就不出現） */}
+      <AttentionCard />
 
-      {homeAiChat && <AiChatBar />}
-      <InsightsBanner />
-      <AiAutoCard />
-
-      <Widgets />
+      {homeWidgets.length > 0 && <Widgets />}
 
       <RemindersSheet open={remindersOpen} onClose={() => setRemindersOpen(false)} />
       <AiChatSheet />

@@ -100,7 +100,8 @@ html {
   color: var(--text);
   overscroll-behavior: none;
 }
-body { margin: 0; background: var(--bg); min-height: 100dvh; overscroll-behavior-y: none; }
+/* color 也要跟著主題：boot.css 依「系統」深淺色把 body 設成白／黑字，手動選的主題與系統不同時（系統深色、App 選淺色）會變成白底白字 */
+body { margin: 0; background: var(--bg); color: var(--text); min-height: 100dvh; overscroll-behavior-y: none; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { background: none; border: 0; padding: 0; cursor: pointer; }
 input, textarea, select { -webkit-appearance: none; appearance: none; }
@@ -849,91 +850,54 @@ a { color: inherit; text-decoration: none; }
 @keyframes cal-slide-l { from { opacity: 0; transform: translateX(18px); } }
 @keyframes cal-slide-r { from { opacity: 0; transform: translateX(-18px); } }
 
-/* ---------- 當日收支脈搏 Bento 卡片 ---------- */
-.day-bento-card {
-  margin: 0 0 14px;
-  padding: 14px 16px;
-  border-radius: 18px;
-  background: var(--surface);
-  border: 0.5px solid var(--glass-border);
-  box-shadow: var(--shadow);
+/* ---------- 首頁（簡潔版）：主角、當日標題、提醒卡、AI 小圓球 ---------- */
+/* 間距只用 8／12／16 三級；字級只分三級：主數字、標題、說明 */
+.home-page { --gap-s: 8px; --gap-m: 12px; --gap-l: 16px; }
+.home-hero { margin: 4px 2px var(--gap-m); }
+.hero-label { font-size: 0.85rem; font-weight: 600; color: var(--text-2); letter-spacing: 0.01em; }
+.hero-amount { font-size: clamp(2.3rem, 11vw, 3rem); font-weight: 800; letter-spacing: -0.035em; line-height: 1.1; margin: 2px 0 6px; }
+.hero-sub { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; font-size: 0.92rem; color: var(--text-2); }
+.hero-sub i { font-style: normal; color: var(--text-3); }
+
+.day-head { display: flex; align-items: baseline; gap: var(--gap-m); margin: var(--gap-m) 2px var(--gap-s); }
+.day-head-title { display: flex; align-items: baseline; gap: 6px; }
+.day-head-title .date-text { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; }
+.day-head-title .weekday-text { font-size: 0.85rem; color: var(--text-2); font-weight: 500; }
+.day-head-title .today-badge { font-size: 0.7rem; font-weight: 600; padding: 2px 7px; border-radius: 8px; background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent-text); }
+.day-head-sum { flex: 1; display: flex; flex-wrap: wrap; gap: 0 10px; justify-content: flex-end; font-size: 0.85rem; color: var(--text-2); }
+.day-head-all { display: inline-flex; align-items: center; gap: 2px; font-size: 0.85rem; font-weight: 600; color: var(--accent-text); min-height: 32px; }
+
+/* 需要你看一下：同一種樣式的列，沒事就整張不出現 */
+.attn-card { margin: var(--gap-m) 0 var(--gap-l); padding: 4px 14px 6px; border-radius: var(--radius); background: var(--surface); border: 0.5px solid var(--glass-border); box-shadow: var(--shadow); }
+.attn-title { padding: 10px 0 2px; font-size: 0.78rem; font-weight: 600; color: var(--text-2); letter-spacing: 0.02em; }
+.attn-row { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; text-align: left; color: var(--text); font-size: 0.95rem; }
+.attn-row + .attn-row, .attn-more { border-top: 0.5px solid var(--sep); }
+.attn-row.danger .attn-text { color: var(--danger); }
+.attn-row.warn .attn-text { color: var(--text); }
+.attn-ico { flex: none; width: 22px; text-align: center; }
+.attn-text { flex: 1; min-width: 0; line-height: 1.4; }
+.attn-text.one { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.attn-text b { color: var(--accent-text); }
+.attn-row > svg { color: var(--text-3); flex: none; }
+.attn-chev { flex: none; color: var(--text-3); transition: transform 280ms var(--ease); display: grid; }
+.attn-chev.open { transform: rotate(180deg); }
+.attn-more { padding: 8px 0 10px 32px; font-size: 0.92rem; line-height: 1.55; color: var(--text-2); animation: item-in 260ms var(--ease) both; }
+.attn-more p { margin: 0 0 6px; }
+.attn-link { color: var(--accent-text); font-weight: 600; font-size: 0.9rem; padding: 4px 0; }
+
+/* 頂部 AI 小圓球（搜尋左邊）：顏色跟著主題色 */
+.ai-orb {
+  position: relative; flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: var(--on-accent, #fff);
+  background:
+    radial-gradient(70% 55% at 50% 10%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 70%),
+    linear-gradient(160deg, color-mix(in srgb, var(--accent) 55%, #fff) 0%, var(--accent) 45%, color-mix(in srgb, var(--accent) 62%, #000) 100%);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.7), inset 0 -3px 6px color-mix(in srgb, var(--accent) 45%, rgba(0, 0, 0, 0.6)), 0 4px 12px -2px color-mix(in srgb, var(--accent) 55%, transparent);
+  transition: transform 260ms var(--spring), filter 160ms ease;
+  -webkit-tap-highlight-color: transparent;
 }
-.day-bento-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-.day-bento-title {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.day-bento-title .date-text {
-  font-size: 1.15rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: var(--text);
-}
-.day-bento-title .weekday-text {
-  font-size: 0.85rem;
-  color: var(--text-2);
-  font-weight: 500;
-}
-.day-bento-title .today-badge {
-  font-size: 0.7rem;
-  font-weight: 600;
-  padding: 2px 7px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
-  color: var(--accent);
-}
-.quick-add-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  border-radius: 16px;
-  background: var(--accent);
-  color: var(--on-accent);
-  border: none;
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 28%, transparent);
-  transition: transform 140ms ease, opacity 140ms ease;
-}
-.quick-add-btn:active {
-  transform: scale(0.94);
-}
-.day-bento-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-.day-bento-tile {
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: var(--surface-2);
-  border: 0.5px solid var(--glass-border);
-  display: flex;
-  flex-direction: column;
-}
-.day-bento-tile .tile-label {
-  font-size: 0.72rem;
-  color: var(--text-2);
-  margin-bottom: 4px;
-}
-.day-bento-tile .tile-amount {
-  font-size: 1.25rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-.day-bento-tile .tile-sub {
-  font-size: 0.72rem;
-  color: var(--text-3);
-  margin-top: 4px;
-}
+.ai-orb:active { transform: scale(0.9); filter: brightness(1.06); }
+.ai-orb svg { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3)); }
+.ai-orb.has-history::after { content: ''; position: absolute; top: 1px; right: 1px; width: 9px; height: 9px; border-radius: 50%; background: #ff9f0a; border: 1.5px solid var(--bg); }
 .day-ledger-section {
   margin-bottom: 16px;
 }
@@ -1422,30 +1386,6 @@ button.row:active, a.row:active { transform: scale(0.985); transition-duration: 
 .quick-list .row-sub { display: block; }
 
 /* ---------- 收件匣 ---------- */
-.inbox-banner {
-  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; margin: 4px 0 8px; padding: 0 14px;
-  border-radius: var(--radius); background: var(--accent-soft); color: var(--text); font-size: 0.9rem; text-align: left;
-}
-.inbox-banner b { color: var(--accent-text); }
-/* 首頁 AI 解讀卡片：字大一點、行距寬鬆；可折疊（收合時只剩一行） */
-.ai-card {
-  display: flex; flex-direction: column; align-items: stretch; width: 100%; margin: 6px 0 12px; padding: 4px 16px;
-  border-radius: var(--radius); background: var(--accent-soft); color: var(--text); text-align: left; font-size: 1rem; line-height: 1.55;
-}
-.ai-card b { color: var(--accent-text); }
-.ai-card-head { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 12px 0; text-align: left; font: inherit; color: inherit; }
-.ai-card-head .row-main { white-space: normal; }
-.ai-card.collapsed .ai-card-head .row-main { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ai-card-headline-1 { font-weight: 500; }
-.ai-card-chev { flex: none; margin-top: 3px; color: var(--text-2); transition: transform 320ms var(--ease); }
-.ai-card.collapsed .ai-card-chev { transform: rotate(-90deg); }
-/* 展開／收合：用 grid 行高 0fr↔1fr 做順暢的高度動畫 */
-.ai-card-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 320ms var(--ease), opacity 240ms ease; }
-.ai-card.collapsed .ai-card-body { grid-template-rows: 0fr; opacity: 0; }
-.ai-card-body-in { overflow: hidden; min-height: 0; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; padding-bottom: 12px; }
-.ai-card.collapsed .ai-card-body-in { padding-bottom: 0; }
-.ai-card-tip { font-size: 0.95rem; line-height: 1.55; color: var(--text-2); white-space: normal; padding-left: 28px; }
-.ai-card-more { margin-left: 28px; font-size: 0.9rem; color: var(--accent-text); font-weight: 600; padding: 4px 0; }
 .inbox-intro summary, .inbox-guides summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; list-style: none; }
 .inbox-intro summary::-webkit-details-marker, .inbox-guides summary::-webkit-details-marker { display: none; }
 .inbox-intro summary::after, .inbox-guides summary::after { content: '›'; margin-left: auto; color: var(--text-3); font-size: 1.2rem; transition: transform 0.2s ease; }
@@ -1583,10 +1523,6 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
 .try-box textarea:focus { box-shadow: 0 0 0 2px var(--accent); }
 
 /* 首頁對話框與對話彈窗 */
-.ai-bar { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; padding: 6px 6px 6px 14px; background: var(--surface-2); border-radius: 999px; }
-.ai-bar input { flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; color: var(--text); font-size: 1rem; min-height: 40px; }
-.ai-bar input::placeholder { color: var(--text-3, var(--text-2)); }
-.ai-bar-icon { font-size: 1.1rem; }
 .chat-wrap { display: flex; flex-direction: column; height: min(70vh, 640px); }
 .chat-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 4px 2px 10px; }
 .chat-msg { max-width: 88%; padding: 10px 14px; border-radius: 18px; word-break: break-word; }
@@ -1608,6 +1544,4 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
 .insight-limit { margin: 4px 0 8px; padding: 8px 12px; border-radius: var(--radius-s); background: color-mix(in srgb, var(--warning) 16%, transparent); color: var(--text); font-size: 0.85rem; }
 .insight-actions { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 6px; font-size: 0.88rem; }
 .insight-actions button { padding: 6px 0; min-height: 32px; font-weight: 600; }
-.insights-banner { display: flex; align-items: center; gap: 10px; width: 100%; margin: 4px 0 8px; padding: 10px 14px; border-radius: var(--radius); background: color-mix(in srgb, var(--warning) 14%, var(--surface)); color: var(--text); font-size: 0.92rem; text-align: left; }
-.insights-banner b { color: var(--text); }
 .ai-sent-pre { margin: 8px 0 0; padding: 10px 12px; max-height: 320px; overflow: auto; border-radius: var(--radius-s); background: var(--surface-2); font-size: 0.75rem; line-height: 1.5; white-space: pre-wrap; word-break: break-all; user-select: text; -webkit-user-select: text; }
