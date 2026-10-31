@@ -12,6 +12,7 @@ import { makeSpring, projectEnd, sampleSpring, stepSpring, trackAt, type SpringT
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Icon, Logo, type IconName } from '@/ui/Icon';
 import { holdGuard, openVoice, releaseVoice } from '@/services/voice';
+import { markDockNav } from './navSource';
 import { useUI } from '@/stores/ui';
 import { useUnreadCount } from '@/features/home/RemindersSheet';
 import { useInboxCount } from '@/services/inbox';
@@ -120,7 +121,7 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
     freeze(); stopRaf();
     if (!el || typeof el.animate !== 'function') { P.x.t = x; kick(); return; }
     // Q 彈：欠阻尼（ζ 0.6）會輕輕過衝再回來
-    const track = sampleSpring(P.x.p, x, P.x.v, 16, 0.6);
+    const track = sampleSpring(P.x.p, x, P.x.v, 16, 0.6, 1.2, 120); // 120fps 取樣：高更新率螢幕上也不會有階梯感
     if (track.pos.length < 3) { P.x.p = x; P.x.t = x; P.x.v = 0; paint(); return; }
     const frames = track.pos.map((p, i) => ({ transform: lensTransform(p, track.vel[i]) }));
     P.track = track; P.t0 = performance.now();
@@ -229,7 +230,11 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
     const rs = allTargets().map((to) => rectOf(to)!).filter(Boolean);
     const lo = Math.min(...rs.map((r) => r.cx)), hi = Math.max(...rs.map((r) => r.cx));
     const cx = Math.min(hi, Math.max(lo, e.clientX));
-    aim(cx - cap.left - (lensRef.current?.offsetWidth ?? 60) / 2);
+    // 直接寫進 transform（不經彈簧、不等下一幀）：透鏡與手指零延遲，跟手程度取決於螢幕更新率（120Hz 機型就是 120Hz）
+    const P = phys.current;
+    P.x.p = P.x.t = cx - cap.left - (lensRef.current?.offsetWidth ?? 60) / 2;
+    P.x.v = st.v;
+    paint();
     if (near && near !== scrubTo) { navigator.vibrate?.(8); setScrubTo(near); }
   };
   const finishScrub = (e: React.PointerEvent<HTMLDivElement>, cancelled: boolean) => {
@@ -249,8 +254,8 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
     if (r) aim(r.x - 2); // 從目前位置與速度繼續彈過去（合成器播放）
     else setLensShown(false);
     if (!to || cancelled) return;
-    if (to === HOME) { if (pathname !== HOME) navigate(HOME); return; }
-    if (to !== activeTo) navigate(to);
+    if (to === HOME) { if (pathname !== HOME) { markDockNav(); navigate(HOME); } return; }
+    if (to !== activeTo) { markDockNav(); navigate(to); }
   };
   const onCapUp = (e: React.PointerEvent<HTMLDivElement>) => finishScrub(e, false);
   const onCapCancel = (e: React.PointerEvent<HTMLDivElement>) => finishScrub(e, true);
@@ -288,7 +293,7 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
   const tab = (t: { to: string; icon: IconName; label: string }) => (
     <NavLink key={t.to} to={t.to} data-to={t.to} className={`tab${scrubTo === t.to ? ' scrub-target' : ''}`} aria-label={t.label}
       ref={(el) => { if (el) tabEls.current.set(t.to, el); else tabEls.current.delete(t.to); }}
-      onClick={(e) => { if (swallowClick.current) e.preventDefault(); }}>
+      onClick={(e) => { if (swallowClick.current) e.preventDefault(); else markDockNav(); }}>
       <Icon name={t.icon} size={20} stroke={2.1} />
       <span className="tab-label">{t.label}</span>
     </NavLink>
@@ -318,7 +323,7 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
                 return;
               }
               if (plusMode) openAdd();
-              else navigate('/');
+              else { markDockNav(); navigate('/'); }
             }}
           >
             {/* 呼吸擴散波紋 */}

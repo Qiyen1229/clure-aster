@@ -607,6 +607,7 @@ a { color: inherit; text-decoration: none; }
 
 /* ---------- Aster 膠囊週曆 & 月曆 ---------- */
 .cal-container {
+  position: relative;
   margin: 0 -4px 6px;
   user-select: none; -webkit-user-select: none;
   touch-action: pan-y;
@@ -1310,10 +1311,13 @@ body:has(.sheet) .snackbar { animation-name: snack-in-top; }
 /* 頁面轉場：依導覽方向滑入（App 根元素的 data-nav） */
 .app[data-nav='right'] .page { animation-name: page-in-right; }
 .app[data-nav='left'] .page { animation-name: page-in-left; }
-/* 切換分頁：像首頁那樣 Q 彈地彈過去——彈簧曲線＋輕微過衝，只動 transform／opacity */
-.app[data-nav='right'] .page, .app[data-nav='left'] .page { animation-duration: 520ms; animation-timing-function: var(--spring-linear, var(--ease)); }
-@keyframes page-in-right { from { opacity: 0; transform: translate3d(44px, 0, 0) scale(0.985); } to { opacity: 1; transform: none; } }
-@keyframes page-in-left { from { opacity: 0; transform: translate3d(-44px, 0, 0) scale(0.985); } to { opacity: 1; transform: none; } }
+/* 靈動島切換分頁專屬：像首頁那樣 Q 彈地彈過去——彈簧曲線＋輕微過衝，只動 transform／opacity。一般跳頁不套用 */
+.app[data-dock='1'][data-nav='right'] .page { animation-name: dock-in-right; animation-duration: 520ms; animation-timing-function: var(--spring-linear, var(--ease)); }
+.app[data-dock='1'][data-nav='left'] .page { animation-name: dock-in-left; animation-duration: 520ms; animation-timing-function: var(--spring-linear, var(--ease)); }
+@keyframes page-in-right { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+@keyframes page-in-left { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
+@keyframes dock-in-right { from { opacity: 0; transform: translate3d(44px, 0, 0) scale(0.985); } to { opacity: 1; transform: none; } }
+@keyframes dock-in-left { from { opacity: 0; transform: translate3d(-44px, 0, 0) scale(0.985); } to { opacity: 1; transform: none; } }
 
 /* 清單、卡片、小工具：進場時依序淡入上移（前 12 項，之後的不延遲） */
 @keyframes item-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
@@ -1580,3 +1584,12 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
 .explain-title { margin: 4px 0 8px; font-size: 1.05rem; }
 .explain-formula { margin: 0; padding: 12px; border-radius: 12px; background: var(--surface-2); font-size: 0.85rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .explain-note { font-size: 0.8rem; margin: 10px 2px 0; }
+
+/* 首頁月份選擇 */
+.mp-body { padding: 0 16px 24px; }
+.mp-year { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 12px; font-size: 1.1rem; }
+.mp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.mp-cell { height: 52px; border: 0; border-radius: 14px; background: var(--surface-2); color: var(--text); font: inherit; font-size: 1.02rem; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: transform 240ms var(--spring), background 160ms ease; }
+.mp-cell:active { transform: scale(0.94); }
+.mp-cell.current { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.mp-cell.selected { background: var(--accent); color: var(--on-accent, #fff); }

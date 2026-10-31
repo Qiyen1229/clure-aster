@@ -2,6 +2,7 @@
  * Aster 膠囊週曆（Weekly Glance Strip）與全月展開檢視。
  * - 採用 3 頁式 GPU 硬體加速軌道（translate3d），手指與滑鼠拖曳時 0 React 渲染，即時跟隨。
  * - 放開時依手指速度決定動畫長短（快甩就快、慢放就柔和），動畫結束後在同一個畫面更新內換內容並歸位，不會閃一下。
+ * - 週曆 ⇄ 整月：容器高度用 WAAPI 平滑展開／收合，舊內容留一份「殘影」淡出、新內容從選取日那一列的位置滑開，像 iOS 行事曆。
  * - 微型小光點（•）採絕對定位鎖定底部基準線，藍點（支出）與紅點（收入）保證像素級水平置中。
  */
 import { useLayoutEffect, useMemo, useRef } from 'react';
@@ -81,6 +82,8 @@ export function Calendar({
   // DOM 軌道與手勢控制
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const morph = useRef<{ ghost: HTMLElement; oldH: number; oldTop: number; oldVpH: number; row: number } | null>(null);
 
   const dragStart = useRef<{ x: number; y: number; time: number } | null>(null);
   const last = useRef({ x: 0, t: 0, v: 0 });
@@ -139,6 +142,55 @@ export function Calendar({
   };
   // 日期或月份換了、新內容已經在 DOM 裡：同一個畫面立刻把軌道歸位到中間頁
   useLayoutEffect(() => { if (isAnimating.current) resetTrack(); }, [selected, year, month0, collapsed, weekStart]);
+
+  // 展開／收合：先記下舊內容（殘影）與高度，狀態換掉後在同一個 commit 內開始動畫
+  const toggle = () => {
+    const c = containerRef.current, vp = viewportRef.current;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (c && vp && typeof c.animate === 'function' && !reduce) {
+      c.getAnimations().forEach((a) => a.finish()); // 上一段還沒播完就先收尾
+      const ghost = vp.cloneNode(true) as HTMLElement;
+      ghost.setAttribute('aria-hidden', 'true');
+      ghost.querySelectorAll('button').forEach((b) => b.setAttribute('tabindex', '-1'));
+      const idx = collapsed ? -1 : currMonthCells.findIndex((x) => x.key === selected);
+      morph.current = { ghost, oldH: c.offsetHeight, oldTop: vp.offsetTop, oldVpH: vp.offsetHeight, row: idx >= 0 ? Math.floor(idx / 7) : 0 };
+    }
+    onToggleCollapse();
+  };
+  useLayoutEffect(() => {
+    const m = morph.current;
+    morph.current = null;
+    const c = containerRef.current, vp = viewportRef.current;
+    if (!m || !c || !vp) return;
+    const EASE = 'cubic-bezier(0.32, 0.72, 0, 1)'; // iOS 的減速曲線：順、不彈
+    const D = 460;
+    const newH = c.offsetHeight;
+    const newTop = vp.offsetTop;
+    const expanding = !collapsed;
+    // 選取日那一列：展開時在新月曆裡，收合時在舊月曆（殘影）裡
+    const idx = expanding ? currMonthCells.findIndex((x) => x.key === selected) : -1;
+    const row = expanding ? Math.max(0, Math.floor(idx / 7)) : m.row;
+    const rowH = (expanding ? vp.offsetHeight : m.oldVpH) / 6;
+    const dTop = m.oldTop - newTop;
+    c.style.overflow = 'hidden';
+    const hAnim = c.animate([{ height: `${m.oldH}px` }, { height: `${newH}px` }], { duration: D, easing: EASE });
+    const clean = () => { c.style.overflow = ''; m.ghost.remove(); };
+    hAnim.onfinish = clean;
+    hAnim.oncancel = clean;
+    // 殘影：留在原位，往「選取日那一列」的位置收攏並淡出
+    const gh = m.ghost;
+    gh.style.position = 'absolute'; gh.style.left = '0'; gh.style.right = '0'; gh.style.top = `${m.oldTop}px`; gh.style.pointerEvents = 'none';
+    c.appendChild(gh);
+    const ghostTo = expanding ? newTop - m.oldTop + row * rowH : -row * rowH;
+    gh.animate([{ transform: 'translateY(0)', opacity: 1 }, { transform: `translateY(${ghostTo}px)`, opacity: 0 }], { duration: D, easing: EASE, fill: 'forwards' });
+    // 新內容：從「選取日那一列」目前的位置滑開並淡入
+    const vpFrom = expanding ? dTop - row * rowH : dTop + row * rowH;
+    vp.animate([{ transform: `translateY(${vpFrom}px)`, opacity: 0 }, { transform: 'translateY(0)', opacity: 1 }], { duration: D, easing: EASE });
+    c.querySelector('.cal-week-header')?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: D, easing: EASE });
+    // 展開／收合鈕跟著容器底邊走，不會先消失再冒出來
+    c.querySelector('.cal-toggle-bar')?.animate([{ transform: `translateY(${m.oldH - newH}px)` }, { transform: 'translateY(0)' }], { duration: D, easing: EASE });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collapsed]);
 
   // 指標按下（滑鼠、觸控）
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -301,6 +353,7 @@ export function Calendar({
 
   return (
     <div
+      ref={containerRef}
       className="cal-container"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -351,7 +404,7 @@ export function Calendar({
 
         <button
           className="cal-toggle-btn"
-          onClick={onToggleCollapse}
+          onClick={toggle}
           aria-expanded={!collapsed}
           aria-label={collapsed ? '展開整月' : '收合為週曆'}
         >

@@ -2,6 +2,7 @@
  * App 路由與全域外框。首頁（記帳月曆）直接打包進主程式；其他頁面路由懶載入，縮短首屏時間。
  * 深層連結：/add?type=expense&amount=120&category=food&account=<id>&note=午餐&date=2026-10-10&tags=固定支出&project=日本旅行
  */
+import { isDockNav } from './app/navSource';
 import { Component, lazy, Suspense, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { TabBar } from './app/TabBar';
@@ -167,11 +168,11 @@ const depth = (path: string) => path.split('/').filter(Boolean).length;
  * - 進入下一層（例如 設定 → 分類）→ 從右滑入；返回上一層 → 從左滑入
  * - 其他 → 淡入上移
  */
-function useNavDirection(pathname: string): 'right' | 'left' | 'up' {
-  // 同一個路徑重算（開發模式 StrictMode 會把 useMemo 跑兩次）要回傳同一個方向，否則第二次會變成 'up' 而吃掉轉場
-  const last = useRef<{ path: string; dir: 'right' | 'left' | 'up' }>({ path: pathname, dir: 'up' });
+function useNavDirection(pathname: string): { dir: 'right' | 'left' | 'up'; dock: boolean } {
+  // 同一個路徑重算（開發模式 StrictMode 會把 useMemo 跑兩次）要回傳同一個結果，否則第二次會變成 'up' 而吃掉轉場
+  const last = useRef<{ path: string; dir: 'right' | 'left' | 'up'; dock: boolean }>({ path: pathname, dir: 'up', dock: false });
   return useMemo(() => {
-    if (last.current.path === pathname) return last.current.dir;
+    if (last.current.path === pathname) return last.current;
     const from = last.current.path;
     const df = depth(from), dt = depth(pathname);
     let dir: 'right' | 'left' | 'up' = 'up';
@@ -180,8 +181,8 @@ function useNavDirection(pathname: string): 'right' | 'left' | 'up' {
       if (a >= 0 && b >= 0 && a !== b) dir = b > a ? 'right' : 'left';
     } else if (dt > df) dir = 'right';
     else if (dt < df) dir = 'left';
-    last.current = { path: pathname, dir };
-    return dir;
+    last.current = { path: pathname, dir, dock: isDockNav() };
+    return last.current;
   }, [pathname]);
 }
 
@@ -229,7 +230,7 @@ export default function App() {
   useShortcuts();
   const isOnboarding = location.pathname === '/onboarding';
   const fullscreen = FULLSCREEN.some((r) => r.test(location.pathname));
-  const navDir = useNavDirection(location.pathname);
+  const nav = useNavDirection(location.pathname);
 
   // 開啟 App 時的補算任務與前景循環（動態載入，不影響首屏）
   useEffect(() => {
@@ -246,7 +247,7 @@ export default function App() {
   if (!onboarded && !isOnboarding) return <Navigate to="/onboarding" replace />;
 
   return (
-    <div className="app" data-nav={navDir}>
+    <div className="app" data-nav={nav.dir} data-dock={nav.dock ? '1' : undefined}>
       <RouteErrorBoundary>
         <Suspense fallback={<main className="page"><SkeletonRows n={5} /></main>}>
           <Routes>

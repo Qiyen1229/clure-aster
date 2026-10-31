@@ -7,7 +7,7 @@
  * - 「需要你看一下」：收件匣、預算預警、異常偵測、AI 上週重點併成一張卡，沒事就不出現。
  * - 小工具預設不在首頁（設定 → 首頁小工具可加回）。
  */
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
@@ -22,6 +22,7 @@ import { Amount, EmptyState, SkeletonRows } from '@/ui/controls';
 import { Calendar } from './Calendar';
 import { Widgets } from './Widgets';
 import { AiChatSheet, AiOrb } from './AiChat';
+import { MonthPicker } from './MonthPicker';
 import { AttentionCard } from './AttentionCard';
 import { HomeHero } from './HomeHero';
 import { RemindersSheet, useUnreadCount } from './RemindersSheet';
@@ -35,7 +36,7 @@ export default function HomePage() {
   const setSelected = useUI((s) => s.setSelectedDate);
   const openAdd = useUI((s) => s.openAdd);
   const { weekStart, calendarCollapsed, baseCurrency, homeAiChat, homeWidgets, set } = useSettings();
-  const dateInput = useRef<HTMLInputElement>(null);
+  const [monthOpen, setMonthOpen] = useState(false);
   const [remindersOpen, setRemindersOpen] = useState(false);
   const unread = useUnreadCount();
 
@@ -64,14 +65,15 @@ export default function HomePage() {
   const items = useLiveQuery(() => listLedger(selected, selected), [selected]);
   const dayTotal = useLiveQuery(async () => totals(await listStatTxs(selected, selected)), [selected]);
 
-  const shiftMonth = (d: number) => {
-    const target = new Date(year, month0 + d, 1);
+  const goMonth = (y: number, m0: number) => {
+    const target = new Date(y, m0, 1);
     const today = todayKey();
     const t = fromDateKey(today);
     // 切到「本月」時直接選今天，否則選該月 1 號
     if (t.getFullYear() === target.getFullYear() && t.getMonth() === target.getMonth()) setSelected(today);
     else setSelected(toDateKey(target));
   };
+  const shiftMonth = (d: number) => goMonth(year, month0 + d);
 
   const shiftWeek = (d: number) => {
     setSelected(addDays(selected, d * 7));
@@ -88,25 +90,12 @@ export default function HomePage() {
         <button
           className="month-selector-btn"
           aria-label={`選擇月份，目前 ${year} 年 ${month0 + 1} 月`}
-          onClick={() => {
-            const el = dateInput.current;
-            if (el) {
-              try { el.showPicker(); } catch { el.focus(); el.click(); }
-            }
-          }}
+          aria-haspopup="dialog"
+          onClick={() => setMonthOpen(true)}
         >
           <span className="month-selector-text num">{year} 年 {month0 + 1} 月</span>
           <Icon name="chevronD" size={14} className="month-selector-icon" />
         </button>
-        <input
-          ref={dateInput}
-          type="date"
-          className="sr-only"
-          tabIndex={-1}
-          aria-hidden="true"
-          value={selected}
-          onChange={(e) => e.target.value && setSelected(e.target.value)}
-        />
 
         <div className="home-topbar-actions">
           {!isToday && (
@@ -186,6 +175,7 @@ export default function HomePage() {
 
       {homeWidgets.length > 0 && <Widgets />}
 
+      <MonthPicker open={monthOpen} onClose={() => setMonthOpen(false)} year={year} month0={month0} onPick={goMonth} />
       <RemindersSheet open={remindersOpen} onClose={() => setRemindersOpen(false)} />
       <AiChatSheet />
     </main>
