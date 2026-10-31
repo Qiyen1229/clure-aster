@@ -13,7 +13,7 @@ import { AUTH_ENABLED } from '@/stores/auth';
 import { useSettings } from '@/stores/settings';
 import { useSync } from '@/services/sync';
 import { useUI } from '@/stores/ui';
-import { EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
+import { EmptyState, Segmented, SkeletonRows, Switch } from '@/ui/controls';
 import { SwitchField, TextField } from '@/ui/form';
 import { Icon } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
@@ -100,7 +100,7 @@ function ChannelCard({ c, busy, onTest, onChange }: { c: Channel; busy: boolean;
           <div style={{ fontWeight: 650 }}>{c.name}</div>
           <div className="row-sub">{info.label}・{c.hint}</div>
         </div>
-        <SwitchField label="" checked={c.enabled} onChange={(v) => { void patchChannel(c.id, { enabled: v }).then(onChange).catch((e) => snack((e as Error).message)); }} />
+        <Switch checked={c.enabled} label={`啟用 ${c.name}`} onChange={(v) => { void patchChannel(c.id, { enabled: v }).then(onChange).catch((e) => snack((e as Error).message)); }} />
       </div>
       <div className="row-sub" style={{ margin: '8px 0', whiteSpace: 'normal', color: c.last_error ? 'var(--danger)' : undefined }}>
         {c.last_error ? `❌ ${c.last_error}` : c.last_ok_at ? `✅ 最近成功 ${when(c.last_ok_at)}` : '尚未發送過，按「傳送測試」確認'}
