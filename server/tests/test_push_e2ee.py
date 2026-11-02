@@ -119,9 +119,13 @@ def test_same_reminder_from_several_devices_is_sent_once(api: Api, monkeypatch) 
     now = int(time.time() * 1000)
     item = {"id": "daily:2026-10-31", "at": now - 1000, "title": "記帳", "body": "今天還沒記帳", "url": "/add"}
     assert api.post("/api/push/schedule", {"device_id": "device-aaaa-1111", "items": [item]}).status_code == 200
-    # 另外兩台裝置排同一則：排程階段就不再重複排
+    # 另一台裝置排同一則：整批取代，仍然只有一份
     api.post("/api/push/schedule", {"device_id": "device-bbbb-2222", "items": [item]})
-    assert api.get("/api/push/status", params={"device_id": "device-bbbb-2222"}).json()["scheduled"] == 0
+    assert api.get("/api/push/status").json()["scheduled"] == 1
+    # 剛記了帳的裝置重新排程（不含「今天還沒記帳」）：其他裝置排過的舊提醒也一併取消
+    api.post("/api/push/schedule", {"device_id": "device-cccc-3333", "items": []})
+    assert api.get("/api/push/status").json()["scheduled"] == 0
+    api.post("/api/push/schedule", {"device_id": "device-aaaa-1111", "items": [item]})
 
     # 即使資料庫裡已經有舊版留下的重複排程，送出時也只送一次
     from app import db as dbmod

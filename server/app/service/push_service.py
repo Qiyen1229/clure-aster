@@ -1,7 +1,7 @@
 """Web Push：訂閱管理、排程（前端算好未來的提醒時間）、背景發送。
 
 - 每台裝置一個訂閱；同一個 endpoint 重新訂閱會更新擁有者
-- 排程以「使用者＋裝置」為單位整批取代：前端每次開啟 App 時重算接下來 14 天的提醒
+- 排程以「使用者」為單位整批取代：前端每次開啟 App 時重算接下來 14 天的提醒
 - 背景迴圈每 30 秒找出到期的排程，先以 UPDATE 標記已送出（多個 worker 也不會重複），再送到該使用者的所有訂閱
 """
 from __future__ import annotations
@@ -91,19 +91,21 @@ class PushService:
         self.db.execute(delete(PushSubscription).where(PushSubscription.user_id == user.id, PushSubscription.endpoint == endpoint))
 
     def schedule(self, user: User, body: ScheduleRequest) -> int:
-        self.db.execute(delete(PushSchedule).where(PushSchedule.user_id == user.id, PushSchedule.device_id == body.device_id,
-                                                   PushSchedule.sent.is_(False)))
+        """整批取代這位使用者「尚未送出」的排程。
+
+        提醒由前端依同步後的帳目算出，送出時本來就會送給這位使用者的所有訂閱，所以以「使用者」為單位取代，不是以裝置：
+        任何一台裝置重新排程（例如剛記了帳、不用再提醒「今天還沒記帳」）就能取消其他裝置排過的舊提醒；
+        否則舊的排程會留著，到點照樣送出，或同一則被每台裝置各送一次。已經送出過的提醒不再排。
+        """
+        self.db.execute(delete(PushSchedule).where(PushSchedule.user_id == user.id, PushSchedule.sent.is_(False)))
         now = int(time.time() * 1000)
+        done = set(self.db.scalars(select(PushSchedule.item_id).where(PushSchedule.user_id == user.id, PushSchedule.sent.is_(True))).all())
         seen: set[str] = set()
         n = 0
         for it in body.items:
-            if it.id in seen or it.at < now - 60_000:
+            if it.id in seen or it.id in done or it.at < now - 60_000:
                 continue
             seen.add(it.id)
-            # 已送出、或別台裝置已排過的同一個提醒不再排（送出時本來就會送給所有訂閱）
-            exists = self.db.scalar(select(PushSchedule.id).where(PushSchedule.user_id == user.id, PushSchedule.item_id == it.id).limit(1))
-            if exists:
-                continue
             self.db.add(PushSchedule(user_id=user.id, device_id=body.device_id, item_id=it.id, at=it.at, title=it.title, body=it.body, url=it.url))
             n += 1
         self.db.flush()

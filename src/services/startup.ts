@@ -78,6 +78,7 @@ export async function runStartupTasks() {
   // 異常／訂閱偵測與預算預警：排在閒置時間，不拖慢首屏；結果有快取，10 分鐘內不重算
   void step('newTxWatcher', () => import('./insights').then((m) => m.installNewTxWatcher()));
   idle(() => void step('insights', () => import('./insights').then((m) => m.runInsights({ notifyNew: true }))));
+  void step('pushRefresh', () => import('./push').then((m) => m.installPushRefresh()));
   await step('outgoing', () => import('./outgoing').then((m) => m.refreshOutgoingActive()));
   if (useSettings.getState().notify.push || (await import('./outgoing').then((m) => m.hasActiveChannels()))) await step('push', () => import('./push').then((m) => m.schedulePush()));
   // 手機條碼載具自動記帳（伺服器有財政部 AppID、使用者設定了載具時）
@@ -117,6 +118,7 @@ export function startAutoRefresh(): () => void {
     await processInstallments().catch(() => undefined);
     await takeSnapshot().catch(() => undefined);
     await runReminderChecks().catch(() => undefined);
+    void import('./push').then((m) => m.schedulePush()).catch(() => undefined); // 滾動更新接下來 14 天的排程
     await import('./insights').then((m) => m.runInsights({ notifyNew: true })).catch(() => undefined);
   };
   const id = setInterval(() => void tick(), 5000);

@@ -14,7 +14,7 @@ import { AUTH_ENABLED } from '@/stores/auth';
 import { useSettings } from '@/stores/settings';
 import { api } from './api';
 import { deviceId, useSync } from './sync';
-import { notificationSupport, requestPermission } from './notifications';
+import { hasLoggedOn, notificationSupport, requestPermission } from './notifications';
 
 export interface PushItem { id: string; at: number; title: string; body: string; url: string }
 
@@ -68,7 +68,9 @@ export async function disablePush(): Promise<void> {
       await api('/push/unsubscribe', { method: 'POST', body: { endpoint: sub.endpoint } }).catch(() => undefined);
       await sub.unsubscribe();
     }
-    await api('/push/schedule', { method: 'POST', body: { device_id: await deviceId(), items: [] } }).catch(() => undefined);
+    // 排程以帳號為單位：還有開著的對外通道（Discord／Telegram／LINE）時要重排，不能整批清空
+    if (await import('./outgoing').then((m) => m.hasActiveChannels())) await schedulePush();
+    else await api('/push/schedule', { method: 'POST', body: { device_id: await deviceId(), items: [] } }).catch(() => undefined);
   } catch { /* 已取消 */ }
 }
 
@@ -89,7 +91,7 @@ export async function upcomingPushItems(days = 14, now = Date.now()): Promise<Pu
   const add = (it: PushItem) => { if (it.at > now && it.at <= now + days * 86400_000) items.push(it); };
 
   if (cfg.daily) {
-    const loggedToday = (await db.transactions.where('date').equals(today).filter((t) => !t.deletedAt).count()) > 0;
+    const loggedToday = await hasLoggedOn(today);
     for (let i = loggedToday ? 1 : 0; i < days; i++) {
       const d = addDays(today, i);
       add({ id: `daily:${d}`, at: at(d, cfg.dailyTime), title: '今天還沒記帳喔 ✍️', body: '花 10 秒記下今天的花費吧', url: '/add' });
@@ -157,4 +159,23 @@ export async function schedulePush(): Promise<number> {
   const items = await upcomingPushItems();
   await api('/push/schedule', { method: 'POST', body: { device_id: await deviceId(), items } });
   return items.length;
+}
+
+const watched = new WeakSet<object>();
+
+/**
+ * 帳目、轉帳、心願、週期帳目有任何變動（含從別台裝置同步下來的）就在 3 秒後重新排程。
+ * 排程是「開啟 App 時」算好交給伺服器的：沒有這一步，使用者排程後才記帳，伺服器還是會在設定時間送出
+ * 「今天還沒記帳」；刪掉今天唯一的帳目也不會補排。連續變動合併成一次。
+ */
+export function installPushRefresh(): void {
+  if (watched.has(db)) return;
+  watched.add(db);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const kick = () => { clearTimeout(timer); timer = setTimeout(() => { void schedulePush().catch(() => undefined); }, 3000); };
+  for (const t of [db.transactions, db.transfers, db.wishes, db.recurring_rules]) {
+    t.hook('creating', () => { kick(); });
+    t.hook('updating', () => { kick(); });
+    t.hook('deleting', () => { kick(); });
+  }
 }

@@ -57,6 +57,16 @@ export async function notify(title: string, body: string, url = '/', kind: Notif
   }
 }
 
+/**
+ * 這一天使用者有沒有「自己記帳」：手動記的帳目或轉帳才算。
+ * 週期帳目、分期、股票買賣、股利、範例資料是系統自動產生的，不能因為它們就當作使用者今天記過帳。
+ */
+export async function hasLoggedOn(date: string): Promise<boolean> {
+  const txs = await db.transactions.where('date').equals(date).toArray();
+  if (txs.some((t) => !t.deletedAt && !t.isSample && !t.transferId && !t.recurringRuleId && !t.installmentId && !t.stockTradeId && !t.dividendId)) return true;
+  return (await db.transfers.where('date').equals(date).filter((t) => !t.deletedAt).count()) > 0;
+}
+
 /** 開啟 App／回到前景時檢查所有提醒條件 */
 export async function runReminderChecks(now = new Date()) {
   const s = useSettings.getState();
@@ -67,8 +77,7 @@ export async function runReminderChecks(now = new Date()) {
   if (cfg.daily) {
     const [h, m] = cfg.dailyTime.split(':').map(Number);
     if (now.getHours() * 60 + now.getMinutes() >= h * 60 + m) {
-      const count = await db.transactions.where('date').equals(today).filter((t) => !t.deletedAt).count();
-      if (count === 0) await notify('今天還沒記帳喔 ✍️', '花 10 秒記下今天的花費吧', '/add', 'daily_log', `daily:${today}`);
+      if (!(await hasLoggedOn(today))) await notify('今天還沒記帳喔 ✍️', '花 10 秒記下今天的花費吧', '/add', 'daily_log', `daily:${today}`);
     }
   }
 
