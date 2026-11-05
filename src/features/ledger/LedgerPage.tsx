@@ -18,6 +18,7 @@ import { FilterSheet, filterCount } from './FilterSheet';
 import { categoryChildren, matchFilter } from '@/db/repo/plan';
 import type { TxFilter } from '@/db/types';
 import { statAmount } from '@/domain/ledger';
+import { useScreenDetail } from '@/stores/screenContext';
 
 type Unit = PeriodUnit | 'custom';
 type Row = { type: 'header'; date: string; expense: number; income: number } | { type: 'item'; item: LedgerItem };
@@ -108,6 +109,21 @@ export default function LedgerPage() {
     if (unit === 'month' && settings.monthStartDay === 1) return `${range.start.slice(0, 4)} 年 ${Number(range.start.slice(5, 7))} 月`;
     return `${range.start.slice(5).replace('-', '/')} – ${range.end.slice(5).replace('-', '/')}`;
   })();
+
+  // 讓 AI 對話知道你正在看哪一段、套了哪些篩選（只有條件的名稱與筆數、合計，沒有單筆帳目與備註）
+  const money = (v: number) => `$${Math.round(v / 100).toLocaleString('zh-TW')}`;
+  const names = (ids: string[] | undefined, get: (id: string) => string | undefined) => (ids ?? []).map((id) => get(id)).filter(Boolean).slice(0, 4).join('、');
+  const conds = [
+    accountFilter ? `帳戶「${accounts.map.get(accountFilter)?.name ?? ''}」` : '',
+    filter.accountIds?.length ? `帳戶「${names(filter.accountIds, (id) => accounts.map.get(id)?.name)}」` : '',
+    filter.categoryIds?.length ? `分類「${names(filter.categoryIds, (id) => cats.map.get(id)?.name)}」` : '',
+    filter.tagIds?.length ? `標籤「${names(filter.tagIds, (id) => tags.map.get(id)?.name)}」` : '',
+    filter.types?.length ? `類型 ${filter.types.join('／')}` : '',
+    filter.minMinor !== undefined ? `金額 ≥ ${money(filter.minMinor)}` : '',
+    filter.maxMinor !== undefined ? `金額 ≤ ${money(filter.maxMinor)}` : '',
+    keyword.trim() || filter.keyword ? `關鍵字「${(keyword.trim() || filter.keyword || '').slice(0, 20)}」` : '',
+  ].filter(Boolean);
+  useScreenDetail(filtered ? `帳目列表：${rangeLabel}${conds.length ? `，篩選：${conds.join('、')}` : '，沒有篩選'}；共 ${sum.count} 筆，支出 ${money(sum.expense)}、收入 ${money(sum.income)}` : null);
 
   return (
     <main className="page">

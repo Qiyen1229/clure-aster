@@ -1,39 +1,17 @@
 /**
- * AI 助理（/ai）：記帳、查帳、問 AI、整理帳本、拍照記帳全部走同一個對話框（features/home/AiChat.tsx 的 ChatPanel，與首頁小圓球同一份對話）。
- * 這一頁只多放對話以外的東西：智慧提醒（含目前的偵測結果）。白話解讀請在對話框問，或到報表、帳戶、專案頁的「AI 解說」。
- * 所有 AI 輸出都只當純文字顯示。網址參數：?q=問題或需求（自動送出）、?agent=需求（同 ?q=）、?tool=budget（自動請操作助手規劃預算）
+ * AI 助理（/ai）：智慧提醒（異常與訂閱偵測、預算預警，含目前的偵測結果）與 AI 額度。
+ * 對話不在這一頁：記帳、查帳、問 AI、整理帳本、拍照記帳全部走全站同一個對話視窗（中央圓球往上滑、非記帳頁長按，或首頁小圓球）。
+ * 舊網址相容：?q=問題或需求、?agent=需求、?tool=budget 會開啟對話視窗並自動送出，再把網址參數清掉。
+ * 所有 AI 輸出都只當純文字顯示。
  */
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AUTH_ENABLED } from '@/stores/auth';
 import { getAiStatus, type AiStatus } from '@/services/ai';
 import { useSettings } from '@/stores/settings';
 import { AiMark, Icon } from '@/ui/Icon';
 import { SmartAlerts } from './SmartAlerts';
-import { NewMark } from '@/ui/NewMark';
-import { useChat } from '@/features/home/aiChatStore';
-
-/** 舊連結 /ai?tool=budget：改由對話框的操作助手規劃（先預覽、確認才建立、可還原） */
-const BUDGET_PROMPT = '依過去 3 個月的花費，幫我設定各分類的每月預算';
-
-const ChatPanel = lazy(() => import('@/features/home/AiChat').then((m) => ({ default: m.ChatPanel })));
-
-// ───────────── 頁面 ─────────────
-
-/** AI 對話：記帳、查帳、問 AI、用說的整理帳本全部在同一個輸入框（和首頁 AI 小圓球的對話是同一份）；?q= 或 ?agent= 會自動送出 */
-function ChatCard({ auto, onAutoSent }: { auto: string; onAutoSent?: () => void }) {
-  const hasMsgs = useChat((s) => s.msgs.length > 0);
-  return (
-    <section className="card" aria-label="AI 對話" style={{ minWidth: 0 }}>
-      <div className="hint-head" style={{ marginBottom: 8 }}>
-        <div className="row-title"><NewMark since="4.1.0" /> 💬 AI 對話</div>
-        <span className="hint-spacer" />
-        {hasMsgs && <button className="accent" onClick={() => useChat.getState().clear()}>清除</button>}
-      </div>
-      <Suspense fallback={<p className="muted">載入中…</p>}><ChatPanel embedded autoSend={auto || undefined} onAutoSent={onAutoSent} /></Suspense>
-    </section>
-  );
-}
+import { BUDGET_PROMPT, useChat } from '@/features/home/aiChatStore';
 
 export default function AiAssistant() {
   const navigate = useNavigate();
@@ -42,6 +20,13 @@ export default function AiAssistant() {
   const [st, setSt] = useState<AiStatus | null>(null);
   const auto = (params.get('agent') ?? params.get('q') ?? (params.get('tool') === 'budget' ? BUDGET_PROMPT : '') ?? '').slice(0, 300);
   useEffect(() => { if (AUTH_ENABLED && ai?.enabled) getAiStatus().then(setSt).catch(() => undefined); }, [ai?.enabled]);
+  // 舊連結帶需求進來：先清掉網址參數（重新整理不會再送一次），再開啟對話視窗送出（路由一變動對話視窗會收起，所以晚一拍再開）
+  useEffect(() => {
+    if (!auto) return;
+    setParams({}, { replace: true });
+    const t = window.setTimeout(() => useChat.getState().ask(auto), 80);
+    return () => window.clearTimeout(t);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const header = (
     <header className="topbar">
@@ -56,13 +41,10 @@ export default function AiAssistant() {
       <main className="page">{header}
         <section className="card" style={{ margin: '12px 0' }}>
           <div className="row-title"><AiMark /> 讓記帳更輕鬆</div>
-          <p style={{ whiteSpace: 'normal' }}>用說的整理帳本、問問題、預算建議、拍照記帳。預設關閉，需要先在設定開啟。</p>
+          <p style={{ whiteSpace: 'normal' }}>一句話跨帳戶、貸款、股票做完、問問題、拍照記帳。預設關閉，需要先在設定開啟。</p>
           <button className="btn" onClick={() => navigate('/settings/ai')}>前往 AI 設定</button>
         </section>
-        <div style={{ display: 'grid', gap: 12 }}>
-          <ChatCard auto="" />
-          <SmartAlerts />
-        </div>
+        <div style={{ display: 'grid', gap: 12 }}><SmartAlerts /></div>
       </main>
     );
   }
@@ -71,9 +53,8 @@ export default function AiAssistant() {
     <main className="page">
       {header}
       {st && <p className="row-sub" style={{ margin: '0 4px 8px', whiteSpace: 'normal' }}>{st.available ? '' : '⚠️ '}{st.message}　今日剩 {st.quota.daily.remaining ?? '不限'} 次、本週 {st.quota.weekly.remaining ?? '不限'} 次、本月 {st.quota.monthly.remaining ?? '不限'} 次</p>}
+      <p className="row-sub" style={{ margin: '0 4px 10px', whiteSpace: 'normal' }}>要對話：在任何頁面把中央圓球往上滑（非記帳頁也可長按），或點首頁右上角的小圓球。</p>
       <div style={{ display: 'grid', gap: 12 }}>
-        {/* 自動送出後清掉網址上的 ?q= ?agent=：重新整理或從別頁返回時不會重複送出 */}
-        <ChatCard auto={auto} onAutoSent={() => setParams({}, { replace: true })} />
         {!dataOn && (
           <section className="card">
             <p style={{ margin: '0 0 8px', whiteSpace: 'normal' }}>問 AI 與白話解讀需要讓 AI 看你去識別化的收支統計（各月與各分類合計）。</p>

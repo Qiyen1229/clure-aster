@@ -32,7 +32,8 @@ export default function PlanPage() {
   const raw = params.get('tab');
   const legacy = raw === 'installment' ? 'recurring' : raw === 'wish' ? 'goal' : raw;
   const tab = (TABS.some((t) => t.key === legacy) ? legacy : 'budget') as TabKey;
-  useScreenDetail(`專案與預算 → ${TABS.find((t) => t.key === tab)?.label ?? ''}`);
+  // 預算分頁由它自己提供更詳細的摘要（各預算使用率），這裡只負責其他分頁
+  useScreenDetail(tab === 'budget' ? null : `專案與預算 → ${TABS.find((t) => t.key === tab)?.label ?? ''}`);
   const set = (k: TabKey) => { params.set('tab', k); setParams(params, { replace: true }); };
 
   return (

@@ -1753,3 +1753,10 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
 .home-lower .widgets { margin: 0 -10px 8px; padding: 2px 10px 6px; scroll-padding-inline: 10px; }
 .widget:active { transform: scale(0.97); transition-duration: 90ms; }
 .widget { touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+
+/* ───── v4.1.2 預覽卡單步勾選、畫面專屬晶片 ───── */
+.agent-step.skipped { opacity: 0.55; }
+.agent-step.skipped .agent-step-title span:nth-child(2) { text-decoration: line-through; }
+.agent-toggle { margin-left: auto; flex: none; padding: 4px 10px; min-height: 30px; border-radius: 999px; font-size: 0.78rem; font-weight: 600; background: var(--surface-3); color: var(--text-2); }
+.agent-toggle.on { background: var(--accent-soft, var(--surface-3)); color: var(--accent-text, var(--accent)); }
+.ctx-chip { font-weight: 600; background: var(--accent-soft, var(--surface-2)); color: var(--accent-text, var(--accent)); }

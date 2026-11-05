@@ -3,7 +3,7 @@
  * 多個條件以空白分隔、全部符合才算，例如「5000 轉帳 上週」「麥當勞 10/25」「1000-5000 #旅遊」，規則見 domain/search。
  * 結果依日期新到舊，最多顯示 300 筆。
  * 用問的查帳：輸入「上個月吃飯花多少」這類問句時，規則看得懂就直接回答並列出符合的帳目（services/nlquery，本機、免費）；
- * 規則看不懂的自然語言一律交給 AI 對話框（/ai?q=），搜尋頁不再自己養一套 AI 搜尋。
+ * 規則看不懂的自然語言一律交給 AI 對話框（直接在這一頁上方開啟對話視窗並送出），搜尋頁不再自己養一套 AI 搜尋。
  * 桌機可用 ⌘K / Ctrl+K 開啟。
  */
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
@@ -20,6 +20,7 @@ import { LedgerRow } from '../ledger/LedgerRow';
 import { isQuestion, looksLikeAiQuestion, rangeText } from '@/domain/nlquery';
 import { ask, type QueryAnswer } from '@/services/nlquery';
 import { aiEnabledLocally } from '@/services/ai';
+import { useChat } from '@/features/home/aiChatStore';
 
 const EXAMPLES = ['上個月吃飯花多少', '這週咖啡喝了幾次', '今年最大一筆', '上個月錢都花到哪', '最近 30 天平均每天花多少', '去年收入多少'];
 const TIPS = ['5000', '5000 轉帳', '10/25 午餐', '1000-5000 上週', '>=3000 #旅遊', '@玉山 本月', '麥當勞 支出'];
@@ -71,7 +72,7 @@ export default function SearchPage() {
     <section className="card ask-answer">
       <p className="ask-text">{ruleFailed ? '這個問題我用規則看不懂，先列出可能相關的帳目。' : '這像是一個請教的問題。'}</p>
       {aiEnabledLocally()
-        ? <button className="btn small" onClick={() => navigate(`/ai?q=${encodeURIComponent(dq)}`)}><AiMark /> 交給 AI 對話深入分析 →</button>
+        ? <button className="btn small" onClick={() => useChat.getState().ask(dq)}><AiMark /> 交給 AI 對話深入分析 →</button>
         : <p className="muted" style={{ margin: '4px 0 0' }}>到「設定 → AI 助理」開啟 AI 後，可以問更複雜的問題。</p>}
     </section>
   ) : null;

@@ -7,14 +7,18 @@ import { useLocation } from 'react-router-dom';
 import { labelForPath, useScreen } from '@/stores/screenContext';
 import { useSettings } from '@/stores/settings';
 import { useUI } from '@/stores/ui';
+import { useChat } from '@/features/home/aiChatStore';
 
 const TIP_KEY = 'aster.islandTip.v1';
 
 export function ScreenContextHost() {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const aiOn = useSettings((s) => !!s.ai?.enabled);
   const onboarded = useSettings((s) => s.onboarded);
   useEffect(() => { useScreen.getState().setRoute(labelForPath(pathname)); }, [pathname]);
+  // 對話視窗開著時只要路由變了（點檢視卡的「完整財務自由試算 →」、稅務卡的連結、對話裡的任何跳轉），就讓視窗自己沉下去，露出目的頁面——
+  // 不然視窗蓋在最上面，按鈕看起來像沒反應
+  useEffect(() => { useChat.getState().setOpen(false); }, [pathname, search]);
   useEffect(() => {
     if (!aiOn || !onboarded || pathname === '/' || pathname.startsWith('/ai') || pathname.startsWith('/onboarding')) return;
     try {

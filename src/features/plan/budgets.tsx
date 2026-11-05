@@ -4,7 +4,6 @@
  */
 import { AiMark } from '@/ui/Icon';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
 import type { Budget } from '@/db/types';
@@ -22,15 +21,19 @@ import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { AmountField, CategoryField, DateField, SelectField, SwitchField, TextField } from '@/ui/form';
 import { Sheet } from '@/ui/Sheet';
 import { SectionHead } from './PlanPage';
+import { BUDGET_PROMPT, useChat } from '../home/aiChatStore';
+import { useScreenDetail } from '@/stores/screenContext';
 
 export default function BudgetSection() {
-  const navigate = useNavigate();
   const [edit, setEdit] = useState<Budget | 'new' | null>(null);
   const monthStartDay = useSettings((s) => s.monthStartDay);
   const tick = useLiveQuery(() => db.transactions.count(), []);
   const budgets = useLiveQuery(() => db.budgets.toArray(), []);
   const views = useLiveQuery(() => computeBudgets(), [tick, budgets, monthStartDay]);
   const base = useSettings((s) => s.baseCurrency);
+  // 讓 AI 對話知道各預算的使用率（只有預算名稱與百分比）：說「把快超支的預算調高」時才對得到
+  const hot = (views ?? []).map((v) => ({ name: v.budget.name, pct: Math.round(v.status.pct) })).filter((x) => x.pct >= 80).sort((a, b) => b.pct - a.pct).slice(0, 6);
+  useScreenDetail(views ? `專案與預算 → 預算：共 ${views.length} 個預算${hot.length ? `，已用 80% 以上：${hot.map((x) => `${x.name} ${x.pct}%`).join('、')}` : '，使用率都在 80% 以下'}` : null);
 
   /** 依過去 3 個完整月份的實際支出：建立每月總預算與花費最多的 5 個分類（可復原） */
   const suggestAll = async () => {
@@ -45,7 +48,7 @@ export default function BudgetSection() {
     <>
       <SectionHead title="預算" onAdd={() => setEdit('new')} />
       {AUTH_ENABLED && (
-        <button className="card" style={{ width: '100%', textAlign: 'left', marginBottom: 8 }} onClick={() => navigate('/ai?tool=budget')}>
+        <button className="card" style={{ width: '100%', textAlign: 'left', marginBottom: 8 }} onClick={() => useChat.getState().ask(BUDGET_PROMPT)}>
           <span className="row-title"><AiMark /> 請 AI 規劃預算</span>
           <span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>依過去花費由操作助手規劃，先預覽、你確認才建立，建立後 7 天內可還原</span>
         </button>

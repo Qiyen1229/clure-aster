@@ -3,13 +3,16 @@
  */
 import { create } from 'zustand';
 import type { ResolvedDraft } from '@/services/quickentry';
-import type { ResolvedStep, ViewSpec } from '@/domain/agent/plan';
+import type { RawStep, ResolvedStep, ViewSpec } from '@/domain/agent/plan';
+
+/** 預算規劃的一句話（預算頁按鈕、舊連結 /ai?tool=budget 共用） */
+export const BUDGET_PROMPT = '依過去 3 個月的花費，幫我設定各分類的每月預算';
 
 export type Msg =
   | { id: number; role: 'user'; text: string }
   | { id: number; role: 'ai'; kind: 'text'; text: string; sub?: string; link?: { label: string; to: string }; followups?: string[] }
   | { id: number; role: 'ai'; kind: 'entries'; drafts: ResolvedDraft[]; via: 'rule' | 'ai'; sub?: string; booked?: boolean }
-  | { id: number; role: 'ai'; kind: 'agent'; summary: string; steps: ResolvedStep[]; quota: string; phase?: 'done' | 'undone' | 'cancelled'; opId?: string; note?: string }
+  | { id: number; role: 'ai'; kind: 'agent'; summary: string; steps: ResolvedStep[]; /** AI 規劃的原始步驟：略過某幾步時用它在本機重新預覽，不必再問 AI */ raw: RawStep[]; quota: string; phase?: 'done' | 'undone' | 'cancelled'; opId?: string; note?: string }
   | { id: number; role: 'ai'; kind: 'view'; view: ViewSpec }
   | { id: number; role: 'ai'; kind: 'pending' };
 
@@ -24,6 +27,9 @@ interface ChatState {
   attach: boolean;
   setAttach: (v: boolean) => void;
   setOpen: (v: boolean) => void;
+  /** 等對話視窗載入後自動送出的一句話（搜尋頁的「交給 AI」、預算頁按鈕、舊連結用） */
+  pending: string | null;
+  ask: (text: string) => void;
   patch: (id: number, p: Partial<Msg>) => void;
   clear: () => void;
 }
@@ -33,6 +39,8 @@ export const useChat = create<ChatState>((set) => ({
   open: false, msgs: [], busy: false, attach: true,
   setAttach: (attach) => set({ attach }),
   setOpen: (open) => set({ open }),
+  pending: null,
+  ask: (text) => set({ open: true, pending: text.slice(0, 300) }),
   patch: (id, p) => set((s) => ({ msgs: s.msgs.map((m) => (m.id === id ? ({ ...m, ...p } as Msg) : m)) })),
   clear: () => set({ msgs: [] }),
 }));

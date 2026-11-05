@@ -21,7 +21,7 @@ import { bookDrafts, draftsFromText, draftsSmart, fallbackAccount, resolveDraft 
 import { useSettings } from '@/stores/settings';
 import { snackUndo, useUI } from '@/stores/ui';
 import { AiMark, Icon } from '@/ui/Icon';
-import { summarizePlan } from '@/domain/agent/plan';
+import { summarizePlan, type ResolvedStep } from '@/domain/agent/plan';
 import type { AgentOpLog } from '@/services/agent';
 import { PlanPreview } from '../ai/PlanPreview';
 import { Sheet } from '@/ui/Sheet';
@@ -46,7 +46,7 @@ export async function respond(text: string, screen?: string): Promise<Reply> {
     try {
       const [{ aiAgentPlan }, { previewPlan }] = await Promise.all([import('@/services/ai'), import('@/services/agent')]);
       const r = await aiAgentPlan(t, screen);
-      return { role: 'ai', kind: 'agent', summary: r.plan.summary, steps: await previewPlan(r.plan.steps), quota: quotaLabel(r.quota) };
+      return { role: 'ai', kind: 'agent', summary: r.plan.summary, steps: await previewPlan(r.plan.steps), raw: r.plan.steps, quota: quotaLabel(r.quota) };
     } catch (e) {
       return { role: 'ai', kind: 'text', text: (e as Error).message };
     }
@@ -124,13 +124,25 @@ async function sendImage(file: File) {
 
 function AgentBubble({ m }: { m: Extract<Msg, { kind: 'agent' }> }) {
   const [busy, setBusy] = useState(false);
-  const diff = summarizePlan(m.steps);
+  // 單步勾選／略過：略過的步驟用 AI 規劃的原始步驟在本機重新預覽（後面步驟的餘額與持股模擬會跟著變），不必再問 AI、不扣額度
+  const [off, setOff] = useState<Set<number>>(new Set());
+  const [live, setLive] = useState<ResolvedStep[]>(m.steps);
   const patch = (p: Partial<Extract<Msg, { kind: 'agent' }>>) => useChat.getState().patch(m.id, p as Partial<Msg>);
+  const diff = summarizePlan(live);
+  let j = 0;
+  const display = m.raw.map((_, i) => (off.has(i) ? m.steps[i] : live[j++] ?? m.steps[i]));
+  const toggle = async (i: number) => {
+    const next = new Set(off);
+    if (next.has(i)) next.delete(i); else next.add(i);
+    setOff(next);
+    const { previewPlan } = await import('@/services/agent');
+    setLive(await previewPlan(m.raw.filter((_, k) => !next.has(k))));
+  };
   const run = async () => {
     setBusy(true);
     try {
       const { applyPlan } = await import('@/services/agent');
-      const log = await applyPlan(m.steps, m.summary);
+      const log = await applyPlan(live, m.summary);
       patch({ phase: 'done', opId: log.id, note: `已執行 ${log.titles.length} 項操作` });
     } catch (e) { patch({ note: `執行失敗，沒有任何資料被改動：${(e as Error).message}` }); } finally { setBusy(false); }
   };
@@ -146,7 +158,7 @@ function AgentBubble({ m }: { m: Extract<Msg, { kind: 'agent' }> }) {
   return (
     <div className="agent-preview">
       <div className="row-title" style={{ whiteSpace: 'normal' }}>執行預覽{m.summary ? `：${m.summary}` : ''}</div>
-      <PlanPreview steps={m.steps} />
+      <PlanPreview steps={display} summarySteps={live} off={off} onToggle={m.phase ? undefined : (i) => void toggle(i)} />
       {!m.phase && (
         <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
           <button className="btn secondary small" style={{ flex: 1 }} disabled={busy} onClick={() => patch({ phase: 'cancelled', note: '已取消，沒有改動任何資料' })}>取消</button>
@@ -158,7 +170,7 @@ function AgentBubble({ m }: { m: Extract<Msg, { kind: 'agent' }> }) {
       {m.phase === 'done' && <button className="btn small tinted" style={{ marginTop: 10 }} disabled={busy} onClick={() => void undo()}>✅ 已執行・一鍵還原</button>}
       {m.note && <p className="row-sub" style={{ whiteSpace: 'normal' }}>{m.note}</p>}
       {!m.phase && <p className="row-sub" style={{ whiteSpace: 'normal' }}>{m.quota}　執行是「全部成功或全部不動」（可橫跨帳目、帳戶、欠款、股票、目標…），之後 7 天內可整包一鍵還原。</p>}
-      {m.phase !== 'cancelled' && m.steps.filter((s) => s.preview.view && !s.preview.blocked).map((s, i) => (
+      {m.phase !== 'cancelled' && live.filter((s) => s.preview.view && !s.preview.blocked).map((s, i) => (
         <ViewBubble key={i} view={s.preview.view!} refreshKey={m.phase === 'done' ? m.opId : undefined} />
       ))}
     </div>
@@ -226,26 +238,68 @@ const CHAT_EXAMPLES = [
 /** 不用 AI、點了直接在對話裡出檢視卡 */
 const VIEW_CHIPS = ['這個月花費', '財務自由', '現金流', '稅務規劃'];
 
+interface ScreenChip { label: string; text: string; /** true＝只把文字填進輸入框（還要補上金額或對象），不直接送出 */ fill?: boolean }
+/** 依「目前畫面」插在最上面的專屬晶片：讓人知道現在可以直接講「這檔」「這個帳戶」（本機規則產生，不用 AI） */
+function screenChips(screen: string): ScreenChip[] {
+  if (screen.startsWith('個股頁')) return [
+    { label: '⚡ 買 1 張這檔股票', text: '買 1 張這檔股票' }, { label: '⚡ 賣 1 張這檔股票', text: '賣 1 張這檔股票' }, { label: '⚡ 這檔佔我投資組合多少？', text: '這檔佔我投資組合多少？' },
+  ];
+  if (screen.startsWith('帳戶明細頁')) return [
+    { label: '⚡ 從這個帳戶轉 1 萬到…', text: '從這個帳戶轉 1 萬到', fill: true }, { label: '⚡ 這個帳戶最近花在哪？', text: '這個帳戶最近花在哪？' },
+  ];
+  if (screen.startsWith('專案與預算 → 應收應付')) return [{ label: '⚡ 把欠款結清', text: '把欠 的款項結清', fill: true }];
+  if (screen.startsWith('專案與預算 → 目標')) return [{ label: '⚡ 存 5000 進目標', text: '存 5000 進目標', fill: true }];
+  if (screen.startsWith('專案與預算 → 預算')) return [{ label: '⚡ 哪些預算快超支了？', text: '哪些預算快超支了？' }];
+  if (screen.startsWith('投資：')) return [{ label: '⚡ 看我的稅務規劃', text: '稅務規劃' }, { label: '⚡ 買 1000 股…', text: '買 1000 股 ', fill: true }];
+  if (screen.startsWith('報表：')) return [{ label: '⚡ 哪裡花太多？', text: '這個月哪裡花太多？' }];
+  if (screen.startsWith('帳目列表')) return [{ label: '⚡ 這些帳目合計多少？', text: '目前篩選的這些帳目合計多少？' }];
+  return [];
+}
+
+// 語音輸入（瀏覽器的 SpeechRecognition；iOS Safari 14.5+ 有）：講完把文字填進輸入框，確認後再送出
+type SpeechRec = { lang: string; interimResults: boolean; maxAlternatives: number; start: () => void; onresult: ((e: { results: { 0: { 0: { transcript: string } } } }) => void) | null; onend: (() => void) | null; onerror: (() => void) | null };
+const SpeechCtor: (new () => SpeechRec) | undefined = typeof window === 'undefined' ? undefined
+  : (window as unknown as { SpeechRecognition?: new () => SpeechRec; webkitSpeechRecognition?: new () => SpeechRec }).SpeechRecognition
+    ?? (window as unknown as { webkitSpeechRecognition?: new () => SpeechRec }).webkitSpeechRecognition;
+
 /**
  * 對話內容（首頁彈出的對話視窗與 AI 助理頁共用同一份對話）：
  * 記帳、查帳、問 AI、用說的整理帳本（先預覽、確認才執行、可一鍵還原）全部在同一個輸入框，由 respond() 分流。
  */
-export function ChatPanel({ embedded, onLeave, autoSend, onAutoSent, autoFocus }: { embedded?: boolean; onLeave?: () => void; autoSend?: string; onAutoSent?: () => void; autoFocus?: boolean }) {
+export function ChatPanel({ onLeave, autoFocus }: { onLeave?: () => void; autoFocus?: boolean }) {
   const navigate = useNavigate();
   const { open, msgs, busy } = useChat();
   const [q, setQ] = useState('');
   const [ops, setOps] = useState<AgentOpLog[]>([]);
+  const [listening, setListening] = useState(false);
   const end = useRef<HTMLDivElement>(null);
-  const sent = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const aiOn = useSettings((s) => !!s.ai?.enabled);
-  const screen = useScreen((s) => (s.detail ?? s.routeLabel).slice(0, 60));
+  const fullScreen = useScreen((s) => s.detail ?? s.routeLabel);
+  const screen = fullScreen.slice(0, 60);
   const attach = useChat((s) => s.attach);
-  useEffect(() => { if (embedded || open) end.current?.scrollIntoView({ block: 'end' }); }, [embedded, open, msgs]);
-  useEffect(() => { if (autoSend && !sent.current) { sent.current = true; onAutoSent?.(); void send(autoSend, { open: !embedded }); } }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const pendingText = useChat((s) => s.pending);
+  useEffect(() => { if (open) end.current?.scrollIntoView({ block: 'end' }); }, [open, msgs]);
+  // 別處（搜尋頁、預算頁、舊連結）請對話框代送的一句話：對話視窗載入後自動送出
+  useEffect(() => {
+    if (pendingText && !useChat.getState().busy) { useChat.setState({ pending: null }); void send(pendingText); }
+  }, [pendingText]);
   // 最近 7 天執行過的操作（存在本機，重開 App、清除對話後也還找得到）：隨時可一鍵還原
   const reloadOps = () => { void import('@/services/agent').then((m) => m.listAgentOps()).then(setOps).catch(() => undefined); };
-  useEffect(() => { if (embedded || open) reloadOps(); }, [embedded, open, msgs]);
+  useEffect(() => { if (open) reloadOps(); }, [open, msgs]);
+  const listen = () => {
+    if (!SpeechCtor || listening) return;
+    const rec = new SpeechCtor();
+    rec.lang = 'zh-TW'; rec.interimResults = false; rec.maxAlternatives = 1;
+    rec.onresult = (e) => setQ((v) => `${v ? `${v} ` : ''}${e.results[0][0].transcript}`.slice(0, 300));
+    rec.onend = () => { setListening(false); inputRef.current?.focus(); };
+    rec.onerror = () => { setListening(false); useUI.getState().showSnack({ text: '語音辨識失敗，請確認已允許麥克風' }); };
+    setListening(true);
+    rec.start();
+  };
+  const chips = screenChips(fullScreen);
+  const pickChip = (c: ScreenChip) => { if (c.fill) { setQ(c.text); inputRef.current?.focus(); } else go(c.text); };
   const undoHistory = async (id: string) => {
     try {
       const { undoOp } = await import('@/services/agent');
@@ -254,15 +308,16 @@ export function ChatPanel({ embedded, onLeave, autoSend, onAutoSent, autoFocus }
     } catch (e) { useUI.getState().showSnack({ text: (e as Error).message }); }
     reloadOps();
   };
-  const go = (text: string) => void send(text, { open: !embedded });
+  const go = (text: string) => void send(text);
   const submit = (e: React.FormEvent) => { e.preventDefault(); const t = q; setQ(''); go(t); };
 
   return (
-    <div className={`chat-wrap${embedded ? ' embedded' : ''}`}>
+    <div className="chat-wrap">
       <div className="chat-list" role="log" aria-live="polite">
         {!msgs.length && (
           <div style={{ margin: 8 }}>
             <p className="muted" style={{ margin: '0 0 8px' }}>說一句話就好：記帳、查帳、問問題，或叫我跨帳戶、貸款、股票、欠款一次做完（先預覽、確認才執行、可整包還原）。{aiOn ? '' : '（整理帳本與問 AI 需要先在設定開啟 AI）'}</p>
+            {chips.length > 0 && <div className="ask-examples" style={{ marginBottom: 6 }}>{chips.map((c) => <button key={c.label} className="pill ctx-chip" disabled={busy} onClick={() => pickChip(c)}>{c.label}</button>)}</div>}
             <div className="ask-examples">{VIEW_CHIPS.map((x) => <button key={x} className="pill view-chip" disabled={busy} onClick={() => go(x)}>📊 {x}</button>)}</div>
             <div className="ask-examples" style={{ marginTop: 6 }}>{CHAT_EXAMPLES.map((x) => <button key={x} className="pill" disabled={busy} onClick={() => go(x)}>{x}</button>)}</div>
           </div>
@@ -310,7 +365,9 @@ export function ChatPanel({ embedded, onLeave, autoSend, onAutoSent, autoFocus }
       <form className="chat-input" onSubmit={submit}>
         <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (fileRef.current) fileRef.current.value = ''; if (f) void sendImage(f); }} />
         <button className="icon-btn plain" type="button" aria-label="拍照或選擇收據照片" disabled={busy} onClick={() => fileRef.current?.click()}><Icon name="camera" size={20} /></button>
-        <input value={q} onChange={(e) => setQ(e.target.value)} maxLength={300} enterKeyHint="send" aria-label="輸入訊息" placeholder="記帳、查帳、問或整理帳本" autoFocus={autoFocus} />
+        {SpeechCtor && <button className="icon-btn plain" type="button" aria-label="語音輸入" aria-pressed={listening} disabled={busy} onClick={listen}
+          style={listening ? { background: 'var(--danger)', color: '#fff' } : undefined}><Icon name="mic" size={20} /></button>}
+        <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} maxLength={300} enterKeyHint="send" aria-label="輸入訊息" placeholder="記帳、查帳、問或整理帳本" autoFocus={autoFocus} />
         <button className="btn small" type="submit" disabled={busy || !q.trim()}>送出</button>
       </form>
     </div>

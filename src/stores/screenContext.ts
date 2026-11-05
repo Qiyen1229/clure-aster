@@ -24,9 +24,10 @@ export const currentScreen = (): string => {
   return (s.detail ?? s.routeLabel).slice(0, 160);
 };
 
-/** 頁面提供畫面摘要：離開頁面或摘要變成 null 時自動清掉 */
+/** 頁面提供畫面摘要：離開頁面或摘要變了時自動清掉舊的。傳 null＝這一層沒有摘要要提供（資料還沒載入，或交給子元件提供），不會蓋掉別人設的 */
 export function useScreenDetail(detail: string | null): void {
   useEffect(() => {
+    if (detail === null) return;
     useScreen.getState().setDetail(detail);
     return () => { if (useScreen.getState().detail === detail) useScreen.getState().setDetail(null); };
   }, [detail]);

@@ -16,7 +16,7 @@ import { currencyInfo, formatMoney } from '@/domain/money';
 import { accountingMonth, addDays, type Range } from '@/domain/period';
 import { occurrences } from '@/domain/recurrence';
 import { loanStatus, simulatePrepayment } from '@/domain/loan';
-import { twFee, tradeValue, type TwFeeConfig } from '@/domain/invest/fees-tw';
+import { twFee, twSellTax, twTaxRate, tradeValue, type TwFeeConfig } from '@/domain/invest/fees-tw';
 import { toMinor } from '@/domain/money';
 import Decimal from 'decimal.js';
 
@@ -24,7 +24,7 @@ export const MAX_AFFECTED = 500;
 export const MAX_STEPS = 8;
 
 export type ToolName = 'reclassify' | 'set_budget' | 'add_recurring' | 'prepayment_sim' | 'add_goal' | 'add_rule'
-  | 'add_transaction' | 'transfer' | 'settle_debt' | 'goal_deposit' | 'buy_stock' | 'show_view';
+  | 'add_transaction' | 'transfer' | 'settle_debt' | 'goal_deposit' | 'buy_stock' | 'sell_stock' | 'show_view';
 /** 對話裡可以嵌入的檢視卡 */
 export type ViewKind = 'fire' | 'tax' | 'cashflow' | 'spending';
 export const VIEW_KINDS: ViewKind[] = ['fire', 'tax', 'cashflow', 'spending'];
@@ -42,7 +42,7 @@ export type Op =
   | { kind: 'transfer'; input: { fromAccountId: string; toAccountId: string; amountMinor: number; date: string; note: string } }
   | { kind: 'settle'; debtId: string; accountId?: string }
   | { kind: 'goal_deposit'; goalId: string; amountMinor: number }
-  | { kind: 'trade'; input: { stockId: string; accountId: string; date: string; sharesDec: string; priceDec: string; feeMinor: number; cashAccountId: string } };
+  | { kind: 'trade'; input: { side: 'buy' | 'sell'; stockId: string; accountId: string; date: string; sharesDec: string; priceDec: string; feeMinor: number; taxMinor: number; cashAccountId: string } };
 
 export interface StepPreview {
   tool: ToolName;
@@ -66,6 +66,8 @@ export interface StepPreview {
   autoRulesCreated?: number;
   /** 動到幾個帳戶的餘額、新增幾筆帳目／交易、結清幾筆欠款 */
   accountsTouched?: number;
+  /** 動到餘額的帳戶 id：彙總時同一個帳戶不重複算（轉帳進出同一個帳戶的好幾步只算一個） */
+  accountIds?: string[];
   txCreated?: number;
   debtsSettled?: number;
   /** 要在對話裡嵌入的檢視卡（只讀、不寫入） */
@@ -91,7 +93,9 @@ export interface AgentData {
   defaultAccountId?: string;
   debts?: { id: string; personName: string; direction: 'they_owe_me' | 'i_owe_them'; amountMinor: number; currency: string; note: string; settled: number }[];
   /** 已有的投資標的（含最新報價）；買進只支援這份清單裡的標的 */
-  stocks?: { id: string; symbol: string; name: string; market: string; currency: string; assetType: 'stock' | 'etf' | 'bond_etf'; lotSize: number; priceDec?: string }[];
+  stocks?: { id: string; symbol: string; name: string; market: string; currency: string; assetType: 'stock' | 'etf' | 'bond_etf'; lotSize: number; priceDec?: string; taxRateDec?: string }[];
+  /** 目前各標的的持股股數（標的 id → 股數字串）；賣出用它檢查夠不夠賣 */
+  holdings?: Record<string, string>;
   feeConfig?: TwFeeConfig;
   defaultBrokerageId?: string;
 }
@@ -375,6 +379,8 @@ interface Work {
   balances: Map<string, number>;
   draftGoals: Map<string, Extract<Op, { kind: 'goal' }>>;
   settled: Set<string>;
+  /** 這份計畫買賣之後的持股股數（標的 id → 股數） */
+  shares: Map<string, Decimal>;
 }
 
 const blockedStep = (tool: ToolName, title: string, why: string): ResolvedStep => ({ op: null, preview: { tool, title, lines: [], warnings: [], blocked: why } });
@@ -412,7 +418,7 @@ function addTransactionTool(a: Record<string, unknown>, d: AgentData, W: Work): 
   if (!str(a.category)) warnings.push(`你沒有指定分類，先放在「${cat.name}」`);
   return {
     op: { kind: 'tx', input: { type, accountId: acc.id, categoryId: cat.id, amountMinor, currency: acc.currency, date, note } },
-    preview: { tool: 'add_transaction', title: `${type === 'income' ? '收入' : '支出'} ${fmt(amountMinor, acc.currency)}（${note}）→「${acc.name}」`, lines, warnings, txCreated: 1, accountsTouched: 1 },
+    preview: { tool: 'add_transaction', title: `${type === 'income' ? '收入' : '支出'} ${fmt(amountMinor, acc.currency)}（${note}）→「${acc.name}」`, lines, warnings, txCreated: 1, accountsTouched: 1, accountIds: [acc.id] },
   };
 }
 
@@ -444,7 +450,7 @@ function transferTool(a: Record<string, unknown>, d: AgentData, W: Work): Resolv
   } else if (repay === 'debt') lines.push('這是繳卡費／還款，不算支出');
   return {
     op: { kind: 'transfer', input: { fromAccountId: from.id, toAccountId: to.id, amountMinor, date, note: str(a.note).slice(0, 60) } },
-    preview: { tool: 'transfer', title: `轉帳 ${fmt(amountMinor, from.currency)}：「${from.name}」→「${to.name}」`, lines, warnings, txCreated: 1, accountsTouched: 2 },
+    preview: { tool: 'transfer', title: `轉帳 ${fmt(amountMinor, from.currency)}：「${from.name}」→「${to.name}」`, lines, warnings, txCreated: 1, accountsTouched: 2, accountIds: [from.id, to.id] },
   };
 }
 
@@ -479,7 +485,7 @@ function settleDebtTool(a: Record<string, unknown>, d: AgentData, W: Work): Reso
   return {
     op: null,
     ops: hits.map((x) => ({ kind: 'settle', debtId: x.id, accountId: acc?.id }) as Op),
-    preview: { tool: 'settle_debt', title: `結清 ${person} 的欠款（${hits.length} 筆，合計 ${fmt(Math.abs(total), d.baseCurrency)}）`, lines, warnings, debtsSettled: hits.length, accountsTouched: acc ? 1 : 0, txCreated: acc ? hits.length : 0 },
+    preview: { tool: 'settle_debt', title: `結清 ${person} 的欠款（${hits.length} 筆，合計 ${fmt(Math.abs(total), d.baseCurrency)}）`, lines, warnings, debtsSettled: hits.length, accountsTouched: acc ? 1 : 0, accountIds: acc ? [acc.id] : [], txCreated: acc ? hits.length : 0 },
   };
 }
 
@@ -505,41 +511,55 @@ function goalDepositTool(a: Record<string, unknown>, d: AgentData, W: Work): Res
   };
 }
 
-function buyStockTool(a: Record<string, unknown>, d: AgentData, W: Work): ResolvedStep {
-  const title = '買進股票';
+/** 買進（扣款）與賣出（入帳）共用：賣出會檢查持股夠不夠（含這份計畫前面步驟的買賣），並算出手續費與證交稅、實拿金額 */
+function tradeStockTool(side: 'buy' | 'sell', a: Record<string, unknown>, d: AgentData, W: Work): ResolvedStep {
+  const buy = side === 'buy';
+  const title = buy ? '買進股票' : '賣出股票';
+  const tool: ToolName = buy ? 'buy_stock' : 'sell_stock';
   const symbol = str(a.symbol).toUpperCase();
   const stock = (d.stocks ?? []).find((s) => s.symbol.toUpperCase() === symbol);
-  if (!stock) return blockedStep('buy_stock', title, `投資頁裡還沒有「${symbol || '（未說明）'}」這檔標的，請先到「帳戶 → 投資」新增一次交易，之後就能用說的買進`);
+  if (!stock) return blockedStep(tool, title, buy ? `投資頁裡還沒有「${symbol || '（未說明）'}」這檔標的，請先到「帳戶 → 投資」新增一次交易，之後就能用說的買進` : `投資頁裡沒有「${symbol || '（未說明）'}」這檔標的`);
   // 台股的 market 是 TWSE（上市）、TPEX（上櫃）、EMERGING（興櫃）；美股、港股需要匯率，請到投資頁記錄
-  if (!['TWSE', 'TPEX', 'EMERGING'].includes(stock.market) || stock.currency !== d.baseCurrency) return blockedStep('buy_stock', title, `「${stock.symbol}」不是台股／主幣別標的，請到投資頁記錄買進（需要匯率與手續費設定）`);
+  if (!['TWSE', 'TPEX', 'EMERGING'].includes(stock.market) || stock.currency !== d.baseCurrency) return blockedStep(tool, title, `「${stock.symbol}」不是台股／主幣別標的，請到投資頁記錄${buy ? '買進' : '賣出'}（需要匯率與手續費設定）`);
   const shares = num(a.shares);
-  if (!(shares > 0)) return blockedStep('buy_stock', title, '股數必須大於 0');
+  if (!(shares > 0)) return blockedStep(tool, title, '股數必須大於 0');
+  // 賣出：持股要夠（以目前持股，加上這份計畫前面步驟的買賣）
+  const held = W.shares.get(stock.id) ?? new Decimal(d.holdings?.[stock.id] ?? 0);
+  if (!buy && new Decimal(shares).gt(held)) return blockedStep(tool, title, `「${stock.symbol}」目前只有 ${held.toString()} 股，不夠賣 ${shares} 股`);
   const priceGiven = num(a.price);
   const price = priceGiven > 0 ? new Decimal(priceGiven) : stock.priceDec ? new Decimal(stock.priceDec) : null;
-  if (!price || price.lte(0)) return blockedStep('buy_stock', title, `沒有「${stock.symbol}」的報價，請說明成交價（例如「買 1000 股 0050，價格 180」）`);
+  if (!price || price.lte(0)) return blockedStep(tool, title, `沒有「${stock.symbol}」的報價，請說明成交價（例如「${buy ? '買' : '賣'} 1000 股 0050，價格 180」）`);
   // 證券戶：投資設定的預設證券戶，沒有就用第一個證券帳戶（和投資頁的交易表單一樣）；扣款帳戶：你說的 → 證券戶的交割帳戶 → 證券戶本身
   const broker = d.accounts.find((x) => x.id === d.defaultBrokerageId && usableAcc(x)) ?? d.accounts.find((x) => usableAcc(x) && x.type === 'brokerage');
   const settle = broker?.brokerage?.settlementAccountId ? d.accounts.find((x) => x.id === broker.brokerage!.settlementAccountId && usableAcc(x)) : undefined;
   const acc = (str(a.account) ? findAccount(d.accounts, str(a.account)) : undefined) ?? settle ?? broker ?? d.accounts.find((x) => usableAcc(x) && x.type === 'bank');
-  if (!acc) return blockedStep('buy_stock', title, str(a.account) ? `找不到帳戶「${str(a.account)}」` : '請說明從哪個帳戶扣款');
-  if (!baseOnly(acc, d)) return blockedStep('buy_stock', title, '扣款帳戶是外幣帳戶，請到投資頁記錄買進');
+  if (!acc) return blockedStep(tool, title, str(a.account) ? `找不到帳戶「${str(a.account)}」` : `請說明${buy ? '從' : '轉入'}哪個帳戶`);
+  if (!baseOnly(acc, d)) return blockedStep(tool, title, `${buy ? '扣款' : '入帳'}帳戶是外幣帳戶，請到投資頁記錄${buy ? '買進' : '賣出'}`);
   const sharesD = new Decimal(shares);
   const gross = toMinor(tradeValue(price, sharesD), stock.currency);
   const fee = d.feeConfig ? twFee(price, sharesD, d.feeConfig, stock.lotSize) : 0;
-  const total = gross + fee;
+  // 證交稅只有賣出才有：依標的類型（股票、ETF、債券 ETF）與你在投資設定的稅率
+  const tax = !buy && d.feeConfig ? twSellTax(price, sharesD, twTaxRate(stock.assetType, d.feeConfig, stock.taxRateDec)) : 0;
+  const net = buy ? gross + fee : gross - fee - tax; // 買：付出；賣：實拿
   const date = dateOrNull(a.date) ?? d.today;
-  const before = W.balances.get(acc.id) ?? acc.balanceMinor, after = before - total;
+  const before = W.balances.get(acc.id) ?? acc.balanceMinor, after = buy ? before - net : before + net;
   W.balances.set(acc.id, after);
+  W.shares.set(stock.id, buy ? held.plus(sharesD) : held.minus(sharesD));
   const warnings: string[] = [];
   if (priceGiven > 0 && stock.priceDec && Math.abs(priceGiven - Number(stock.priceDec)) / Number(stock.priceDec) > 0.05) warnings.push(`你說的成交價 ${priceGiven} 和最近報價 ${stock.priceDec} 差超過 5%，請確認`);
   if (!(priceGiven > 0)) warnings.push(`沒有指定成交價，先以最近報價 ${stock.priceDec} 試算（實際成交價以券商為準，執行前可改說「價格 xxx」）`);
   const lotText = shares >= 1000 && shares % 1000 === 0 ? `${shares / 1000} 張` : `${shares} 股`;
   return {
-    op: { kind: 'trade', input: { stockId: stock.id, accountId: broker?.id ?? acc.id, date, sharesDec: sharesD.toString(), priceDec: price.toString(), feeMinor: fee, cashAccountId: acc.id } },
+    op: { kind: 'trade', input: { side, stockId: stock.id, accountId: broker?.id ?? acc.id, date, sharesDec: sharesD.toString(), priceDec: price.toString(), feeMinor: fee, taxMinor: tax, cashAccountId: acc.id } },
     preview: {
-      tool: 'buy_stock', title: `買進 ${stock.symbol} ${stock.name} ${lotText} @ ${price.toString()}`,
-      lines: [`成交金額 ${fmt(gross, stock.currency)}、手續費約 ${fmt(fee, stock.currency)}，共 ${fmt(total, stock.currency)}（${date}）`, balanceLine(acc, before, after, warnings), '會同步記一筆「股票買進」帳目（不計入收支），手續費另記支出'],
-      warnings, txCreated: fee > 0 ? 2 : 1, accountsTouched: 1,
+      tool, title: `${buy ? '買進' : '賣出'} ${stock.symbol} ${stock.name} ${lotText} @ ${price.toString()}`,
+      lines: [
+        buy ? `成交金額 ${fmt(gross, stock.currency)}、手續費約 ${fmt(fee, stock.currency)}，共 ${fmt(net, stock.currency)}（${date}）`
+          : `成交金額 ${fmt(gross, stock.currency)}、手續費約 ${fmt(fee, stock.currency)}、證交稅約 ${fmt(tax, stock.currency)}，實拿 ${fmt(net, stock.currency)}（${date}）`,
+        balanceLine(acc, before, after, warnings),
+        buy ? '會同步記一筆「股票買進」帳目（不計入收支），手續費另記支出' : '會同步記一筆「股票賣出」帳目（不計入收支），手續費與證交稅另記支出；已實現損益依你的成本法在投資頁計算',
+      ],
+      warnings, txCreated: fee + tax > 0 ? 2 : 1, accountsTouched: 1, accountIds: [acc.id],
     },
   };
 }
@@ -568,7 +588,7 @@ function showViewTool(a: Record<string, unknown>): ResolvedStep {
 export function resolvePlan(steps: RawStep[], data: AgentData): ResolvedStep[] {
   const work = data.txs.map((t) => ({ ...t }));
   const draftBudgets = data.budgets.map((b) => ({ ...b }));
-  const W: Work = { balances: new Map(data.accounts.map((a) => [a.id, a.balanceMinor])), draftGoals: new Map(), settled: new Set() };
+  const W: Work = { balances: new Map(data.accounts.map((a) => [a.id, a.balanceMinor])), draftGoals: new Map(), settled: new Set(), shares: new Map() };
   const out: ResolvedStep[] = [];
   for (const s of steps.slice(0, MAX_STEPS)) {
     const a = (s.args && typeof s.args === 'object' ? s.args : {}) as Record<string, unknown>;
@@ -586,7 +606,8 @@ export function resolvePlan(steps: RawStep[], data: AgentData): ResolvedStep[] {
     else if (s.tool === 'transfer') out.push(transferTool(a, data, W));
     else if (s.tool === 'settle_debt') out.push(settleDebtTool(a, data, W));
     else if (s.tool === 'goal_deposit') out.push(goalDepositTool(a, data, W));
-    else if (s.tool === 'buy_stock') out.push(buyStockTool(a, data, W));
+    else if (s.tool === 'buy_stock') out.push(tradeStockTool('buy', a, data, W));
+    else if (s.tool === 'sell_stock') out.push(tradeStockTool('sell', a, data, W));
     else if (s.tool === 'show_view') out.push(showViewTool(a));
     else out.push({ op: null, preview: { tool: 'reclassify', title: '不支援的操作', lines: [], warnings: [], blocked: `不支援的操作「${String(s.tool).slice(0, 20)}」` } });
   }
@@ -598,6 +619,7 @@ export interface PlanDiff { affectedTx: number; budgetChanges: number; rulesCrea
 /** 影響彙總（執行預覽卡最上面那排） */
 export function summarizePlan(steps: ResolvedStep[]): PlanDiff {
   const d: PlanDiff = { affectedTx: 0, budgetChanges: 0, rulesCreated: 0, goalsCreated: 0, autoRulesCreated: 0, txCreated: 0, accountsTouched: 0, debtsSettled: 0, executable: 0, blocked: 0, readonly: 0 };
+  const accountIds = new Set<string>();
   for (const s of steps) {
     if (s.preview.blocked) { d.blocked++; continue; }
     if (opsOf(s).length) d.executable++; else if (s.preview.readonly) d.readonly++;
@@ -607,8 +629,9 @@ export function summarizePlan(steps: ResolvedStep[]): PlanDiff {
     d.goalsCreated += s.preview.goalsCreated ?? 0;
     d.autoRulesCreated += s.preview.autoRulesCreated ?? 0;
     d.txCreated += s.preview.txCreated ?? 0;
-    d.accountsTouched += s.preview.accountsTouched ?? 0;
+    for (const id of s.preview.accountIds ?? []) accountIds.add(id);
     d.debtsSettled += s.preview.debtsSettled ?? 0;
   }
+  d.accountsTouched = accountIds.size;
   return d;
 }

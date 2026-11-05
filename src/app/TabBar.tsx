@@ -273,12 +273,11 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
   const inboxCount = useInboxCount((s) => s.n);
   const hasAlert = unreadCount > 0 || inboxCount > 0;
 
-  /** 叫出 AI 對話（已經在 AI 助理頁就不重複開，那一頁本來就是同一個對話） */
+  /** 叫出 AI 對話（任何頁面都一樣；AI 助理頁不再內嵌對話，也是開同一個視窗） */
   const openAi = () => {
     navigator.vibrate?.(15);
     setAiHold(true);
     window.setTimeout(() => setAiHold(false), 500);
-    if (pathname.startsWith('/ai')) return;
     useChat.getState().setOpen(true);
   };
 

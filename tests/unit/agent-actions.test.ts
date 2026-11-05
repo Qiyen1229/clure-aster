@@ -118,6 +118,30 @@ describe('操作助手：跨模組動作（記帳、轉帳、結清、買股、�
     expect(op.input.cashAccountId).toBe(bank);
   });
 
+  it('賣股：持股夠才賣、算手續費與證交稅、實拿金額入帳；執行後整包還原回原樣；先買再賣算同一份計畫的持股', async () => {
+    const buy = { tool: 'buy_stock', args: { symbol: '0050', shares: 2000, price: 180, account: '台新' } };
+    // 還沒有持股：賣不出去
+    expect((await previewPlan([{ tool: 'sell_stock', args: { symbol: '0050', shares: 1000, price: 190, account: '台新' } }]))[0].preview.blocked).toContain('不夠賣');
+    // 同一份計畫先買 2000 再賣 1000：夠
+    const both = await previewPlan([buy, { tool: 'sell_stock', args: { symbol: '0050', shares: 1000, price: 190, account: '台新' } }]);
+    expect(both.map((s) => s.preview.blocked)).toEqual([undefined, undefined]);
+    expect(both[1].preview.lines.join('\n')).toContain('證交稅');
+    // 買了真的存進去之後，單獨賣 1000 股
+    await applyPlan(await previewPlan([buy]), '先買');
+    const b1 = await bal(bank);
+    const sell = await previewPlan([{ tool: 'sell_stock', args: { symbol: '0050', shares: 1000, price: 190, account: '台新' } }]);
+    expect(sell[0].preview.blocked).toBeUndefined();
+    const log = await applyPlan(sell, '賣一張');
+    const t = (await db.stock_trades.toArray()).find((x) => x.type === 'sell')!;
+    expect(t.taxMinor).toBeGreaterThan(0); // ETF 證交稅
+    expect(await bal(bank)).toBe(b1 + 190 * 1000 * 100 - t.feeMinor - t.taxMinor);
+    // 賣超過持股（現在剩 1000 股）→ 擋下
+    expect((await previewPlan([{ tool: 'sell_stock', args: { symbol: '0050', shares: 1500, price: 190 } }]))[0].preview.blocked).toContain('1000');
+    await undoOp(log.id);
+    expect(await bal(bank)).toBe(b1);
+    expect((await db.stock_trades.toArray()).filter((x) => x.type === 'sell').every((x) => x.deletedAt)).toBe(true);
+  });
+
   it('同一份計畫新建的目標可以直接存入（併入建立那一步），一次建立', async () => {
     const steps = await previewPlan([
       { tool: 'add_goal', args: { name: '新目標', target_amount: 100000, deadline: null } },

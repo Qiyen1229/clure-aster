@@ -13,6 +13,8 @@ import { deleteBudget, saveBudget, saveGoal, saveRecurring, settleDebt, unsettle
 import { addTransaction, addTransfer, deleteTransactions, deleteTransfers } from '@/db/repo/ledger';
 import { addTrade, deleteTrade } from '@/db/repo/invest';
 import { twFeeConfig } from './portfolio';
+import { computePosition } from '@/domain/invest/position';
+import { currencyInfo } from '@/domain/money';
 import { invalidateAutocat } from './autocat';
 import { opsOf, resolvePlan, type AgentData, type RawStep, type ResolvedStep } from '@/domain/agent/plan';
 import { addDays, todayKey } from '@/domain/period';
@@ -46,17 +48,24 @@ export interface AgentOpLog {
 export async function loadAgentData(): Promise<AgentData> {
   const today = todayKey();
   const st = useSettings.getState();
-  const [categories, accounts, budgets, recurring, goals, rules, debtRows, people, stockRows, prices, txs] = await Promise.all([
+  const [categories, accounts, budgets, recurring, goals, rules, debtRows, people, stockRows, prices, tradeRows, txs] = await Promise.all([
     db.categories.toArray(), db.accounts.toArray(), db.budgets.toArray(), db.recurring_rules.toArray(), db.goals.toArray(), db.rules.toArray(),
-    db.debts.toArray(), db.people.toArray(), db.stocks.toArray(), db.price_cache.toArray(),
+    db.debts.toArray(), db.people.toArray(), db.stocks.toArray(), db.price_cache.toArray(), db.stock_trades.toArray(),
     db.transactions.where('date').aboveOrEqual(addDays(today, -365)).toArray().then((rows) => rows.filter((t) => !t.deletedAt)), // 先整批讀再過濾：Dexie 的 .filter() 會逐筆走游標，上萬筆時慢很多
   ]);
   const personName = new Map(people.map((p) => [p.id, p.name]));
   const priceOf = new Map(prices.map((p) => [p.stockId, p.priceDec]));
+  // 目前持股股數（賣出要檢查夠不夠賣）：照投資頁同一套持倉算法
+  const holdings: Record<string, string> = {};
+  for (const s of stockRows) {
+    if (s.deletedAt) continue;
+    const mine = tradeRows.filter((t) => t.stockId === s.id && !t.deletedAt);
+    if (mine.length) holdings[s.id] = computePosition(mine, st.invest.costMethod, currencyInfo(s.currency).exp).shares.toString();
+  }
   return {
     today, baseCurrency: st.baseCurrency, monthStartDay: st.monthStartDay, categories, accounts, budgets, recurring, goals, rules, txs, defaultAccountId: st.lastAccountId || undefined,
     debts: debtRows.filter((x) => !x.deletedAt).map((x) => ({ id: x.id, personName: personName.get(x.personId) ?? '', direction: x.direction, amountMinor: x.amountMinor, currency: x.currency, note: x.note, settled: x.settled })),
-    stocks: stockRows.filter((x) => !x.deletedAt).map((x) => ({ id: x.id, symbol: x.symbol, name: x.name, market: x.market, currency: x.currency, assetType: x.assetType, lotSize: x.lotSize, priceDec: priceOf.get(x.id) })),
+    stocks: stockRows.filter((x) => !x.deletedAt).map((x) => ({ id: x.id, symbol: x.symbol, name: x.name, market: x.market, currency: x.currency, assetType: x.assetType, lotSize: x.lotSize, priceDec: priceOf.get(x.id), taxRateDec: x.taxRateDec })), holdings,
     feeConfig: twFeeConfig(st.invest), defaultBrokerageId: st.invest.defaultBrokerageId || undefined,
   };
 }
@@ -133,8 +142,8 @@ export async function applyPlan(steps: ResolvedStep[], summary: string): Promise
         if (!stock) throw new Error('標的不存在');
         const inv = useSettings.getState().invest;
         const t = await addTrade({
-          stockId: op.input.stockId, accountId: op.input.accountId, type: 'buy', date: op.input.date, ts: Date.now(), sharesDec: op.input.sharesDec, priceDec: op.input.priceDec,
-          feeMinor: op.input.feeMinor, taxMinor: 0, fxRateDec: '1', isDCA: false, syncToLedger: true, cashAccountId: op.input.cashAccountId, note: '由 AI 操作助手記錄', costMethodSnapshot: inv.costMethod,
+          stockId: op.input.stockId, accountId: op.input.accountId, type: op.input.side, date: op.input.date, ts: Date.now(), sharesDec: op.input.sharesDec, priceDec: op.input.priceDec,
+          feeMinor: op.input.feeMinor, taxMinor: op.input.taxMinor, fxRateDec: '1', isDCA: false, syncToLedger: true, cashAccountId: op.input.cashAccountId, note: '由 AI 操作助手記錄', costMethodSnapshot: inv.costMethod,
         });
         log.changes.push({ table: 'stock_trades', id: t.id, stamp: 0, undo: 'trade' });
       } else {

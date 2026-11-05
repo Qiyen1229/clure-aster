@@ -128,7 +128,9 @@ AGENT_PLAN = f"""你是記帳 App 的操作助手。使用者用一句話描述�
    args：{{"goal":"目標名稱","amount":金額}}
 11. buy_stock：買進投資頁已經有的標的（symbol 要在可選標的代號清單內；1 張＝1000 股；沒說價格就填 null，App 會用最近報價試算）。
    args：{{"symbol":"代號","shares":股數,"price":成交價或null,"account":"扣款帳戶名稱或null"}}
-12. show_view：在對話裡直接顯示一張檢視卡（只讀，不會改任何資料）。使用者說「給我看…」「這樣…會變怎樣」時，放在所有寫入步驟之後。
+12. sell_stock：賣出持有的標的（symbol 要在可選標的代號清單內；1 張＝1000 股；沒說價格就填 null；account 是賣出款項要入帳的帳戶）。
+   args：{{"symbol":"代號","shares":股數,"price":成交價或null,"account":"入帳帳戶名稱或null"}}
+13. show_view：在對話裡直接顯示一張檢視卡（只讀，不會改任何資料）。使用者說「給我看…」「這樣…會變怎樣」時，放在所有寫入步驟之後。
    args：{{"view":"fire（財務自由／退休模擬）|tax（稅務規劃）|cashflow（現金流預測）|spending（花費分析）","retire_age":想試算的退休年齡或null,"annual_saving":每年可存金額或null,"days":現金流天數(30到180)或null,"range":"this_month|last_month|this_year|null"}}
 規則：
 - 所有分類、帳戶名稱必須完全等於「可選分類」「可選帳戶」清單裡的名稱，找不到就填 null（to_category、add_recurring 的 category 找不到就不要輸出那一步）。
@@ -246,7 +248,7 @@ def v_search_plan(data: object, categories: list[str], accounts: list[str], tags
 
 
 AGENT_TOOLS = ("reclassify", "set_budget", "add_recurring", "prepayment_sim", "add_goal", "add_rule",
-               "add_transaction", "transfer", "settle_debt", "goal_deposit", "buy_stock", "show_view")
+               "add_transaction", "transfer", "settle_debt", "goal_deposit", "buy_stock", "sell_stock", "show_view")
 AGENT_MAX_STEPS = 8
 
 
@@ -350,7 +352,7 @@ def v_agent_plan(data: object, categories: list[str], accounts: list[str], today
             amt, gname = money(a.get("amount")), a.get("goal")
             if amt is not None and isinstance(gname, str) and (gname in goals or gname in new_goals):
                 args = {"goal": gname, "amount": amt}
-        elif tool == "buy_stock":
+        elif tool in ("buy_stock", "sell_stock"):
             sym = pick(a.get("symbol"), stocks)
             shares = money(a.get("shares"))
             price = money(a.get("price")) if a.get("price") not in (None, "") else None

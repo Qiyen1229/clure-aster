@@ -128,7 +128,8 @@ export default function ImportPage() {
         <h1>{mode === 'reconcile' ? '帳單對帳' : '匯入 CSV'}</h1>
         <div style={{ width: 44 }} />
       </header>
-      <div className="steps">{[0, 1, 2, 3].map((i) => <i key={i} className={i === step ? 'on' : ''} />)}</div>
+      {/* 步驟點：匯入有 4 步（選檔、對應欄位、預覽、完成）；對帳只有 3 步（選檔、對應欄位、比對與補齊，截圖對帳直接從選檔到比對），不要顯示用不到的第 4 點 */}
+      <div className="steps" aria-hidden="true">{Array.from({ length: mode === 'reconcile' ? 3 : 4 }, (_, i) => <i key={i} className={i === step ? 'on' : ''} />)}</div>
 
       {step === 0 && (
         <>

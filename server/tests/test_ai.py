@@ -841,3 +841,17 @@ def test_agent_plan_v41_tools_validated_against_names(api: Api, monkeypatch) -> 
     assert steps[6]["args"]["retire_age"] == 55 and steps[6]["args"]["days"] is None
     sent = json.loads(seen[0]["messages"][1]["content"])
     assert set(sent) == {"今天", "需求", "可選分類", "可選帳戶", "可選對象", "可選標的代號"}  # 只送名稱與一句話；沒有目標清單就不送空清單
+
+
+def test_agent_plan_sell_stock_validated(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    plan = {"summary": "賣一張", "steps": [
+        {"tool": "sell_stock", "args": {"symbol": "0050", "shares": 1000, "price": 190, "account": "台新"}},
+        {"tool": "sell_stock", "args": {"symbol": "9999", "shares": 1000}},   # 標的不在名單：丟掉
+        {"tool": "sell_stock", "args": {"symbol": "0050", "shares": -5}},     # 股數不合法：丟掉
+    ]}
+    fake(monkeypatch, lambda n, p: ok(plan))
+    api.register("alice")
+    r = api.post("/api/ai/agent-plan", AGENT_BODY_V41)
+    assert r.status_code == 200, r.text
+    assert [s["tool"] for s in r.json()["steps"]] == ["sell_stock"]
+    assert r.json()["steps"][0]["args"] == {"symbol": "0050", "shares": 1000, "price": 190, "account": "台新"}
