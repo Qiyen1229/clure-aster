@@ -36,6 +36,13 @@ describe('對話框 respond（AI 關閉時）', () => {
     expect(r.kind).toBe('text');
   });
 
+  it('★ 要整理帳本的說法（批次改分類、設預算…）不會被當成記帳，AI 關閉時引導去設定', async () => {
+    const r = await respond('幫我把上個月所有 Uber 都改歸類到交通，並設交通每月預算 3000');
+    expect(r.kind).toBe('text');
+    if (r.kind === 'text') expect(r.link?.to).toBe('/settings/ai');
+    expect(await db.transactions.count()).toBe(1);
+  });
+
   it('一次多筆', async () => {
     const r = await respond('早餐 60 午餐 120');
     expect(r.kind === 'entries' && r.drafts.length).toBe(2);

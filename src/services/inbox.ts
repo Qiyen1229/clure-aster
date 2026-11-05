@@ -8,8 +8,8 @@
  * - 帳戶：學到的卡片對應 → 文字裡的帳戶名稱 → 規則／商家記憶 → 收件匣預設帳戶 → 上次使用的帳戶
  * - 暫存在伺服器上的內容沒有端對端加密（捷徑沒有你的加密密碼）；處理後立即刪除，30 天未處理自動清除
  */
-import { create } from 'zustand';
 import { api } from './api';
+import { useInboxCount } from './inboxCount';
 import { extractDate, findAccounts, findAmounts, parseEntries, shortDate, toHalfWidth, type DraftEntry } from '@/domain/nlp';
 import { findDuplicate, type DupCandidate } from '@/domain/dedupe';
 import { formatMoney, toMinor } from '@/domain/money';
@@ -62,7 +62,7 @@ export const SOURCE_LABEL: Record<InboxRaw['source'], { icon: string; label: str
 };
 
 /** 首頁提示用的待確認數 */
-export const useInboxCount = create<{ n: number; set: (n: number) => void }>((set) => ({ n: 0, set: (n) => set({ n }) }));
+export { useInboxCount };
 
 export const hookUrl = () => `${location.origin}/api/hook/inbox`;
 

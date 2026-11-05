@@ -36,8 +36,8 @@ export default function YearReview() {
   const [i, setI] = useState(0);
   const touch = useRef<{ x: number; at: number } | null>(null);
   const range = { start: `${year}-01-01`, end: `${year}-12-31` };
-  const txs = useLiveQuery(() => db.transactions.where('date').between(range.start, range.end, true, true).filter((t) => !t.deletedAt).toArray(), [year]);
-  const prevTxs = useLiveQuery(() => db.transactions.where('date').between(`${Number(year) - 1}-01-01`, `${Number(year) - 1}-12-31`, true, true).filter((t) => !t.deletedAt).toArray(), [year]);
+  const txs = useLiveQuery(() => db.transactions.where('date').between(range.start, range.end, true, true).toArray().then((r) => r.filter((t) => !t.deletedAt)), [year]);
+  const prevTxs = useLiveQuery(() => db.transactions.where('date').between(`${Number(year) - 1}-01-01`, `${Number(year) - 1}-12-31`, true, true).toArray().then((r) => r.filter((t) => !t.deletedAt)), [year]);
 
   const a = useMemo(() => (txs ? analyze(txs, cats.map, range, 'expense', new Date().toISOString().slice(0, 10)) : null), [txs, cats.map]); // eslint-disable-line react-hooks/exhaustive-deps
   const prev = useMemo(() => (prevTxs ? analyze(prevTxs, cats.map, { start: `${Number(year) - 1}-01-01`, end: `${Number(year) - 1}-12-31` }) : null), [prevTxs, cats.map, year]);

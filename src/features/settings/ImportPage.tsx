@@ -13,6 +13,8 @@ import { SwitchField } from '@/ui/form';
 import { useSettings } from '@/stores/settings';
 import { useUI } from '@/stores/ui';
 import { Icon } from '@/ui/Icon';
+import { aiEnabledLocally, aiStatement, quotaLabel, type StatementEntry } from '@/services/ai';
+import { ReconcilePanel } from './ReconcilePanel';
 
 /** 帳戶名稱建議（匯入到既有帳戶） */
 function AccountNames() {
@@ -35,12 +37,36 @@ export default function ImportPage() {
   const [skipDups, setSkipDups] = useState(true);
   const [enriched, setEnriched] = useState<ParsedRow[]>([]);
   const [profileName, setProfileName] = useState('');
+  /** 對帳模式：不匯入，只拿帳單跟帳本核對（CSV 或帳單截圖） */
+  const [mode, setMode] = useState<'import' | 'reconcile'>('import');
+  const [recon, setRecon] = useState<{ csv?: ParsedRow[]; ai?: StatementEntry[]; total?: number | null } | null>(null);
   const profiles = useSettings((s) => s.importProfiles);
   const { map: catMap } = useCategories();
   const header = rows[0] ?? [];
   const body = rows.slice(1);
   const parsed = useMemo(() => enriched.filter((r) => !(skipDups && r.dup)), [enriched, skipDups]);
   useEffect(() => { if (step === 2) void planImport(parsed).then(setPlan); }, [parsed, step]);
+
+  const onShot = async (files: FileList | null) => {
+    const list = [...(files ?? [])].slice(0, 4);
+    if (!list.length) return;
+    setBusy(true);
+    try {
+      const all: StatementEntry[] = [];
+      let total: number | null = null, quota = '';
+      for (const f of list) {
+        const r = await aiStatement(f);
+        all.push(...r.entries);
+        if (r.total) total = (total ?? 0) + r.total; // 多張截圖各自的合計相加
+        quota = quotaLabel(r.quota);
+      }
+      // 多張截圖可能重疊截到同一筆：日期＋金額＋說明完全相同的只留一筆
+      const seen = new Set<string>();
+      const uniq = all.filter((e) => { const k = `${e.date}|${e.amount}|${e.merchant}|${e.type}`; if (seen.has(k)) return false; seen.add(k); return true; });
+      setMode('reconcile'); setRecon({ ai: uniq, total: list.length > 1 ? null : total }); setStep(2);
+      useUI.getState().showSnack({ text: `讀到 ${uniq.length} 筆明細（${quota}）` });
+    } catch (e) { useUI.getState().showSnack({ text: (e as Error).message }); } finally { setBusy(false); }
+  };
 
   const onFile = async (f: File) => {
     const buf = await f.arrayBuffer();
@@ -73,7 +99,9 @@ export default function ImportPage() {
     setBusy(true);
     try {
       setPlan(null);
-      setEnriched(await enrichRows(parseRows(body, mapping, { currency: base, account: defAccount }, { positiveIsExpense })));
+      const parsedRows = parseRows(body, mapping, { currency: base, account: defAccount }, { positiveIsExpense });
+      if (mode === 'reconcile') { setRecon({ csv: parsedRows }); setStep(2); return; }
+      setEnriched(await enrichRows(parsedRows));
       setStep(2);
     } finally { setBusy(false); }
   };
@@ -91,8 +119,8 @@ export default function ImportPage() {
   return (
     <main className="page">
       <header className="topbar">
-        <button className="icon-btn" aria-label="返回" onClick={() => (step ? setStep(step - 1) : navigate(-1))}><Icon name="chevronL" /></button>
-        <h1>匯入 CSV</h1>
+        <button className="icon-btn" aria-label="返回" onClick={() => { if (step === 2 && mode === 'reconcile' && recon?.ai) { setStep(0); setRecon(null); setMode('import'); } else if (step) setStep(step - 1); else navigate(-1); }}><Icon name="chevronL" /></button>
+        <h1>{mode === 'reconcile' ? '對帳' : '匯入 CSV'}</h1>
         <div style={{ width: 44 }} />
       </header>
       <div className="steps">{[0, 1, 2, 3].map((i) => <i key={i} className={i === step ? 'on' : ''} />)}</div>
@@ -110,10 +138,28 @@ export default function ImportPage() {
             </ul>
             <p className="muted" style={{ fontSize: '0.85rem', marginBottom: 0 }}>建議先到「備份」匯出一份備份再匯入。</p>
           </div>
-          <label className="btn" style={{ cursor: 'pointer' }}>
-            選擇 CSV 檔
-            <input type="file" accept=".csv,text/csv,text/plain" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void onFile(f); }} />
+          <label className="btn" style={{ cursor: 'pointer' }} onClick={() => setMode('import')}>
+            選擇 CSV 檔（匯入）
+            <input type="file" accept=".csv,text/csv,text/plain" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; setMode('import'); if (f) void onFile(f); }} />
           </label>
+          <div className="card" style={{ marginTop: 12 }}>
+            <p style={{ marginTop: 0 }}><b>🧾 對帳：核對帳單和你的帳本</b></p>
+            <p className="muted" style={{ fontSize: '0.88rem', marginTop: 0, whiteSpace: 'normal' }}>
+              拿信用卡或銀行帳單來核對，不會匯入：列出「已吻合、漏記、金額有差（匯差、手續費）、帳本多記」，勾選後一鍵補齊並平帳，可復原。
+              日期容差 ±3 天，比對在你的手機上完成。
+            </p>
+            <label className="btn tinted" style={{ cursor: 'pointer' }}>
+              用帳單 CSV 對帳
+              <input type="file" accept=".csv,text/csv,text/plain" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; setMode('reconcile'); if (f) void onFile(f); }} />
+            </label>
+            {aiEnabledLocally() ? (
+              <label className="btn tinted" style={{ cursor: 'pointer', marginTop: 8 }} aria-disabled={busy}>
+                {busy ? 'AI 讀取中…' : '📷 用帳單截圖對帳（AI，每張 2 點額度）'}
+                <input type="file" accept="image/*" multiple className="sr-only" disabled={busy} onChange={(e) => { const f = e.target.files; void onShot(f).finally(() => { e.target.value = ''; }); }} />
+              </label>
+            ) : <p className="row-sub" style={{ marginBottom: 0, whiteSpace: 'normal' }}>開啟 AI 後也能直接拍帳單截圖對帳（設定 → AI 助理）。</p>}
+            <p className="row-sub" style={{ whiteSpace: 'normal', marginBottom: 0 }}>截圖只送圖片給 AI 讀取明細（縮小後送出、不保存），金額加總會和帳單合計驗證，比對與補帳都在本機。一次最多 4 張。</p>
+          </div>
         </>
       )}
 
@@ -135,7 +181,7 @@ export default function ImportPage() {
               </div>
             ))}
             {mapping.account === undefined && (
-              <div className="field"><span className="label">匯入到帳戶</span><input value={defAccount} onChange={(e) => setDefAccount(e.target.value)} list="import-accounts" aria-label="匯入到帳戶" /></div>
+              <div className="field"><span className="label">{mode === 'reconcile' ? '對帳的帳戶' : '匯入到帳戶'}</span><input value={defAccount} onChange={(e) => setDefAccount(e.target.value)} list="import-accounts" aria-label="匯入到帳戶" /></div>
             )}
             {mapping.type === undefined && mapping.amount !== undefined && (
               <SwitchField label="正數代表支出" sub="信用卡帳單通常以正數表示消費、負數表示退款" checked={positiveIsExpense} onChange={setPositiveIsExpense} />
@@ -148,7 +194,11 @@ export default function ImportPage() {
         </>
       )}
 
-      {step === 2 && plan && (
+      {step === 2 && mode === 'reconcile' && recon && (
+        <ReconcilePanel csvRows={recon.csv} aiEntries={recon.ai} printedTotal={recon.total} defaultAccountName={defAccount} onDone={() => navigate('/ledger')} />
+      )}
+
+      {step === 2 && mode === 'import' && plan && (
         <>
           <div className="card glass">
             <div className="stat-grid">

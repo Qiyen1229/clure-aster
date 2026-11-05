@@ -70,7 +70,7 @@ export interface PeriodResult {
 /** 用某一期的中獎號碼，對該期所有帶發票號碼的支出 */
 export async function checkPeriod(draw: PrizeDraw): Promise<PeriodResult> {
   const { start, end } = periodRange(draw.period);
-  const rows = await db.transactions.where('date').between(start, end, true, true).filter((t) => !t.deletedAt && !!t.invoiceNo).toArray();
+  const rows = (await db.transactions.where('date').between(start, end, true, true).toArray()).filter((t) => !t.deletedAt && !!t.invoiceNo);
   // 中獎收入記在「領獎當天」，不在該期的日期範圍內，所以用發票號碼另外查
   const claimedNos = new Set(
     (await db.transactions.where('invoiceNo').anyOf(rows.filter((t) => t.type === 'expense').map((t) => t.invoiceNo!)).toArray())

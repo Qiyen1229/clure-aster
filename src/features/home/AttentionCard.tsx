@@ -6,29 +6,30 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { autoWeeklyInsight } from '@/services/ai';
-import { useInboxCount } from '@/services/inbox';
-import { loadSnapshot } from '@/services/insights';
+import { useInboxCount } from '@/services/inboxCount';
+import { loadSnapshot } from '@/services/insightsCache';
 import { useSettings } from '@/stores/settings';
 import { AiMark, Icon } from '@/ui/Icon';
 
 const KEY = 'aster.home.weekly.open';
 const readOpen = () => { try { return localStorage.getItem(KEY) === '1'; } catch { return false; } };
 
-type Weekly = Awaited<ReturnType<typeof autoWeeklyInsight>>;
+type Weekly = Awaited<ReturnType<typeof import('@/services/ai').autoWeeklyInsight>>;
 
 export function AttentionCard() {
   const navigate = useNavigate();
   const inboxCount = useInboxCount((s) => s.n);
   const cfg = useSettings((s) => s.insights);
   const snap = useLiveQuery(() => loadSnapshot(), []);
+  // 除息提醒與每週重點都要用到較大的模組：動態載入，不放進首頁的初始檔案
+  const taxRows = useLiveQuery(async () => (await import('@/services/taxplan')).taxAlertRows(), []) ?? [];
   const aiAuto = useSettings((s) => !!s.ai?.enabled && !!s.ai?.allowData && !!s.ai?.auto);
   const [weekly, setWeekly] = useState<Weekly>(null);
   const [open, setOpen] = useState(readOpen);
   useEffect(() => {
     if (!aiAuto) { setWeekly(null); return; }
     let alive = true;
-    void autoWeeklyInsight().then((x) => alive && setWeekly(x)).catch(() => undefined);
+    void import('@/services/ai').then((m) => m.autoWeeklyInsight()).then((x) => alive && setWeekly(x)).catch(() => undefined);
     return () => { alive = false; };
   }, [aiAuto]);
 
@@ -37,6 +38,7 @@ export function AttentionCard() {
   if (inboxCount > 0) rows.push({ key: 'inbox', icon: '📥', text: `收件匣有 ${inboxCount} 筆待確認`, to: '/inbox' });
   const warnN = cfg?.anomaly ? (snap?.findings ?? []).filter((f) => f.severity === 'warn').length : 0;
   if (warnN > 0) rows.push({ key: 'anomaly', icon: '🔎', text: `${warnN} 項異常或疑似重複，點開看白話說明`, to: '/insights' });
+  for (const t of taxRows) rows.push({ key: t.key, icon: '📅', text: t.text, tone: 'warn', to: '/reports/tax' });
   if (!rows.length && !weekly) return null;
 
   const toggleWeekly = () => setOpen((o) => { try { localStorage.setItem(KEY, o ? '0' : '1'); } catch { /* 忽略 */ } return !o; });

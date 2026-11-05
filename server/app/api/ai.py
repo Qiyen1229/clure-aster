@@ -8,6 +8,7 @@ from app.api.deps import get_current_user, get_db, rate_limit
 from app.core.rate_limit import RateLimiter
 from app.model import User
 from app.schema.ai import (
+    AgentPlanRequest, AgentPlanResult, StatementRequest, StatementResult,
     AiStatus, AskRequest, AskResult, BudgetPlanRequest, BudgetPlanResult, CategorizeRequest, CategorizeResult, ExplainRequest, InsightsRequest,
     InsightsResult, ParseEntryRequest, ParseEntryResult, PriceCheckRequest, PriceCheckResult, ReceiptRequest, SearchPlanRequest, SearchPlanResult,
 )
@@ -65,6 +66,18 @@ def receipt(body: ReceiptRequest, user: User = Depends(get_current_user), db: Se
 def search_plan(body: SearchPlanRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> SearchPlanResult:
     rate_limit(ai_limiter, str(user.id))
     return AiService(db).search_plan(user, body)
+
+
+@router.post("/statement", response_model=StatementResult, summary="對帳：把帳單截圖讀成逐筆明細")
+def statement(body: StatementRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> StatementResult:
+    rate_limit(ai_limiter, str(user.id))
+    return AiService(db).statement(user, body)
+
+
+@router.post("/agent-plan", response_model=AgentPlanResult, summary="操作助手：把一句話整理成可預覽、可還原的步驟計畫（只規劃不執行）")
+def agent_plan(body: AgentPlanRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> AgentPlanResult:
+    rate_limit(ai_limiter, str(user.id))
+    return AiService(db).agent_plan(user, body)
 
 
 @router.post("/explain", response_model=InsightsResult, summary="某個專案／帳戶／分類的白話解說")

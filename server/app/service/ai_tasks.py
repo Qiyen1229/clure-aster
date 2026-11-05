@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Callable
-from datetime import date
+from datetime import date, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -92,8 +92,36 @@ PRICE_CHECK = f"""你是台灣的消費行情助手。使用者剛記下一筆�
 - 備註看不出是什麼、或你不確定這類東西的行情，回 unknown；不要亂猜、不要編造。
 - 若有 usual（使用者在這個分類平常一筆約多少），可作為參考，但判斷以市價為主。"""
 
-MAX_TOKENS = {"price_check": 400, "search_plan": 700, "explain": 1400, "parse_entry": 900, "ask": 1800, "budget_plan": 2200, "insights": 1400, "categorize": 1600, "receipt": 1200}
-COST = {"price_check": 0, "search_plan": 1, "explain": 1, "parse_entry": 1, "ask": 1, "budget_plan": 1, "insights": 1, "categorize": 1, "receipt": 2}
+STATEMENT = f"""你是帳單明細擷取助手。使用者上傳一張信用卡電子帳單、網銀交易明細或對帳單的截圖（台灣常見格式），請逐筆讀出每一筆交易。{COMMON}
+格式：{{"entries":[{{"date":"YYYY-MM-DD","amount":數字,"type":"expense|income","merchant":"商家或說明","foreign_amount":數字或null,"foreign_currency":"USD等三碼或null"}}],"total":帳單上印的本期合計或應繳總額(數字)或null}}
+規則：
+- amount 是「請款／入帳的新台幣金額」（正數）；刷卡消費、手續費、利息為 expense；退款、回饋、存入為 income。
+- 有外幣消費時，amount 填台幣請款金額，foreign_amount 與 foreign_currency 填原幣；沒有外幣就填 null。
+- 民國年換成西元年（115 年 10 月 8 日 → 2026-10-08）；只有月日時依「今天」推算最近一次。
+- 逐筆照實讀，看不清楚的那一筆就跳過，不要猜；不要把小計、合計、上期餘額當成交易；最多 60 筆。
+- total 只在帳單上明確印有「本期應繳總額／合計」時填，否則填 null。
+- 不是帳單或看不懂就輸出 {{"entries":[],"total":null}}。"""
+
+AGENT_PLAN = f"""你是記帳 App 的操作助手。使用者用一句話描述想整理帳本的事，你把它拆成幾個「步驟」，每一步從下面的工具挑一個並填參數。你只負責規劃，不會真的執行；App 會先給使用者看「預覽」，確認後才由 App 在本機執行。{COMMON}
+格式：{{"summary":"一句話說明你打算做什麼（40 字內）","steps":[{{"tool":"工具名稱","args":{{…}}}}]}}
+可用工具（最多 6 步，依合理順序排列；沒有對應工具的要求就不要硬湊）：
+1. reclassify：批次把符合條件的帳目改歸到另一個分類。
+   args：{{"keywords":["備註或商家關鍵字，最多 4 個"],"from_category":"原分類名稱或null","account":"帳戶名稱或null","type":"expense|income|null","date_start":"YYYY-MM-DD或null","date_end":"YYYY-MM-DD或null","to_category":"新分類名稱"}}
+2. set_budget：建立或更新每月預算。category 為 null 代表總預算。
+   args：{{"category":"分類名稱或null","amount":每月金額數字,"alert_percent":超過百分之幾提醒(1到100，預設80)}}
+3. add_recurring：建立週期帳目（每月房租、訂閱、固定收入…）。
+   args：{{"name":"名稱","amount":金額,"freq":"month|week|year","day":每月幾號(1到31，只有 month 要填，其他填null),"category":"分類名稱","account":"帳戶名稱或null","kind":"expense|subscription|income","start_date":"YYYY-MM-DD或null"}}
+4. prepayment_sim：貸款提前還款試算（只試算，不會真的還款）。
+   args：{{"account":"貸款帳戶名稱","lump_sum":一次還款金額或0,"extra_monthly":每月多還金額或0}}
+規則：
+- 所有分類、帳戶名稱必須完全等於「可選分類」「可選帳戶」清單裡的名稱，找不到就填 null（to_category、add_recurring 的 category 找不到就不要輸出那一步）。
+- 日期依「今天」換算（上個月、這個月、去年…）；沒提到時間範圍就填 null。
+- keywords 只放使用者明確提到的店名或品項；不要放分類名稱、日期或金額。
+- 金額是正數，單位與使用者描述相同（沒說就是新台幣元）。
+- 使用者要求刪除帳目、轉帳、修改餘額或其他沒有工具的操作時，輸出 {{"summary":"","steps":[]}}，不要硬湊。"""
+
+MAX_TOKENS = {"statement": 4000, "agent_plan": 1500, "price_check": 400, "search_plan": 700, "explain": 1400, "parse_entry": 900, "ask": 1800, "budget_plan": 2200, "insights": 1400, "categorize": 1600, "receipt": 1200}
+COST = {"statement": 2, "agent_plan": 1, "price_check": 0, "search_plan": 1, "explain": 1, "parse_entry": 1, "ask": 1, "budget_plan": 1, "insights": 1, "categorize": 1, "receipt": 2}
 
 
 def _text(v: object, n: int) -> str:
@@ -196,6 +224,116 @@ def v_search_plan(data: object, categories: list[str], accounts: list[str], tags
     if not out["keywords"] and not any(out[k] is not None for k in ("category", "account", "tag", "type", "date_start", "date_end", "min", "max")):
         raise ValueError("empty plan")
     return out
+
+
+AGENT_TOOLS = ("reclassify", "set_budget", "add_recurring", "prepayment_sim")
+
+
+def v_agent_plan(data: object, categories: list[str], accounts: list[str], today: date) -> dict:
+    """把模型規劃的步驟整理成乾淨的結構：只留白名單工具、名稱必須在使用者名單內、數字與日期限制範圍。壞掉的步驟直接丟掉。"""
+    d = data if isinstance(data, dict) else {}
+    pick = lambda v, allowed: v if isinstance(v, str) and v in allowed else None  # noqa: E731
+
+    def day(v: object) -> str | None:
+        if not isinstance(v, str):
+            return None
+        try:
+            x = date.fromisoformat(v)
+        except ValueError:
+            return None
+        return v if today.replace(year=today.year - 6) <= x <= today.replace(year=today.year + 3) else None
+
+    def money(v: object, *, allow_zero: bool = False) -> float | None:
+        try:
+            n = _num(v)
+        except (TypeError, ValueError):
+            return None
+        if n < 0 or n >= 1e10 or (n == 0 and not allow_zero):
+            return None
+        return n
+
+    steps: list[dict] = []
+    for raw in (d.get("steps") if isinstance(d.get("steps"), list) else [])[:20]:
+        if len(steps) >= 6:
+            break
+        if not isinstance(raw, dict) or raw.get("tool") not in AGENT_TOOLS or not isinstance(raw.get("args"), dict):
+            continue
+        a, tool = raw["args"], raw["tool"]
+        args: dict | None = None
+        if tool == "reclassify":
+            to = pick(a.get("to_category"), categories)
+            kws = _texts(a.get("keywords"), 4, 20)
+            ds, de = day(a.get("date_start")), day(a.get("date_end"))
+            if ds and de and ds > de:
+                ds, de = de, ds
+            frm, acc = pick(a.get("from_category"), categories), pick(a.get("account"), accounts)
+            # 至少要有一項篩選條件，否則會變成「整本帳全部改分類」
+            if to and (kws or frm or acc or ds or de):
+                args = {"keywords": kws, "from_category": frm, "account": acc, "type": a.get("type") if a.get("type") in ("expense", "income") else None,
+                        "date_start": ds, "date_end": de, "to_category": to}
+        elif tool == "set_budget":
+            amt = money(a.get("amount"))
+            cat = a.get("category")
+            if amt is not None and (cat is None or cat in categories):
+                try:
+                    pct = int(_num(a.get("alert_percent")))
+                except (TypeError, ValueError):
+                    pct = 80
+                args = {"category": cat, "amount": amt, "alert_percent": min(100, max(1, pct)) if 1 <= pct <= 100 else 80}
+        elif tool == "add_recurring":
+            amt, cat, name = money(a.get("amount")), pick(a.get("category"), categories), _text(a.get("name"), 30)
+            freq = a.get("freq")
+            if amt is not None and cat and name and freq in ("month", "week", "year"):
+                try:
+                    dom = int(_num(a.get("day")))
+                except (TypeError, ValueError):
+                    dom = 0
+                args = {"name": name, "amount": amt, "freq": freq, "day": dom if freq == "month" and 1 <= dom <= 31 else None, "category": cat,
+                        "account": pick(a.get("account"), accounts), "kind": a.get("kind") if a.get("kind") in ("expense", "subscription", "income") else "expense",
+                        "start_date": day(a.get("start_date"))}
+        elif tool == "prepayment_sim":
+            acc = pick(a.get("account"), accounts)
+            lump, extra = money(a.get("lump_sum"), allow_zero=True) or 0, money(a.get("extra_monthly"), allow_zero=True) or 0
+            if acc and (lump > 0 or extra > 0):
+                args = {"account": acc, "lump_sum": lump, "extra_monthly": extra}
+        if args is not None:
+            steps.append({"tool": tool, "args": args})
+    if not steps:
+        raise ValueError("no steps")
+    return {"summary": _text(d.get("summary"), 80), "steps": steps}
+
+
+def v_statement(data: object, today: date) -> dict:
+    """帳單截圖擷取結果：每筆都要有合法日期與金額，壞的丟掉；至少要有一筆。"""
+    d = data if isinstance(data, dict) else {}
+    out: list[dict] = []
+    for raw in (d.get("entries") if isinstance(d.get("entries"), list) else [])[:60]:
+        if not isinstance(raw, dict):
+            continue
+        try:
+            day = date.fromisoformat(str(raw.get("date")))
+            amt = _num(raw.get("amount"))
+        except (TypeError, ValueError):
+            continue
+        if not (today.replace(year=today.year - 3) <= day <= today + timedelta(days=2)) or not (0 < amt < 1e10):
+            continue
+        fa, fc = None, None
+        try:
+            fn = _num(raw.get("foreign_amount")) if raw.get("foreign_amount") is not None else None
+        except (TypeError, ValueError):
+            fn = None
+        cur = raw.get("foreign_currency")
+        if fn and 0 < fn < 1e10 and isinstance(cur, str) and len(cur.strip()) == 3 and cur.strip().isalpha():
+            fa, fc = fn, cur.strip().upper()
+        out.append({"date": day.isoformat(), "amount": amt, "type": "income" if raw.get("type") == "income" else "expense",
+                    "merchant": _text(raw.get("merchant"), 60), "foreign_amount": fa, "foreign_currency": fc})
+    if not out:
+        raise ValueError("no entries")
+    try:
+        total = _num(d.get("total")) if d.get("total") is not None else None
+    except (TypeError, ValueError):
+        total = None
+    return {"entries": out, "total": total if total is not None and 0 < total < 1e11 else None}
 
 
 def v_price_check(data: object) -> dict:

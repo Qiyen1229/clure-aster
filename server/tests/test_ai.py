@@ -698,3 +698,76 @@ def test_price_check_respects_per_minute_cap_and_admin_switch(api: Api, monkeypa
     from app.api.deps import reset_rate_limits
     reset_rate_limits()
     assert a.post("/api/ai/price-check", PRICE).status_code == 503
+
+
+# ── v4.0：操作助手（agent-plan）：AI 只規劃，輸出必須通過白名單驗證 ──
+
+AGENT_BODY = {"text": "把上個月 Uber 改成通勤並設通勤預算 3000", "categories": ["通勤", "飲食", "訂閱"], "accounts": ["玉山", "房貸"], "today": "2026-11-05"}
+
+
+def test_agent_plan_validates_and_filters(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    plan = {"summary": "歸類並設預算", "steps": [
+        {"tool": "reclassify", "args": {"keywords": ["Uber", "台灣大車隊"], "from_category": "不存在", "account": None, "type": "expense", "date_start": "2026-10-31", "date_end": "2026-10-01", "to_category": "通勤"}},
+        {"tool": "set_budget", "args": {"category": "通勤", "amount": "3,000", "alert_percent": 80}},
+        {"tool": "delete_everything", "args": {}},                                            # 不在白名單：丟掉
+        {"tool": "reclassify", "args": {"keywords": [], "to_category": "通勤"}},               # 沒有篩選條件＝整本帳：丟掉
+        {"tool": "reclassify", "args": {"keywords": ["x"], "to_category": "亂寫的分類"}},       # 分類不在名單：丟掉
+        {"tool": "set_budget", "args": {"category": "通勤", "amount": -5}},                    # 金額不合法：丟掉
+        {"tool": "add_recurring", "args": {"name": "Netflix", "amount": 390, "freq": "month", "day": 12, "category": "訂閱", "account": "玉山", "kind": "subscription"}},
+        {"tool": "prepayment_sim", "args": {"account": "房貸", "lump_sum": 200000, "extra_monthly": 0}},
+    ]}
+    seen: list[dict] = []
+    fake(monkeypatch, lambda n, p: (seen.append(p), ok(plan))[1])
+    api.register("alice")
+    r = api.post("/api/ai/agent-plan", AGENT_BODY)
+    assert r.status_code == 200, r.text
+    steps = r.json()["steps"]
+    assert [s["tool"] for s in steps] == ["reclassify", "set_budget", "add_recurring", "prepayment_sim"]
+    rc = steps[0]["args"]
+    assert rc["keywords"] == ["Uber", "台灣大車隊"] and rc["from_category"] is None and (rc["date_start"], rc["date_end"]) == ("2026-10-01", "2026-10-31")
+    assert steps[1]["args"]["amount"] == 3000 and steps[1]["args"]["alert_percent"] == 80
+    assert steps[2]["args"]["day"] == 12 and steps[2]["args"]["account"] == "玉山"
+    sent = json.loads(seen[0]["messages"][1]["content"])
+    assert set(sent) == {"今天", "需求", "可選分類", "可選帳戶"}  # 只送名稱與一句話，不含任何帳目
+
+
+def test_agent_plan_rejects_empty_and_is_free(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    fake(monkeypatch, lambda n, p: ok({"summary": "", "steps": [{"tool": "reclassify", "args": {"keywords": [], "to_category": "通勤"}}]}))
+    api.register("alice")
+    assert api.post("/api/ai/agent-plan", AGENT_BODY).status_code == 422
+    assert usage_rows() == []
+    assert api.post("/api/ai/agent-plan", {**AGENT_BODY, "text": ""}).status_code == 422
+
+
+# ── v4.0：帳單截圖對帳（statement） ──
+
+STMT_BODY = {"image": "data:image/jpeg;base64," + "A" * 200, "today": "2026-11-05"}
+
+
+def test_statement_validates_entries_and_costs_two(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    data = {"entries": [
+        {"date": "2026-10-08", "amount": "1,642", "type": "expense", "merchant": "AMAZON.COM", "foreign_amount": 50, "foreign_currency": "usd"},
+        {"date": "2026-10-09", "amount": 30, "type": "refund", "merchant": "退款"},          # 未知類型 → expense（保守不當收入）
+        {"date": "亂寫", "amount": 100, "type": "expense"},                                   # 日期壞：丟掉
+        {"date": "2026-10-10", "amount": -5, "type": "expense"},                              # 金額負：丟掉
+        {"date": "2015-01-01", "amount": 5, "type": "expense"},                               # 太久以前：丟掉
+        {"date": "2026-10-11", "amount": 88, "type": "income", "merchant": "回饋", "foreign_amount": 3, "foreign_currency": "美金"},  # 幣別不是三碼：忽略外幣
+    ], "total": 1760}
+    fake(monkeypatch, lambda n, p: ok(data))
+    api.register("alice")
+    r = api.post("/api/ai/statement", STMT_BODY)
+    assert r.status_code == 200, r.text
+    j = r.json()
+    assert [e["date"] for e in j["entries"]] == ["2026-10-08", "2026-10-09", "2026-10-11"]
+    assert j["entries"][0]["foreign_currency"] == "USD" and j["entries"][0]["amount"] == 1642
+    assert j["entries"][1]["type"] == "expense" and j["entries"][2]["foreign_currency"] is None
+    assert j["total"] == 1760
+    assert usage_rows()[-1].cost == 2
+
+
+def test_statement_rejects_garbage_and_bad_images(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    fake(monkeypatch, lambda n, p: ok({"entries": [{"date": "x", "amount": 1}], "total": None}))
+    api.register("alice")
+    assert api.post("/api/ai/statement", STMT_BODY).status_code == 422
+    assert usage_rows() == []  # 失敗不扣額度
+    assert api.post("/api/ai/statement", {**STMT_BODY, "image": "http://evil/x.png"}).status_code == 422

@@ -12,7 +12,7 @@
  */
 import type { Transaction } from '@/db/types';
 import { countsInStats, statAmount } from './ledger';
-import { addDays, fromDateKey, type DateKey, type Range } from './period';
+import { addDays, type DateKey, type Range } from './period';
 import { median, quantile } from './anomaly-stats';
 import { judgeExpense, type Judgment } from './pricing';
 
@@ -62,7 +62,9 @@ export interface DetectInput {
 }
 
 const DAY = 86400000;
-const daysBetween = (a: DateKey, b: DateKey) => Math.round((fromDateKey(b).getTime() - fromDateKey(a).getTime()) / DAY);
+// 日期鍵 → 「第幾天」的整數（UTC，不建立 Date 物件，逐筆比較成千上萬次時比 fromDateKey 快很多）
+const dayIdx = (k: DateKey) => Date.UTC(+k.slice(0, 4), +k.slice(5, 7) - 1, +k.slice(8, 10)) / DAY;
+const daysBetween = (a: DateKey, b: DateKey) => dayIdx(b) - dayIdx(a);
 const PERIOD_DAYS: Record<SubPeriod, number> = { week: 7, month: 30, year: 365 };
 const PERIOD_TEXT: Record<SubPeriod, string> = { week: '每週', month: '每月', year: '每年' };
 const PER_YEAR: Record<SubPeriod, number> = { week: 52, month: 12, year: 1 };
@@ -70,11 +72,18 @@ const PER_YEAR: Record<SubPeriod, number> = { week: 52, month: 12, year: 1 };
 export { median } from './anomaly-stats';
 
 /** 店家／備註的比對用鍵：去掉數字、空白、標點與「月費、訂閱」這類贅字 */
+const keyCache = new Map<string, string>();
 export function merchantKey(t: Pick<Transaction, 'merchant' | 'note'>): string {
-  return (t.merchant || t.note || '')
+  const raw = t.merchant || t.note || '';
+  const hit = keyCache.get(raw);
+  if (hit !== undefined) return hit;
+  const k = raw
     .toLowerCase()
     .replace(/(月費|年費|訂閱|扣款|自動|續約|會員|subscription|monthly|annual)/g, '')
     .replace(/[\d\s\-_.,，。、()（）[\]【】/\\:：#*＊]+/g, '');
+  if (keyCache.size > 5000) keyCache.clear(); // 同一個店名會重複出現上千次；快取以字串為鍵，量大時整個清掉
+  keyCache.set(raw, k);
+  return k;
 }
 const labelOf = (t: Pick<Transaction, 'merchant' | 'note'>) => (t.merchant || t.note || '').trim().slice(0, 30);
 

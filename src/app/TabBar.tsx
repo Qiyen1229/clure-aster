@@ -15,7 +15,7 @@ import { holdGuard, openVoice, releaseVoice } from '@/services/voice';
 import { markDockNav } from './navSource';
 import { useUI } from '@/stores/ui';
 import { useUnreadCount } from '@/features/home/RemindersSheet';
-import { useInboxCount } from '@/services/inbox';
+import { useInboxCount } from '@/services/inboxCount';
 
 const LEFT: { to: string; icon: IconName; label: string }[] = [
   { to: '/accounts', icon: 'wallet', label: '帳戶' },

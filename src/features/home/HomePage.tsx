@@ -7,7 +7,7 @@
  * - 「需要你看一下」：收件匣、預算預警、異常偵測、AI 上週重點併成一張卡，沒事就不出現。
  * - 小工具預設不在首頁（設定 → 首頁小工具可加回）。
  */
-import { useMemo, useState } from 'react';
+import { lazy, Suspense, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
@@ -20,13 +20,18 @@ import { useUI } from '@/stores/ui';
 import { Icon } from '@/ui/Icon';
 import { Amount, EmptyState, SkeletonRows } from '@/ui/controls';
 import { Calendar } from './Calendar';
-import { Widgets } from './Widgets';
-import { AiChatSheet, AiOrb } from './AiChat';
+
+import { AiOrb } from './AiOrb';
+import { useChat } from './aiChatStore';
 import { MonthPicker } from './MonthPicker';
 import { AttentionCard } from './AttentionCard';
 import { HomeHero } from './HomeHero';
 import { RemindersSheet, useUnreadCount } from './RemindersSheet';
 import { LedgerRow } from '../ledger/LedgerRow';
+
+// 小工具（連投資組合、報價都會載入）與對話視窗都比較大：用到才載入，不拖慢首頁
+const Widgets = lazy(() => import('./Widgets').then((m) => ({ default: m.Widgets })));
+const AiChatSheet = lazy(() => import('./AiChat').then((m) => ({ default: m.AiChatSheet })));
 
 const WEEK_NAMES = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
 
@@ -39,6 +44,7 @@ export default function HomePage() {
   const [monthOpen, setMonthOpen] = useState(false);
   const [remindersOpen, setRemindersOpen] = useState(false);
   const unread = useUnreadCount();
+  const chatTouched = useChat((s) => s.open || s.msgs.length > 0); // 第一次打開對話才載入對話視窗，之後保持掛載（關閉動畫要用）
 
   const sel = fromDateKey(selected);
   const year = sel.getFullYear();
@@ -55,7 +61,7 @@ export default function HomePage() {
   const stat = useLiveQuery(async () => {
     const [txs, trDays] = await Promise.all([
       listStatTxs(gridStart, gridEnd),
-      db.transfers.where('date').between(gridStart, gridEnd, true, true).filter((t) => !t.deletedAt).toArray(),
+      db.transfers.where('date').between(gridStart, gridEnd, true, true).toArray().then((r) => r.filter((t) => !t.deletedAt)),
     ]);
     const byDay = totalsByDay(txs);
     const days = new Set<string>([...txs.map((t) => t.date), ...trDays.map((t) => t.date)]);
@@ -173,12 +179,12 @@ export default function HomePage() {
       {/* 下半部獨立區塊：需要你看一下（收件匣、預算預警、異常偵測、AI 上週重點）與小工具；都沒有內容時整塊隱藏 */}
       <div className="home-lower" aria-label="提醒與快覽">
         <AttentionCard />
-        {homeWidgets.length > 0 && <Widgets />}
+        {homeWidgets.length > 0 && <Suspense fallback={null}><Widgets /></Suspense>}
       </div>
 
       <MonthPicker open={monthOpen} onClose={() => setMonthOpen(false)} year={year} month0={month0} onPick={goMonth} />
       <RemindersSheet open={remindersOpen} onClose={() => setRemindersOpen(false)} />
-      <AiChatSheet />
+      {chatTouched && <Suspense fallback={null}><AiChatSheet /></Suspense>}
     </main>
   );
 }

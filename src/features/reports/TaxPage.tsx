@@ -9,6 +9,7 @@ import { investIncomeForYear } from '@/services/tax';
 import { useSettings } from '@/stores/settings';
 import { Segmented, SkeletonRows } from '@/ui/controls';
 import { Icon } from '@/ui/Icon';
+import { TaxPlanCards } from './TaxPlanCards';
 
 const fmt = (v: number) => `${v < 0 ? '−' : ''}$${Math.abs(Math.round(v)).toLocaleString('zh-TW')}`;
 
@@ -46,6 +47,8 @@ export default function TaxPage() {
             </div>
           </div>
           <p className="muted" style={{ fontSize: '0.8rem', margin: '-4px 8px 12px' }}>薪資等所得扣除免稅額、扣除額後的金額（不含股利）。用來判斷邊際稅率與基本稅額；不填則以 0 估算。</p>
+
+          <TaxPlanCards />
 
           <div className="section-title">國內股利（{fmt(data.income.domesticDividend)}）</div>
           <section className="card">

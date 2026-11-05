@@ -242,3 +242,38 @@ export async function aiPriceCheck(input: PriceCheckInput): Promise<PriceVerdict
     return null;
   }
 }
+
+// ───────────── v4.0：操作助手（只規劃、不執行） ─────────────
+
+export interface AgentPlanValue { summary: string; steps: { tool: string; args: Record<string, unknown> }[] }
+
+/**
+ * 把一句話交給 AI 規劃成「工具＋參數」步驟（1 點額度；不快取，因為每次要依當下帳本重新模擬）。
+ * 只送這一句話與分類／帳戶名稱，不送任何帳目；AI 不能執行任何事，結果在本機預覽並由使用者確認才會寫入。
+ */
+export async function aiAgentPlan(text: string): Promise<{ plan: AgentPlanValue; quota: AiQuota }> {
+  const [cats, accs, ctx] = await Promise.all([db.categories.toArray(), db.accounts.toArray(), parseContext()]);
+  const uniq = (xs: string[]) => [...new Set(xs.map((x) => x.trim()).filter(Boolean))];
+  const body = {
+    text: text.trim().slice(0, 300), today: ctx.today,
+    categories: uniq(cats.filter((c) => !c.archived && !c.deletedAt && !c.system).map((c) => c.name)).slice(0, 120),
+    accounts: uniq(accs.filter((a) => !a.archived && !a.deletedAt).map((a) => a.name)).slice(0, 40),
+  };
+  const { quota, ...plan } = await aiPost<AgentPlanValue & { quota: AiQuota }>('/ai/agent-plan', body);
+  return { plan, quota };
+}
+
+// ───────────── v4.0：帳單截圖對帳 ─────────────
+
+export interface StatementEntry { date: string; amount: number; type: 'expense' | 'income'; merchant: string; foreign_amount: number | null; foreign_currency: string | null }
+
+/**
+ * 帳單截圖 → 逐筆明細（2 點額度）。只送圖片（縮小後、不保存在伺服器），不送任何帳目或分類；
+ * 回傳的只是「擷取結果」，對帳比對在本機做，加總與帳單合計不符時介面會提醒。截圖比收據大，所以縮圖上限放寬。
+ */
+export async function aiStatement(file: File): Promise<{ entries: StatementEntry[]; total: number | null; quota: AiQuota }> {
+  const { compressForAi } = await import('./attachments');
+  const image = await compressForAi(file, { maxEdge: 2000, maxMB: 0.9 });
+  const ctx = await parseContext();
+  return aiPost<{ entries: StatementEntry[]; total: number | null; quota: AiQuota }>('/ai/statement', { image, today: ctx.today });
+}

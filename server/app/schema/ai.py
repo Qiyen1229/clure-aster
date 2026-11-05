@@ -162,6 +162,39 @@ class SearchPlanResult(BaseModel):
     quota: AiQuota
 
 
+class StatementRequest(BaseModel):
+    image: str = Field(min_length=100, max_length=1_600_000, pattern=r"^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$")
+    today: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
+class StatementEntry(BaseModel):
+    date: str
+    amount: float
+    type: Literal["expense", "income"]
+    merchant: str = ""
+    foreign_amount: float | None = None
+    foreign_currency: str | None = None
+
+
+class StatementResult(BaseModel):
+    entries: list[StatementEntry]
+    total: float | None = None
+    quota: AiQuota
+
+
+class AgentPlanRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=300)
+    categories: list[str] = Field(default_factory=list, max_length=120)
+    accounts: list[str] = Field(default_factory=list, max_length=40)
+    today: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
+class AgentPlanResult(BaseModel):
+    summary: str = ""
+    steps: list[dict[str, Any]]
+    quota: AiQuota
+
+
 class ExplainRequest(BaseModel):
     subject: str = Field(min_length=1, max_length=60)  # 例如「專案：日本旅行」「帳戶：玉山信用卡」
     summary: dict[str, Any]

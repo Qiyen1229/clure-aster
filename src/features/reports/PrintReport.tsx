@@ -28,7 +28,7 @@ export default function PrintReport() {
   const [curSel, setCurSel] = useState<string[]>(() => csv('currencies'));
   const projSel = csv('projects');
   const tagSel = csv('tags');
-  const raw = useLiveQuery(() => db.transactions.where('date').between(range.start, range.end, true, true).filter((t) => !t.deletedAt).toArray(), [range.start, range.end]);
+  const raw = useLiveQuery(() => db.transactions.where('date').between(range.start, range.end, true, true).toArray().then((r) => r.filter((t) => !t.deletedAt)), [range.start, range.end]);
   const txs = useMemo(() => raw?.filter((t) => (!accSel.length || accSel.includes(t.accountId))
     && (!curSel.length || curSel.includes(t.currency))
     && (!projSel.length || projSel.includes(t.projectId ?? ''))

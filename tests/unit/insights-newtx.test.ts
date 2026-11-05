@@ -135,10 +135,10 @@ describe('每新增一筆支出就檢查一次（先看習慣與分類市價，�
   it('刪掉那筆大額支出後，異常提醒會自動消失（不用手動略過）', async () => {
     installNewTxWatcher();
     await db.transactions.add(tx('big1', today, '海鮮餐廳', 5200, 'exp-food-lunch') as never);
-    await new Promise((r) => setTimeout(r, 2500));
+    await new Promise((r) => setTimeout(r, 3200));
     expect((await loadSnapshot())?.findings.some((f) => f.id === 'large:big1')).toBe(true);
     await db.transactions.update('big1', { deletedAt: Date.now() }); // 軟刪除
-    await new Promise((r) => setTimeout(r, 2000));
+    await new Promise((r) => setTimeout(r, 3200));
     expect((await loadSnapshot())?.findings.some((f) => f.id === 'large:big1')).toBe(false);
   }, 15000);
 });

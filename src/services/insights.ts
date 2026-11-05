@@ -16,15 +16,10 @@ import { formatMoney } from '@/domain/money';
 import { accountingMonth, addDays, todayKey } from '@/domain/period';
 import { useSettings } from '@/stores/settings';
 import { notify } from './notifications';
+import { CACHE_KEY, loadSnapshot, type InsightsSnapshot } from './insightsCache';
 
-export interface InsightsSnapshot {
-  at: number;
-  txCount: number;
-  findings: Finding[];
-  warnings: BudgetWarning[];
-}
-
-const CACHE_KEY = 'insights.cache';
+export type { InsightsSnapshot };
+export { loadSnapshot };
 const FRESH_MS = 10 * 60_000;
 const MAX_DISMISSED = 200;
 
@@ -33,9 +28,6 @@ export const insightsOn = () => {
   return !!i && (i.anomaly || i.budgetWarn);
 };
 
-export async function loadSnapshot(): Promise<InsightsSnapshot | null> {
-  return ((await db.meta.get(CACHE_KEY).catch(() => undefined))?.value as InsightsSnapshot | undefined) ?? null;
-}
 
 /** 偵測需要的資料（分類、已登記的週期帳目、近 14 個月的帳目與各種查詢函式）：批次偵測與單筆檢查共用 */
 export async function loadDetectInput(today = todayKey()) {
@@ -244,7 +236,12 @@ export function installNewTxWatcher(): void {
   const scheduleRefresh = () => {
     if (!insightsOn()) return;
     clearTimeout(refresh);
-    refresh = setTimeout(() => { void runInsights({ force: true }).catch(() => undefined); }, 1200);
+    // 連續記幾筆帳合併成一次；等瀏覽器閒下來才算，不跟記帳後的動畫與輸入搶主執行緒
+    refresh = setTimeout(() => {
+      const run = () => { void runInsights({ force: true }).catch(() => undefined); };
+      if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 6000 });
+      else run();
+    }, 2500);
   };
   db.transactions.hook('creating', () => { scheduleRefresh(); });
   db.transactions.hook('updating', () => { scheduleRefresh(); });

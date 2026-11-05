@@ -7,44 +7,21 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { create } from 'zustand';
 import { useAccounts, useCategories } from '@/app/hooks';
 import { deleteTransactions, deleteTransfers } from '@/db/repo/ledger';
 import { isQuestion, looksLikeAiQuestion } from '@/domain/nlquery';
 import { isAggregationQuestion } from '@/domain/search';
 import { formatMoney } from '@/domain/money';
+import { looksLikeOperation } from '@/domain/agent/intent';
 import { aiDataEnabled, aiAsk, aiEnabledLocally, quotaLabel } from '@/services/ai';
 import { ask } from '@/services/nlquery';
-import { bookDrafts, draftsFromText, draftsSmart, type ResolvedDraft } from '@/services/quickentry';
+import { bookDrafts, draftsFromText, draftsSmart } from '@/services/quickentry';
 import { useSettings } from '@/stores/settings';
 import { snackUndo, useUI } from '@/stores/ui';
-import { AiMark, Icon } from '@/ui/Icon';
+import { AiMark } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
 
-type Msg =
-  | { id: number; role: 'user'; text: string }
-  | { id: number; role: 'ai'; kind: 'text'; text: string; sub?: string; link?: { label: string; to: string }; followups?: string[] }
-  | { id: number; role: 'ai'; kind: 'entries'; drafts: ResolvedDraft[]; via: 'rule' | 'ai'; sub?: string; booked?: boolean }
-  | { id: number; role: 'ai'; kind: 'pending' };
-
-type DistOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
-type Reply = DistOmit<Extract<Msg, { role: 'ai' }>, 'id'>;
-
-interface ChatState {
-  open: boolean;
-  msgs: Msg[];
-  busy: boolean;
-  setOpen: (v: boolean) => void;
-  patch: (id: number, p: Partial<Msg>) => void;
-  clear: () => void;
-}
-let seq = 0;
-const useChat = create<ChatState>((set) => ({
-  open: false, msgs: [], busy: false,
-  setOpen: (open) => set({ open }),
-  patch: (id, p) => set((s) => ({ msgs: s.msgs.map((m) => (m.id === id ? ({ ...m, ...p } as Msg) : m)) })),
-  clear: () => set({ msgs: [] }),
-}));
+import { nextSeq, useChat, type Msg, type Reply } from './aiChatStore';
 
 const HAS_AMOUNT_HINT = /\d|[一二兩三四五六七八九十百千萬]/;
 
@@ -52,6 +29,13 @@ const HAS_AMOUNT_HINT = /\d|[一二兩三四五六七八九十百千萬]/;
 export async function respond(text: string): Promise<Reply> {
   const t = text.trim();
   const asking = isQuestion(t) || looksLikeAiQuestion(t);
+
+  // 要整理帳本（批次改分類、設預算、建週期、提前還款）：交給操作助手——先預覽影響、你確認才執行、可一鍵還原
+  if (looksLikeOperation(t)) {
+    return aiEnabledLocally()
+      ? { role: 'ai', kind: 'text', text: '這是要「整理帳本」的操作。我會先幫你規劃並列出影響（幾筆帳目、預算怎麼變、帳戶餘額），你確認才會執行，之後也能一鍵還原。', link: { label: '交給操作助手，看執行預覽', to: `/ai?agent=${encodeURIComponent(t.slice(0, 300))}` } }
+      : { role: 'ai', kind: 'text', text: '整理帳本的操作需要開啟 AI（它只負責規劃，執行前一定先給你預覽）。', link: { label: '前往 AI 設定', to: '/settings/ai' } };
+  }
 
   // 先當記帳：「昨天午餐 150」這類說法帶有日期詞，isQuestion 會誤判成查帳，所以只要有金額、又不是統計問法（多少、幾次、最大…）就先試著記帳
   if (!isAggregationQuestion(t) && !looksLikeAiQuestion(t)) {
@@ -90,32 +74,14 @@ async function send(text: string) {
   const t = text.trim();
   const st = useChat.getState();
   if (!t || st.busy) return;
-  const pending = ++seq;
-  useChat.setState((s) => ({ open: true, busy: true, msgs: [...s.msgs.slice(-30), { id: ++seq, role: 'user', text: t }, { id: pending, role: 'ai', kind: 'pending' }] }));
+  const pending = nextSeq();
+  useChat.setState((s) => ({ open: true, busy: true, msgs: [...s.msgs.slice(-30), { id: nextSeq(), role: 'user', text: t }, { id: pending, role: 'ai', kind: 'pending' }] }));
   try {
     const r = await respond(t);
     useChat.getState().patch(pending, r as Partial<Msg>);
   } catch (e) {
     useChat.getState().patch(pending, { role: 'ai', kind: 'text', text: (e as Error).message } as Partial<Msg>);
   } finally { useChat.setState({ busy: false }); }
-}
-
-// ───────────── 首頁頂部的 AI 小圓球 ─────────────
-
-/** 開啟對話視窗（輸入框會自動取得焦點） */
-export const openAiChat = () => useChat.getState().setOpen(true);
-
-/**
- * 首頁頂部（搜尋旁）的小圓球：點一下開啟對話，說一句話記帳或問問題。
- * 圓球顏色跟著主題色；有未清除的對話時右上角有一個小點，提醒你還有紀錄可看。
- */
-export function AiOrb() {
-  const hasHistory = useChat((s) => s.msgs.length > 0);
-  return (
-    <button className={`ai-orb${hasHistory ? ' has-history' : ''}`} aria-label="AI 助理：說一句話記帳或問問題" onClick={openAiChat}>
-      <Icon name="ai" size={32} />
-    </button>
-  );
 }
 
 // ───────────── 對話彈窗 ─────────────

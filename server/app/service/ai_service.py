@@ -19,7 +19,7 @@ from app.core.security import utcnow
 from app.core.request_info import ClientInfo
 from app.model import AiUsage, AppSetting, User
 from app.schema.ai import (
-    AiAdminOut, AiAdminUpdate, AiConsole, AiProviderInfo, AiStatus, AskRequest, AskResult, BudgetPlanRequest, BudgetPlanResult, CategorizeItem,
+    AgentPlanRequest, AgentPlanResult, StatementEntry, StatementRequest, StatementResult, AiAdminOut, AiAdminUpdate, AiConsole, AiProviderInfo, AiStatus, AskRequest, AskResult, BudgetPlanRequest, BudgetPlanResult, CategorizeItem,
     CategorizeRequest, CategorizeResult, ConsoleProvider, DayCount, InsightsRequest, InsightsResult, ParsedEntry, ParseEntryRequest,
     ParseEntryResult, PriceCheckRequest, PriceCheckResult, ReceiptRequest, RecentCall, SearchPlanRequest, SearchPlanResult, ExplainRequest, TestResult, UsageTotals, UserUsage,
 )
@@ -139,6 +139,23 @@ class AiService:
         msg = ai_tasks.dumps({"今天": body.today, "描述": body.text, "可選分類": cats, "可選帳戶": accs, "可選標籤": tags})
         r = ai_tasks.run_task(self.db, user, "search_plan", ai_tasks.SEARCH_PLAN, msg, lambda d: ai_tasks.v_search_plan(d, cats, accs, tags, today), fail_message="AI 看不出要找什麼，請換個說法")
         return SearchPlanResult(**r, quota=self._quota(user))  # type: ignore[arg-type]
+
+    def statement(self, user: User, body: StatementRequest) -> StatementResult:
+        """帳單截圖 → 逐筆明細（2 點額度）。數字只是擷取結果，前端會用「明細加總＝帳單合計」驗證，且對帳比對在本機完成。"""
+        today = date.fromisoformat(body.today)
+        msg = ai_tasks.dumps({"今天": body.today})
+        r = ai_tasks.run_task(self.db, user, "statement", ai_tasks.STATEMENT, msg, lambda d: ai_tasks.v_statement(d, today), images=[body.image],
+                              fail_message="看不出這張截圖裡的交易明細，請拍清楚一點、一次截一頁，或改用 CSV 對帳")
+        return StatementResult(entries=[StatementEntry(**e) for e in r["entries"]], total=r["total"], quota=self._quota(user))  # type: ignore[index]
+
+    def agent_plan(self, user: User, body: AgentPlanRequest) -> AgentPlanResult:
+        """把一句話整理成「工具＋參數」的步驟計畫。AI 只規劃，不執行；App 會在本機先預覽、使用者確認後才執行（可一鍵還原）。"""
+        cats, accs = _clean_names(body.categories), _clean_names(body.accounts)
+        today = date.fromisoformat(body.today)
+        msg = ai_tasks.dumps({"今天": body.today, "需求": body.text, "可選分類": cats, "可選帳戶": accs})
+        r = ai_tasks.run_task(self.db, user, "agent_plan", ai_tasks.AGENT_PLAN, msg, lambda d: ai_tasks.v_agent_plan(d, cats, accs, today),
+                              fail_message="AI 沒有對應的操作可以做這件事，請換個說法，或到各功能頁手動操作")
+        return AgentPlanResult(**r, quota=self._quota(user))  # type: ignore[arg-type]
 
     def price_check(self, user: User, body: PriceCheckRequest) -> PriceCheckResult:
         msg = ai_tasks.dumps({"日期": body.date, "分類": body.category, "備註": body.note, "金額": body.amount, "幣別": body.currency.upper(), "usual": body.usual})

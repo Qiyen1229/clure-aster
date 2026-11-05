@@ -5,7 +5,8 @@
  *  - 本月／上月白話解讀
  *  - AI 整理分類：把「其他」分類裡的帳目依備註建議分類，勾選後套用（可復原）
  *  - 拍照記帳：辨識收據照片
- * 所有 AI 輸出都只當純文字顯示。網址參數：?q=問題（自動詢問）、?tool=budget（直接產生預算建議）
+ *  - 用說的整理帳本（操作助手）：一句話 → 執行預覽 → 確認執行 → 一鍵還原（features/ai/AgentCard.tsx）
+ * 所有 AI 輸出都只當純文字顯示。網址參數：?q=問題（自動詢問）、?tool=budget（直接產生預算建議）、?agent=需求（自動規劃操作）
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -22,8 +23,10 @@ import { bookDrafts, fallbackAccount, resolveDraft, type ResolvedDraft } from '@
 import { useSettings } from '@/stores/settings';
 import { snackUndo, useUI } from '@/stores/ui';
 import { AiMark, Icon } from '@/ui/Icon';
+import { Switch } from '@/ui/controls';
 import { AiInsightsCard } from './AiInsights';
 import { lastCompleted } from '@/services/summary';
+import { AgentCard } from './AgentCard';
 
 const ASK_CHIPS = ['這個月哪裡花太多？', '我的儲蓄率健康嗎？', '有哪些固定支出可以檢討？', '怎麼更快達成存錢目標？'];
 const Err = ({ text }: { text: string }) => (text ? <p className="row-sub" role="alert" style={{ color: 'var(--danger)', whiteSpace: 'normal' }}>{text}</p> : null);
@@ -157,7 +160,7 @@ function CategorizeCard() {
     try {
       const others = new Set(cats.all.filter((c) => c.kind === 'expense' && c.name.includes('其他')).map((c) => c.id));
       const from = addDays(todayKey(), -365);
-      const txs = await db.transactions.where('date').aboveOrEqual(from).filter((t) => !t.deletedAt && t.type === 'expense' && !t.transferId && others.has(t.categoryId) && !!t.note.trim()).toArray();
+      const txs = (await db.transactions.where('date').aboveOrEqual(from).toArray()).filter((t) => !t.deletedAt && t.type === 'expense' && !t.transferId && others.has(t.categoryId) && !!t.note.trim());
       const map = new Map<string, Group>();
       for (const t of txs) {
         const key = t.note.trim().toLowerCase();
@@ -203,9 +206,9 @@ function CategorizeCard() {
           <div className="list" style={{ marginTop: 8 }}>
             {groups.map((g) => (
               <div key={g.key} className="row" style={{ gap: 8 }}>
-                <input type="checkbox" aria-label={`套用 ${g.note}`} checked={g.on && !!g.catId} disabled={!g.catId} onChange={(e) => patch(g.key, { on: e.target.checked })} />
+                <Switch label={`套用 ${g.note}`} checked={g.on && !!g.catId} disabled={!g.catId} onChange={(v) => patch(g.key, { on: v })} />
                 <span className="row-main"><span className="row-title">{g.note}</span><span className="row-sub" style={{ display: 'block' }}>{g.ids.length} 筆</span></span>
-                <select aria-label={`${g.note} 的分類`} value={g.catId} onChange={(e) => patch(g.key, { catId: e.target.value, on: !!e.target.value })} style={{ maxWidth: 140 }}>
+                <select className="mini-select" aria-label={`${g.note} 的分類`} value={g.catId} onChange={(e) => patch(g.key, { catId: e.target.value, on: !!e.target.value })}>
                   <option value="">不變</option>
                   {choices.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
@@ -310,6 +313,7 @@ export default function AiAssistant() {
       {header}
       {st && <p className="row-sub" style={{ margin: '0 4px 8px', whiteSpace: 'normal' }}>{st.available ? '' : '⚠️ '}{st.message}　今日剩 {st.quota.daily.remaining ?? '不限'} 次、本週 {st.quota.weekly.remaining ?? '不限'} 次、本月 {st.quota.monthly.remaining ?? '不限'} 次</p>}
       <div style={{ display: 'grid', gap: 12 }}>
+        <AgentCard initialText={(params.get('agent') ?? '').slice(0, 300)} />
         {dataOn ? (
           <>
             <AskCard initialQ={q} />

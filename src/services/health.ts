@@ -97,7 +97,8 @@ export async function runHealthCheck(): Promise<HealthIssue[]> {
   });
 
   // 耐用品：購入帳目已不存在（永久清除）、或賣出收入帳目不見了，要解除關聯，否則會是找不到來源的「幽靈」物品
-  const liveTx = new Set((await db.transactions.filter((t) => !t.deletedAt).primaryKeys()) as string[]);
+  const deletedKeys = new Set((await db.transactions.where('deletedAt').above(0).primaryKeys()) as string[]); // 用 deletedAt 索引，不逐筆走游標
+  const liveTx = new Set(((await db.transactions.toCollection().primaryKeys()) as string[]).filter((k) => !deletedKeys.has(k)));
   const brokenDur = (await db.durables.filter((d) => !d.deletedAt).toArray()).filter((d) =>
     (d.txId && !liveTx.has(d.txId)) || (d.saleTxId && d.status !== 'active' && !liveTx.has(d.saleTxId)));
   if (brokenDur.length) issues.push({
@@ -116,7 +117,7 @@ export async function runHealthCheck(): Promise<HealthIssue[]> {
 
   // 永久清除超過 30 天的已刪除資料
   const cutoff = Date.now() - PURGE_DAYS * 86400000;
-  const oldTx = await db.transactions.filter((t) => !!t.deletedAt && t.deletedAt < cutoff).primaryKeys();
+  const oldTx = await db.transactions.where('deletedAt').between(1, cutoff, true, false).primaryKeys();
   const oldTr = await db.transfers.filter((t) => !!t.deletedAt && t.deletedAt < cutoff).primaryKeys();
   const oldTrade = await db.stock_trades.filter((t) => !!t.deletedAt && t.deletedAt < cutoff).primaryKeys();
   const oldDur = await db.durables.filter((d) => !!d.deletedAt && d.deletedAt < cutoff).primaryKeys();
