@@ -29,7 +29,7 @@ export async function updateAllQuotes(opts: { silent?: boolean } = {}) {
   if (!stocks.length) return null;
   const r = await refreshQuotes(stocks);
   const hits = await checkPriceAlerts();
-  for (const h of hits) await notify(h.title, h.body, h.url, 'price_alert');
+  for (const h of hits) await notify(h.title, h.body, h.url, 'price_alert', h.id);
   await takeSnapshot().catch(() => undefined);
   if (!opts.silent && r.failed.length) {
     useUI.getState().showSnack({ text: `${r.failed.length} 檔報價更新失敗，顯示最後一次價格（${describeQuoteErrors(r.errors)}）`, duration: 7000 });

@@ -2,7 +2,7 @@
 
 > 目的：讓接手的 AI（或新開發者）**不用逐檔翻程式碼**就知道「這個 App 能做什麼、每個功能怎麼運作、規則是什麼、程式在哪」。
 > 與 [PROJECT_OVERVIEW_FOR_AI.md](PROJECT_OVERVIEW_FOR_AI.md)（技術棧、架構、部署、檔案地圖）互補：那份偏「怎麼建」，這份偏「做了什麼」。
-> 版本：**3.10.6**（2026-11-02）。分支 `feature/v1.2`。逐版細節見 [CHANGELOG.md](CHANGELOG.md)；設計文件見 `docs/`。
+> 版本：**3.11.0**（2026-11-05）。分支 `feature/v1.2`。逐版細節見 [CHANGELOG.md](CHANGELOG.md)；設計文件見 `docs/`。
 > 慣例：金額內部一律用**整數最小單位**（TWD 的 1 元 = 100），不要用浮點數；使用者可見文字一律**繁體中文（台灣用語）**。
 
 ---
@@ -88,7 +88,7 @@
 - **績效**：已實現／未實現、今日損益、總報酬率（含股利）、**XIRR**、「若今天賣出」淨損益、外幣股價損益與匯差拆分。
 - **股利**：現金／配股、預扣稅、二代健保、自動入帳；**股利行事曆**（1～12 月已領／預估堆疊圖，預估 = 去年同月每股股利 × 目前持股）。
 - **視覺**：配置圓餅（個股／產業／市場／幣別）、市值與損益曲線（每日快照 `services/snapshots.ts`、自動補齊）、個股走勢 1D–ALL、損益排行。
-- **觀察清單與到價提醒**（提醒只在 App 開啟時檢查）。
+- **觀察清單與到價提醒**（`db/repo/invest.ts` 的 `checkPriceAlerts`；提醒只在 App 開啟／報價更新時檢查）：**只在「穿越」條件的那一刻通知一次**——例如「台積電跌破 2300」，跌破時通知，之後一直在 2300 以下不再通知；要先站回 2300 以上（重新武裝），再次跌破才會再通知。每個提醒存 `triggered` 狀態（舊資料有 `lastTriggeredAt` 視為已觸發），每次穿越的通知 id 都不同，同一天重複穿越也不會被去重吃掉。
 - **報價資料源**：可插拔多來源，自動 fallback＋熔斷；盤中自動刷新；經 `proxy/` 報價代理（NAS 上容器 `clure-quote-proxy`，nginx `/proxy`）。
 - **稅務彙總**（`/reports/tax`）：合併／分開計稅、二代健保、海外所得與基本稅額。
 - 投資相關系統帳目標記 `excludeFromStats`／`excludeFromBudget`，不污染一般收支與預算。
@@ -129,6 +129,7 @@
 - **每日持有成本**（購入價 ÷ 持有天數）、**預計壽命進度**（已攤提 %、再用幾天用滿、目標每天多少）、**每次使用成本**。
 - **賣出**：扣掉二手殘值算「**真實成本**」，可同時記一筆收入；可「改回還在用」。
 - **預計使用期限**：內部存 `lifeYears`（年，可小數）；預設選項 1/2/3/5/7/10 年＋「自訂期限…」彈窗（`features/plan/LifeSpanSheet.tsx`，**年與月各一格**，上限 100 年；`lifeYearsFrom/splitLife/lifeLabel` 在 `domain/durable.ts`）。顯示為「1 年 6 個月」。
+- **與帳目連動（v3.11.0）**：購入帳目被刪除 → 耐用品一併標記刪除（`deletedAt`），復原帳目時一起復原；賣出時自動記的二手收入被刪除 → 物品改回「還在用」並暫存 `undoSale`，復原那筆收入就還原成已賣出；「改回還在用」會**一併刪除當時記的二手收入**（可從「最近刪除」復原），不會再多出一筆錢；編輯帳目時會帶出目前的耐用品期限，改金額／日期時成本與購入日同步更新，也可事後補標記或取消（`syncTxDurable`）；健康檢查新增「耐用品找不到對應的帳目」；清除範例資料時範例耐用品一起清掉。
 - 資料表 `durables`（Dexie v6，`'id, status, purchaseDate, txId'`），會同步（`SYNCED_TABLES`＋伺服器 `SYNC_TABLES`）。
 
 ### 3.7 財務試算
@@ -136,7 +137,7 @@
 
 ### 3.8 外部通知（v3.10.0+，`docs/NOTIFY.md`，設定 → 外部通知 `/settings/channels`）
 - 把重要提醒推到 **Discord／Telegram／LINE（Messaging API，Flex 訊息）／自訂 Webhook**（HMAC `X-Aster-Signature`）。每個通道可選事件：異常、預算、週報、月報、提醒、每日、發票中獎。每人最多 10 個通道。
-- **伺服器發送**：機密以 AES-256-GCM（`core/secretbox.py`，HKDF 自 JWT secret）加密存放；**SSRF 防護**（`core/outgoing.py`：只允許 https、不可帶帳密、埠 443、解析後所有 IP 必須是公網；`CLURE_NOTIFY_ALLOW_PRIVATE` 可放行內網）；不跟隨轉址。
+- **伺服器發送**：機密以 AES-256-GCM（`core/secretbox.py`，HKDF 自 JWT secret）加密存放；**SSRF 防護**（`core/outgoing.py`：只允許 https、不可帶帳密、埠 443、解析後所有 IP 必須是公網；`CLURE_NOTIFY_ALLOW_PRIVATE` 可放行內網）；不跟隨轉址；**發送時直接連線到驗證過的 IP**（TLS 的 SNI 與憑證仍用網域，不再解析第二次），擋 DNS Rebinding。
 - **來源**：前端 `notify()` 經 `emitFromReminder` 轉送（含去重鍵）；伺服器排程到點時（`deliver_due`）也會同步轉送。頻率限制：事件 20/分、建立／測試 6/分、同一去重鍵 24 小時 1 次。
 - 設定頁每種通道有**可摺疊的逐步教學**（`features/settings/channelGuides.ts`＋`GuideView.tsx`，含 LINE 額度說明與官方連結）。
 
@@ -148,6 +149,7 @@
   - 伺服器 `PushService.schedule` 以**使用者**為單位整批取代尚未送出的排程（不是以裝置）；已送出的 `item_id` 不再排；`deliver_due` 同一使用者同一 `item_id` 只送一次（舊重複資料也一併標為已送）。
   - 前端 `installPushRefresh()`：帳目／轉帳／心願／週期帳目任何變動 3 秒後重新排程（所以「已記帳→取消今天的每日提醒」「刪掉唯一帳目→補排」會自動發生）；回到前景也滾動更新。
   - `disablePush` 時若仍有開著的外部通道，改為重排而非清空。
+  - **提醒設定變更也會重排**（v3.11.0）：`db.settings` 的 `notify`／`weekStart`／`baseCurrency`／`monthStartDay` 一改，3 秒後重排，關掉每日提醒或改時間不會讓舊排程照送。
 
 ---
 
@@ -179,7 +181,7 @@ JSON 完整備份／還原（含照片）、**加密備份**（PBKDF2-SHA256 310
 ---
 
 ## 6. 測試與品質
-- 前端 Vitest **489 項**（`tests/unit/`，fake-indexeddb）＋後端 pytest **155 項**（`server/tests/`）＝ **644 項**；`npm run check` = 型態檢查 + ESLint（0 警告）+ 測試；CI 於 main 與 feature 分支每次推送執行。
+- 前端 Vitest **500 項**（`tests/unit/`，fake-indexeddb）＋後端 pytest **157 項**（`server/tests/`）＝ **644 項**；`npm run check` = 型態檢查 + ESLint（0 警告）+ 測試；CI 於 main 與 feature 分支每次推送執行。
 - 純函式優先放 `src/domain/`（便於測試）；有副作用的放 `src/services/`；資料庫存取放 `src/db/repo/`。
 
 ## 7. 給修改者的注意事項（踩過的坑）

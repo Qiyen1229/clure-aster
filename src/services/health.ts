@@ -8,7 +8,7 @@ import { resolveRate } from './fx';
 import { getSetting } from '@/db/repo/settings';
 
 export interface HealthIssue {
-  id: 'balances' | 'base_amounts' | 'orphan_refs' | 'orphan_attachments' | 'purge_deleted' | 'stale_pending';
+  id: 'balances' | 'base_amounts' | 'orphan_refs' | 'orphan_attachments' | 'orphan_durables' | 'purge_deleted' | 'stale_pending';
   title: string;
   detail: string;
   count: number;
@@ -96,12 +96,31 @@ export async function runHealthCheck(): Promise<HealthIssue[]> {
     fix: async () => { await db.attachments.bulkDelete(orphans.map((a) => a.id)); return `已刪除 ${orphans.length} 張`; },
   });
 
+  // 耐用品：購入帳目已不存在（永久清除）、或賣出收入帳目不見了，要解除關聯，否則會是找不到來源的「幽靈」物品
+  const liveTx = new Set((await db.transactions.filter((t) => !t.deletedAt).primaryKeys()) as string[]);
+  const brokenDur = (await db.durables.filter((d) => !d.deletedAt).toArray()).filter((d) =>
+    (d.txId && !liveTx.has(d.txId)) || (d.saleTxId && d.status !== 'active' && !liveTx.has(d.saleTxId)));
+  if (brokenDur.length) issues.push({
+    id: 'orphan_durables', title: '耐用品找不到對應的帳目', count: brokenDur.length,
+    detail: `${brokenDur.map((d) => d.name).join('、')}。修復會解除與已不存在帳目的關聯（物品與每日成本照舊）；賣出收入不見的物品會改回「還在用」。`,
+    fix: async () => {
+      for (const d of brokenDur) {
+        const patch: Record<string, unknown> = { updatedAt: Date.now() };
+        if (d.txId && !liveTx.has(d.txId)) patch.txId = undefined;
+        if (d.saleTxId && d.status !== 'active' && !liveTx.has(d.saleTxId)) Object.assign(patch, { status: 'active', endDate: undefined, saleMinor: undefined, saleTxId: undefined, undoSale: undefined });
+        await db.durables.update(d.id, patch);
+      }
+      return `已處理 ${brokenDur.length} 件`;
+    },
+  });
+
   // 永久清除超過 30 天的已刪除資料
   const cutoff = Date.now() - PURGE_DAYS * 86400000;
   const oldTx = await db.transactions.filter((t) => !!t.deletedAt && t.deletedAt < cutoff).primaryKeys();
   const oldTr = await db.transfers.filter((t) => !!t.deletedAt && t.deletedAt < cutoff).primaryKeys();
   const oldTrade = await db.stock_trades.filter((t) => !!t.deletedAt && t.deletedAt < cutoff).primaryKeys();
-  const n = oldTx.length + oldTr.length + oldTrade.length;
+  const oldDur = await db.durables.filter((d) => !!d.deletedAt && d.deletedAt < cutoff).primaryKeys();
+  const n = oldTx.length + oldTr.length + oldTrade.length + oldDur.length;
   if (n) issues.push({
     id: 'purge_deleted', title: `已刪除超過 ${PURGE_DAYS} 天的資料`, count: n,
     detail: '刪除後 30 天內仍可「復原」，之後可永久清除以節省空間。',
@@ -109,6 +128,7 @@ export async function runHealthCheck(): Promise<HealthIssue[]> {
       await db.transactions.bulkDelete(oldTx);
       await db.transfers.bulkDelete(oldTr);
       await db.stock_trades.bulkDelete(oldTrade);
+      await db.durables.bulkDelete(oldDur);
       await db.attachments.where('transactionId').anyOf(oldTx as string[]).delete();
       return `已永久清除 ${n} 筆`;
     },

@@ -143,8 +143,35 @@ export async function updateTransaction(id: string, input: TxInput): Promise<Tra
 }
 
 /** 軟刪除（可復原）。轉帳手續費帳目會連同整筆轉帳一起刪除。 */
+/**
+ * 帳目被刪除時，連動關聯的耐用品（否則會留下每天繼續算成本的幽靈物品）：
+ * - 購入時記的支出：耐用品一併標記刪除（復原帳目時一起復原）
+ * - 賣出時記的收入：耐用品改回「還在用」，並暫存處置資訊（復原那筆收入時再還原成已賣出）
+ */
+async function durablesOnTxDelete(txId: string, at: number): Promise<void> {
+  for (const d of await db.durables.where('txId').equals(txId).filter((x) => !x.deletedAt).toArray()) {
+    await db.durables.update(d.id, { deletedAt: at, updatedAt: at });
+  }
+  for (const d of await db.durables.filter((x) => x.saleTxId === txId && x.status !== 'active').toArray()) {
+    await db.durables.update(d.id, {
+      status: 'active', endDate: undefined, saleMinor: undefined, updatedAt: at,
+      undoSale: { status: d.status as 'sold' | 'retired', endDate: d.endDate, saleMinor: d.saleMinor },
+    });
+  }
+}
+
+async function durablesOnTxRestore(txId: string): Promise<void> {
+  const at = Date.now();
+  for (const d of await db.durables.where('txId').equals(txId).filter((x) => !!x.deletedAt).toArray()) {
+    await db.durables.update(d.id, { deletedAt: null, updatedAt: at });
+  }
+  for (const d of await db.durables.filter((x) => x.saleTxId === txId && !!x.undoSale).toArray()) {
+    await db.durables.update(d.id, { ...d.undoSale, undoSale: undefined, updatedAt: at });
+  }
+}
+
 export async function deleteTransactions(ids: string[]): Promise<void> {
-  await db.transaction('rw', db.transactions, db.transfers, db.accounts, async () => {
+  await db.transaction('rw', db.transactions, db.transfers, db.accounts, db.durables, async () => {
     const now = Date.now();
     for (const id of ids) {
       const tx = await db.transactions.get(id);
@@ -155,12 +182,13 @@ export async function deleteTransactions(ids: string[]): Promise<void> {
       }
       await db.transactions.update(id, { deletedAt: now });
       await bump(tx.accountId, -txEffect(tx));
+      await durablesOnTxDelete(id, now);
     }
   });
 }
 
 export async function restoreTransactions(ids: string[]): Promise<void> {
-  await db.transaction('rw', db.transactions, db.transfers, db.accounts, async () => {
+  await db.transaction('rw', db.transactions, db.transfers, db.accounts, db.durables, async () => {
     for (const id of ids) {
       const tx = await db.transactions.get(id);
       if (!tx || !tx.deletedAt) continue;
@@ -170,6 +198,7 @@ export async function restoreTransactions(ids: string[]): Promise<void> {
       }
       await db.transactions.update(id, { deletedAt: null });
       await bump(tx.accountId, txEffect(tx));
+      await durablesOnTxRestore(id);
     }
   });
 }

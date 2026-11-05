@@ -3,6 +3,8 @@
 - Discord／Telegram／LINE 只連官方固定網域，使用者只提供 Webhook 網址或 Bot 權杖，網址由程式組出，不會被拿去打別處
 - 自訂 Webhook 是使用者給的任意網址，所以有 SSRF 防護：只允許 https、不允許帳密、不跟隨轉址，
   而且網域解析出來的每個 IP 都必須是公開位址（不能是內網、本機、雲端中繼資料位址）。
+  發送時**直接連線到剛剛驗證過的 IP**（TLS 仍用網域做 SNI 與憑證驗證，Host 標頭照舊），不會再解析一次網域，
+  所以擋得住 DNS Rebinding（檢查時回公開 IP、連線時改回 127.0.0.1／169.254.169.254）這類檢查與使用之間換 IP 的攻擊。
   自架在內網、想通知內網服務（例如 n8n、Home Assistant）的人，可設 CLURE_NOTIFY_ALLOW_PRIVATE=true 放寬。
 - 錯誤訊息一律遮掉權杖，不寫進日誌也不回傳
 - 只用標準函式庫（urllib），不增加依賴
@@ -10,12 +12,14 @@
 from __future__ import annotations
 
 import hashlib
+import http.client
 import hmac
 import ipaddress
 import json
 import logging
 import re
 import socket
+import ssl
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -67,8 +71,8 @@ LINE_TOKEN_RE = re.compile(r"^[\w+/=.-]{40,400}$")
 LINE_TO_RE = re.compile(r"^[UCR][0-9a-f]{32}$")
 
 
-def check_public_url(url: str, *, allow_private: bool | None = None) -> None:
-    """自訂 Webhook 的網址檢查（SSRF 防護）。不合格丟 ConfigError。"""
+def check_public_url(url: str, *, allow_private: bool | None = None) -> list[str]:
+    """自訂 Webhook 的網址檢查（SSRF 防護）。不合格丟 ConfigError；合格回傳驗證過的 IP（發送時直接連這些 IP）。"""
     allow = get_settings().notify_allow_private if allow_private is None else allow_private
     u = urlparse(url)
     if u.scheme not in (("https", "http") if allow else ("https",)):
@@ -83,10 +87,14 @@ def check_public_url(url: str, *, allow_private: bool | None = None) -> None:
         infos = socket.getaddrinfo(u.hostname, u.port or (443 if u.scheme == "https" else 80), type=socket.SOCK_STREAM)
     except OSError as e:
         raise ConfigError("網域解析不到，請確認網址是否正確") from e
+    ips: list[str] = []
     for info in infos:
         ip = ipaddress.ip_address(info[4][0])
         if not allow and not ip.is_global:
             raise ConfigError("不能連到內網或本機位址（避免伺服器被拿去探測內部服務）")
+        if str(ip) not in ips:
+            ips.append(str(ip))
+    return ips
 
 
 def validate_config(kind: str, cfg: dict) -> dict:
@@ -153,6 +161,45 @@ def _post_json(url: str, body: dict, headers: dict[str, str] | None = None, time
         return e.code, e.read(300).decode("utf-8", "replace")
 
 
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """連到指定 IP，但 TLS 的 SNI 與憑證驗證仍用網域（self.host）；Host 標頭由 http.client 依網域自動帶。"""
+
+    def __init__(self, host: str, ip: str, **kw) -> None:  # noqa: ANN003
+        super().__init__(host, **kw)
+        self._ip = ip
+
+    def connect(self) -> None:
+        sock = socket.create_connection((self._ip, self.port), self.timeout)
+        self.sock = self._context.wrap_socket(sock, server_hostname=self.host)
+
+
+class _PinnedHTTPConnection(http.client.HTTPConnection):
+    def __init__(self, host: str, ip: str, **kw) -> None:  # noqa: ANN003
+        super().__init__(host, **kw)
+        self._ip = ip
+
+    def connect(self) -> None:
+        self.sock = socket.create_connection((self._ip, self.port), self.timeout)
+
+
+def _post_pinned(url: str, ip: str, body: dict, headers: dict[str, str] | None = None, timeout: int = TIMEOUT) -> tuple[int, str]:
+    """同 _post_json，但直接連線到已驗證的 ip（不再解析網域）；不跟隨轉址。"""
+    u = urlparse(url)
+    data = json.dumps(body, ensure_ascii=False).encode()
+    path = (u.path or "/") + (f"?{u.query}" if u.query else "")
+    hdrs = {"Content-Type": "application/json; charset=utf-8", "User-Agent": "Aster/1", **(headers or {})}
+    if u.scheme == "https":
+        conn: http.client.HTTPConnection = _PinnedHTTPSConnection(u.hostname or "", ip, port=u.port or 443, timeout=timeout, context=ssl.create_default_context())
+    else:
+        conn = _PinnedHTTPConnection(u.hostname or "", ip, port=u.port or 80, timeout=timeout)
+    try:
+        conn.request("POST", path, body=data, headers=hdrs)
+        r = conn.getresponse()
+        return r.status, r.read(300).decode("utf-8", "replace")
+    finally:
+        conn.close()
+
+
 def _discord(cfg: dict, n: Notice) -> tuple[str, dict, dict]:
     embed: dict = {"title": n.title[:250], "description": n.body[:3500], "color": LEVEL_COLOR.get(n.level, LEVEL_COLOR["info"]), "footer": {"text": "Aster 記帳"}}
     if n.url:
@@ -210,10 +257,23 @@ _BUILDERS = {"discord": _discord, "telegram": _telegram, "line": _line, "webhook
 def send(kind: str, cfg: dict, notice: Notice) -> SendResult:
     """送出一則通知。不丟例外：失敗以 SendResult(ok=False) 回傳，訊息已遮掉權杖。"""
     try:
+        ips: list[str] = []
         if kind == "webhook":
-            check_public_url(cfg["url"])  # 發送當下再檢查一次（網域解析可能在建立後變了）
+            ips = check_public_url(cfg["url"]) or []  # 發送當下再檢查一次（網域解析可能在建立後變了），並取得驗證過的 IP
         url, body, headers = _BUILDERS[kind](cfg, notice)
-        status, text = _post_json(url, body, headers)
+        if ips:
+            # 直接連線到驗證過的 IP（擋 DNS Rebinding）；一個連不上就換下一個
+            last: OSError | None = None
+            for ip in ips:
+                try:
+                    status, text = _post_pinned(url, ip, body, headers)
+                    break
+                except OSError as e:
+                    last = e
+            else:
+                raise last or OSError("連線失敗")
+        else:
+            status, text = _post_json(url, body, headers)
     except ConfigError as e:
         return SendResult(False, 0, str(e))
     except (urllib.error.URLError, TimeoutError, OSError) as e:

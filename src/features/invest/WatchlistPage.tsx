@@ -76,7 +76,7 @@ function AlertEditor({ item, onClose }: { item: WatchItem; onClose: () => void }
         {alerts.map((a, i) => (
           <div key={i} className="row">
             <span className="row-main">{a.op === '>=' ? '站上' : '跌破'} <b className="num">{a.priceDec}</b></span>
-            <Switch checked={a.enabled} onChange={(v) => setAlerts(alerts.map((x, j) => (j === i ? { ...x, enabled: v, lastTriggeredAt: undefined } : x)))} label="啟用" />
+            <Switch checked={a.enabled} onChange={(v) => setAlerts(alerts.map((x, j) => (j === i ? { ...x, enabled: v, lastTriggeredAt: undefined, triggered: undefined } : x)))} label="啟用" />
             <button className="icon-btn plain" aria-label="刪除提醒" onClick={() => setAlerts(alerts.filter((_, j) => j !== i))}><Icon name="trash" size={18} /></button>
           </div>
         ))}

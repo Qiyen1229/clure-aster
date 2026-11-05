@@ -400,7 +400,8 @@ export interface PortfolioSnapshot {
 export interface WatchItem extends BaseRow {
   stockId: string;
   sort: number;
-  alerts: { op: '>=' | '<='; priceDec: string; enabled: boolean; lastTriggeredAt?: number }[];
+  /** triggered：目前價格是否正處於「已觸發」狀態；要先回到條件之外才會重新武裝，再次穿越才會通知 */
+  alerts: { op: '>=' | '<='; priceDec: string; enabled: boolean; lastTriggeredAt?: number; triggered?: boolean }[];
 }
 
 export interface Reminder {
@@ -457,6 +458,8 @@ export interface Durable extends BaseRow {
   /** 購入時記的支出帳目、賣出時記的收入帳目 */
   txId?: string;
   saleTxId?: string;
+  /** 賣出收入的帳目被刪除時暫存原本的處置資訊，復原那筆收入時才能還原成「已賣出」 */
+  undoSale?: { status: 'sold' | 'retired'; endDate?: string; saleMinor?: number };
   note?: string;
 }
 

@@ -33,7 +33,7 @@ import { computeSplit, SplitSheet, type SplitState } from './SplitSheet';
 import { lifeLabel } from '@/domain/durable';
 import { LifeSpanSheet } from '../plan/LifeSpanSheet';
 import { addDebts, addLoan, findOrCreatePerson, removeLoan } from '@/db/repo/plan';
-import { addDurable } from '@/db/repo/durables';
+import { addDurable, durableOfTx, syncTxDurable } from '@/db/repo/durables';
 import { countRuleHit, recentNoteSuggestions, suggestCategory, type CategorySuggestion } from '@/services/autocat';
 import type { NoteSuggestion } from '@/domain/notesuggest';
 import type { ResolvedDraft } from '@/services/quickentry';
@@ -99,6 +99,8 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
   /** 耐用品「自訂期限」彈窗與目前的自訂值（年；0＝沒有自訂） */
   const [lifeOpen, setLifeOpen] = useState(false);
   const [durableCustom, setDurableCustom] = useState(0);
+  /** 編輯時：這筆帳目已有關聯的耐用品，但那件物品沒設預計使用期限 */
+  const [durableLinked, setDurableLinked] = useState(false);
   const [atts, setAtts] = useState<{ id: string; url: string; fresh: boolean }[]>([]);
   const [split, setSplit] = useState<SplitState>({ mode: 'equal', people: [] });
   /** 應收／應付：對象、是否同時動到帳戶（借出／借入） */
@@ -182,6 +184,10 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
         setTagIds(t.tagIds);
         setProjectId(t.projectId ?? '');
         setSkipBudget(!!t.excludeFromBudget);
+        // 這筆若已標記為耐用品：帶出目前的期限，改金額或日期時耐用品的成本與購入日會一起更新
+        const dur = await durableOfTx(editTxId);
+        setDurableLinked(!!dur && !dur.lifeYears);
+        if (dur?.lifeYears) { setDurableYears(dur.lifeYears); setDurableCustom([1, 2, 3, 5, 7, 10].includes(dur.lifeYears) ? 0 : dur.lifeYears); }
         const rows = await db.attachments.bulkGet(t.attachmentIds);
         setAtts(rows.filter(Boolean).map((r) => ({ id: r!.id, url: URL.createObjectURL(r!.thumb), fresh: false })));
       } else if (editTransferId) {
@@ -230,7 +236,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
   const onKey = useCallback((k: string) => setExpr((e) => pressKey(e, k, exp)), [exp]);
 
   const reset = () => {
-    setExpr(''); setNote(''); setAtts([]); setFee(''); setToAmount(''); setPersonName(''); setDurableYears(0); setDurableCustom(0); setSkipBudget(false);
+    setExpr(''); setNote(''); setAtts([]); setFee(''); setToAmount(''); setPersonName(''); setDurableYears(0); setDurableCustom(0); setDurableLinked(false); setSkipBudget(false);
     setTime(nowTime());
   };
 
@@ -312,7 +318,14 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
         if (autoCat?.ruleId && autoCat.categoryId === catId) void countRuleHit(autoCat.ruleId).catch(() => undefined);
         const sp = mode === 'expense' && !editTxId && split.people.length ? computeSplit(amt, split, txCurrency) : null;
         if (sp?.error) { useUI.getState().showSnack({ text: sp.error }); return; }
-        if (editTxId) await updateTransaction(editTxId, input);
+        if (editTxId) {
+          const saved = await updateTransaction(editTxId, input);
+          if (mode === 'expense') {
+            const cat = catMap.get(catId);
+            // 已連結但原本沒設期限、這次也沒選：只更新成本與購入日（-1），不要把物品刪掉
+            await syncTxDurable(saved, durableYears > 0 ? durableYears : durableLinked ? -1 : 0, { name: note.trim() || cat?.name || '耐用品', icon: cat?.icon || '📦' });
+          }
+        }
         else if (sp && split.payer !== undefined) {
           // 別人先付：不動我的帳戶，只記一筆「我欠先付的人」我的份額；還款時才記為支出（分類沿用這筆的分類）
           if (sp.myShare <= 0) { useUI.getState().showSnack({ text: '你的份額是 0，不用記這筆' }); return; }
@@ -369,7 +382,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
     } finally {
       setBusy(false);
     }
-  }, [busy, expr, exp, account, toAccount, mode, loan, loanViaAccount, personName, date, time, note, tagIds, projectId, atts, categoryId, txCurrency, fxRate, fee, toAmount, computedToAmount, needRate, editTxId, editTransferId, editing, settings, split, catMap, editAdjust, durableYears, skipBudget]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [busy, expr, exp, account, toAccount, mode, loan, loanViaAccount, personName, date, time, note, tagIds, projectId, atts, categoryId, txCurrency, fxRate, fee, toAmount, computedToAmount, needRate, editTxId, editTransferId, editing, settings, split, catMap, editAdjust, durableYears, durableLinked, skipBudget]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 選取的子分類自動捲到可見位置
   useEffect(() => {
@@ -715,7 +728,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
                 )}
               </>
             )}
-            {mode === 'expense' && !editing && (
+            {mode === 'expense' && (
               <span className="pill" style={{ position: 'relative' }} aria-pressed={durableYears > 0}>
                 <Icon name="chart" size={16} />{durableYears > 0 ? `耐用品 ${lifeLabel(durableYears)}` : '耐用品'}
                 <select value={durableCustom > 0 && durableYears === durableCustom ? -1 : durableYears} aria-label="標記為耐用品（追蹤每日持有成本）"

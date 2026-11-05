@@ -87,7 +87,8 @@ export function parsePrizeRss(xml: string): PrizeDraw[] {
   const out: PrizeDraw[] = [];
   for (const item of xml.split('<item>').slice(1)) {
     const title = item.match(/<title>(?:<!\[CDATA\[)?\s*([^<\]]+)/)?.[1] ?? '';
-    const t = title.match(/(\d{2,3})\s*年\s*(\d{1,2})\s*~\s*(\d{1,2})\s*月/);
+    // 財政部標題的連接符號不固定：~、～、-、－、–、至 都可能出現（115年09~10月、115年9-10月）
+    const t = title.match(/(\d{2,3})\s*年\s*(\d{1,2})\s*[~～〜\-－–—至]\s*(\d{1,2})\s*月/);
     if (!t) continue;
     const desc = (item.match(/<description>([\s\S]*?)<\/description>/)?.[1] ?? '').replace(/<!\[CDATA\[|\]\]>/g, '').replace(/<[^>]+>/g, '\n');
     const field = (name: string) => desc.match(new RegExp(`${name}[:：]\\s*([\\d、,，\\s]+)`))?.[1] ?? '';

@@ -58,4 +58,9 @@ describe('統一發票對獎', () => {
     expect(r[1].extraSixth).toEqual(['123', '456']);
     expect(parsePrizeRss('<rss></rss>')).toEqual([]);
   });
+  it('RSS 標題的連接符號不固定（~、～、-、－）也能解析', () => {
+    const item = (t: string) => `<item><title><![CDATA[${t}]]></title><description><![CDATA[<p>特別獎：89996565</p><p>特獎：91098182</p><p>頭獎：54348835</p>]]></description></item>`;
+    const r = parsePrizeRss(`<rss><channel>${item('115年09~10月')}${item('115年7-8月')}${item('115年 05～06月')}${item('114年11－12月')}</channel></rss>`);
+    expect(r.map((x) => x.period)).toEqual(['2026-09', '2026-07', '2026-05', '2025-11']);
+  });
 });

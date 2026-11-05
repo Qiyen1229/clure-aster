@@ -161,10 +161,14 @@ export async function updateAlerts(id: string, alerts: WatchItem['alerts']) {
   await db.watchlist.update(id, { alerts, updatedAt: now() });
 }
 
-/** 更新報價後檢查到價提醒；同一提醒 12 小時內只通知一次 */
-export async function checkPriceAlerts(): Promise<{ title: string; body: string; url: string }[]> {
+/**
+ * 更新報價後檢查到價提醒：只在「穿越」條件的那一刻通知一次。
+ * 例如「台積電跌破 2300」：跌破時通知；之後一直在 2300 以下不再通知；要先站回 2300 以上（重新武裝），
+ * 再次跌破才會再通知。（舊資料沒有 triggered 欄位，但有觸發紀錄的，視為已觸發。）
+ */
+export async function checkPriceAlerts(): Promise<{ id: string; title: string; body: string; url: string }[]> {
   const items = await db.watchlist.toArray();
-  const hits: { title: string; body: string; url: string }[] = [];
+  const hits: { id: string; title: string; body: string; url: string }[] = [];
   for (const w of items) {
     const [stock, price] = await Promise.all([db.stocks.get(w.stockId), db.price_cache.get(w.stockId)]);
     if (!stock || !price) continue;
@@ -173,18 +177,22 @@ export async function checkPriceAlerts(): Promise<{ title: string; body: string;
       if (!a.enabled) return a;
       const p = new Decimal(price.priceDec);
       const hit = a.op === '>=' ? p.gte(a.priceDec) : p.lte(a.priceDec);
-      if (hit && (!a.lastTriggeredAt || Date.now() - a.lastTriggeredAt > 12 * 3600000)) {
+      const was = a.triggered ?? !!a.lastTriggeredAt;
+      if (hit && !was) {
         changed = true;
+        const at = Date.now();
         hits.push({
+          id: `price:${w.id}:${a.op}:${a.priceDec}:${at}`,
           title: `${stock.name} ${a.op === '>=' ? '站上' : '跌破'} ${a.priceDec}`,
           body: `現價 ${price.priceDec}（${Number(price.changePctDec) >= 0 ? '+' : ''}${Number(price.changePctDec).toFixed(2)}%）`,
           url: `/invest/stock/${stock.id}`,
         });
-        return { ...a, lastTriggeredAt: Date.now() };
+        return { ...a, triggered: true, lastTriggeredAt: at };
       }
+      if (!hit && was) { changed = true; return { ...a, triggered: false }; } // 回到條件之外：重新武裝
       return a;
     });
-    if (changed) await db.watchlist.update(w.id, { alerts });
+    if (changed) await db.watchlist.update(w.id, { alerts, updatedAt: now() });
   }
   return hits;
 }

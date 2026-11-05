@@ -38,7 +38,7 @@ export default function DurableSection() {
   const [tab, setTab] = useState<'active' | 'done'>('active');
   const [form, setForm] = useState<{ edit?: Durable } | null>(null);
   const [selling, setSelling] = useState<Durable | null>(null);
-  const list = useLiveQuery(() => db.durables.toArray(), []);
+  const list = useLiveQuery(() => db.durables.filter((d) => !d.deletedAt).toArray(), []);
   const today = todayKey();
 
   const active = (list ?? []).filter((d) => d.status === 'active').sort((a, b) => (a.purchaseDate < b.purchaseDate ? -1 : 1));
@@ -64,7 +64,7 @@ export default function DurableSection() {
             action={<button className="btn small" onClick={() => setForm({})}>新增耐用品</button>} />
         ) : active.map((d) => <ActiveCard key={d.id} d={d} today={today} onEdit={() => setForm({ edit: d })} onSell={() => setSelling(d)} />)
       ) : done.length === 0 ? <EmptyState emoji="📭" title="還沒有賣掉或淘汰的物品" /> : done.map((d) => (
-        <DoneCard key={d.id} d={d} onReopen={() => void reopenDurable(d.id)} onDelete={() => {
+        <DoneCard key={d.id} d={d} onReopen={() => void reopenDurable(d.id).then((r) => useUI.getState().showSnack({ text: r.removedSale ? '已改回還在用，並刪除當時記的二手賣出收入（可在「最近刪除」復原）' : '已改回還在用' }))} onDelete={() => {
           if (!window.confirm(`刪除「${d.name}」的紀錄？已記的帳目不受影響。`)) return;
           const copy = { ...d };
           void deleteDurable(d.id).then(() => snackUndo('已刪除', async () => { await db.durables.put(copy); }));

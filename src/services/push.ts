@@ -178,4 +178,10 @@ export function installPushRefresh(): void {
     t.hook('updating', () => { kick(); });
     t.hook('deleting', () => { kick(); });
   }
+  // 提醒設定（開關、每日提醒時間、週報月報…）一改就重排：不然關掉每日提醒或改了時間，伺服器上舊的排程照樣到點送出。
+  // 設定表每個鍵一列；只在會影響排程內容的鍵變動時才重排，避免每次改個外觀偏好都打伺服器
+  const relevant = new Set(['notify', 'weekStart', 'baseCurrency', 'monthStartDay']);
+  db.settings.hook('creating', (key) => { if (relevant.has(String(key))) kick(); });
+  db.settings.hook('updating', (_mods, key) => { if (relevant.has(String(key))) kick(); });
+  db.settings.hook('deleting', (key) => { if (relevant.has(String(key))) kick(); });
 }

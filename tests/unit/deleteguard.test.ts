@@ -20,4 +20,10 @@ describe('刪除二次確認', () => {
     expect(deleteWarning({ tr: { fromAmountMinor: 5_000_000 } as Transfer }, 'TWD')).toContain('轉帳金額較大');
     expect(deleteWarning({ tr: { fromAmountMinor: 500 } as Transfer }, 'TWD')).toBeNull();
   });
+  it('外幣轉帳要先換成主幣別再比大小與顯示（不能把 JPY 15,000 當成 NT$15,000）', () => {
+    const tr = { fromAmountMinor: 1_500_000 } as Transfer; // JPY 1,500,000 的最小單位視幣別而定；這裡只看換算後的主幣別金額
+    expect(deleteWarning({ tr, baseMinor: 320_000 }, 'TWD')).toBeNull(); // 換算後 NT$3,200：不用確認
+    expect(deleteWarning({ tr, baseMinor: 3_200_000 }, 'TWD')).toContain('$32,000');
+    expect(deleteWarning({ tr, baseMinor: null }, 'TWD')).toBeNull(); // 沒有匯率可換算：不亂猜
+  });
 });

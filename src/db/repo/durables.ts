@@ -4,7 +4,8 @@
  */
 import { db, uid } from '../schema';
 import type { Durable, Transaction } from '../types';
-import { addTransaction } from './ledger';
+import { addTransaction, deleteTransactions } from './ledger';
+import { getSetting } from './settings';
 
 const now = () => Date.now();
 
@@ -62,7 +63,45 @@ export async function sellDurable(input: SellInput): Promise<{ durable: Durable;
   return { durable: { ...d, ...patch }, saleTx };
 }
 
-/** 復原成「還在用」（賣錯、反悔）；已記的收入不動，需要的話請到帳目刪除 */
-export async function reopenDurable(id: string) {
-  await db.durables.update(id, { status: 'active', endDate: undefined, saleMinor: undefined, saleTxId: undefined, updatedAt: now() });
+/**
+ * 復原成「還在用」（賣錯、反悔）。賣出時自動記的那筆二手收入會一併刪除（可在帳目「最近刪除」復原），
+ * 否則帳戶餘額會多出一筆錢，再賣一次又會再記一筆。
+ */
+export async function reopenDurable(id: string): Promise<{ removedSale: boolean }> {
+  const d = await db.durables.get(id);
+  if (!d) return { removedSale: false };
+  const saleTxId = d.saleTxId;
+  // 先清掉關聯再刪帳目，避免刪帳目的連動又把物品改一次
+  await db.durables.update(id, { status: 'active', endDate: undefined, saleMinor: undefined, saleTxId: undefined, undoSale: undefined, updatedAt: now() });
+  if (!saleTxId) return { removedSale: false };
+  const tx = await db.transactions.get(saleTxId);
+  if (!tx || tx.deletedAt) return { removedSale: false };
+  await deleteTransactions([saleTxId]);
+  return { removedSale: true };
+}
+
+/** 這筆帳目關聯的耐用品（沒有或已刪除則回傳 undefined） */
+export const durableOfTx = (txId: string) => db.durables.where('txId').equals(txId).filter((d) => !d.deletedAt).first();
+
+/** 耐用品的成本：分帳只算我的份額，其餘用主幣別金額 */
+export const durableCostOf = (tx: Transaction) =>
+  tx.split ? Math.round((tx.baseAmountMinor * tx.split.myShareMinor) / Math.max(1, tx.amountMinor)) : tx.baseAmountMinor;
+
+/**
+ * 讓耐用品跟著帳目：編輯帳目時呼叫。
+ * lifeYears > 0：沒有就新增、有就更新（成本、購入日、期限都跟著帳目的金額與日期）；
+ * lifeYears = 0：取消耐用品標記（刪除關聯的物品，帳目不動）；
+ * lifeYears < 0：只讓成本與購入日跟著帳目，期限維持原樣（原本就沒設定期限的物品）。
+ */
+export async function syncTxDurable(tx: Transaction, lifeYears: number, meta: { name: string; icon: string }): Promise<void> {
+  const cur = await durableOfTx(tx.id);
+  if (lifeYears < 0) {
+    if (cur) await updateDurable(cur.id, { costMinor: durableCostOf(tx), purchaseDate: tx.date });
+  } else if (lifeYears > 0) {
+    const patch = { costMinor: durableCostOf(tx), purchaseDate: tx.date, lifeYears };
+    if (cur) await updateDurable(cur.id, patch);
+    else await addDurable({ ...meta, ...patch, currency: (await getSetting('baseCurrency')) as string, txId: tx.id });
+  } else if (cur) {
+    await db.durables.delete(cur.id);
+  }
 }

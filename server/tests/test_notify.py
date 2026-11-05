@@ -295,3 +295,46 @@ def test_same_key_is_forwarded_only_once(alice: Api, monkeypatch: pytest.MonkeyP
     assert alice.post("/api/notify/event", body).json() == {"channels": 0, "sent": 0, "failed": []}  # 另一台裝置偵測到同一件事
     assert alice.post("/api/notify/event", {**body, "key": "insight:other"}).json()["sent"] == 1
     assert len(s.calls) == 2
+
+
+def test_webhook_connects_to_validated_ip_not_re_resolved(monkeypatch: pytest.MonkeyPatch) -> None:
+    """DNS Rebinding：檢查時回公開 IP、之後改回 127.0.0.1。發送必須直接連已驗證的 IP，不能再解析一次網域。"""
+    answers = iter([[(2, 1, 6, "", ("93.184.216.34", 443))], [(2, 1, 6, "", ("127.0.0.1", 443))]])
+    calls: list[str] = []
+    monkeypatch.setattr(outgoing.socket, "getaddrinfo", lambda *a, **k: (calls.append(a[0]), next(answers))[1])
+    seen: dict = {}
+
+    def pinned(url: str, ip: str, body: dict, headers: dict | None = None, timeout: int = 8) -> tuple[int, str]:
+        seen.update(url=url, ip=ip)
+        return 200, "{}"
+    monkeypatch.setattr(outgoing, "_post_pinned", pinned)
+    monkeypatch.setattr(outgoing, "_post_json", lambda *a, **k: pytest.fail("不應該走會再解析網域的路徑"))
+    r = outgoing.send("webhook", {"url": "https://hook.example.com/x"}, outgoing.Notice("anomaly", "t"))
+    assert r.ok and seen["ip"] == "93.184.216.34" and seen["url"] == "https://hook.example.com/x"
+    assert calls == ["hook.example.com"]  # 只解析一次
+
+
+def test_pinned_post_really_connects_to_given_ip_and_keeps_host_header() -> None:
+    import http.server
+    import threading
+
+    got: dict = {}
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # noqa: N802
+            got["host"] = self.headers.get("Host")
+            got["body"] = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            self.send_response(204)
+            self.end_headers()
+
+        def log_message(self, *a) -> None:  # noqa: ANN002
+            return
+
+    srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        # 網域根本不存在（example.invalid），能成功代表真的連到了指定的 IP，沒有再做 DNS 解析
+        status, _ = outgoing._post_pinned(f"http://example.invalid:{srv.server_port}/hook", "127.0.0.1", {"a": 1})
+    finally:
+        srv.shutdown()
+    assert status == 204 and got["host"] == f"example.invalid:{srv.server_port}" and b'"a"' in got["body"]
