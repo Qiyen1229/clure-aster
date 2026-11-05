@@ -14,7 +14,10 @@ export function PlanPreview({ steps }: { steps: ResolvedStep[] }) {
         {diff.rulesCreated > 0 && <span className="pill">新增週期 {diff.rulesCreated} 條</span>}
         {diff.autoRulesCreated > 0 && <span className="pill">自動分類規則 {diff.autoRulesCreated} 條</span>}
         {diff.goalsCreated > 0 && <span className="pill">存錢目標 {diff.goalsCreated} 個</span>}
-        <span className="pill">帳戶餘額不變</span>
+        {diff.txCreated > 0 && <span className="pill">新增 {diff.txCreated} 筆帳目</span>}
+        {diff.accountsTouched > 0 && <span className="pill">動到 {diff.accountsTouched} 個帳戶餘額</span>}
+        {diff.debtsSettled > 0 && <span className="pill">結清 {diff.debtsSettled} 筆欠款</span>}
+        {diff.accountsTouched === 0 && <span className="pill">帳戶餘額不變</span>}
       </div>
       {steps.map((s, i) => (
         <div key={i} className={`agent-step${s.preview.blocked ? ' blocked' : ''}`}>

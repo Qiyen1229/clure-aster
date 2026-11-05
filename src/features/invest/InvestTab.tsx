@@ -21,6 +21,7 @@ import { PullToRefresh } from '@/ui/PullToRefresh';
 import { chartTheme } from '../reports/chart-theme';
 import { MARKET_LABEL } from './StockSearch';
 import { TradeSheet } from './TradeSheet';
+import { useScreenDetail } from '@/stores/screenContext';
 
 const EChart = lazy(() => import('../reports/EChart'));
 
@@ -43,6 +44,8 @@ export default function InvestTab() {
   const [range, setRange] = useState<30 | 90 | 365 | 3650>(90);
   const snaps = useLiveQuery(() => snapshotSeries(range), [range, pf?.lastUpdated]);
   const t = chartTheme();
+  // 讓 AI 對話知道你正在看投資頁（只有檔數、市值與損益合計，沒有股數與成本）
+  useScreenDetail(pf && pf.holdings.length ? `投資：${pf.holdings.length} 檔持股，總市值 ${formatMoney(pf.marketValueBase, base, { decimals: 0 })}，未實現損益 ${formatMoney(pf.unrealizedBase, base, { decimals: 0 })}` : null);
 
   const refresh = async () => {
     setBusy(true);

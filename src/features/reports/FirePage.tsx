@@ -5,12 +5,9 @@ import { ExplainButton } from '@/ui/Explain';
 import { lazy, Suspense, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '@/db/schema';
-import { totals } from '@/domain/ledger';
-import { addDays, todayKey } from '@/domain/period';
 import { currencyInfo, formatMoney, fromMinor, toMinor } from '@/domain/money';
 import { simulateFire } from '@/domain/fire';
-import { netWorthSeries } from '@/services/networth';
+import { loadFireBasis } from '@/services/fireBasis';
 import type { FireSettings } from '@/db/repo/settings';
 import { useSettings } from '@/stores/settings';
 import { SkeletonRows } from '@/ui/controls';
@@ -49,17 +46,7 @@ export default function FirePage() {
   const [draft, setDraft] = useState<FireSettings>(fire);
   const upd = (patch: Partial<FireSettings>) => { const next = { ...draft, ...patch }; setDraft(next); set('fire', next); };
 
-  const data = useLiveQuery(async () => {
-    const since = addDays(todayKey(), -365);
-    const txs = (await db.transactions.where('date').aboveOrEqual(since).toArray()).filter((t) => !t.deletedAt);
-    const t = totals(txs);
-    const nw = (await netWorthSeries(0)).at(-1)?.netWorth ?? 0;
-    // 記帳不滿一年時依實際天數換算成全年（至少以 30 天計）
-    const first = txs.reduce((m, x) => (x.date < m ? x.date : m), todayKey());
-    const days = Math.max(30, Math.round((Date.parse(todayKey()) - Date.parse(first)) / 86400000) + 1);
-    const k = days < 365 ? 365 / days : 1;
-    return { netWorth: nw, expense: Math.round(t.expense * k), income: Math.round(t.income * k), days: Math.min(days, 365) };
-  }, []);
+  const data = useLiveQuery(() => loadFireBasis(), []);
 
   const major = (minor: number) => fromMinor(minor, base).toNumber();
   const expense = draft.annualExpense || (data ? major(data.expense) : 0);

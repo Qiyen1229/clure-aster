@@ -805,3 +805,39 @@ def test_agent_plan_new_tools_add_rule_and_goal(api: Api, monkeypatch) -> None: 
     assert steps[0]["args"] == {"pattern": "uber", "category": "通勤", "account": "玉山"}
     assert steps[1]["args"] == {"name": "日本旅行", "target_amount": 50000, "deadline": "2026-12-31"}
     assert steps[2]["args"]["deadline"] is None
+
+
+# ── v4.1.0：動作圖譜擴大（記帳、轉帳、結清、存入目標、買進股票、檢視卡） ──
+
+AGENT_BODY_V41 = {**AGENT_BODY, "text": "領年終 20 萬進台新，拿 5 萬還信貸，買 1000 股 0050，結清小明，剩下存進日本旅遊，給我看財務自由",
+                  "accounts": ["台新", "信貸"], "categories": ["薪資", "飲食"], "people": ["小明"], "goals": [], "stocks": ["0050"]}
+
+
+def test_agent_plan_v41_tools_validated_against_names(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    plan = {"summary": "年終分配", "steps": [
+        {"tool": "add_transaction", "args": {"type": "income", "account": "台新", "category": "薪資", "amount": 200000, "date": "2026-11-05", "note": "年終"}},
+        {"tool": "transfer", "args": {"from_account": "台新", "to_account": "信貸", "amount": "50,000"}},
+        {"tool": "transfer", "args": {"from_account": "台新", "to_account": "台新", "amount": 100}},                 # 同一個帳戶：丟掉
+        {"tool": "transfer", "args": {"from_account": "台新", "to_account": "不存在", "amount": 100}},               # 帳戶不在名單：丟掉
+        {"tool": "buy_stock", "args": {"symbol": "0050", "shares": 1000, "price": None, "account": "台新"}},
+        {"tool": "buy_stock", "args": {"symbol": "9999", "shares": 1000}},                                           # 標的不在名單：丟掉
+        {"tool": "settle_debt", "args": {"person": "小明", "direction": "i_owe_them", "amount": 3500, "account": "台新"}},
+        {"tool": "settle_debt", "args": {"person": "路人甲", "amount": 100}},                                         # 對象不在名單：丟掉
+        {"tool": "add_goal", "args": {"name": "日本旅遊", "target_amount": 100000}},
+        {"tool": "goal_deposit", "args": {"goal": "日本旅遊", "amount": 90000}},                                      # 存入同一份計畫剛建立的目標：保留
+        {"tool": "goal_deposit", "args": {"goal": "不存在的目標", "amount": 1}},                                      # 丟掉
+        {"tool": "show_view", "args": {"view": "fire", "retire_age": 55, "annual_saving": 600000}},
+        {"tool": "show_view", "args": {"view": "hack"}},                                                              # 不支援的檢視：丟掉
+    ]}
+    seen: list[dict] = []
+    fake(monkeypatch, lambda n, p: (seen.append(p), ok(plan))[1])
+    api.register("alice")
+    r = api.post("/api/ai/agent-plan", AGENT_BODY_V41)
+    assert r.status_code == 200, r.text
+    steps = r.json()["steps"]
+    assert [s["tool"] for s in steps] == ["add_transaction", "transfer", "buy_stock", "settle_debt", "add_goal", "goal_deposit", "show_view"]
+    assert steps[1]["args"]["amount"] == 50000 and steps[2]["args"]["price"] is None
+    assert steps[3]["args"] == {"person": "小明", "direction": "i_owe_them", "amount": 3500, "account": "台新"}
+    assert steps[6]["args"]["retire_age"] == 55 and steps[6]["args"]["days"] is None
+    sent = json.loads(seen[0]["messages"][1]["content"])
+    assert set(sent) == {"今天", "需求", "可選分類", "可選帳戶", "可選對象", "可選標的代號"}  # 只送名稱與一句話；沒有目標清單就不送空清單

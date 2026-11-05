@@ -8,6 +8,7 @@ import { accountToAi } from '@/domain/aisummary';
 import { currencyInfo } from '@/domain/money';
 import { addDays } from '@/domain/period';
 import { useMemo, useState } from 'react';
+import { useScreenDetail } from '@/stores/screenContext';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
@@ -227,6 +228,7 @@ export function AccountDetailPage() {
   const st = useLiveQuery(() => (account?.credit ? creditCardStatement(account) : Promise.resolve(null)), [account?.id, account?.balanceMinor]);
   const reserved = useLiveQuery(() => (account?.credit ? installmentReserved(account.id) : Promise.resolve(0)), [account?.id, account?.balanceMinor]);
   const openAdd = useUI((s) => s.openAdd);
+  useScreenDetail(account ? `帳戶「${account.name}」${account.type === 'credit' || account.loan ? '目前欠款' : '目前餘額'} ${formatMoney(Math.abs(account.balanceMinor), account.currency, { decimals: 0 })}` : null);
   const avail = account?.credit && st ? creditAvailability(account.credit.limitMinor, account.balanceMinor, st.unbilledMinor, reserved ?? 0) : null;
 
   if (account === undefined) return <main className="page"><SkeletonRows /></main>;

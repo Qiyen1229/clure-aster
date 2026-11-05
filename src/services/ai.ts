@@ -109,13 +109,13 @@ const HOUR = 3600_000;
 
 export interface AskValue { answer: string; followups: string[] }
 
-export async function aiAsk(question: string): Promise<Cached<AskValue>> {
+export async function aiAsk(question: string, screen?: string): Promise<Cached<AskValue>> {
   const { loadFinanceSummary } = await import('./aisummary');
   const { summary: base } = await loadFinanceSummary();
   // 持股、除息與稅務的去識別化統計（整數元合計＋股票代號），讓「我今年股利會被扣二代健保嗎？」這類問題有資料可答；失敗就不附
   const investAndTax = await import('./taxplan').then((m) => m.investTaxSummary()).catch(() => null);
   const summary = investAndTax ? { ...base, investAndTax } : base;
-  const q = question.trim();
+  const q = `${screen ? `【目前畫面】${screen.slice(0, 160)}\n` : ''}${question.trim().slice(0, 300)}`;
   return cached('ask', { q, summary }, 6 * HOUR, () => aiPost<AskValue & { quota: AiQuota }>('/ai/ask', { question: q, summary }));
 }
 
@@ -217,13 +217,18 @@ export interface AgentPlanValue { summary: string; steps: { tool: string; args: 
  * 把一句話交給 AI 規劃成「工具＋參數」步驟（1 點額度；不快取，因為每次要依當下帳本重新模擬）。
  * 只送這一句話與分類／帳戶名稱，不送任何帳目；AI 不能執行任何事，結果在本機預覽並由使用者確認才會寫入。
  */
-export async function aiAgentPlan(text: string): Promise<{ plan: AgentPlanValue; quota: AiQuota }> {
-  const [cats, accs, ctx] = await Promise.all([db.categories.toArray(), db.accounts.toArray(), parseContext()]);
+export async function aiAgentPlan(text: string, screen?: string): Promise<{ plan: AgentPlanValue; quota: AiQuota }> {
+  const [cats, accs, ctx, debts, people, goals, stocks] = await Promise.all([db.categories.toArray(), db.accounts.toArray(), parseContext(), db.debts.toArray(), db.people.toArray(), db.goals.toArray(), db.stocks.toArray()]);
   const uniq = (xs: string[]) => [...new Set(xs.map((x) => x.trim()).filter(Boolean))];
+  const owing = new Set(debts.filter((d) => !d.deletedAt && !d.settled).map((d) => d.personId));
+  // 使用者主動附上「目前畫面」時，把摘要放在需求前面（只有名稱與統計數字，內容會出現在「查看送出過什麼」）
   const body = {
-    text: text.trim().slice(0, 300), today: ctx.today,
+    text: `${screen ? `【目前畫面】${screen.slice(0, 160)}\n` : ''}${text.trim().slice(0, 300)}`, today: ctx.today,
     categories: uniq(cats.filter((c) => !c.archived && !c.deletedAt && !c.system).map((c) => c.name)).slice(0, 120),
     accounts: uniq(accs.filter((a) => !a.archived && !a.deletedAt).map((a) => a.name)).slice(0, 40),
+    people: uniq(people.filter((p) => !p.deletedAt && owing.has(p.id)).map((p) => p.name)).slice(0, 60),
+    goals: uniq(goals.filter((g) => !g.deletedAt && g.status === 'active').map((g) => g.name)).slice(0, 40),
+    stocks: uniq(stocks.filter((x) => !x.deletedAt).map((x) => x.symbol)).slice(0, 80),
   };
   const { quota, ...plan } = await aiPost<AgentPlanValue & { quota: AiQuota }>('/ai/agent-plan', body);
   return { plan, quota };

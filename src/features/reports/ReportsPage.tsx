@@ -9,6 +9,7 @@
  */
 import { lazy, Suspense, useMemo, useState } from 'react';
 import { AiInsightsCard } from '../ai/AiExplain';
+import { useScreenDetail } from '@/stores/screenContext';
 import { AUTH_ENABLED } from '@/stores/auth';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -82,6 +83,7 @@ export default function ReportsPage() {
 
   const label = unit === 'year' ? `${range.start.slice(0, 4)} 年` : unit === 'month' && monthStartDay === 1
     ? `${range.start.slice(0, 4)} 年 ${Number(range.start.slice(5, 7))} 月` : `${range.start.replace(/-/g, '/')} – ${range.end.slice(5).replace('-', '/')}`;
+  useScreenDetail(a ? `報表：${label}，支出 ${formatMoney(a.expense, base, { decimals: 0 })}、收入 ${formatMoney(a.income, base, { decimals: 0 })}` : null);
   const fcount = filter.accountIds.length + filter.projectIds.length + filter.tagIds.length + filter.currencies.length;
   const fmt = (v: number) => formatMoney(v, base, { compact: true });
   const t = chartTheme();

@@ -3,13 +3,14 @@
  */
 import { create } from 'zustand';
 import type { ResolvedDraft } from '@/services/quickentry';
-import type { ResolvedStep } from '@/domain/agent/plan';
+import type { ResolvedStep, ViewSpec } from '@/domain/agent/plan';
 
 export type Msg =
   | { id: number; role: 'user'; text: string }
   | { id: number; role: 'ai'; kind: 'text'; text: string; sub?: string; link?: { label: string; to: string }; followups?: string[] }
   | { id: number; role: 'ai'; kind: 'entries'; drafts: ResolvedDraft[]; via: 'rule' | 'ai'; sub?: string; booked?: boolean }
   | { id: number; role: 'ai'; kind: 'agent'; summary: string; steps: ResolvedStep[]; quota: string; phase?: 'done' | 'undone' | 'cancelled'; opId?: string; note?: string }
+  | { id: number; role: 'ai'; kind: 'view'; view: ViewSpec }
   | { id: number; role: 'ai'; kind: 'pending' };
 
 export type DistOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -19,6 +20,9 @@ interface ChatState {
   open: boolean;
   msgs: Msg[];
   busy: boolean;
+  /** 提問時附上「目前畫面」摘要（預設開；按掉標籤就不附） */
+  attach: boolean;
+  setAttach: (v: boolean) => void;
   setOpen: (v: boolean) => void;
   patch: (id: number, p: Partial<Msg>) => void;
   clear: () => void;
@@ -26,7 +30,8 @@ interface ChatState {
 export let seq = 0;
 export const nextSeq = () => ++seq;
 export const useChat = create<ChatState>((set) => ({
-  open: false, msgs: [], busy: false,
+  open: false, msgs: [], busy: false, attach: true,
+  setAttach: (attach) => set({ attach }),
   setOpen: (open) => set({ open }),
   patch: (id, p) => set((s) => ({ msgs: s.msgs.map((m) => (m.id === id ? ({ ...m, ...p } as Msg) : m)) })),
   clear: () => set({ msgs: [] }),

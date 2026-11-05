@@ -14,6 +14,8 @@ import { SkeletonRows } from './ui/controls';
 import { LockScreen } from './app/LockScreen';
 import { installAutoLock } from './services/lock';
 import { useVoice } from './services/voice';
+import { useChat } from './features/home/aiChatStore';
+import { ScreenContextHost } from './app/ScreenContextHost';
 
 // 記帳面板：第一次打開時才載入，App 閒置時預先下載（不佔首屏）
 const loadAddSheet = () => import('./features/add/AddSheet');
@@ -27,6 +29,13 @@ function AddSheetHost() {
     else setTimeout(run, 1500);
   }, []);
   return used ? <Suspense fallback={null}><AddSheet /></Suspense> : null;
+}
+
+const AiChatSheet = lazy(() => import('./features/home/AiChat').then((m) => ({ default: m.AiChatSheet })));
+/** AI 對話視窗：掛在最外層，靈動島長按／上滑在任何頁面都能叫出來（第一次打開才載入，之後保持掛載讓關閉動畫完整） */
+function ChatHost() {
+  const touched = useChat((s) => s.open || s.msgs.length > 0);
+  return touched ? <Suspense fallback={null}><AiChatSheet /></Suspense> : null;
 }
 
 const VoiceSheet = lazy(() => import('./features/home/VoiceSheet').then((m) => ({ default: m.VoiceSheet })));
@@ -299,6 +308,8 @@ export default function App() {
       <TabBar hidden={fullscreen} />
       <AddSheetHost />
       <VoiceHost />
+      <ChatHost />
+      <ScreenContextHost />
       <ActionSheetHost />
       <SnackbarHost />
       <UpdatePrompt />

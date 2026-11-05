@@ -6,6 +6,7 @@ import { lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { SkeletonRows } from '@/ui/controls';
 import { Icon } from '@/ui/Icon';
+import { useScreenDetail } from '@/stores/screenContext';
 
 const BudgetSection = lazy(() => import('./budgets'));
 const ProjectSection = lazy(() => import('./projects'));
@@ -31,6 +32,7 @@ export default function PlanPage() {
   const raw = params.get('tab');
   const legacy = raw === 'installment' ? 'recurring' : raw === 'wish' ? 'goal' : raw;
   const tab = (TABS.some((t) => t.key === legacy) ? legacy : 'budget') as TabKey;
+  useScreenDetail(`專案與預算 → ${TABS.find((t) => t.key === tab)?.label ?? ''}`);
   const set = (k: TabKey) => { params.set('tab', k); setParams(params, { replace: true }); };
 
   return (

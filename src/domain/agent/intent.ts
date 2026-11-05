@@ -16,6 +16,12 @@ const PATTERNS: RegExp[] = [
   /(自動分類規則|(建立|新增|設定).{0,10}規則|以後.{0,16}自動(歸|分|算|記))/,
   // 建立存錢目標：「幫我設一個年底前存 5 萬去日本玩的目標」「新增存錢目標 10 萬」
   /((設(定)?|建立|新增|幫我(設|建)).{0,24}目標|存錢目標)/,
+  // v4.1.0 動作圖譜：買進股票、結清欠款、還款（信貸／房貸／卡費）、存進目標、轉帳到某帳戶
+  /買(進)?\s*[\d,]+\s*(股|張)/,
+  /(結清|還清).{0,12}(欠|借)|(欠|借).{0,10}(結清|還清)|把欠.{0,10}(結清|還清)/,
+  /(拿|用|轉|撥|匯).{0,14}還.{0,8}(信貸|房貸|車貸|學貸|貸款|卡費|信用卡)|還.{0,4}(信貸|房貸|車貸|學貸)\s*[\d,]+/,
+  /(撥|存|轉|放)(進|入|到).{0,10}目標/,
+  /(從|由).{0,10}(轉|匯|撥).{0,6}[\d,]+.{0,6}(到|進|給)/,
 ];
 // 「改」需要搭配分類或歸類的語意，單純的「改成」（例如備註）不算
 const NEEDS_CATEGORY_WORD = /分類|歸類|歸到|歸入|改歸|類別|都改/;
@@ -25,4 +31,35 @@ export function looksLikeOperation(text: string): boolean {
   if (s.length < 6) return false;
   if (PATTERNS[0].test(s) && NEEDS_CATEGORY_WORD.test(s)) return true;
   return PATTERNS.slice(1).some((p) => p.test(s));
+}
+
+
+// ───────────── 對話即介面：說一個詞就直接出檢視卡（本機判斷，不用 AI、不扣額度） ─────────────
+
+import type { ViewSpec } from './plan';
+
+const CN: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+/** 「55 歲」「五十五歲」「六十歲」→ 數字；只認 30–80 歲 */
+const ageOf = (s: string): number | null => {
+  const d = /(\d{2})\s*歲/.exec(s);
+  const c = /([三四五六七八])十([一二三四五六七八九])?\s*歲/.exec(s);
+  const n = d ? Number(d[1]) : c ? CN[c[1]] * 10 + (c[2] ? CN[c[2]] : 0) : NaN;
+  return n >= 30 && n <= 80 ? n : null;
+};
+
+/** 「財務自由」「現金流」「稅務」「這個月花費」「如果 55 歲退休」這類短句：直接顯示對應的檢視卡。保守：只認短句，其他交給對話分流 */
+export function localView(text: string): ViewSpec | null {
+  const s = text.trim().replace(/[？?。！!]/g, '');
+  if (s.length < 2 || s.length > 18) return null;
+  const lead = '(?:給我|幫我)?(?:看|顯示|打開|開|查)?(?:一下)?(?:我的)?';
+  if (new RegExp(`^${lead}(?:財務自由|退休)(?:試算|模擬|狀況)?$`).test(s)) return { kind: 'fire', params: {} };
+  if (/^(如果|假如|萬一|若)?.{0,8}歲.{0,4}(退休|財務自由)(會怎樣|怎麼樣|呢|的話)?$/.test(s)) {
+    const a = ageOf(s);
+    if (a) return { kind: 'fire', params: { retire_age: a } };
+  }
+  if (new RegExp(`^${lead}(?:現金流|錢夠不夠用)(?:預測)?$`).test(s)) return { kind: 'cashflow', params: {} };
+  if (new RegExp(`^${lead}(?:稅務|節稅|二代健保|除息|股利稅)(?:規劃|試算|預警|狀況)?$`).test(s)) return { kind: 'tax', params: {} };
+  const m = new RegExp(`^${lead}(這個月|本月|上個月|上月|今年)(?:的)?(?:花費|支出|開銷)(?:分析|狀況)?$`).exec(s);
+  if (m) return { kind: 'spending', params: { range: m[1] === '今年' ? 'this_year' : m[1] === '上個月' || m[1] === '上月' ? 'last_month' : 'this_month' } };
+  return null;
 }

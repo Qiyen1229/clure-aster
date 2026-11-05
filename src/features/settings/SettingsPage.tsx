@@ -279,7 +279,7 @@ export default function SettingsPage() {
       )}
 
       <Group id="ai" title="AI 與自動化">
-        <Row icon="ai" tint="#17181c" label="AI 助理" sub="記帳、查帳、整理帳本、拍照記帳、智慧提醒都在同一個對話框" onClick={() => navigate('/ai')} newSince="4.0.0" />
+        <Row icon="ai" tint="#17181c" label="AI 助理" sub="一句話跨帳戶、貸款、股票做完；靈動島上滑隨時問" onClick={() => navigate('/ai')} newSince="4.1.0" />
         {AUTH_ENABLED && <Row icon="sliders" tint="#8E8E93" label="AI 設定與額度" sub="開關、會送出哪些內容、每日／週／月額度" onClick={() => navigate('/settings/ai')} />}
         <Row icon="ai" tint="#5E5CE6" label="首頁 AI 小圓球" sub="首頁右上角（搜尋左邊），點開就能對話記帳">
           <Switch checked={s.homeAiChat} label="顯示 AI 小圓球" onChange={(v) => s.set('homeAiChat', v)} />

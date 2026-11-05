@@ -4,7 +4,9 @@
  *   放開後的彈簧軌跡預先算好交給合成器播放（WAAPI），換頁掛載再重也不掉幀
  * - 中央按鈕與膠囊等高、圖示置中：
  *   - 主頁（/ 或 /ledger）：「＋」短按新增記帳，長按（0.35s）直接開啟 AI 語音記帳
- *   - 其他頁面：Logo，點擊回到今日記帳
+ *   - 其他頁面：Logo，點擊回到今日記帳；長按（0.35s）叫出 AI 對話
+ *   - 任何頁面往上滑：叫出 AI 對話（v4.1.0）。對話會知道你正在看哪個畫面（「📍 目前畫面」標籤，可一鍵取消），
+ *     所以停在投資頁、帳戶頁或報表時都能直接對眼前的東西下指令；一切都是手動觸發，不會自動呼叫 AI
  *   - 有待確認電子發票或未讀提醒時，右上角出現小光點
  */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -16,6 +18,7 @@ import { markDockNav } from './navSource';
 import { useUI } from '@/stores/ui';
 import { useUnreadCount } from '@/features/home/RemindersSheet';
 import { useInboxCount } from '@/services/inboxCount';
+import { useChat } from '@/features/home/aiChatStore';
 
 const LEFT: { to: string; icon: IconName; label: string }[] = [
   { to: '/accounts', icon: 'wallet', label: '帳戶' },
@@ -32,6 +35,7 @@ export function isLedgerPath(pathname: string) {
 }
 
 const HOLD_MS = 350;
+const SWIPE_UP_PX = 34; // 往上滑超過這個距離＝叫出 AI
 const HOME = '/'; // 滑動選取時，中間首頁按鈕的代號
 
 export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
@@ -40,8 +44,12 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
   const openAdd = useUI((s) => s.openAdd);
   const plusMode = isLedgerPath(pathname);
   const [pressing, setPressing] = useState(false);
+  const [aiHold, setAiHold] = useState(false);
   const timer = useRef(0);
   const held = useRef(false);
+  /** 這次長按觸發的是語音還是 AI（放開時只有語音需要收尾） */
+  const heldKind = useRef<'voice' | 'ai'>('voice');
+  const startY = useRef(0);
 
   // ── 玻璃透鏡 ──
   // 手指拖曳時：rAF 彈簧緊跟手指（只寫 transform，寬度固定，不觸發版面）。
@@ -265,10 +273,20 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
   const inboxCount = useInboxCount((s) => s.n);
   const hasAlert = unreadCount > 0 || inboxCount > 0;
 
-  // 長按：在手勢內同步開始語音辨識（iOS 需在使用者手勢內啟動）。短按維持原本功能
+  /** 叫出 AI 對話（已經在 AI 助理頁就不重複開，那一頁本來就是同一個對話） */
+  const openAi = () => {
+    navigator.vibrate?.(15);
+    setAiHold(true);
+    window.setTimeout(() => setAiHold(false), 500);
+    if (pathname.startsWith('/ai')) return;
+    useChat.getState().setOpen(true);
+  };
+
+  // 長按：記帳區在手勢內同步開始語音辨識（iOS 需在使用者手勢內啟動），其他頁面叫出 AI；往上滑在任何頁面叫出 AI。短按維持原本功能
   const onDown = (e: React.PointerEvent<HTMLButtonElement>) => {
     if (e.button > 0) return;
     held.current = false;
+    startY.current = e.clientY;
     setPressing(true);
     holdGuard(true);
     try {
@@ -278,15 +296,25 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
     }
     timer.current = window.setTimeout(() => {
       held.current = true;
-      navigator.vibrate?.(15);
-      openVoice(true);
+      if (plusMode) { heldKind.current = 'voice'; navigator.vibrate?.(15); openVoice(true); }
+      else { heldKind.current = 'ai'; openAi(); }
     }, HOLD_MS);
+  };
+
+  const onMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (held.current || !pressing) return;
+    if (startY.current - e.clientY > SWIPE_UP_PX) {
+      window.clearTimeout(timer.current);
+      held.current = true;
+      heldKind.current = 'ai';
+      openAi();
+    }
   };
 
   const onUp = () => {
     window.clearTimeout(timer.current);
     setPressing(false);
-    if (held.current) void releaseVoice();
+    if (held.current && heldKind.current === 'voice') void releaseVoice();
     holdGuard(false);
   };
 
@@ -311,9 +339,10 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
         {/* 中央靈動圓球樞紐 */}
         <div className="tab-center" ref={(el) => { if (el) tabEls.current.set(HOME, el); else tabEls.current.delete(HOME); }}>
           <button
-            className={`dynamic-fab${plusMode ? ' mode-plus' : ' mode-logo'}${pressing ? ' pressing' : ''}${scrubTo === HOME ? ' scrub-target' : ''}${hasAlert ? ' has-alert' : ''}`}
-            aria-label={plusMode ? '新增記帳（長按語音記帳）' : '回到記帳主頁'}
+            className={`dynamic-fab${plusMode ? ' mode-plus' : ' mode-logo'}${pressing ? ' pressing' : ''}${aiHold ? ' ai-hold' : ''}${scrubTo === HOME ? ' scrub-target' : ''}${hasAlert ? ' has-alert' : ''}`}
+            aria-label={plusMode ? '新增記帳（長按語音記帳，往上滑問 AI）' : '回到記帳主頁（長按或往上滑問 AI）'}
             onPointerDown={onDown}
+            onPointerMove={onMove}
             onPointerUp={onUp}
             onPointerCancel={onUp}
             onContextMenu={(e) => e.preventDefault()}

@@ -12,7 +12,9 @@ import { deleteTransactions, deleteTransfers } from '@/db/repo/ledger';
 import { isQuestion, looksLikeAiQuestion } from '@/domain/nlquery';
 import { isAggregationQuestion } from '@/domain/search';
 import { formatMoney } from '@/domain/money';
-import { looksLikeOperation } from '@/domain/agent/intent';
+import { localView, looksLikeOperation } from '@/domain/agent/intent';
+import { currentScreen, useScreen } from '@/stores/screenContext';
+import { ViewBubble } from '../ai/views/ViewBubble';
 import { aiDataEnabled, aiAsk, aiEnabledLocally, aiReceipt, quotaLabel } from '@/services/ai';
 import { ask } from '@/services/nlquery';
 import { bookDrafts, draftsFromText, draftsSmart, fallbackAccount, resolveDraft } from '@/services/quickentry';
@@ -29,9 +31,13 @@ import { nextSeq, useChat, type Msg, type Reply } from './aiChatStore';
 const HAS_AMOUNT_HINT = /\d|[一二兩三四五六七八九十百千萬]/;
 
 /** 規則優先 → 規則查帳 → AI 問答 → AI 解析記帳 → 說明怎麼開啟 */
-export async function respond(text: string): Promise<Reply> {
+export async function respond(text: string, screen?: string): Promise<Reply> {
   const t = text.trim();
   const asking = isQuestion(t) || looksLikeAiQuestion(t);
+
+  // 對話即介面：「財務自由」「現金流」「如果 55 歲退休」這類短句直接在對話裡出檢視卡（本機運算，不用 AI）
+  const view = localView(t);
+  if (view) return { role: 'ai', kind: 'view', view };
 
   // 要整理帳本（批次改分類、設預算、建週期、提前還款）：交給操作助手——先預覽影響、你確認才執行、可一鍵還原
   if (looksLikeOperation(t)) {
@@ -39,7 +45,7 @@ export async function respond(text: string): Promise<Reply> {
     // 直接在對話裡規劃並預覽：確認執行、一鍵還原都在這個泡泡完成（AI 只規劃；預覽與執行在本機）
     try {
       const [{ aiAgentPlan }, { previewPlan }] = await Promise.all([import('@/services/ai'), import('@/services/agent')]);
-      const r = await aiAgentPlan(t);
+      const r = await aiAgentPlan(t, screen);
       return { role: 'ai', kind: 'agent', summary: r.plan.summary, steps: await previewPlan(r.plan.steps), quota: quotaLabel(r.quota) };
     } catch (e) {
       return { role: 'ai', kind: 'text', text: (e as Error).message };
@@ -59,7 +65,7 @@ export async function respond(text: string): Promise<Reply> {
   // 只有「問句」才交給 AI 問答（會送統計、扣 1 點）；「你好」之類不是問句的不要白扣額度，非問句又有金額的才走 AI 口語記帳
   if (asking && aiDataEnabled()) {
     try {
-      const r = await aiAsk(t);
+      const r = await aiAsk(t, screen);
       return { role: 'ai', kind: 'text', text: r.value.answer, followups: r.value.followups, sub: `${r.cached ? '使用先前的回答（未扣額度）' : r.quota ? quotaLabel(r.quota) : ''}　AI 的回答僅供參考` };
     } catch (e) {
       return { role: 'ai', kind: 'text', text: (e as Error).message };
@@ -87,7 +93,8 @@ async function send(text: string, opts: { open?: boolean } = {}) {
   const pending = nextSeq();
   useChat.setState((s) => ({ ...(opts.open === false ? {} : { open: true }), busy: true, msgs: [...s.msgs.slice(-30), { id: nextSeq(), role: 'user', text: t }, { id: pending, role: 'ai', kind: 'pending' }] }));
   try {
-    const r = await respond(t);
+    // 「📍 目前畫面」：使用者沒有按掉、而且這句話會送去 AI 時才附上（記帳與規則查帳是本機處理，用不到）
+    const r = await respond(t, st.attach && aiEnabledLocally() ? currentScreen() || undefined : undefined);
     useChat.getState().patch(pending, r as Partial<Msg>);
   } catch (e) {
     useChat.getState().patch(pending, { role: 'ai', kind: 'text', text: (e as Error).message } as Partial<Msg>);
@@ -150,7 +157,10 @@ function AgentBubble({ m }: { m: Extract<Msg, { kind: 'agent' }> }) {
       )}
       {m.phase === 'done' && <button className="btn small tinted" style={{ marginTop: 10 }} disabled={busy} onClick={() => void undo()}>✅ 已執行・一鍵還原</button>}
       {m.note && <p className="row-sub" style={{ whiteSpace: 'normal' }}>{m.note}</p>}
-      {!m.phase && <p className="row-sub" style={{ whiteSpace: 'normal' }}>{m.quota}　執行是「全部成功或全部不動」，之後 7 天內可一鍵還原。</p>}
+      {!m.phase && <p className="row-sub" style={{ whiteSpace: 'normal' }}>{m.quota}　執行是「全部成功或全部不動」（可橫跨帳目、帳戶、欠款、股票、目標…），之後 7 天內可整包一鍵還原。</p>}
+      {m.phase !== 'cancelled' && m.steps.filter((s) => s.preview.view && !s.preview.blocked).map((s, i) => (
+        <ViewBubble key={i} view={s.preview.view!} refreshKey={m.phase === 'done' ? m.opId : undefined} />
+      ))}
     </div>
   );
 }
@@ -210,7 +220,11 @@ const CHAT_EXAMPLES = [
   '我今年股利會被扣二代健保嗎？',
   '把「其他」分類的帳目重新分類',
   '依過去 3 個月的花費，幫我設定各分類的每月預算',
+  '我今天領年終 20 萬進台新，拿 5 萬還信貸，再給我看財務自由',
 ];
+
+/** 不用 AI、點了直接在對話裡出檢視卡 */
+const VIEW_CHIPS = ['這個月花費', '財務自由', '現金流', '稅務規劃'];
 
 /**
  * 對話內容（首頁彈出的對話視窗與 AI 助理頁共用同一份對話）：
@@ -225,6 +239,8 @@ export function ChatPanel({ embedded, onLeave, autoSend, onAutoSent, autoFocus }
   const sent = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const aiOn = useSettings((s) => !!s.ai?.enabled);
+  const screen = useScreen((s) => (s.detail ?? s.routeLabel).slice(0, 60));
+  const attach = useChat((s) => s.attach);
   useEffect(() => { if (embedded || open) end.current?.scrollIntoView({ block: 'end' }); }, [embedded, open, msgs]);
   useEffect(() => { if (autoSend && !sent.current) { sent.current = true; onAutoSent?.(); void send(autoSend, { open: !embedded }); } }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // 最近 7 天執行過的操作（存在本機，重開 App、清除對話後也還找得到）：隨時可一鍵還原
@@ -246,8 +262,9 @@ export function ChatPanel({ embedded, onLeave, autoSend, onAutoSent, autoFocus }
       <div className="chat-list" role="log" aria-live="polite">
         {!msgs.length && (
           <div style={{ margin: 8 }}>
-            <p className="muted" style={{ margin: '0 0 8px' }}>說一句話就好：記帳、查帳、問問題，或直接叫我整理帳本。{aiOn ? '' : '（整理帳本與問 AI 需要先在設定開啟 AI）'}</p>
-            <div className="ask-examples">{CHAT_EXAMPLES.map((x) => <button key={x} className="pill" disabled={busy} onClick={() => go(x)}>{x}</button>)}</div>
+            <p className="muted" style={{ margin: '0 0 8px' }}>說一句話就好：記帳、查帳、問問題，或叫我跨帳戶、貸款、股票、欠款一次做完（先預覽、確認才執行、可整包還原）。{aiOn ? '' : '（整理帳本與問 AI 需要先在設定開啟 AI）'}</p>
+            <div className="ask-examples">{VIEW_CHIPS.map((x) => <button key={x} className="pill view-chip" disabled={busy} onClick={() => go(x)}>📊 {x}</button>)}</div>
+            <div className="ask-examples" style={{ marginTop: 6 }}>{CHAT_EXAMPLES.map((x) => <button key={x} className="pill" disabled={busy} onClick={() => go(x)}>{x}</button>)}</div>
           </div>
         )}
         {msgs.map((m) => m.role === 'user' ? (
@@ -265,6 +282,7 @@ export function ChatPanel({ embedded, onLeave, autoSend, onAutoSent, autoFocus }
             )}
             {m.kind === 'entries' && <EntriesBubble m={m} />}
             {m.kind === 'agent' && <AgentBubble m={m} />}
+            {m.kind === 'view' && <ViewBubble view={m.view} />}
           </div>
         ))}
         <div ref={end} />
@@ -282,6 +300,12 @@ export function ChatPanel({ embedded, onLeave, autoSend, onAutoSent, autoFocus }
             </div>
           ))}
         </details>
+      )}
+      {aiOn && screen && (
+        <button className={`screen-chip${attach ? ' on' : ''}`} type="button" aria-pressed={attach} onClick={() => useChat.getState().setAttach(!attach)}
+          title={attach ? '問 AI 時會一併送出這段畫面摘要（只有名稱與統計數字）；點一下取消' : '點一下，問 AI 時附上目前畫面'}>
+          📍 {attach ? `目前畫面：${screen}` : '不附上目前畫面'}{attach && <span aria-hidden="true"> ✕</span>}
+        </button>
       )}
       <form className="chat-input" onSubmit={submit}>
         <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (fileRef.current) fileRef.current.value = ''; if (f) void sendImage(f); }} />

@@ -26,7 +26,7 @@ function ChatCard({ auto, onAutoSent }: { auto: string; onAutoSent?: () => void 
   return (
     <section className="card" aria-label="AI 對話" style={{ minWidth: 0 }}>
       <div className="hint-head" style={{ marginBottom: 8 }}>
-        <div className="row-title"><NewMark since="4.0.0" /> 💬 AI 對話</div>
+        <div className="row-title"><NewMark since="4.1.0" /> 💬 AI 對話</div>
         <span className="hint-spacer" />
         {hasMsgs && <button className="accent" onClick={() => useChat.getState().clear()}>清除</button>}
       </div>

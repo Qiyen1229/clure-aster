@@ -152,8 +152,15 @@ class AiService:
         """把一句話整理成「工具＋參數」的步驟計畫。AI 只規劃，不執行；App 會在本機先預覽、使用者確認後才執行（可一鍵還原）。"""
         cats, accs = _clean_names(body.categories), _clean_names(body.accounts)
         today = date.fromisoformat(body.today)
-        msg = ai_tasks.dumps({"今天": body.today, "需求": body.text, "可選分類": cats, "可選帳戶": accs})
-        r = ai_tasks.run_task(self.db, user, "agent_plan", ai_tasks.AGENT_PLAN, msg, lambda d: ai_tasks.v_agent_plan(d, cats, accs, today),
+        people, goals, stocks = _clean_names(body.people), _clean_names(body.goals), _clean_names(body.stocks)
+        payload: dict = {"今天": body.today, "需求": body.text, "可選分類": cats, "可選帳戶": accs}
+        # 只在有資料時才送（沒有欠款、目標或標的就不必多送一個空清單）
+        for key, names in (("可選對象", people), ("可選目標", goals), ("可選標的代號", stocks)):
+            if names:
+                payload[key] = names
+        msg = ai_tasks.dumps(payload)
+        r = ai_tasks.run_task(self.db, user, "agent_plan", ai_tasks.AGENT_PLAN, msg,
+                              lambda d: ai_tasks.v_agent_plan(d, cats, accs, today, people=people, goals=goals, stocks=stocks),
                               fail_message="AI 沒有對應的操作可以做這件事，請換個說法，或到各功能頁手動操作")
         return AgentPlanResult(**r, quota=self._quota(user))  # type: ignore[arg-type]
 

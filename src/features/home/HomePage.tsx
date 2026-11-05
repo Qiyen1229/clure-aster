@@ -7,7 +7,7 @@
  * - 「需要你看一下」：收件匣、預算預警、異常偵測、AI 上週重點併成一張卡，沒事就不出現。
  * - 小工具預設不在首頁（設定 → 首頁小工具可加回）。
  */
-import { lazy, Suspense, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
@@ -22,7 +22,6 @@ import { Amount, EmptyState, SkeletonRows } from '@/ui/controls';
 import { Calendar } from './Calendar';
 
 import { AiOrb } from './AiOrb';
-import { useChat } from './aiChatStore';
 import { MonthPicker } from './MonthPicker';
 import { AttentionCard } from './AttentionCard';
 import { HomeHero } from './HomeHero';
@@ -30,7 +29,6 @@ import { RemindersSheet, useUnreadCount } from './RemindersSheet';
 import { LedgerRow } from '../ledger/LedgerRow';
 
 // 小工具（連投資組合、報價都會載入）與對話視窗都比較大：用到才載入，不拖慢首頁
-const AiChatSheet = lazy(() => import('./AiChat').then((m) => ({ default: m.AiChatSheet })));
 
 const WEEK_NAMES = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
 
@@ -43,7 +41,6 @@ export default function HomePage() {
   const [monthOpen, setMonthOpen] = useState(false);
   const [remindersOpen, setRemindersOpen] = useState(false);
   const unread = useUnreadCount();
-  const chatTouched = useChat((s) => s.open || s.msgs.length > 0); // 第一次打開對話才載入對話視窗，之後保持掛載（關閉動畫要用）
 
   const sel = fromDateKey(selected);
   const year = sel.getFullYear();
@@ -182,7 +179,6 @@ export default function HomePage() {
 
       <MonthPicker open={monthOpen} onClose={() => setMonthOpen(false)} year={year} month0={month0} onPick={goMonth} />
       <RemindersSheet open={remindersOpen} onClose={() => setRemindersOpen(false)} />
-      {chatTouched && <Suspense fallback={null}><AiChatSheet /></Suspense>}
     </main>
   );
 }

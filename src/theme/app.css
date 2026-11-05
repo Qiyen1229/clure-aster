@@ -1674,3 +1674,22 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
 
 /* AI 助理頁內嵌的對話：固定高度的對話區，輸入列貼在下方 */
 .chat-wrap.embedded { height: min(66dvh, 560px); flex: none; }
+
+/* ───── v4.1.0 對話即介面：嵌在對話裡的檢視卡、畫面情境標籤、靈動島叫出 AI ───── */
+.dynamic-fab { touch-action: none; } /* 圓球要偵測往上滑：不能讓瀏覽器把它當成捲動而中斷手勢 */
+.dynamic-fab.ai-hold .fab-aura { animation: aura-expand 0.6s ease-out 2; overflow: visible; }
+.dynamic-fab.ai-hold { filter: brightness(1.12) saturate(1.2); }
+.view-wrap { margin-top: 10px; padding: 12px; border-radius: var(--radius-s); background: var(--surface-2); min-width: 0; overflow-x: hidden; }
+.view-wrap .section-title, .view-wrap .card p { white-space: normal; overflow-wrap: anywhere; }
+.view-wrap .card { box-shadow: none; }
+.view-card { min-width: 0; }
+.view-card .stat-grid { margin-bottom: 4px; }
+.view-card .attn-link { display: inline-block; margin-top: 6px; }
+.view-tax .section-title { margin-top: 6px; }
+.view-slider { display: grid; gap: 4px; margin: 8px 0 0; font-size: 0.85rem; color: var(--text-2); }
+.view-slider input[type='range'] { width: 100%; accent-color: var(--accent); min-height: 28px; }
+.chat-msg.ai:has(.view-wrap) { max-width: 100%; width: 100%; }
+.screen-chip { display: block; max-width: 100%; margin: 6px 8px 0; padding: 5px 12px; border-radius: 999px; font-size: 0.78rem; color: var(--text-2); background: var(--surface-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.screen-chip.on { color: var(--accent-text, var(--accent)); background: var(--accent-soft, var(--surface-2)); }
+.view-chip { font-weight: 600; }

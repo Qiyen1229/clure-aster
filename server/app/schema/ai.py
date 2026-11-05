@@ -65,7 +65,7 @@ def _check_summary(v: dict[str, Any]) -> dict[str, Any]:
 
 
 class AskRequest(BaseModel):
-    question: str = Field(min_length=1, max_length=300)
+    question: str = Field(min_length=1, max_length=500)
     summary: dict[str, Any]
 
     _v = field_validator("summary")(_check_summary)
@@ -183,9 +183,13 @@ class StatementResult(BaseModel):
 
 
 class AgentPlanRequest(BaseModel):
-    text: str = Field(min_length=1, max_length=300)
+    text: str = Field(min_length=1, max_length=500)  # 一句話（300 字內）＋可選的「目前畫面」摘要
     categories: list[str] = Field(default_factory=list, max_length=120)
     accounts: list[str] = Field(default_factory=list, max_length=40)
+    # v4.1.0：結清欠款、存入目標、買進股票需要比對的名稱（只送名稱，不送金額）
+    people: list[str] = Field(default_factory=list, max_length=60)
+    goals: list[str] = Field(default_factory=list, max_length=40)
+    stocks: list[str] = Field(default_factory=list, max_length=80)  # 已在投資頁的標的代號
     today: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
 
 
