@@ -20,6 +20,7 @@ import { useSettings } from '@/stores/settings';
 import { snackUndo, useUI } from '@/stores/ui';
 import { AiMark } from '@/ui/Icon';
 import { summarizePlan } from '@/domain/agent/plan';
+import type { AgentOpLog } from '@/services/agent';
 import { PlanPreview } from '../ai/PlanPreview';
 import { Sheet } from '@/ui/Sheet';
 
@@ -41,7 +42,7 @@ export async function respond(text: string): Promise<Reply> {
       const r = await aiAgentPlan(t);
       return { role: 'ai', kind: 'agent', summary: r.plan.summary, steps: await previewPlan(r.plan.steps), quota: quotaLabel(r.quota) };
     } catch (e) {
-      return { role: 'ai', kind: 'text', text: (e as Error).message, link: { label: '到 AI 助理手動整理', to: `/ai?agent=${encodeURIComponent(t.slice(0, 300))}` } };
+      return { role: 'ai', kind: 'text', text: (e as Error).message };
     }
   }
 
@@ -194,15 +195,27 @@ const CHAT_EXAMPLES = [
  * 對話內容（首頁彈出的對話視窗與 AI 助理頁共用同一份對話）：
  * 記帳、查帳、問 AI、用說的整理帳本（先預覽、確認才執行、可一鍵還原）全部在同一個輸入框，由 respond() 分流。
  */
-export function ChatPanel({ embedded, onLeave, autoSend, autoFocus }: { embedded?: boolean; onLeave?: () => void; autoSend?: string; autoFocus?: boolean }) {
+export function ChatPanel({ embedded, onLeave, autoSend, onAutoSent, autoFocus }: { embedded?: boolean; onLeave?: () => void; autoSend?: string; onAutoSent?: () => void; autoFocus?: boolean }) {
   const navigate = useNavigate();
   const { open, msgs, busy } = useChat();
   const [q, setQ] = useState('');
+  const [ops, setOps] = useState<AgentOpLog[]>([]);
   const end = useRef<HTMLDivElement>(null);
   const sent = useRef(false);
   const aiOn = useSettings((s) => !!s.ai?.enabled);
   useEffect(() => { if (embedded || open) end.current?.scrollIntoView({ block: 'end' }); }, [embedded, open, msgs]);
-  useEffect(() => { if (autoSend && !sent.current) { sent.current = true; void send(autoSend, { open: !embedded }); } }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (autoSend && !sent.current) { sent.current = true; onAutoSent?.(); void send(autoSend, { open: !embedded }); } }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // 最近 7 天執行過的操作（存在本機，重開 App、清除對話後也還找得到）：隨時可一鍵還原
+  const reloadOps = () => { void import('@/services/agent').then((m) => m.listAgentOps()).then(setOps).catch(() => undefined); };
+  useEffect(() => { if (embedded || open) reloadOps(); }, [embedded, open, msgs]);
+  const undoHistory = async (id: string) => {
+    try {
+      const { undoOp } = await import('@/services/agent');
+      const r = await undoOp(id);
+      useUI.getState().showSnack({ text: r.skipped ? `已還原 ${r.restored} 筆；${r.skipped} 筆在執行後又被你改過，沒有動它` : `已還原 ${r.restored} 筆` });
+    } catch (e) { useUI.getState().showSnack({ text: (e as Error).message }); }
+    reloadOps();
+  };
   const go = (text: string) => void send(text, { open: !embedded });
   const submit = (e: React.FormEvent) => { e.preventDefault(); const t = q; setQ(''); go(t); };
 
@@ -234,6 +247,20 @@ export function ChatPanel({ embedded, onLeave, autoSend, autoFocus }: { embedded
         ))}
         <div ref={end} />
       </div>
+      {ops.length > 0 && (
+        <details className="agent-history" style={{ margin: '4px 8px' }}>
+          <summary>最近的操作（{ops.length}，7 天內可還原）</summary>
+          {ops.map((h) => (
+            <div key={h.id} className="row" style={{ gap: 8 }}>
+              <span className="row-main">
+                <span className="row-title" style={{ whiteSpace: 'normal' }}>{h.summary}</span>
+                <span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>{new Date(h.at).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}　{h.titles.join('；')}</span>
+              </span>
+              {h.undoneAt ? <span className="muted">已還原</span> : <button className="btn small tinted" onClick={() => void undoHistory(h.id)}>還原</button>}
+            </div>
+          ))}
+        </details>
+      )}
       <form className="chat-input" onSubmit={submit}>
         <input value={q} onChange={(e) => setQ(e.target.value)} maxLength={300} enterKeyHint="send" aria-label="輸入訊息" placeholder="記帳、查帳、問或整理帳本" autoFocus={autoFocus} />
         <button className="btn small" type="submit" disabled={busy || !q.trim()}>送出</button>

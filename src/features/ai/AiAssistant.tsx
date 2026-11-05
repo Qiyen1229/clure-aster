@@ -228,7 +228,7 @@ function ReceiptCard() {
 // ───────────── 頁面 ─────────────
 
 /** AI 對話：記帳、查帳、問 AI、用說的整理帳本全部在同一個輸入框（和首頁 AI 小圓球的對話是同一份）；?q= 或 ?agent= 會自動送出 */
-function ChatCard({ auto }: { auto: string }) {
+function ChatCard({ auto, onAutoSent }: { auto: string; onAutoSent?: () => void }) {
   const hasMsgs = useChat((s) => s.msgs.length > 0);
   return (
     <section className="card" aria-label="AI 對話" style={{ minWidth: 0 }}>
@@ -237,14 +237,14 @@ function ChatCard({ auto }: { auto: string }) {
         <span className="hint-spacer" />
         {hasMsgs && <button className="accent" onClick={() => useChat.getState().clear()}>清除</button>}
       </div>
-      <Suspense fallback={<p className="muted">載入中…</p>}><ChatPanel embedded autoSend={auto || undefined} /></Suspense>
+      <Suspense fallback={<p className="muted">載入中…</p>}><ChatPanel embedded autoSend={auto || undefined} onAutoSent={onAutoSent} /></Suspense>
     </section>
   );
 }
 
 export default function AiAssistant() {
   const navigate = useNavigate();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const ai = useSettings((s) => s.ai);
   const [st, setSt] = useState<AiStatus | null>(null);
   const auto = (params.get('agent') ?? params.get('q') ?? '').slice(0, 300);
@@ -279,7 +279,8 @@ export default function AiAssistant() {
       {header}
       {st && <p className="row-sub" style={{ margin: '0 4px 8px', whiteSpace: 'normal' }}>{st.available ? '' : '⚠️ '}{st.message}　今日剩 {st.quota.daily.remaining ?? '不限'} 次、本週 {st.quota.weekly.remaining ?? '不限'} 次、本月 {st.quota.monthly.remaining ?? '不限'} 次</p>}
       <div style={{ display: 'grid', gap: 12 }}>
-        <ChatCard auto={auto} />
+        {/* 自動送出後清掉網址上的 ?q= ?agent=：重新整理或從別頁返回時不會重複送出 */}
+        <ChatCard auto={auto} onAutoSent={() => setParams({}, { replace: true })} />
         {dataOn ? (
           <>
             <BudgetCard auto={params.get('tool') === 'budget'} />

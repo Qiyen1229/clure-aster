@@ -331,7 +331,7 @@ export default function SettingsPage() {
           location.replace('/');
         }} />
       </Group>
-      <p className="disclaimer">Aster 記帳 · 以 ❤️ 製作於台灣</p>
+      <p className="disclaimer">Aster 記帳 · Qiyen 著 · 115.02.03</p>
     </main>
   );
 }
