@@ -24,17 +24,17 @@ const InfoBtn = ({ open, onClick, bodyId, label }: { open: boolean; onClick: () 
   <button type="button" className="hint-btn" aria-expanded={open} aria-controls={bodyId} aria-label={label} onClick={onClick}><Icon name="info" /></button>
 );
 
-export function Hint({ id, title, hint, right }: { id: string; title: ReactNode; hint: ReactNode; right?: ReactNode }) {
+export function Hint({ id, title, hint, right }: { id: string; title: ReactNode; hint?: ReactNode; right?: ReactNode }) {
   const [open, toggle] = useOpen(id);
   const bodyId = useId();
   return (
     <>
       <div className="hint-head">
         <div className="row-title" style={{ whiteSpace: 'normal' }}>{title}</div>
-        <InfoBtn open={open} onClick={toggle} bodyId={bodyId} label="說明" />
+        {hint && <InfoBtn open={open} onClick={toggle} bodyId={bodyId} label="說明" />}
         {right && <><span className="hint-spacer" />{right}</>}
       </div>
-      <Body open={open} bodyId={bodyId}><p>{hint}</p></Body>
+      {hint && <Body open={open} bodyId={bodyId}><p>{hint}</p></Body>}
     </>
   );
 }

@@ -236,7 +236,7 @@ function SellForm({ d, onClose }: { d: Durable; onClose: () => void }) {
         <DateField label="處置日" value={date} onChange={setDate} min={d.purchaseDate} max={todayKey()} />
         {sale > 0 && (
           <>
-            <SwitchField label="同時記一筆收入" sub="記為「二手賣出」收入並關聯這件物品" checked={record} onChange={setRecord} />
+            <SwitchField label="同時記一筆收入" checked={record} onChange={setRecord} />
             {record && <AccountField label="入帳帳戶" value={accId} onChange={setAccId} accounts={pay} />}
             {record && <CategoryField label="收入分類" value={catId} onChange={setCatId} categories={cats.all} kind="income" />}
           </>

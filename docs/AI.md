@@ -111,7 +111,7 @@ CLURE_AI_NVIDIA_MODEL=nvidia/nemotron-3.5-super-vl-120b-a12b   # 已是預設值
 
 資料表 `ai_usage`（遷移 `0007_ai_usage`）。後端：`server/app/service/ai_{quota,providers,tasks,service}.py`；前端：`src/services/ai.ts`、`src/domain/aisummary.ts`、`src/features/ai/`、`src/features/settings/AiPage.tsx`、`src/features/admin/AiConsole.tsx`。
 
-## 操作助手（v4.0，`src/domain/agent/`、`src/services/agent.ts`、`src/features/ai/AgentCard.tsx`）
+## 操作助手（v4.0，`src/domain/agent/`、`src/services/agent.ts`、`src/features/home/AiChat.tsx`（`ChatPanel`，與首頁對話共用））
 
 「AI 只規劃、本機預覽、你確認才寫入、可一鍵還原」：
 

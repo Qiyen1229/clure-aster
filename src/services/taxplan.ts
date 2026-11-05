@@ -73,10 +73,15 @@ export async function loadTaxPlan(today = todayKey()): Promise<TaxPlan> {
 
   // 同一年度其他國內股利（已領＋這批事件裡的其他筆）＝邊際稅額的基準
   const payYear = (e: DivEvent) => Number((e.payDate ?? e.exDate ?? today).slice(0, 4));
-  // 同年度基準 ＝ 已發放 ＋「已除息、已公告但還沒發放」（不在未來事件裡的）；少算後者會高估剩餘的 8.5% 抵減額度
+  // 同年度基準 ＝ 已發放 ＋「已除息（或仍持有）、已公告但還沒發放」（不在未來事件裡的）；
+  // 少算後者會高估剩餘的 8.5% 抵減額度；已經賣光、除息日還在未來的（領不到）不算
   const paidInYear = (y: number) => cash
-    .filter((d) => !eventDivIds.has(d.id) && (d.status === 'paid' || d.status === 'announced') && (d.payDate || d.exDate).startsWith(String(y)))
-    .reduce((a, d) => a + (d.grossMinor ? yuan(d.grossMinor) : Math.floor(Number(d.perShareDec) * Number(d.sharesHeldDec || 0))), 0);
+    .filter((d) => !eventDivIds.has(d.id) && (d.payDate || d.exDate).startsWith(String(y)) &&
+      (d.status === 'paid' || (d.status === 'announced' && ((d.exDate || d.payDate) < today || held.has(d.stockId)))))
+    .reduce((a, d) => {
+      const shares = Number(d.sharesHeldDec || 0) || held.get(d.stockId)?.shares || 0;
+      return a + (d.grossMinor ? yuan(d.grossMinor) : Math.floor(Number(d.perShareDec) * shares));
+    }, 0);
   const analyses = events.map((e) => {
     const others = paidInYear(payYear(e)) + events.filter((x) => x !== e && payYear(x) === payYear(e)).reduce((a, x) => a + x.gross, 0);
     const fee = (price: number) => twFee(price, e.shares, cfg, held.get(e.stockId)?.stock.lotSize || 1000) / 100;

@@ -112,11 +112,11 @@ export default function NotificationsPage() {
         {n.daily && <div className="field"><span className="label">提醒時間</span><input type="time" value={n.dailyTime} onChange={(e) => set({ dailyTime: e.target.value || '21:00' })} /></div>}
         {row('信用卡繳款提醒', 'cardDue')}
         {n.cardDue && <div className="field"><span className="label">提前天數</span><select value={n.cardDueDays} onChange={(e) => set({ cardDueDays: Number(e.target.value) })}>{[1, 2, 3, 5, 7].map((d) => <option key={d} value={d}>{d} 天</option>)}</select></div>}
-        {row('預算警示', 'budget', '達到警示門檻或超支時')}
-        {row('訂閱與週期帳目', 'subscription', '續約前提醒、待確認項目')}
-        {row('到價提醒', 'priceAlert', '觀察清單中設定的價格')}
-        {row('每週摘要', 'weekly', '每週第一天早上：上週花了多少、和前一週比')}
-        {row('每月月報', 'monthly', '每月第一天早上：收支、儲蓄率、哪一類變多了')}
+        {row('預算警示', 'budget')}
+        {row('訂閱與週期帳目', 'subscription')}
+        {row('到價提醒', 'priceAlert')}
+        {row('每週摘要', 'weekly')}
+        {row('每月月報', 'monthly')}
         {row('備份提醒', 'backup')}
         {n.backup && <div className="field"><span className="label">每隔</span><select value={n.backupDays} onChange={(e) => set({ backupDays: Number(e.target.value) })}>{[7, 14, 30, 60].map((d) => <option key={d} value={d}>{d} 天</option>)}</select></div>}
       </div>

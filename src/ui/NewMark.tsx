@@ -1,10 +1,11 @@
 /**
- * 「新功能」標記：標題前的小閃亮符號。新功能上線時在標題旁放 <NewMark since="版本" />，
- * 之後自動消失（目前版本比 since 晚兩個次版本以上就不顯示），不用再回頭拿掉。
+ * 「新功能」標記：標題前的小閃亮符號。只有「最新一批新功能」（src/release.json 的 featureRelease）會亮：
+ * 新功能上線時在標題旁放 <NewMark since="版本" />，並把 release.json 的 featureRelease 改成這個版本；
+ * 下一批新功能出現時改掉 featureRelease，舊功能的閃光符號就自動全部取消。小修正不要動它。
  */
-const ver = (v: string) => { const [a, b] = v.split('.').map(Number); return (a || 0) * 100 + (b || 0); };
+import { FEATURE_RELEASE } from '@/release';
 
-export const isNewFeature = (since: string, current = __APP_VERSION__) => { const d = ver(current) - ver(since); return d >= 0 && d <= 2; };
+export const isNewFeature = (since: string, latest: string = FEATURE_RELEASE) => since === latest;
 
 export function NewMark({ since, className }: { since: string; className?: string }) {
   if (!isNewFeature(since)) return null;

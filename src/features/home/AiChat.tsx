@@ -55,7 +55,8 @@ export async function respond(text: string): Promise<Reply> {
     // 規則查到 0 筆、而且 AI 可以回答時，交給 AI（例如「這個月哪裡花太多？」會被規則誤認成關鍵字「太多」）
     if (a && (a.items.length > 0 || !aiDataEnabled())) return { role: 'ai', kind: 'text', text: a.answer, sub: a.detail, link: a.items.length ? { label: `查看符合的 ${a.items.length} 筆帳目`, to: `/search?q=${encodeURIComponent(t)}` } : undefined };
   }
-  if (aiDataEnabled()) {
+  // 只有「問句」才交給 AI 問答（會送統計、扣 1 點）；「你好」之類不是問句的不要白扣額度，非問句又有金額的才走 AI 口語記帳
+  if (asking && aiDataEnabled()) {
     try {
       const r = await aiAsk(t);
       return { role: 'ai', kind: 'text', text: r.value.answer, followups: r.value.followups, sub: `${r.cached ? '使用先前的回答（未扣額度）' : r.quota ? quotaLabel(r.quota) : ''}　AI 的回答僅供參考` };
@@ -63,7 +64,7 @@ export async function respond(text: string): Promise<Reply> {
       return { role: 'ai', kind: 'text', text: (e as Error).message };
     }
   }
-  if (aiEnabledLocally() && HAS_AMOUNT_HINT.test(t)) {
+  if (!asking && aiEnabledLocally() && HAS_AMOUNT_HINT.test(t)) {
     const r = await draftsSmart(t);
     if (r.list.length) return { role: 'ai', kind: 'entries', drafts: r.list, via: r.usedAi ? 'ai' : 'rule', sub: r.quotaText };
     if (r.aiNote) return { role: 'ai', kind: 'text', text: `我看不懂這句話。${r.aiNote}` };
@@ -78,12 +79,12 @@ export async function respond(text: string): Promise<Reply> {
   };
 }
 
-async function send(text: string) {
+async function send(text: string, opts: { open?: boolean } = {}) {
   const t = text.trim();
   const st = useChat.getState();
   if (!t || st.busy) return;
   const pending = nextSeq();
-  useChat.setState((s) => ({ open: true, busy: true, msgs: [...s.msgs.slice(-30), { id: nextSeq(), role: 'user', text: t }, { id: pending, role: 'ai', kind: 'pending' }] }));
+  useChat.setState((s) => ({ ...(opts.open === false ? {} : { open: true }), busy: true, msgs: [...s.msgs.slice(-30), { id: nextSeq(), role: 'user', text: t }, { id: pending, role: 'ai', kind: 'pending' }] }));
   try {
     const r = await respond(t);
     useChat.getState().patch(pending, r as Partial<Msg>);
@@ -180,45 +181,73 @@ function EntriesBubble({ m }: { m: Extract<Msg, { kind: 'entries' }> }) {
   );
 }
 
-export function AiChatSheet() {
+const CHAT_EXAMPLES = [
+  '昨天午餐 150',
+  '上個月吃飯花多少',
+  '這個月哪裡花太多？',
+  '把上個月 Uber 歸到交通，並設交通每月預算 3000',
+  '以後只要出現 Uber 就自動歸到交通',
+  '我今年股利會被扣二代健保嗎？',
+];
+
+/**
+ * 對話內容（首頁彈出的對話視窗與 AI 助理頁共用同一份對話）：
+ * 記帳、查帳、問 AI、用說的整理帳本（先預覽、確認才執行、可一鍵還原）全部在同一個輸入框，由 respond() 分流。
+ */
+export function ChatPanel({ embedded, onLeave, autoSend, autoFocus }: { embedded?: boolean; onLeave?: () => void; autoSend?: string; autoFocus?: boolean }) {
   const navigate = useNavigate();
-  const { open, msgs, busy, setOpen, clear } = useChat();
+  const { open, msgs, busy } = useChat();
   const [q, setQ] = useState('');
   const end = useRef<HTMLDivElement>(null);
+  const sent = useRef(false);
   const aiOn = useSettings((s) => !!s.ai?.enabled);
-  useEffect(() => { if (open) end.current?.scrollIntoView({ block: 'end' }); }, [open, msgs]);
-  const submit = (e: React.FormEvent) => { e.preventDefault(); const t = q; setQ(''); void send(t); };
+  useEffect(() => { if (embedded || open) end.current?.scrollIntoView({ block: 'end' }); }, [embedded, open, msgs]);
+  useEffect(() => { if (autoSend && !sent.current) { sent.current = true; void send(autoSend, { open: !embedded }); } }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const go = (text: string) => void send(text, { open: !embedded });
+  const submit = (e: React.FormEvent) => { e.preventDefault(); const t = q; setQ(''); go(t); };
 
+  return (
+    <div className={`chat-wrap${embedded ? ' embedded' : ''}`}>
+      <div className="chat-list" role="log" aria-live="polite">
+        {!msgs.length && (
+          <div style={{ margin: 8 }}>
+            <p className="muted" style={{ margin: '0 0 8px' }}>說一句話就好：記帳、查帳、問問題，或直接叫我整理帳本。{aiOn ? '' : '（整理帳本與問 AI 需要先在設定開啟 AI）'}</p>
+            <div className="ask-examples">{CHAT_EXAMPLES.map((x) => <button key={x} className="pill" disabled={busy} onClick={() => go(x)}>{x}</button>)}</div>
+          </div>
+        )}
+        {msgs.map((m) => m.role === 'user' ? (
+          <div key={m.id} className="chat-msg me">{m.text}</div>
+        ) : (
+          <div key={m.id} className="chat-msg ai">
+            {m.kind === 'pending' && <span className="muted">思考中…</span>}
+            {m.kind === 'text' && (
+              <>
+                <div style={{ whiteSpace: 'pre-wrap' }}>{m.text}</div>
+                {m.sub && <div className="row-sub" style={{ whiteSpace: 'normal' }}>{m.sub}</div>}
+                {m.link && <button className="btn small tinted" style={{ marginTop: 6 }} onClick={() => { onLeave?.(); navigate(m.link!.to); }}>{m.link.label}</button>}
+                {!!m.followups?.length && <div className="ask-examples" style={{ marginTop: 6 }}>{m.followups.map((f) => <button key={f} className="pill" disabled={busy} onClick={() => go(f)}>{f}</button>)}</div>}
+              </>
+            )}
+            {m.kind === 'entries' && <EntriesBubble m={m} />}
+            {m.kind === 'agent' && <AgentBubble m={m} />}
+          </div>
+        ))}
+        <div ref={end} />
+      </div>
+      <form className="chat-input" onSubmit={submit}>
+        <input value={q} onChange={(e) => setQ(e.target.value)} maxLength={300} enterKeyHint="send" aria-label="輸入訊息" placeholder="記帳、查帳、問或整理帳本" autoFocus={autoFocus} />
+        <button className="btn small" type="submit" disabled={busy || !q.trim()}>送出</button>
+      </form>
+    </div>
+  );
+}
+
+export function AiChatSheet() {
+  const { open, msgs, setOpen, clear } = useChat();
   return (
     <Sheet open={open} onClose={() => setOpen(false)} title="對話" full variant="rise"
       right={msgs.length ? <button className="accent" onClick={clear}>清除</button> : undefined}>
-      <div className="chat-wrap">
-        <div className="chat-list" role="log" aria-live="polite">
-          {!msgs.length && <p className="muted" style={{ margin: 8 }}>說一句話就好：「昨天午餐 150」會幫你記帳，「上個月吃飯花多少」會幫你查帳{aiOn ? '，也可以問「這個月哪裡花太多？」' : ''}。</p>}
-          {msgs.map((m) => m.role === 'user' ? (
-            <div key={m.id} className="chat-msg me">{m.text}</div>
-          ) : (
-            <div key={m.id} className="chat-msg ai">
-              {m.kind === 'pending' && <span className="muted">思考中…</span>}
-              {m.kind === 'text' && (
-                <>
-                  <div style={{ whiteSpace: 'pre-wrap' }}>{m.text}</div>
-                  {m.sub && <div className="row-sub" style={{ whiteSpace: 'normal' }}>{m.sub}</div>}
-                  {m.link && <button className="btn small tinted" style={{ marginTop: 6 }} onClick={() => { setOpen(false); navigate(m.link!.to); }}>{m.link.label}</button>}
-                  {!!m.followups?.length && <div className="ask-examples" style={{ marginTop: 6 }}>{m.followups.map((f) => <button key={f} className="pill" disabled={busy} onClick={() => void send(f)}>{f}</button>)}</div>}
-                </>
-              )}
-              {m.kind === 'entries' && <EntriesBubble m={m} />}
-              {m.kind === 'agent' && <AgentBubble m={m} />}
-            </div>
-          ))}
-          <div ref={end} />
-        </div>
-        <form className="chat-input" onSubmit={submit}>
-          <input value={q} onChange={(e) => setQ(e.target.value)} maxLength={300} enterKeyHint="send" aria-label="輸入訊息" placeholder="AI 記帳或問問題" autoFocus />
-          <button className="btn small" type="submit" disabled={busy || !q.trim()}>送出</button>
-        </form>
-      </div>
+      <ChatPanel onLeave={() => setOpen(false)} autoFocus />
     </Sheet>
   );
 }

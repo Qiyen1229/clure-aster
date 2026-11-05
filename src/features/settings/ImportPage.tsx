@@ -14,6 +14,7 @@ import { useSettings } from '@/stores/settings';
 import { useUI } from '@/stores/ui';
 import { Icon } from '@/ui/Icon';
 import { NewMark } from '@/ui/NewMark';
+import { Intro } from '@/ui/Hint';
 import { aiEnabledLocally, aiStatement, quotaLabel, type StatementEntry } from '@/services/ai';
 import { ReconcilePanel } from './ReconcilePanel';
 
@@ -145,10 +146,7 @@ export default function ImportPage() {
           </label>
           <div className="card" style={{ marginTop: 12 }}>
             <p style={{ marginTop: 0 }}><NewMark since="4.0.0" /> <b>🧾 對帳：核對帳單和你的帳本</b></p>
-            <p className="muted" style={{ fontSize: '0.88rem', marginTop: 0, whiteSpace: 'normal' }}>
-              拿信用卡或銀行帳單來核對，不會匯入：列出「已吻合、漏記、金額有差（匯差、手續費）、帳本多記」，勾選後一鍵補齊並平帳，可復原。
-              日期容差 ±3 天，比對在你的手機上完成。
-            </p>
+            <p className="muted" style={{ fontSize: '0.88rem', marginTop: 0, whiteSpace: 'normal' }}>拿信用卡或銀行帳單核對帳本：找出漏記和金額有差的，一鍵補齊。</p>
             <label className="btn tinted" style={{ cursor: 'pointer' }}>
               用帳單 CSV 對帳
               <input type="file" accept=".csv,text/csv,text/plain" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; setMode('reconcile'); if (f) void onFile(f); }} />
@@ -159,7 +157,7 @@ export default function ImportPage() {
                 <input type="file" accept="image/*" multiple className="sr-only" disabled={busy} onChange={(e) => { const f = e.target.files; void onShot(f).finally(() => { e.target.value = ''; }); }} />
               </label>
             ) : <p className="row-sub" style={{ marginBottom: 0, whiteSpace: 'normal' }}>開啟 AI 後也能直接拍帳單截圖對帳（設定 → AI 助理）。</p>}
-            <p className="row-sub" style={{ whiteSpace: 'normal', marginBottom: 0 }}>截圖只送圖片給 AI 讀取明細（縮小後送出、不保存），金額加總會和帳單合計驗證，比對與補帳都在本機。一次最多 4 張。</p>
+            <Intro id="import.recon">日期容差 ±3 天，金額與商家名稱一起比對，比對與補帳都在你的手機上完成，補齊後可復原。截圖只送圖片給 AI 讀取明細（縮小後送出、不保存），讀到的金額加總會和帳單合計驗證；一次最多 4 張。</Intro>
           </div>
         </>
       )}

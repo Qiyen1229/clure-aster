@@ -16,11 +16,11 @@ export function SmartAlerts() {
   return (
     <section className="card" style={{ minWidth: 0 }}>
       <Hint id="ai.smartAlerts" title="🔔 智慧提醒"
-        hint="平常全部在這台裝置上用規則運算，不計入 AI 額度。系統會在你每新增一筆支出時自動偵測一次（沒有手動重新偵測）。大額但本來就大的項目（買家電、學雜費、買車…）不會提醒；吃飯、超商這類小額支出突然出現大額才會。" />
+        hint="異常與訂閱偵測：找出沒登記的訂閱、漲價、重複扣款、異常大額、分類暴增。預算預警：照目前花法會超支時，提早提醒並告訴你每天最多能花多少。全部在這台裝置用規則運算，不計入 AI 額度；每新增一筆支出自動偵測一次。大額但本來就大的項目（家電、學雜費、買車）不會提醒。" />
       <div className="list" style={{ marginTop: 8 }}>
-        <div className="field"><LabelHint id="ai.sa.anomaly" label="異常與訂閱偵測" hint="找出沒登記的訂閱、漲價、重複扣款、異常大額、分類暴增" />
+        <div className="field"><span className="label" style={{ flex: 1 }}>異常與訂閱偵測</span>
           <Switch checked={insights.anomaly} label="異常與訂閱偵測" onChange={(v) => set('insights', { ...insights, anomaly: v })} /></div>
-        <div className="field"><LabelHint id="ai.sa.budget" label="預算預警" hint="照目前花法會超支時，提早提醒並告訴你每天最多能花多少" />
+        <div className="field"><span className="label" style={{ flex: 1 }}>預算預警</span>
           <Switch checked={insights.budgetWarn} label="預算預警" onChange={(v) => set('insights', { ...insights, budgetWarn: v })} /></div>
         {AUTH_ENABLED && insights.anomaly && (
           <div className="field"><LabelHint id="ai.sa.price" label="規則判斷不了時，請 AI 查市價"

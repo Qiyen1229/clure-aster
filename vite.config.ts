@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { fileURLToPath, URL } from 'node:url';
 import pkg from './package.json';
+import release from './src/release.json';
 import type { Connect, Plugin } from 'vite';
 import { handle, memoryCache } from './proxy/src/core';
 
@@ -37,6 +38,11 @@ function htmlVersion(): Plugin {
   return { name: 'aster-html-version', transformIndexHtml: { order: 'pre', handler: (html) => html.replaceAll('%APP_VERSION%', pkg.version) } };
 }
 
+/** 建置時輸出 /release.json：舊版 App 偵測到新版本時讀它，判斷這次更新有沒有新功能（「有新功能可用」提示） */
+function releaseJson(): Plugin {
+  return { name: 'aster-release-json', generateBundle() { this.emitFile({ type: 'asset', fileName: 'release.json', source: JSON.stringify({ version: pkg.version, ...release }) }); } };
+}
+
 // 預覽與開發固定使用 9122 埠（見 docs/DESIGN.md A10）
 export default defineConfig({
   define: {
@@ -65,6 +71,7 @@ export default defineConfig({
   plugins: [
     asterProxy(),
     htmlVersion(),
+    releaseJson(),
     react(),
     VitePWA({
       strategies: 'injectManifest',

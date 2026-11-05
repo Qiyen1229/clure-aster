@@ -5,10 +5,10 @@
  *  - 本月／上月白話解讀
  *  - AI 整理分類：把「其他」分類裡的帳目依備註建議分類，勾選後套用（可復原）
  *  - 拍照記帳：辨識收據照片
- *  - 用說的整理帳本（操作助手）：一句話 → 執行預覽 → 確認執行 → 一鍵還原（features/ai/AgentCard.tsx）
+ *  - AI 對話：記帳、查帳、問 AI、用說的整理帳本共用同一個輸入框（features/home/AiChat.tsx 的 ChatPanel，與首頁小圓球同一份對話）
  * 所有 AI 輸出都只當純文字顯示。網址參數：?q=問題（自動詢問）、?tool=budget（直接產生預算建議）、?agent=需求（自動規劃操作）
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAccounts, useCategories } from '@/app/hooks';
 import { db } from '@/db/schema';
@@ -18,7 +18,7 @@ import { planToBudgetInputs } from '@/domain/aisummary';
 import { formatMoney } from '@/domain/money';
 import { addDays, todayKey } from '@/domain/period';
 import { AUTH_ENABLED } from '@/stores/auth';
-import { aiAsk, aiBudgetPlan, aiCategorize, aiReceipt, getAiStatus, quotaLabel, type AiStatus, type AskValue, type PlanResult } from '@/services/ai';
+import { aiBudgetPlan, aiCategorize, aiReceipt, getAiStatus, quotaLabel, type AiStatus, type PlanResult } from '@/services/ai';
 import { bookDrafts, fallbackAccount, resolveDraft, type ResolvedDraft } from '@/services/quickentry';
 import { useSettings } from '@/stores/settings';
 import { snackUndo, useUI } from '@/stores/ui';
@@ -27,58 +27,13 @@ import { Switch } from '@/ui/controls';
 import { Hint } from '@/ui/Hint';
 import { AiInsightsCard } from './AiInsights';
 import { lastCompleted } from '@/services/summary';
-import { AgentCard } from './AgentCard';
 import { SmartAlerts } from './SmartAlerts';
+import { NewMark } from '@/ui/NewMark';
+import { useChat } from '@/features/home/aiChatStore';
 
-const ASK_CHIPS = ['這個月哪裡花太多？', '我的儲蓄率健康嗎？', '有哪些固定支出可以檢討？', '怎麼更快達成存錢目標？', '我今年股利會被扣二代健保嗎？'];
+const ChatPanel = lazy(() => import('@/features/home/AiChat').then((m) => ({ default: m.ChatPanel })));
+
 const Err = ({ text }: { text: string }) => (text ? <p className="row-sub" role="alert" style={{ color: 'var(--danger)', whiteSpace: 'normal' }}>{text}</p> : null);
-
-// ───────────── 問 AI ─────────────
-
-function AskCard({ initialQ }: { initialQ: string }) {
-  const [q, setQ] = useState(initialQ);
-  const [busy, setBusy] = useState(false);
-  const [thread, setThread] = useState<{ q: string; a?: AskValue; err?: string; cached?: boolean; quota?: string }[]>([]);
-  const started = useRef(false);
-
-  const send = async (text: string) => {
-    const t = text.trim();
-    if (!t || busy) return;
-    setBusy(true); setQ('');
-    try {
-      const r = await aiAsk(t);
-      setThread((x) => [...x, { q: t, a: r.value, cached: r.cached, quota: r.quota ? quotaLabel(r.quota) : undefined }]);
-    } catch (e) { setThread((x) => [...x, { q: t, err: (e as Error).message }]); } finally { setBusy(false); }
-  };
-  useEffect(() => { if (initialQ && !started.current) { started.current = true; void send(initialQ); } }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  return (
-    <section className="card" aria-label="問 AI">
-      <Hint id="ai.ask" title="💬 問 AI" hint="依你近 6 個月的收支統計（有持股的話還有投資與股利稅務統計）回答，例如「這個月哪裡花太多？」「我今年股利會被扣二代健保嗎？」。" />
-      {thread.map((m, i) => (
-        <div key={i} style={{ marginTop: 10 }}>
-          <div className="muted">你：{m.q}</div>
-          {m.err && <Err text={m.err} />}
-          {m.a && (
-            <div style={{ whiteSpace: 'pre-wrap', marginTop: 4 }}>
-              {m.a.answer}
-              {!!m.a.followups.length && (
-                <div className="ask-examples" style={{ marginTop: 6 }}>{m.a.followups.map((f) => <button key={f} className="pill" disabled={busy} onClick={() => void send(f)}>{f}</button>)}</div>
-              )}
-              <div className="row-sub">{m.cached ? '使用先前的回答（未扣額度）' : m.quota}　AI 的回答僅供參考，不構成投資建議。</div>
-            </div>
-          )}
-        </div>
-      ))}
-      {busy && <p className="muted" aria-live="polite">AI 思考中…</p>}
-      {!thread.length && <div className="ask-examples" style={{ marginTop: 8 }}>{ASK_CHIPS.map((c) => <button key={c} className="pill" disabled={busy} onClick={() => void send(c)}>💬 {c}</button>)}</div>}
-      <form style={{ display: 'flex', gap: 8, marginTop: 10 }} onSubmit={(e) => { e.preventDefault(); void send(q); }}>
-        <input className="input" value={q} onChange={(e) => setQ(e.target.value)} maxLength={300} placeholder="輸入問題…" aria-label="問 AI 的問題" enterKeyHint="send" />
-        <button className="btn small" type="submit" disabled={busy || !q.trim()}>送出</button>
-      </form>
-    </section>
-  );
-}
 
 // ───────────── 下個月預算建議 ─────────────
 
@@ -111,7 +66,7 @@ function BudgetCard({ auto }: { auto: boolean }) {
   const money = (v: number) => (p ? formatMoney(Math.round(v * 10 ** p.decimals), p.currency, { decimals: 0 }) : String(v));
   return (
     <section className="card" aria-label="下個月預算建議" aria-live="polite">
-      <Hint id="ai.budget" title="📅 下個月預算建議" hint="依過去花費、每月固定支出（訂閱／分期／貸款）與存錢目標，建議總預算與各分類，並算出每天的日常預算。"
+      <Hint id="ai.budget" title="📅 下個月預算建議"
         right={<button className="btn small" disabled={busy} onClick={() => void run(!!res)}>{busy ? '分析中…' : res ? '重新產生' : '產生建議'}</button>} />
       <Err text={err} />
       {p && (
@@ -272,12 +227,27 @@ function ReceiptCard() {
 
 // ───────────── 頁面 ─────────────
 
+/** AI 對話：記帳、查帳、問 AI、用說的整理帳本全部在同一個輸入框（和首頁 AI 小圓球的對話是同一份）；?q= 或 ?agent= 會自動送出 */
+function ChatCard({ auto }: { auto: string }) {
+  const hasMsgs = useChat((s) => s.msgs.length > 0);
+  return (
+    <section className="card" aria-label="AI 對話" style={{ minWidth: 0 }}>
+      <div className="hint-head" style={{ marginBottom: 8 }}>
+        <div className="row-title"><NewMark since="4.0.0" /> 💬 AI 對話</div>
+        <span className="hint-spacer" />
+        {hasMsgs && <button className="accent" onClick={() => useChat.getState().clear()}>清除</button>}
+      </div>
+      <Suspense fallback={<p className="muted">載入中…</p>}><ChatPanel embedded autoSend={auto || undefined} /></Suspense>
+    </section>
+  );
+}
+
 export default function AiAssistant() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const ai = useSettings((s) => s.ai);
   const [st, setSt] = useState<AiStatus | null>(null);
-  const q = (params.get('q') ?? '').slice(0, 300);
+  const auto = (params.get('agent') ?? params.get('q') ?? '').slice(0, 300);
   useEffect(() => { if (AUTH_ENABLED && ai?.enabled) getAiStatus().then(setSt).catch(() => undefined); }, [ai?.enabled]);
 
   const header = (
@@ -293,10 +263,13 @@ export default function AiAssistant() {
       <main className="page">{header}
         <section className="card" style={{ margin: '12px 0' }}>
           <div className="row-title"><AiMark /> 讓記帳更輕鬆</div>
-          <p style={{ whiteSpace: 'normal' }}>問問題、下個月預算建議、白話解讀、整理分類、拍照記帳。預設關閉，需要先在設定開啟，並看過會送出哪些內容。</p>
+          <p style={{ whiteSpace: 'normal' }}>用說的整理帳本、問問題、預算建議、拍照記帳。預設關閉，需要先在設定開啟。</p>
           <button className="btn" onClick={() => navigate('/settings/ai')}>前往 AI 設定</button>
         </section>
-        <SmartAlerts />
+        <div style={{ display: 'grid', gap: 12 }}>
+          <ChatCard auto="" />
+          <SmartAlerts />
+        </div>
       </main>
     );
   }
@@ -306,16 +279,15 @@ export default function AiAssistant() {
       {header}
       {st && <p className="row-sub" style={{ margin: '0 4px 8px', whiteSpace: 'normal' }}>{st.available ? '' : '⚠️ '}{st.message}　今日剩 {st.quota.daily.remaining ?? '不限'} 次、本週 {st.quota.weekly.remaining ?? '不限'} 次、本月 {st.quota.monthly.remaining ?? '不限'} 次</p>}
       <div style={{ display: 'grid', gap: 12 }}>
-        <AgentCard initialText={(params.get('agent') ?? '').slice(0, 300)} />
+        <ChatCard auto={auto} />
         {dataOn ? (
           <>
-            <AskCard initialQ={q} />
             <BudgetCard auto={params.get('tool') === 'budget'} />
             <div><AiInsightsCard unit="month" anchor={lastCompleted('month')} /></div>
           </>
         ) : (
           <section className="card">
-            <Hint id="ai.dataOff" title={<>💬 問 AI、📅 預算建議、<AiMark /> 白話解讀</>} hint="這幾項需要讓 AI 看你「去識別化的收支統計」（各月與各分類合計，不含單筆帳目與備註）。" />
+            <p style={{ margin: '0 0 8px', whiteSpace: 'normal' }}>預算建議、白話解讀與問 AI 需要讓 AI 看你去識別化的收支統計（各月與各分類合計）。</p>
             <button className="btn" onClick={() => navigate('/settings/ai')}>前往允許</button>
           </section>
         )}
