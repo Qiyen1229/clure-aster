@@ -382,7 +382,7 @@ Aster/
 │     ├─ search/      SearchPage
 │     ├─ auth/        AuthPages（登入／註冊／改密碼）
 │     ├─ admin/       AdminPage
-│     └─ onboarding/  Onboarding、Highlights
+│     └─ onboarding/  Onboarding（4 步）
 └─ tests/unit/                       *.test.ts（Vitest；sync-engine.test.ts 以模擬伺服器測兩台裝置同步）
 ```
 

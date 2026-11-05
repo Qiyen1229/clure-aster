@@ -177,7 +177,7 @@ export default function InvestTab() {
             <section className="card" aria-label="損益排行">
               <b>損益排行</b>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 8 }}>
-                {[{ title: '賺最多', list: ranked.slice(0, 3) }, { title: '賠最多', list: [...ranked].reverse().slice(0, 3) }].map((g) => (
+                {[{ title: '賺最多', list: ranked.filter((h) => h.val!.unrealizedPct > 0).slice(0, 3) }, { title: '賠最多', list: [...ranked].reverse().filter((h) => h.val!.unrealizedPct < 0).slice(0, 3) }].map((g) => (
                   <div key={g.title}>
                     <div className="muted" style={{ fontSize: '0.75rem', marginBottom: 4 }}>{g.title}</div>
                     {g.list.map((h) => (

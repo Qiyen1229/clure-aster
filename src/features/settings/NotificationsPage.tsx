@@ -10,6 +10,7 @@ import { isIOS, notificationSupport, notify, requestPermission, runReminderCheck
 import { useSettings } from '@/stores/settings';
 import { useUI } from '@/stores/ui';
 import { Switch } from '@/ui/controls';
+import { NotifTabs } from './NotifTabs';
 import { Icon } from '@/ui/Icon';
 import type { NotifySettings } from '@/db/repo/settings';
 
@@ -53,6 +54,7 @@ export default function NotificationsPage() {
         <h1>通知與提醒</h1>
         <div style={{ width: 44 }} />
       </header>
+      <NotifTabs current="system" />
       <div className="card">
         <p style={{ margin: 0 }}>{STATE_TEXT[perm]}</p>
         {perm === 'needs-install' && isIOS() && (

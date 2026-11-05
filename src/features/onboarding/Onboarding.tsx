@@ -1,5 +1,6 @@
 /**
- * 首次使用引導：歡迎（本機資料聲明）→ 主幣別 → 外觀 → 第一個帳戶 → 特色功能 → 試試一句話記帳 → 範例資料。
+ * 首次使用引導（4 步）：歡迎與主幣別 → 外觀 → 第一個帳戶 → 範例資料。
+ * 功能介紹不放在這裡：新功能由設定裡的「新」標記與更新通知帶出（release.json）。
  */
 import { ICON_192 } from '@/ui/assets';
 import { useState } from 'react';
@@ -12,7 +13,6 @@ import { evaluate } from '@/domain/calc-expr';
 import { useSettings } from '@/stores/settings';
 import { Segmented } from '@/ui/controls';
 import { ACCENTS } from '../settings/SettingsPage';
-import { FeatureCards, TryQuickEntry, WHATS_NEW_VERSION } from './Highlights';
 
 export default function Onboarding() {
   const s = useSettings();
@@ -22,7 +22,7 @@ export default function Onboarding() {
   const [accType, setAccType] = useState<AccountType>('cash');
   const [balance, setBalance] = useState('');
   const [busy, setBusy] = useState(false);
-  const STEPS = 7;
+  const STEPS = 4;
 
   const finish = async (withSample: boolean) => {
     setBusy(true);
@@ -36,8 +36,6 @@ export default function Onboarding() {
         });
       }
       if (withSample) await loadSampleData();
-      // 導覽已經介紹過新功能，不用再跳「新功能」
-      s.set('seenWhatsNew', WHATS_NEW_VERSION);
       s.set('onboarded', true);
       navigate('/', { replace: true });
     } finally {
@@ -55,22 +53,10 @@ export default function Onboarding() {
 
       {step === 0 && (
         <>
-          <img src={ICON_192} alt="" width={88} height={88} style={{ borderRadius: 20, marginTop: 24 }} />
+          <img src={ICON_192} alt="" width={72} height={72} style={{ borderRadius: 16, marginTop: 8 }} />
           <h1>歡迎使用 Aster 記帳</h1>
-          <p>記帳、預算、多帳戶、多幣別、股票投資組合，一個 App 搞定。</p>
-          <div className="card">
-            <p style={{ margin: 0 }}>🔒 <b>你的資料存在你自己的伺服器</b><br />帳目會自動同步，之後在手機、平板、電腦登入同一個帳號都能看到。這些設定只需要做一次。</p>
-          </div>
-          <div className="grow" />
-          <button className="btn" onClick={next}>開始設定</button>
-        </>
-      )}
-
-      {step === 1 && (
-        <>
-          <h1>主要使用的幣別？</h1>
-          <p>報表與淨資產會換算成這個幣別。之後可以在設定中更改。</p>
-          <div className="list" style={{ maxHeight: '50dvh', overflowY: 'auto' }}>
+          <p style={{ marginBottom: 8 }}>🔒 你的資料存在你自己的伺服器，帳目會自動同步到你登入的每台裝置。先選主要使用的幣別（報表與淨資產會換算成它，之後可在設定更改）。</p>
+          <div className="list" style={{ maxHeight: '44dvh', overflowY: 'auto' }}>
             {Object.values(CURRENCIES).map((c) => (
               <button key={c.code} className="row" onClick={() => s.set('baseCurrency', c.code)} aria-pressed={s.baseCurrency === c.code}>
                 <span className="num" style={{ width: 48, fontWeight: 600 }}>{c.code}</span>
@@ -80,11 +66,11 @@ export default function Onboarding() {
             ))}
           </div>
           <div className="grow" />
-          <button className="btn" onClick={next}>下一步</button>
+          <button className="btn" onClick={next}>開始設定</button>
         </>
       )}
 
-      {step === 2 && (
+      {step === 1 && (
         <>
           <h1>挑一個喜歡的樣子</h1>
           <p>深色、淺色或跟隨系統，再選一個主題色。</p>
@@ -104,7 +90,7 @@ export default function Onboarding() {
         </>
       )}
 
-      {step === 3 && (
+      {step === 2 && (
         <>
           <h1>建立第一個帳戶</h1>
           <p>記帳時要選擇從哪個帳戶付款，先建一個最常用的吧。</p>
@@ -127,27 +113,7 @@ export default function Onboarding() {
         </>
       )}
 
-      {step === 4 && (
-        <>
-          <h1>幾個你會喜歡的功能</h1>
-          <p>左右滑動看看。之後都可以在設定或報表裡找到。</p>
-          <FeatureCards />
-          <div className="grow" />
-          <button className="btn" onClick={next}>下一步</button>
-        </>
-      )}
-
-      {step === 5 && (
-        <>
-          <h1>試試一句話記帳</h1>
-          <p>不用一格一格選，打一句話就好。金額、日期、分類都會自動判斷。</p>
-          <TryQuickEntry accountName={accName} currency={s.baseCurrency} />
-          <div className="grow" />
-          <button className="btn" style={{ marginTop: 16 }} onClick={next}>下一步</button>
-        </>
-      )}
-
-      {step === 6 && (
+      {step === 3 && (
         <>
           <h1>要先看看範例嗎？</h1>
           <p>載入 90 天的示範帳目，快速體驗月曆、列表與報表。範例資料可在「設定 → 資料」一鍵清除，不影響你自己的帳。</p>

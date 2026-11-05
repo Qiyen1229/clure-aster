@@ -74,7 +74,6 @@ const CashflowPage = lazy(() => import('./features/reports/CashflowPage'));
 const SummaryPage = lazy(() => import('./features/reports/SummaryPage'));
 const AdminPage = lazy(() => import('./features/admin/AdminPage'));
 const InboxPage = lazy(() => import('./features/inbox/InboxPage'));
-const WhatsNewSheet = lazy(() => import('./features/onboarding/Highlights').then((m) => ({ default: m.WhatsNewSheet })));
 
 /** 不顯示底部 Tab Bar 的全螢幕頁面 */
 const FULLSCREEN = [/^\/onboarding/, /^\/reports\/review/, /^\/reports\/print/];
@@ -300,7 +299,6 @@ export default function App() {
       <TabBar hidden={fullscreen} />
       <AddSheetHost />
       <VoiceHost />
-      {onboarded && !fullscreen && <Suspense fallback={null}><WhatsNewSheet /></Suspense>}
       <ActionSheetHost />
       <SnackbarHost />
       <UpdatePrompt />

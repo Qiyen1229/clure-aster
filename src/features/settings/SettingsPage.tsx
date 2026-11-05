@@ -296,8 +296,7 @@ export default function SettingsPage() {
       </Group>
 
       <Group id="auto" title="通知與整合">
-        <Row icon="bell" tint="#FF3B30" label="通知與提醒" sub="記帳、繳款、預算、訂閱、到價、週報月報" onClick={() => navigate('/settings/notifications')} />
-        {AUTH_ENABLED && <Row icon="globe" tint="#5E5CE6" label="外部通知" sub="Discord、Telegram、LINE、自訂 Webhook" onClick={() => navigate('/settings/channels')} />}
+        <Row icon="bell" tint="#FF3B30" label="通知與提醒" sub="記帳、繳款、預算、訂閱、到價、週報月報；也能推到 Discord、Telegram、LINE、Webhook" onClick={() => navigate('/settings/notifications')} />
         <Row icon="trend" tint="#5E5CE6" label="股票資料源與 API Key" sub="代理網址、資料源順序、手續費、成本法" onClick={() => navigate('/settings/invest')} />
       </Group>
 

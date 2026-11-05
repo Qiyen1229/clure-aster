@@ -47,17 +47,16 @@ export default function AiPage() {
       </header>
       <div className="list">
         <SwitchField label="啟用 AI 功能" checked={!!ai?.enabled} onChange={(v) => set('ai', { ...ai, enabled: v })}
-          sub="一句話記帳看不懂時請 AI 解析、拍照記帳、AI 整理分類" />
+          sub="對話框的操作助手（整理帳本）、拍照記帳、帳單截圖對帳、一句話記帳看不懂時請 AI 解析" />
         <SwitchField label="允許 AI 分析我的收支統計" checked={!!ai?.enabled && !!ai?.allowData} onChange={(v) => set('ai', { ...ai, enabled: ai?.enabled || v, allowData: v, auto: v ? ai?.auto : false })}
-          sub="用於首頁對話框問 AI、下月預算建議、週報月報／專案／帳戶的白話解說" />
+          sub="用於對話框問 AI、操作助手依你的花費規劃預算、報表／專案／帳戶的白話解說" />
         <SwitchField label="首頁自動顯示「上週重點」" checked={!!ai?.enabled && !!ai?.allowData && !!ai?.auto} onChange={(v) => set('ai', { ...ai, enabled: true, allowData: true, auto: v })}
           sub="每週最多自動用 1 點額度；沒開的話只在你按下按鈕時才用 AI" />
       </div>
       <Intro id="aipage.1">
-        <b>一句話記帳／整理分類／拍照記帳</b>：送出你輸入的那一句話（整理分類是帳目備註、拍照記帳是縮小後的收據照片），以及你的分類與帳戶「名稱」。
+        <b>一句話記帳／拍照記帳／帳單截圖對帳</b>：送出你輸入的那一句話（拍照與截圖是縮小後的圖片），以及你的分類與帳戶「名稱」。<b>操作助手</b>（用說的整理帳本）只送你的需求與分類、帳戶名稱，由它規劃、你在本機預覽確認後才執行。
         一句話記帳只有規則解析找不到金額時才會用到，輸入過程中的即時預覽不會用到額度。
         <b>新支出的市價檢查</b>（設定 → 智慧提醒，可關閉）：規則判斷不了的新支出（比平常高很多、又沒有行情資料），會送出<b>那一筆</b>的分類名稱、備註、金額與你這個分類平常一筆約多少，請 AI 查市價；每筆只問一次、<b>不計額度</b>，送出的原文可在「查看送出過什麼」檢查。
-        <b>搜尋</b>的「用 AI 找」只送你輸入的描述與分類、帳戶、標籤名稱，不送任何帳目。
         <b>收件匣</b>的「<AiMark /> AI 解析」會送出那則簡訊／通知的文字（已先去掉網址、身分證、卡號與連續 10 碼以上的數字），只有你按下按鈕才會送。
       </Intro>
       <Intro id="aipage.2">

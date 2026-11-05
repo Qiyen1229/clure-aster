@@ -119,7 +119,7 @@ img { display: block; max-width: 100%; }
 /* ---------- iPhone／主畫面 App ---------- */
 /* 控制項：點了立即反應（不等雙擊縮放判斷）、長按不會選取文字或跳出拷貝／分享選單。內容文字仍可選取複製 */
 button, a, label, summary, [role='button'], [role='tab'], [role='radio'], [role='switch'],
-.tab, .pill, .chip, .key, .pin-key, .cat-cell, .swatch, .widget, .fab {
+.tab, .pill, .chip, .key, .pin-key, .cat-cell, .swatch, .fab {
   touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
 }
 button img, a img, .cat-icon, .tab svg { -webkit-user-drag: none; }
@@ -926,8 +926,6 @@ a { color: inherit; text-decoration: none; }
 }
 .home-lower { overflow: hidden; }
 .home-lower:empty { display: none; }
-/* 小工具列原本往左右各伸出 16px 貼齊頁面邊緣；放進區塊後改成貼齊區塊邊緣，不再超出圓角框 */
-.home-lower .widgets { margin: 0 -10px 8px; padding: 2px 10px 6px; scroll-padding-inline: 10px; }
 .home-lower::before { content: '提醒與快覽'; display: block; padding: 2px 6px 8px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; color: var(--text-3); }
 .home-lower .attn-card { margin: 0 0 10px; }
 .home-lower .attn-card:last-child { margin-bottom: 8px; }
@@ -1136,35 +1134,6 @@ button.stat.clickable:active {
    階段 2–5 元件
    ========================================================================== */
 
-/* 首頁小工具（橫向捲動卡片） */
-.widgets { display: flex; gap: 10px; overflow-x: auto; margin: 0 -16px 10px; padding: 2px 16px 6px; scroll-snap-type: x proximity; scroll-padding-inline: 16px; }
-.widgets-wrap { position: relative; }
-.widgets-nav { display: none; }
-/* 桌面（有滑鼠）：顯示可見的細捲軸與左右箭頭，不然右側被截斷時看不出還能橫滑 */
-@media (hover: hover) and (pointer: fine) {
-  .widgets { scrollbar-width: thin; scrollbar-color: var(--text-3, #8e8e93) transparent; padding-bottom: 10px; }
-  .widgets::-webkit-scrollbar { height: 6px; }
-  .widgets::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text-2) 45%, transparent); border-radius: 3px; }
-  .widgets-nav {
-    display: grid; place-items: center; position: absolute; top: 40%; transform: translateY(-50%); width: 34px; height: 34px; border-radius: 50%;
-    background: var(--surface); border: 0.5px solid var(--glass-border); box-shadow: var(--shadow); color: var(--text); font-size: 1.3rem; line-height: 1; z-index: 2;
-  }
-  .widgets-nav.left { left: -6px; }
-  .widgets-nav.right { right: -6px; }
-  .widgets-nav:hover { background: var(--surface-2, var(--surface)); }
-}
-.widget {
-  flex: none; width: 168px; min-height: 92px; padding: 12px; border-radius: var(--radius); text-align: left; scroll-snap-align: start;
-  background: color-mix(in srgb, var(--surface) 80%, transparent); border: 0.5px solid var(--glass-border); box-shadow: var(--shadow);
-  display: flex; flex-direction: column; gap: 2px; transition: transform 140ms ease;
-}
-.widget:active { transform: scale(0.97); }
-.widget-title { font-size: 0.72rem; color: var(--text-2); font-weight: 600; margin-bottom: 2px; }
-/* 小工具寬度固定 168px：以卡片寬度（cqi）限制字級，大金額縮小而不是超出卡片 */
-.widget { container-type: inline-size; }
-.widget-value { font-size: min(1.2rem, 14cqi); font-weight: 700; letter-spacing: -0.01em; overflow-wrap: anywhere; }
-.widget-sub { font-size: 0.75rem; color: var(--text-2); }
-
 /* 通知徽章 */
 .badge { position: absolute; top: 4px; right: 4px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: var(--danger); color: #fff; font-size: 0.65rem; font-weight: 700; display: grid; place-items: center; }
 
@@ -1340,15 +1309,15 @@ body:has(.sheet) .snackbar { animation-name: snack-in-top; }
 
 /* 清單、卡片、小工具：進場時依序淡入上移（前 12 項，之後的不延遲） */
 @keyframes item-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-.page .list > .row, .sheet .list > .row, .page > .card, .widget, .stat {
+.page .list > .row, .sheet .list > .row, .page > .card, .stat {
   animation: item-in 420ms var(--ease) both;
 }
-.page .list > .row:nth-child(1), .sheet .list > .row:nth-child(1), .widget:nth-child(1) { animation-delay: 20ms; }
-.page .list > .row:nth-child(2), .sheet .list > .row:nth-child(2), .widget:nth-child(2) { animation-delay: 50ms; }
-.page .list > .row:nth-child(3), .sheet .list > .row:nth-child(3), .widget:nth-child(3) { animation-delay: 80ms; }
-.page .list > .row:nth-child(4), .sheet .list > .row:nth-child(4), .widget:nth-child(4) { animation-delay: 110ms; }
-.page .list > .row:nth-child(5), .sheet .list > .row:nth-child(5), .widget:nth-child(5) { animation-delay: 140ms; }
-.page .list > .row:nth-child(6), .sheet .list > .row:nth-child(6), .widget:nth-child(6) { animation-delay: 170ms; }
+.page .list > .row:nth-child(1), .sheet .list > .row:nth-child(1) { animation-delay: 20ms; }
+.page .list > .row:nth-child(2), .sheet .list > .row:nth-child(2) { animation-delay: 50ms; }
+.page .list > .row:nth-child(3), .sheet .list > .row:nth-child(3) { animation-delay: 80ms; }
+.page .list > .row:nth-child(4), .sheet .list > .row:nth-child(4) { animation-delay: 110ms; }
+.page .list > .row:nth-child(5), .sheet .list > .row:nth-child(5) { animation-delay: 140ms; }
+.page .list > .row:nth-child(6), .sheet .list > .row:nth-child(6) { animation-delay: 170ms; }
 .page .list > .row:nth-child(7), .sheet .list > .row:nth-child(7) { animation-delay: 200ms; }
 .page .list > .row:nth-child(8), .sheet .list > .row:nth-child(8) { animation-delay: 230ms; }
 .page .list > .row:nth-child(9), .sheet .list > .row:nth-child(9) { animation-delay: 250ms; }
@@ -1360,12 +1329,11 @@ body:has(.sheet) .snackbar { animation-name: snack-in-top; }
 .page > .card:nth-of-type(4) { animation-delay: 180ms; }
 
 /* 按壓回饋：所有可點的元素輕微縮小，放開時帶一點回彈 */
-.pill, .cat-cell, .chip, .widget, .cur-btn, .swatch, button.card, a.card {
+.pill, .cat-cell, .chip, .cur-btn, .swatch, button.card, a.card {
   transition: transform 260ms var(--spring), background-color 200ms ease, color 200ms ease, box-shadow 200ms ease;
 }
 .btn, .icon-btn { transition: transform 260ms var(--spring), background-color 200ms ease, opacity 160ms ease, filter 160ms ease; }
 .pill:active, .cat-cell:active, .chip:active, .cur-btn:active, .swatch:active, button.card:active, a.card:active { transform: scale(0.94); transition-duration: 90ms; }
-.widget:active { transform: scale(0.97); transition-duration: 90ms; }
 .btn:active { transform: scale(0.96); transition-duration: 90ms; }
 .icon-btn:active { transform: scale(0.88); transition-duration: 90ms; }
 button.row, a.row { transition: background-color 180ms ease, transform 200ms var(--ease); }
@@ -1391,7 +1359,7 @@ button.row:active, a.row:active { transform: scale(0.985); transition-duration: 
   .btn:hover:not(:disabled) { filter: brightness(1.08); }
   .icon-btn:hover, .pill:hover, .cur-btn:hover { filter: brightness(1.15); }
   button.row:hover, a.row:hover { background-color: color-mix(in srgb, var(--surface-2) 60%, var(--surface)); }
-  .widget:hover, button.card:hover, a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg, var(--shadow)); }
+  button.card:hover, a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg, var(--shadow)); }
   .cat-cell:hover { background: color-mix(in srgb, var(--accent-soft) 50%, transparent); }
 }
 
@@ -1399,7 +1367,7 @@ button.row:active, a.row:active { transform: scale(0.985); transition-duration: 
 .add-amount .value { transition: color 240ms ease; }
 
 @media (prefers-reduced-motion: reduce) {
-  .page, .page .list > .row, .sheet .list > .row, .page > .card, .widget, .stat { animation: none !important; }
+  .page, .page .list > .row, .sheet .list > .row, .page > .card, .stat { animation: none !important; }
 }
 
 /* 自動分類提示（記帳面板備註列內的小標籤，點擊還原） */
@@ -1554,22 +1522,6 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
 .ask-chips .chip { font-size: 0.75rem; padding: 3px 8px; border-radius: 999px; background: var(--surface); }
 
 /* ---------- 特色功能卡片（導覽、新功能介紹） ---------- */
-.feat-track { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 -24px; padding: 4px 24px 8px; scroll-padding: 0 24px; overscroll-behavior-x: contain; }
-.sheet .feat-track { margin: 0 -16px; padding: 4px 16px 8px; scroll-padding: 0 16px; }
-.feat-card {
-  flex: none; width: 84%; max-width: 340px; scroll-snap-align: start; display: flex; flex-direction: column; gap: 8px;
-  padding: 18px; border-radius: var(--radius-l); background: var(--surface); box-shadow: var(--shadow);
-}
-.feat-card h2 { margin: 0; font-size: 1.15rem; }
-.feat-card p { margin: 0; color: var(--text-2); font-size: 0.9rem; line-height: 1.55; flex: 1; }
-.feat-card .btn { align-self: flex-start; }
-.feat-icon { width: 52px; height: 52px; border-radius: 14px; background: var(--accent-soft); display: grid; place-items: center; font-size: 1.6rem; }
-.feat-where { font-size: 0.78rem; color: var(--text-3); }
-.try-box textarea {
-  width: 100%; resize: none; border: 0; border-radius: 12px; padding: 10px 12px; background: var(--surface); color: var(--text);
-  font: inherit; font-size: 16px; line-height: 1.4; outline: none; box-shadow: var(--shadow); margin-bottom: 8px;
-}
-.try-box textarea:focus { box-shadow: 0 0 0 2px var(--accent); }
 
 /* 首頁對話框與對話彈窗 */
 .chat-wrap { display: flex; flex-direction: column; flex: 1; min-height: 0; }

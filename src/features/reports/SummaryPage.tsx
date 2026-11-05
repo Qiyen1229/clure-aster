@@ -18,7 +18,7 @@ import { EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { Icon } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
 import { LedgerRow } from '../ledger/LedgerRow';
-import { AiInsightsCard } from '../ai/AiInsights';
+import { AiInsightsCard } from '../ai/AiExplain';
 import { AUTH_ENABLED } from '@/stores/auth';
 
 export default function SummaryPage() {

@@ -18,6 +18,7 @@ import { SwitchField, TextField } from '@/ui/form';
 import { Icon } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
 import { Guide } from './GuideView';
+import { NotifTabs } from './NotifTabs';
 
 const snack = (text: string, duration?: number) => useUI.getState().showSnack({ text, duration });
 const when = (iso: string | null) => (iso ? new Date(iso.endsWith('Z') ? iso : `${iso}Z`).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '');
@@ -49,9 +50,10 @@ export default function ChannelsPage() {
     <main className="page">
       <header className="topbar">
         <button className="icon-btn" aria-label="返回" onClick={() => navigate(-1)}><Icon name="chevronL" /></button>
-        <h1>外部通知</h1>
+        <h1>通知與提醒</h1>
         <button className="icon-btn" aria-label="新增通知通道" onClick={() => setAdding(true)} disabled={!AUTH_ENABLED}><Icon name="plus" /></button>
       </header>
+      <NotifTabs current="channels" />
 
       {!AUTH_ENABLED ? (
         <EmptyState emoji="🔌" title="需要伺服器版" text="外部通知由你的 Aster 伺服器發送，請登入伺服器版 App 後使用。" />

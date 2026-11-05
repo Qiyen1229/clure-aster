@@ -1,6 +1,6 @@
 /**
  * AI 助理（/ai）：記帳、查帳、問 AI、整理帳本、拍照記帳全部走同一個對話框（features/home/AiChat.tsx 的 ChatPanel，與首頁小圓球同一份對話）。
- * 這一頁只多放對話以外的東西：白話解讀、智慧提醒（含目前的偵測結果）。
+ * 這一頁只多放對話以外的東西：智慧提醒（含目前的偵測結果）。白話解讀請在對話框問，或到報表、帳戶、專案頁的「AI 解說」。
  * 所有 AI 輸出都只當純文字顯示。網址參數：?q=問題或需求（自動送出）、?agent=需求（同 ?q=）、?tool=budget（自動請操作助手規劃預算）
  */
 import { lazy, Suspense, useEffect, useState } from 'react';
@@ -9,8 +9,6 @@ import { AUTH_ENABLED } from '@/stores/auth';
 import { getAiStatus, type AiStatus } from '@/services/ai';
 import { useSettings } from '@/stores/settings';
 import { AiMark, Icon } from '@/ui/Icon';
-import { AiInsightsCard } from './AiInsights';
-import { lastCompleted } from '@/services/summary';
 import { SmartAlerts } from './SmartAlerts';
 import { NewMark } from '@/ui/NewMark';
 import { useChat } from '@/features/home/aiChatStore';
@@ -76,13 +74,9 @@ export default function AiAssistant() {
       <div style={{ display: 'grid', gap: 12 }}>
         {/* 自動送出後清掉網址上的 ?q= ?agent=：重新整理或從別頁返回時不會重複送出 */}
         <ChatCard auto={auto} onAutoSent={() => setParams({}, { replace: true })} />
-        {dataOn ? (
-          <>
-            <div><AiInsightsCard unit="month" anchor={lastCompleted('month')} /></div>
-          </>
-        ) : (
+        {!dataOn && (
           <section className="card">
-            <p style={{ margin: '0 0 8px', whiteSpace: 'normal' }}>預算建議、白話解讀與問 AI 需要讓 AI 看你去識別化的收支統計（各月與各分類合計）。</p>
+            <p style={{ margin: '0 0 8px', whiteSpace: 'normal' }}>問 AI 與白話解讀需要讓 AI 看你去識別化的收支統計（各月與各分類合計）。</p>
             <button className="btn" onClick={() => navigate('/settings/ai')}>前往允許</button>
           </section>
         )}

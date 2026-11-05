@@ -10,7 +10,6 @@
  */
 import { aiEntriesToDrafts, namesForAi, sanitizeForAi, type AiEntry } from '@/domain/aiparse';
 import { hashJson, periodToAi } from '@/domain/aisummary';
-import type { AiSearchPlan } from '@/domain/search';
 import type { DraftEntry } from '@/domain/nlp';
 import { AUTH_ENABLED } from '@/stores/auth';
 import { useSettings } from '@/stores/settings';
@@ -120,30 +119,11 @@ export async function aiAsk(question: string): Promise<Cached<AskValue>> {
   return cached('ask', { q, summary }, 6 * HOUR, () => aiPost<AskValue & { quota: AiQuota }>('/ai/ask', { question: q, summary }));
 }
 
-export interface PlanValue { total: number; categories: { name: string; amount: number; reason: string }[]; tips: string[]; assumption: string }
-export interface PlanResult extends PlanValue { daily: number; fixedTotal: number; days: number; label: string; currency: string; decimals: number }
-
-export async function aiBudgetPlan(force = false): Promise<Cached<PlanResult>> {
-  const { loadFinanceSummary } = await import('./aisummary');
-  const { dailyAllowance } = await import('@/domain/aisummary');
-  const { summary, decimals, categories } = await loadFinanceSummary();
-  const r = await cached('budget', { summary, categories }, 12 * HOUR, () => aiPost<PlanValue & { quota: AiQuota }>('/ai/budget-plan', { summary, categories }), force);
-  const fixedTotal = summary.fixedMonthly.total;
-  const value: PlanResult = { ...r.value, fixedTotal, days: summary.nextMonth.days, label: summary.nextMonth.label, currency: summary.currency, decimals,
-    daily: dailyAllowance(r.value.total, fixedTotal, summary.nextMonth.days) };
-  return { ...r, value };
-}
-
 export interface InsightsValue { headline: string; points: string[]; suggestion: string }
 
 /** 週報／月報的白話洞察：data 是 domain/aisummary.periodToAi 的輸出 */
 export async function aiInsights(label: string, data: ReturnType<typeof periodToAi>, force = false): Promise<Cached<InsightsValue>> {
   return cached('insights', { label, data }, 24 * HOUR, () => aiPost<InsightsValue & { quota: AiQuota }>('/ai/insights', { summary: data, label }), force);
-}
-
-/** 替一批備註建議分類（備註文字會送出，所以這個功能算在「AI 輔助」開關下，不需要收支統計） */
-export async function aiCategorize(notes: string[], categories: string[], kind: 'expense' | 'income' = 'expense'): Promise<{ items: { index: number; category: string }[]; quota: AiQuota }> {
-  return aiPost('/ai/categorize', { notes, categories, kind });
 }
 
 /** 拍照記帳：照片縮小後送出，回傳草稿（和一句話記帳同樣的 DraftEntry，之後可補分類、帳戶） */
@@ -157,24 +137,7 @@ export async function aiReceipt(file: File): Promise<{ drafts: DraftEntry[]; quo
 }
 
 
-// ───────────── v2.1：搜尋規劃、通用解說、自動週報 ─────────────
-
-/** 搜尋：把一句話描述轉成搜尋條件（只送描述與分類／帳戶／標籤名稱，不送任何帳目） */
-export async function aiSearchPlan(text: string): Promise<Cached<{ plan: AiSearchPlan }>> {
-  const [cats, accs, tags, ctx] = await Promise.all([db.categories.toArray(), db.accounts.toArray(), db.tags.toArray(), parseContext()]);
-  const uniq = (xs: string[]) => [...new Set(xs.map((x) => x.trim()).filter(Boolean))];
-  const body = {
-    text: text.trim().slice(0, 200), today: ctx.today,
-    categories: uniq(cats.filter((c) => !c.archived && !c.system).map((c) => c.name)).slice(0, 120),
-    accounts: uniq(accs.filter((a) => !a.archived).map((a) => a.name)).slice(0, 40),
-    tags: uniq(tags.map((t) => t.name)).slice(0, 60),
-  };
-  const r = await cached('search', body, 6 * HOUR, async () => {
-    const { quota, ...plan } = await aiPost<AiSearchPlan & { quota: AiQuota }>('/ai/search-plan', body);
-    return { plan, quota };
-  });
-  return r as Cached<{ plan: AiSearchPlan }>;
-}
+// ───────────── 通用解說、自動週報 ─────────────
 
 /** 專案、帳戶…的白話解說：data 是 domain/aisummary 整理的去識別化統計 */
 export async function aiExplain(subject: string, data: object, force = false): Promise<Cached<InsightsValue>> {
