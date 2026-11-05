@@ -34,8 +34,11 @@ function AddSheetHost() {
 const AiChatSheet = lazy(() => import('./features/home/AiChat').then((m) => ({ default: m.AiChatSheet })));
 /** AI 對話視窗：掛在最外層，靈動島長按／上滑在任何頁面都能叫出來（第一次打開才載入，之後保持掛載讓關閉動畫完整） */
 function ChatHost() {
-  const touched = useChat((s) => s.open || s.msgs.length > 0);
-  return touched ? <Suspense fallback={null}><AiChatSheet /></Suspense> : null;
+  // 打開過一次就一直保持掛載：對話是空的時候關掉，視窗才會播放完整的沉下退場動畫（以前空對話一關就被直接拔掉，看起來像瞬間消失）
+  const used = useRef(false);
+  const open = useChat((s) => s.open);
+  if (open) used.current = true;
+  return used.current ? <Suspense fallback={null}><AiChatSheet /></Suspense> : null;
 }
 
 const VoiceSheet = lazy(() => import('./features/home/VoiceSheet').then((m) => ({ default: m.VoiceSheet })));
@@ -80,6 +83,7 @@ const AiAssistant = lazy(() => import('./features/ai/AiAssistant'));
 const FirePage = lazy(() => import('./features/reports/FirePage'));
 const TaxPage = lazy(() => import('./features/reports/TaxPage'));
 const CashflowPage = lazy(() => import('./features/reports/CashflowPage'));
+const WidgetsPage = lazy(() => import('./features/settings/WidgetsPage'));
 const SummaryPage = lazy(() => import('./features/reports/SummaryPage'));
 const AdminPage = lazy(() => import('./features/admin/AdminPage'));
 const InboxPage = lazy(() => import('./features/inbox/InboxPage'));
@@ -290,7 +294,7 @@ export default function App() {
             <Route path="/settings/backup" element={<BackupPage />} />
             <Route path="/settings/import" element={<ImportPage />} />
             <Route path="/settings/health" element={<HealthPage />} />
-            <Route path="/settings/widgets" element={<Navigate to="/settings" replace />} />
+            <Route path="/settings/widgets" element={<WidgetsPage />} />
             <Route path="/settings/rules" element={<RulesPage />} />
             <Route path="/settings/invoice" element={<InvoicePage />} />
             <Route path="/settings/invoice/prize" element={<InvoicePrizePage />} />

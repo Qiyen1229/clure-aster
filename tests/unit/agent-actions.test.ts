@@ -23,7 +23,7 @@ describe('操作助手：跨模組動作（記帳、轉帳、結清、買股、�
     bank = (await addAccount({ name: '台新', icon: '', color: '', type: 'bank', currency: 'TWD', initialBalanceMinor: 1_000_000, includeInNetWorth: true, isLiability: false })).id;
     card = (await addAccount({ name: '信用卡', icon: '', color: '', type: 'credit', currency: 'TWD', initialBalanceMinor: -3_000_000, includeInNetWorth: true, isLiability: true })).id;
     const now = Date.now();
-    await db.stocks.add({ id: 's50', market: 'TW', symbol: '0050', name: '元大台灣50', currency: 'TWD', assetType: 'etf', lotSize: 1000, createdAt: now, updatedAt: now } as never);
+    await db.stocks.add({ id: 's50', market: 'TWSE', symbol: '0050', name: '元大台灣50', currency: 'TWD', assetType: 'etf', lotSize: 1000, createdAt: now, updatedAt: now } as never);
     await db.price_cache.put({ stockId: 's50', priceDec: '180', prevCloseDec: '179', changeDec: '1', changePctDec: '0.5', marketTime: now, source: 'test', updatedAt: now, isManual: false });
     const xm = await findOrCreatePerson('小明');
     await addDebts([{ personId: xm.id, direction: 'i_owe_them', amountMinor: 350_000, currency: 'TWD', date: today, note: '聚餐代墊' }]);
@@ -105,6 +105,17 @@ describe('操作助手：跨模組動作（記帳、轉帳、結清、買股、�
     expect(steps[1].preview.blocked).toContain('投資頁');
     expect(steps.flatMap(opsOf)).toHaveLength(0);
     await expect(applyPlan(steps, 'x')).rejects.toThrow('沒有可以執行的步驟');
+  });
+
+  it('買股：證券戶沒指定時用第一個證券帳戶，扣款走它的交割帳戶；上櫃與興櫃也算台股', async () => {
+    const brk = await addAccount({ name: '元大證券', icon: '', color: '', type: 'brokerage', currency: 'TWD', initialBalanceMinor: 0, includeInNetWorth: true, isLiability: false, brokerage: { feeDiscountDec: '0.6', minFeeMinor: 2000, oddLotMinFeeMinor: 100, settlementAccountId: bank } } as never);
+    await db.stocks.update('s50', { market: 'TPEX' } as never);
+    const steps = await previewPlan([{ tool: 'buy_stock', args: { symbol: '0050', shares: 1000, price: 180 } }]);
+    expect(steps[0].preview.blocked).toBeUndefined();
+    expect(steps[0].preview.lines.join('\n')).toContain('「台新」');
+    const op = steps[0].op as { kind: 'trade'; input: { accountId: string; cashAccountId: string } };
+    expect(op.input.accountId).toBe(brk.id);
+    expect(op.input.cashAccountId).toBe(bank);
   });
 
   it('同一份計畫新建的目標可以直接存入（併入建立那一步），一次建立', async () => {

@@ -1,7 +1,6 @@
 /**
- * 首頁「需要你看一下」：把原本散在畫面中間的三種提醒併成同一張卡、同一種樣式——
+ * 提醒中心（鈴鐺）最上面的「需要你看一下」（4.1.1 起從首頁搬進來；首頁留給快覽）：把原本散在畫面中間的三種提醒併成同一張卡、同一種樣式——
  *   📥 收件匣待確認、🔔 預算預警與 🔎 異常偵測（只讀快取）、✨ AI 上週重點（選用，可收合）。
- * 只放需要立刻動手的（待確認、已超支、除息）；異常與其他提醒統一在右上角鈴鐺（提醒中心），這裡只留入口。
  * 依重要性排序、最多 4 行；沒有事情要看時整張卡都不出現。
  */
 import { useEffect, useState } from 'react';
@@ -17,7 +16,7 @@ const readOpen = () => { try { return localStorage.getItem(KEY) === '1'; } catch
 
 type Weekly = Awaited<ReturnType<typeof import('@/services/ai').autoWeeklyInsight>>;
 
-export function AttentionCard({ onOpenReminders }: { onOpenReminders: () => void }) {
+export function AttentionCard({ onGo }: { onGo?: () => void }) {
   const navigate = useNavigate();
   const inboxCount = useInboxCount((s) => s.n);
   const cfg = useSettings((s) => s.insights);
@@ -48,7 +47,7 @@ export function AttentionCard({ onOpenReminders }: { onOpenReminders: () => void
     <section className="attn-card" aria-label="需要你看一下">
       <div className="attn-title">需要你看一下</div>
       {shown.map((r) => (
-        <button key={r.key} className={`attn-row${r.tone ? ` ${r.tone}` : ''}`} onClick={() => (r.to ? navigate(r.to) : onOpenReminders())}>
+        <button key={r.key} className={`attn-row${r.tone ? ` ${r.tone}` : ''}`} onClick={() => { onGo?.(); navigate(r.to ?? '/ai'); }}>
           <span className="attn-ico" aria-hidden="true">{r.icon}</span>
           <span className="attn-text">{r.text}</span>
           <Icon name="chevronR" size={16} />
@@ -64,7 +63,7 @@ export function AttentionCard({ onOpenReminders }: { onOpenReminders: () => void
           {open && (
             <div className="attn-more">
               {weekly.value.suggestion && <p>💡 {weekly.value.suggestion}</p>}
-              <button className="attn-link" onClick={() => navigate('/reports/summary?unit=week')}>看完整週報 →</button>
+              <button className="attn-link" onClick={() => { onGo?.(); navigate('/reports/summary?unit=week'); }}>看完整週報 →</button>
             </div>
           )}
         </>

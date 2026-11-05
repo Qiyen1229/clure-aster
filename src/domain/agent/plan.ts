@@ -510,13 +510,17 @@ function buyStockTool(a: Record<string, unknown>, d: AgentData, W: Work): Resolv
   const symbol = str(a.symbol).toUpperCase();
   const stock = (d.stocks ?? []).find((s) => s.symbol.toUpperCase() === symbol);
   if (!stock) return blockedStep('buy_stock', title, `投資頁裡還沒有「${symbol || '（未說明）'}」這檔標的，請先到「帳戶 → 投資」新增一次交易，之後就能用說的買進`);
-  if (stock.market !== 'TW' || stock.currency !== d.baseCurrency) return blockedStep('buy_stock', title, `「${stock.symbol}」不是台股／主幣別標的，請到投資頁記錄買進（需要匯率與手續費設定）`);
+  // 台股的 market 是 TWSE（上市）、TPEX（上櫃）、EMERGING（興櫃）；美股、港股需要匯率，請到投資頁記錄
+  if (!['TWSE', 'TPEX', 'EMERGING'].includes(stock.market) || stock.currency !== d.baseCurrency) return blockedStep('buy_stock', title, `「${stock.symbol}」不是台股／主幣別標的，請到投資頁記錄買進（需要匯率與手續費設定）`);
   const shares = num(a.shares);
   if (!(shares > 0)) return blockedStep('buy_stock', title, '股數必須大於 0');
   const priceGiven = num(a.price);
   const price = priceGiven > 0 ? new Decimal(priceGiven) : stock.priceDec ? new Decimal(stock.priceDec) : null;
   if (!price || price.lte(0)) return blockedStep('buy_stock', title, `沒有「${stock.symbol}」的報價，請說明成交價（例如「買 1000 股 0050，價格 180」）`);
-  const acc = (str(a.account) ? findAccount(d.accounts, str(a.account)) : undefined) ?? d.accounts.find((x) => x.id === d.defaultBrokerageId && usableAcc(x)) ?? d.accounts.find((x) => usableAcc(x) && x.type === 'bank');
+  // 證券戶：投資設定的預設證券戶，沒有就用第一個證券帳戶（和投資頁的交易表單一樣）；扣款帳戶：你說的 → 證券戶的交割帳戶 → 證券戶本身
+  const broker = d.accounts.find((x) => x.id === d.defaultBrokerageId && usableAcc(x)) ?? d.accounts.find((x) => usableAcc(x) && x.type === 'brokerage');
+  const settle = broker?.brokerage?.settlementAccountId ? d.accounts.find((x) => x.id === broker.brokerage!.settlementAccountId && usableAcc(x)) : undefined;
+  const acc = (str(a.account) ? findAccount(d.accounts, str(a.account)) : undefined) ?? settle ?? broker ?? d.accounts.find((x) => usableAcc(x) && x.type === 'bank');
   if (!acc) return blockedStep('buy_stock', title, str(a.account) ? `找不到帳戶「${str(a.account)}」` : '請說明從哪個帳戶扣款');
   if (!baseOnly(acc, d)) return blockedStep('buy_stock', title, '扣款帳戶是外幣帳戶，請到投資頁記錄買進');
   const sharesD = new Decimal(shares);
@@ -531,7 +535,7 @@ function buyStockTool(a: Record<string, unknown>, d: AgentData, W: Work): Resolv
   if (!(priceGiven > 0)) warnings.push(`沒有指定成交價，先以最近報價 ${stock.priceDec} 試算（實際成交價以券商為準，執行前可改說「價格 xxx」）`);
   const lotText = shares >= 1000 && shares % 1000 === 0 ? `${shares / 1000} 張` : `${shares} 股`;
   return {
-    op: { kind: 'trade', input: { stockId: stock.id, accountId: d.defaultBrokerageId ?? acc.id, date, sharesDec: sharesD.toString(), priceDec: price.toString(), feeMinor: fee, cashAccountId: acc.id } },
+    op: { kind: 'trade', input: { stockId: stock.id, accountId: broker?.id ?? acc.id, date, sharesDec: sharesD.toString(), priceDec: price.toString(), feeMinor: fee, cashAccountId: acc.id } },
     preview: {
       tool: 'buy_stock', title: `買進 ${stock.symbol} ${stock.name} ${lotText} @ ${price.toString()}`,
       lines: [`成交金額 ${fmt(gross, stock.currency)}、手續費約 ${fmt(fee, stock.currency)}，共 ${fmt(total, stock.currency)}（${date}）`, balanceLine(acc, before, after, warnings), '會同步記一筆「股票買進」帳目（不計入收支），手續費另記支出'],

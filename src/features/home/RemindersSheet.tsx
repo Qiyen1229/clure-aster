@@ -1,12 +1,11 @@
 /**
  * 提醒中心（鈴鐺）：所有財務提醒的唯一入口——帳單到期、預算警示、訂閱續約、到價／除息、異常偵測（系統通知不可用時這裡是主要管道），點擊前往相關頁面。
- * 最上面是目前的偵測結果摘要，點開到 AI 助理看白話說明與處理。
+ * 最上面是「需要你看一下」（收件匣待確認、已超支、除息、異常偵測、AI 上週重點），首頁不再放提醒。
  */
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
-import { loadSnapshot } from '@/services/insightsCache';
-import { useSettings } from '@/stores/settings';
+import { AttentionCard } from './AttentionCard';
 import { clearAllReminders, markAllRead, notificationSupport, runReminderChecks } from '@/services/notifications';
 import { Sheet } from '@/ui/Sheet';
 import { EmptyState } from '@/ui/controls';
@@ -21,10 +20,6 @@ export function RemindersSheet({ open, onClose }: { open: boolean; onClose: () =
   const navigate = useNavigate();
   const list = useLiveQuery(() => db.reminders.orderBy('dueAt').reverse().filter((r) => !r.cleared).limit(60).toArray(), []) ?? [];
   const support = notificationSupport();
-  const cfg = useSettings((x) => x.insights);
-  const snap = useLiveQuery(() => loadSnapshot(), []);
-  const warnN = cfg?.anomaly ? (snap?.findings ?? []).filter((f) => f.severity === 'warn').length : 0;
-  const budN = cfg?.budgetWarn ? (snap?.warnings ?? []).length : 0;
   return (
     <Sheet open={open} onClose={() => { void markAllRead(); onClose(); }} title="提醒"
       right={(
@@ -38,11 +33,7 @@ export function RemindersSheet({ open, onClose }: { open: boolean; onClose: () =
           🔔 {support === 'needs-install' ? '把 App 加入主畫面後即可開啟系統通知（iOS 16.4+）' : support === 'unsupported' ? '此瀏覽器不支援系統通知，提醒會顯示在這裡' : '開啟系統通知，帳單與預算提醒不漏接 →'}
         </button>
       )}
-      {(warnN > 0 || budN > 0) && (
-        <button className="card" style={{ width: '100%', textAlign: 'left', marginBottom: 8 }} onClick={() => { onClose(); navigate('/ai'); }}>
-          🔎 目前偵測：{[warnN ? `${warnN} 項異常或疑似重複` : '', budN ? `${budN} 項預算預警` : ''].filter(Boolean).join('、')} →
-        </button>
-      )}
+      <AttentionCard onGo={onClose} />
       {list.length === 0 ? <EmptyState emoji="🔕" title="目前沒有提醒" text="帳單到期、預算警示、訂閱續約、到價提醒都會出現在這裡。" /> : (
         <div className="list">
           {list.map((r) => (

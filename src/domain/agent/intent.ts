@@ -26,9 +26,16 @@ const PATTERNS: RegExp[] = [
 // 「改」需要搭配分類或歸類的語意，單純的「改成」（例如備註）不算
 const NEEDS_CATEGORY_WORD = /分類|歸類|歸到|歸入|改歸|類別|都改/;
 
+// 記一筆／操作之後「順便給我看」某張檢視：句子有多個子句、有金額，又要求看財務自由、現金流、稅、花費…
+// （純看圖的短句已經在 localView 先被攔截；單純的問句「幫我看今年稅怎麼算」沒有多個子句與金額，不會走到這裡）
+const VIEW_ASK = /(給我看|幫我看|顯示|看看|模擬|試算).{0,12}(財務自由|退休|FIRE|現金流|稅|花費|支出)/i;
+const MULTI_CLAUSE = /[，,、；;]|順便|然後|再給|再幫|並且/;
+const HAS_AMOUNT = /\d|[一二兩三四五六七八九十百千萬]/;
+
 export function looksLikeOperation(text: string): boolean {
   const s = text.trim();
   if (s.length < 6) return false;
+  if (VIEW_ASK.test(s) && MULTI_CLAUSE.test(s) && HAS_AMOUNT.test(s)) return true;
   if (PATTERNS[0].test(s) && NEEDS_CATEGORY_WORD.test(s)) return true;
   return PATTERNS.slice(1).some((p) => p.test(s));
 }

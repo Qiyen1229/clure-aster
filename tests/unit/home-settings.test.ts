@@ -4,15 +4,17 @@ import { db } from '@/db/schema';
 import { DEFAULT_SETTINGS, loadSettings } from '@/db/repo/settings';
 
 describe('首頁簡潔版的設定', () => {
-  beforeEach(async () => { await db.settings.clear(); });
+  beforeEach(async () => { await db.settings.clear(); await db.meta.delete('homeWidgetsRestored'); });
 
-  it('預設：週曆收合、首頁不放小工具', () => {
+  it('預設：週曆收合、首頁放回快覽（今日可用、預算、淨資產）', () => {
     expect(DEFAULT_SETTINGS.calendarCollapsed).toBe(true);
-    expect(DEFAULT_SETTINGS.homeWidgets).toEqual([]);
+    expect(DEFAULT_SETTINGS.homeWidgets).toEqual(['today', 'budget', 'networth']);
     expect(DEFAULT_SETTINGS.homeAiChat).toBe(true); // AI 小圓球預設顯示
   });
-  it('舊的預設小工具組合（沒自己調整過）升級後不再顯示；自己調整過的維持原樣', async () => {
-    await db.settings.put({ key: 'homeWidgets', value: ['today', 'budget', 'networth', 'invest', 'bills'] });
+  it('4.1.1：之前被存成空的補上預設快覽（只一次）；自己選過的維持原樣；補過之後自己關掉就維持空的', async () => {
+    await db.settings.put({ key: 'homeWidgets', value: [] });
+    expect((await loadSettings()).homeWidgets).toEqual(['today', 'budget', 'networth']);
+    await db.settings.put({ key: 'homeWidgets', value: [] }); // 使用者之後自己把快覽全部關掉
     expect((await loadSettings()).homeWidgets).toEqual([]);
     await db.settings.put({ key: 'homeWidgets', value: ['networth', 'bills'] });
     expect((await loadSettings()).homeWidgets).toEqual(['networth', 'bills']);

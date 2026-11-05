@@ -7,7 +7,7 @@
  * - 「需要你看一下」：收件匣、預算預警、異常偵測、AI 上週重點併成一張卡，沒事就不出現。
  * - 小工具預設不在首頁（設定 → 首頁小工具可加回）。
  */
-import { useMemo, useState } from 'react';
+import { lazy, Suspense, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
@@ -23,13 +23,14 @@ import { Calendar } from './Calendar';
 
 import { AiOrb } from './AiOrb';
 import { MonthPicker } from './MonthPicker';
-import { AttentionCard } from './AttentionCard';
 import { HomeHero } from './HomeHero';
 import { RemindersSheet, useUnreadCount } from './RemindersSheet';
+import { useInboxCount } from '@/services/inboxCount';
 import { LedgerRow } from '../ledger/LedgerRow';
 
 // 小工具（連投資組合、報價都會載入）與對話視窗都比較大：用到才載入，不拖慢首頁
 
+const Widgets = lazy(() => import('./Widgets').then((m) => ({ default: m.Widgets })));
 const WEEK_NAMES = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
 
 export default function HomePage() {
@@ -37,10 +38,10 @@ export default function HomePage() {
   const selected = useUI((s) => s.selectedDate);
   const setSelected = useUI((s) => s.setSelectedDate);
   const openAdd = useUI((s) => s.openAdd);
-  const { weekStart, calendarCollapsed, baseCurrency, homeAiChat, set } = useSettings();
+  const { weekStart, calendarCollapsed, baseCurrency, homeAiChat, homeWidgets, set } = useSettings();
   const [monthOpen, setMonthOpen] = useState(false);
   const [remindersOpen, setRemindersOpen] = useState(false);
-  const unread = useUnreadCount();
+  const unread = useUnreadCount() + useInboxCount((x) => x.n);
 
   const sel = fromDateKey(selected);
   const year = sel.getFullYear();
@@ -172,9 +173,9 @@ export default function HomePage() {
         )}
       </section>
 
-      {/* 下半部獨立區塊：需要你看一下（收件匣、預算預警、異常偵測、AI 上週重點）與小工具；都沒有內容時整塊隱藏 */}
-      <div className="home-lower" aria-label="提醒與快覽">
-        <AttentionCard onOpenReminders={() => setRemindersOpen(true)} />
+      {/* 下半部獨立區塊：快覽（今日可用、預算、淨資產…可在設定增減）；提醒與待處理事項統一在右上角鈴鐺，沒有快覽時整塊隱藏 */}
+      <div className="home-lower" aria-label="快覽">
+        {homeWidgets.length > 0 && <Suspense fallback={null}><Widgets /></Suspense>}
       </div>
 
       <MonthPicker open={monthOpen} onClose={() => setMonthOpen(false)} year={year} month0={month0} onPick={goMonth} />

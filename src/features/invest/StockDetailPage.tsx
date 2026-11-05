@@ -23,6 +23,7 @@ import { MARKET_LABEL } from './StockSearch';
 import { TradeSheet } from './TradeSheet';
 import { DividendSheet } from './DividendsPage';
 import { pct, StaleBadge } from './InvestTab';
+import { useScreenDetail } from '@/stores/screenContext';
 
 const EChart = lazy(() => import('../reports/EChart'));
 const TYPE_LABEL: Record<StockTrade['type'], string> = { buy: '買進', sell: '賣出', stock_dividend: '配股', split: '分割' };
@@ -72,6 +73,8 @@ export default function StockDetailPage() {
     };
   }, [hist, h, range]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 讓 AI 對話知道你正在看哪一檔（在這裡說「買 1 張這檔」就會對到它）；只有代號、名稱與持有股數
+  useScreenDetail(stock ? `個股頁：${stock.symbol} ${stock.name}（${stock.market}）${h && h.pos.shares.gt(0) ? `，目前持有 ${h.pos.shares.toString()} 股` : '，目前沒有持股'}` : null);
   if (stock === undefined) return <main className="page"><SkeletonRows /></main>;
   if (!stock) return <main className="page"><EmptyState emoji="🤔" title="找不到標的" action={<button className="btn small" onClick={() => navigate('/accounts?tab=invest')}>回投資</button>} /></main>;
   const st = marketState(stock.market);

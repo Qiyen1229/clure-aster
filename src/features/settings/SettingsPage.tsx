@@ -303,6 +303,7 @@ export default function SettingsPage() {
       <Group id="look" title="顯示與格式">
         <Row icon="eye" tint="#0A84FF" label="外觀與顯示" sub={`${s.theme === 'system' ? '跟隨系統' : s.theme === 'dark' ? '深色' : '淺色'}・${ACCENTS.find((a) => a.key === s.accent)?.name ?? ''}・${s.upColor === 'red' ? '紅漲綠跌' : '綠漲紅跌'}`} onClick={() => setLookOpen(true)} />
         <Row icon="sliders" tint="#8E8E93" label="記帳格式與起算日" sub={`${s.baseCurrency}・每月 ${s.monthStartDay === 31 ? '最後一天' : `${s.monthStartDay} 日`}起算・一週從${s.weekStart === 0 ? '週日' : '週一'}`} onClick={() => setPrefsOpen(true)} />
+        <Row icon="grip" tint="#FF9F0A" label="首頁快覽" sub="今日可用、預算、淨資產…（可增減、排序）" onClick={() => navigate('/settings/widgets')} />
         <Row icon="globe" tint="#0A84FF" label="幣別與匯率" onClick={() => navigate('/settings/fx')}
           sub={fxAt ? `上次更新 ${new Date(fxAt).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : '尚未更新'} />
       </Group>

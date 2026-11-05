@@ -137,45 +137,49 @@ export default function AiConsole() {
       <p className="set-note">「測試連線」會送 1 次極小的請求（用掉供應商 1 次免費額度，不扣使用者額度），成功會解除冷卻。Key 只存在伺服器的 .env，這裡只顯示最後 4 碼。</p>
 
       <div className="section-title">用量（次）</div>
-      <div className="admin-grid">
+      <div className="admin-grid three">
         {([['今日', d.totals.today, st.global_daily], ['本週', d.totals.week, 0], ['本月', d.totals.month, 0]] as const).map(([k, v, cap]) => (
-          <div key={k} className={`admin-stat${cap && v >= cap ? ' warn' : ''}`}>
-            <div className="k">{k}{cap ? `（全站上限 ${cap}）` : ''}</div>
+          <div key={k} className={`admin-stat compact${cap && v >= cap ? ' warn' : ''}`}>
+            <div className="k">{k}</div>
             <div className="v num">{v}</div>
+            {cap ? <div className="k">全站上限 {cap}</div> : <div className="k">&nbsp;</div>}
           </div>
         ))}
       </div>
       {Object.keys(st.used_today_by_provider).length > 0 && (
         <p className="set-note">今日各供應商：{Object.entries(st.used_today_by_provider).map(([k, v]) => `${k} ${v}`).join('、')}</p>
       )}
-      <div className="list" aria-label="近 7 天每日用量">
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 90, padding: '10px 14px' }}>
+      <div className="card usage-chart" role="img" aria-label="近 7 天每日用量">
+        <div className="usage-bars">
           {d.daily.map((x) => (
-            <div key={x.date} style={{ flex: 1, textAlign: 'center', fontSize: 11 }}>
+            <div key={x.date} className="usage-bar">
               <div className="num">{x.count}</div>
-              <div style={{ height: Math.max(2, Math.round((x.count / max) * 50)), background: 'var(--accent)', borderRadius: 3, margin: '2px 0' }} />
+              <div className="usage-fill" style={{ height: Math.max(3, Math.round((x.count / max) * 56)) }} />
               <div className="muted">{x.date.slice(5)}</div>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="list">
+      <div className="usage-table" role="table" aria-label="依身分的用量">
+        <div className="usage-head" role="row"><span /><span>今日</span><span>本週</span><span>本月</span></div>
         {(['user', 'admin'] as const).map((r) => (
-          <div key={r} className="row">
-            <span className="row-main row-title">{r === 'admin' ? '管理員' : '一般使用者'}</span>
-            <span className="num muted">今日 {d.by_role[r].today} ／ 本週 {d.by_role[r].week} ／ 本月 {d.by_role[r].month}</span>
+          <div key={r} className="usage-row" role="row">
+            <span className="row-title">{r === 'admin' ? '管理員' : '一般使用者'}</span>
+            <span className="num">{d.by_role[r].today}</span><span className="num">{d.by_role[r].week}</span><span className="num">{d.by_role[r].month}</span>
           </div>
         ))}
       </div>
 
       <div className="section-title">各使用者用量（本月前 30 名）</div>
-      <div className="list">
-        {d.by_user.length === 0 && <div className="row muted">本月還沒有人使用</div>}
+      <div className="usage-table" role="table" aria-label="各使用者用量">
+        {d.by_user.length === 0 ? <div className="usage-row muted">本月還沒有人使用</div> : (
+          <div className="usage-head" role="row"><span /><span>今日</span><span>本週</span><span>本月</span></div>
+        )}
         {d.by_user.map((u) => (
-          <div key={u.user_id} className="row">
-            <span className="row-main row-title">{u.username}{u.role === 'admin' ? ' 🛡' : ''}</span>
-            <span className="num muted">今日 {u.today} ／ 本週 {u.week} ／ 本月 {u.month}</span>
+          <div key={u.user_id} className="usage-row" role="row">
+            <span className="row-title">{u.username}{u.role === 'admin' ? ' 🛡' : ''}</span>
+            <span className="num">{u.today}</span><span className="num">{u.week}</span><span className="num">{u.month}</span>
           </div>
         ))}
       </div>
@@ -193,20 +197,41 @@ export default function AiConsole() {
       <p className="set-note">不記錄使用者輸入的內容，只記次數、供應商與模型。失敗的呼叫不會出現在這裡（看供應商卡片的「最近錯誤」或 docker compose logs api）。</p>
 
       <div className="section-title">開關與額度</div>
-      <div className="list">
+      <div className="list" style={{ marginBottom: 10 }}>
         <SwitchField label="AI 功能" checked={st.enabled} onChange={(v) => { if (!busy) void save({ enabled: v }); }}
           sub={st.overridden ? '關閉後所有使用者都不能用 AI（記帳規則解析不受影響）' : '額度目前沿用 .env 預設值；在這裡儲存後以後台為準'} />
-        {limits.map(([k, label, v]) => (
-          <label key={k} className="field">
-            <span className="label" style={{ flex: 1, width: 'auto' }}>{label}（次，0＝不限）</span>
-            <input className="num" inputMode="numeric" style={{ width: 80, textAlign: 'right' }} value={draft[k] ?? String(v)}
-              onChange={(e) => setDraft({ ...draft, [k]: e.target.value.replace(/\D/g, '').slice(0, 7) })} />
-          </label>
+      </div>
+      <div className="quota-card">
+        {([['user', '一般使用者', '每人'], ['admin', '管理員', '每人']] as const).map(([role, name, who]) => (
+          <div key={role} className="quota-block">
+            <div className="quota-title">{name}<span>{who}</span></div>
+            <div className="quota-grid">
+              {([['daily', '每日'], ['weekly', '每週'], ['monthly', '每月']] as const).map(([per, label]) => {
+                const k = `${role}_${per}`;
+                const v = (st as unknown as Record<string, number>)[k];
+                return (
+                  <label key={k} className="quota-field">
+                    <span>{label}</span>
+                    <input className="num" inputMode="numeric" aria-label={`${name}${who}${label}額度`} value={draft[k] ?? String(v)}
+                      onChange={(e) => setDraft({ ...draft, [k]: e.target.value.replace(/\D/g, '').slice(0, 7) })} />
+                  </label>
+                );
+              })}
+            </div>
+          </div>
         ))}
-        <div className="row">
-          <button className="btn small" disabled={!dirty || busy} onClick={() => void save(Object.fromEntries(limits.filter(([k]) => draft[k] !== undefined).map(([k]) => [k, Number(draft[k] || 0)])))}>儲存額度</button>
-          <span className="row-sub" style={{ whiteSpace: 'normal' }}>每日 00:00、每週一 00:00、每月 1 日重置。全站每日上限建議設在免費供應商的每日額度以內。</span>
+        <div className="quota-block">
+          <div className="quota-title">全站每日<span>兩者合計</span></div>
+          <div className="quota-grid one">
+            <label className="quota-field">
+              <span>每日上限</span>
+              <input className="num" inputMode="numeric" aria-label="全站每日上限" value={draft.global_daily ?? String(st.global_daily)}
+                onChange={(e) => setDraft({ ...draft, global_daily: e.target.value.replace(/\D/g, '').slice(0, 7) })} />
+            </label>
+          </div>
         </div>
+        <p className="quota-note">單位是「次」，填 0＝不限。每日 00:00、每週一 00:00、每月 1 日重置；全站每日上限建議設在免費供應商的每日額度以內。</p>
+        <button className="btn" disabled={!dirty || busy} onClick={() => void save(Object.fromEntries(limits.filter(([k]) => draft[k] !== undefined).map(([k]) => [k, Number(draft[k] || 0)])))}>{busy ? '儲存中…' : '儲存額度'}</button>
       </div>
     </>
   );

@@ -184,7 +184,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sankeyEssential: null,
   calendarCollapsed: true, // 首頁預設只顯示本週（可展開整月）；已經選過的人維持自己的選擇
   ledgerUnit: 'month',
-  homeWidgets: [], // 3.6.1 起首頁預設不放小工具（淨資產、投資、帳單在「帳戶」頁；設定 → 首頁小工具可加回）
+  homeWidgets: ['today', 'budget', 'networth'], // 4.1.1 起首頁的快覽（今日可用、預算、淨資產）預設回來；設定 → 首頁快覽可增減、排序
   homeAiChat: true,
   quote: {
     proxyUrl: '/proxy',
@@ -226,12 +226,15 @@ export async function loadSettings(): Promise<Settings> {
     // 物件型設定與預設值合併，新版本新增的欄位才有預設
     s[r.key] = def && typeof def === 'object' && !Array.isArray(def) && r.value && typeof r.value === 'object' ? { ...def, ...(r.value as object) } : r.value;
   }
-  // 3.6.1：首頁改成簡潔版，舊的預設小工具組合（沒有自己調整過）不再預設顯示；調整過的維持原樣
-  if (JSON.stringify(s.homeWidgets) === JSON.stringify(LEGACY_HOME_WIDGETS)) s.homeWidgets = [];
+  // 4.1.1：首頁快覽放回首頁。之前被存成空的（3.6.1 起預設就是空）補上預設組合並存回去；自己選過小工具的維持原樣。
+  // 只做一次（標記放在不同步的 meta）：之後使用者自己把快覽全部關掉就會維持空的
+  if (!(s.homeWidgets as unknown[] | undefined)?.length && rows.some((r) => r.key === 'homeWidgets') && !(await db.meta.get('homeWidgetsRestored'))) {
+    s.homeWidgets = [...DEFAULT_SETTINGS.homeWidgets];
+    await db.settings.put({ key: 'homeWidgets', value: s.homeWidgets });
+  }
+  if (!(await db.meta.get('homeWidgetsRestored'))) await db.meta.put({ key: 'homeWidgetsRestored', value: 1 });
   return s as unknown as Settings;
 }
-
-const LEGACY_HOME_WIDGETS = ['today', 'budget', 'networth', 'invest', 'bills'];
 
 export async function saveSetting<K extends keyof Settings>(key: K, value: Settings[K]): Promise<void> {
   await db.settings.put({ key, value });

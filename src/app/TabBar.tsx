@@ -303,7 +303,10 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
 
   const onMove = (e: React.PointerEvent<HTMLButtonElement>) => {
     if (held.current || !pressing) return;
-    if (startY.current - e.clientY > SWIPE_UP_PX) {
+    const up = startY.current - e.clientY;
+    // 手指已經開始往上滑：不要再讓「長按語音」在滑到一半時搶先跳出來（慢慢滑的人會誤開語音彈窗）
+    if (up > 10 && plusMode) window.clearTimeout(timer.current);
+    if (up > SWIPE_UP_PX) {
       window.clearTimeout(timer.current);
       held.current = true;
       heldKind.current = 'ai';

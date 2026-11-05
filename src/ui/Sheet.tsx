@@ -5,7 +5,7 @@
  * 巢狀開啟時（例如記帳面板內再開帳戶選擇），後開的抽屜與其背景會疊在前一層之上，
  * 因此點任何空白處都只會關閉最上層，避免誤觸後無法退出。
  */
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './Icon';
 
@@ -46,6 +46,13 @@ export function Sheet({ open, onClose, title, left, right, full, variant, childr
       return () => clearTimeout(t);
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 拖曳過程中為了跟手把進場動畫設成 none；退出動畫的 class 套上去的同一個畫面，才把動畫還給樣式表（不會有進場動畫閃一格）
+  useLayoutEffect(() => {
+    if (!closing) return;
+    if (sheetRef.current) sheetRef.current.style.animation = '';
+    if (backdropRef.current) backdropRef.current.style.animation = '';
+  }, [closing]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -134,21 +141,19 @@ export function Sheet({ open, onClose, title, left, right, full, variant, childr
       const h = el.offsetHeight || 1;
       const shouldClose = e.type === 'touchend' && (dy > h * 0.28 || (v > 0.45 && dy > 24));
       if (shouldClose && !confirmClose) {
-        // 關閉動畫從目前位置接著往下滑出（keyframe 只有 to，起點取當下的 transform）
-        el.style.animation = '';
+        // 關閉動畫從目前位置接著往下滑出（keyframe 只有 to，起點取當下的 transform）；動畫在套上退出 class 時才還給樣式表
         el.style.transition = 'none';
-        if (bd) bd.style.animation = '';
         requestCloseRef.current();
         return;
       }
       // 需要確認的彈窗：先彈回原位，再問（確認視窗是非同步的；確認放棄才會走退出動畫）
       if (shouldClose && confirmClose) requestCloseRef.current();
-      // 彈回原位
-      el.style.animation = '';
+      // 彈回原位：進場動畫維持關閉（不要還給樣式表——那會讓進場動畫從頭重播，看起來像瞬間閃一下或整片重新滑入）；
+      // 之後真的要關閉時，上面的 effect 會把動畫還給樣式表播放退出動畫
       el.style.transition = 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)';
       el.style.transform = '';
       if (bd) { bd.style.transition = 'opacity 320ms ease'; bd.style.opacity = ''; }
-      window.setTimeout(() => { el.style.transition = ''; if (bd) { bd.style.transition = ''; bd.style.animation = ''; } }, 340);
+      window.setTimeout(() => { el.style.transition = ''; if (bd) bd.style.transition = ''; }, 340);
     };
     el.addEventListener('touchstart', onStart, { passive: true });
     el.addEventListener('touchmove', onMove, { passive: false });
