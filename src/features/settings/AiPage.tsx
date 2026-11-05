@@ -9,6 +9,7 @@ import { useSettings } from '@/stores/settings';
 import { SwitchField } from '@/ui/form';
 import { AiMark, Icon } from '@/ui/Icon';
 
+import { Fold } from '@/ui/Fold';
 const resetText = (iso: string) => new Date(iso + 'Z').toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 
 function Bar({ label, w }: { label: string; w: AiQuotaWindow }) {
@@ -73,7 +74,7 @@ export default function AiPage() {
           <Icon name="chevronR" className="row-chev" />
         </button>
       </div>
-      <div className="section-title">我的額度</div>
+      <Fold id="AiPage.0" title="我的額度" defaultOpen>
       {err ? <p className="muted" style={{ margin: '0 8px' }}>{err}</p> : !st ? null : (
         <>
           <div className="list">
@@ -85,6 +86,7 @@ export default function AiPage() {
           <p className="set-note">每日 00:00、每週一 00:00、每月 1 日 00:00（台北時間）重置；任何一層用完就暫停，其他記帳功能不受影響。AI 失敗或看不懂時不扣額度。一般使用者與管理員的額度分開計算，由管理員設定。</p>
         </>
       )}
+      </Fold>
     </main>
   );
 }

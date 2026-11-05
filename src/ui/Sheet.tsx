@@ -16,9 +16,11 @@ interface Props {
   left?: ReactNode;
   right?: ReactNode;
   full?: boolean;
+  /** rise：對話視窗用——從底部平順升起（淡入＋小幅上移），不用整片滑入的彈窗動畫 */
+  variant?: 'rise';
   children: ReactNode;
-  /** 有未儲存內容時，下滑／點背景先詢問 */
-  confirmClose?: () => boolean;
+  /** 有未儲存內容時，下滑／點背景先詢問（可以是非同步的自製確認視窗） */
+  confirmClose?: () => boolean | Promise<boolean>;
   labelledBy?: string;
 }
 
@@ -26,7 +28,7 @@ interface Props {
 const stack: number[] = [];
 let nextId = 1;
 
-export function Sheet({ open, onClose, title, left, right, full, children, confirmClose }: Props) {
+export function Sheet({ open, onClose, title, left, right, full, variant, children, confirmClose }: Props) {
   const [mounted, setMounted] = useState(open);
   const [closing, setClosing] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -66,8 +68,8 @@ export function Sheet({ open, onClose, title, left, right, full, children, confi
   }, [mounted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const requestClose = () => {
-    if (confirmClose && !confirmClose()) return;
-    onClose();
+    if (!confirmClose) { onClose(); return; }
+    void Promise.resolve(confirmClose()).then((ok) => { if (ok) onClose(); });
   };
   requestCloseRef.current = requestClose;
 
@@ -131,7 +133,7 @@ export function Sheet({ open, onClose, title, left, right, full, children, confi
       const v = last.t > ref.t ? (last.y - ref.y) / (last.t - ref.t) : 0; // px/ms，向下為正
       const h = el.offsetHeight || 1;
       const shouldClose = e.type === 'touchend' && (dy > h * 0.28 || (v > 0.45 && dy > 24));
-      if (shouldClose && (!confirmClose || confirmClose())) {
+      if (shouldClose && !confirmClose) {
         // 關閉動畫從目前位置接著往下滑出（keyframe 只有 to，起點取當下的 transform）
         el.style.animation = '';
         el.style.transition = 'none';
@@ -139,6 +141,8 @@ export function Sheet({ open, onClose, title, left, right, full, children, confi
         requestCloseRef.current();
         return;
       }
+      // 需要確認的彈窗：先彈回原位，再問（確認視窗是非同步的；確認放棄才會走退出動畫）
+      if (shouldClose && confirmClose) requestCloseRef.current();
       // 彈回原位
       el.style.animation = '';
       el.style.transition = 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)';
@@ -184,7 +188,7 @@ export function Sheet({ open, onClose, title, left, right, full, children, confi
     <>
       <div ref={backdropRef} className={`sheet-backdrop${closing ? ' closing' : ''}`} style={{ zIndex: z }}
         onClick={requestClose} onPointerDown={(e) => e.stopPropagation()} aria-hidden="true" />
-      <div ref={sheetRef} className={`sheet${full ? ' full' : ''}${closing ? ' closing' : ''}`} style={{ zIndex: z + 1 }}
+      <div ref={sheetRef} className={`sheet${full ? ' full' : ''}${variant ? ` ${variant}` : ''}${closing ? ' closing' : ''}`} style={{ zIndex: z + 1 }}
         role="dialog" aria-modal="true" tabIndex={-1} aria-label={typeof title === 'string' ? title : undefined}>
         <div className="sheet-grab" onPointerDown={onPointerDown} onPointerMove={onPointerMove}
           onPointerUp={onPointerUp} onPointerCancel={onPointerUp} />

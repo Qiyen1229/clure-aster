@@ -2,7 +2,7 @@
 
 > 目的：讓接手的 AI（或新開發者）**不用逐檔翻程式碼**就知道「這個 App 能做什麼、每個功能怎麼運作、規則是什麼、程式在哪」。
 > 與 [PROJECT_OVERVIEW_FOR_AI.md](PROJECT_OVERVIEW_FOR_AI.md)（技術棧、架構、部署、檔案地圖）互補：那份偏「怎麼建」，這份偏「做了什麼」。
-> 版本：**4.0.0**（2026-11-05）。分支 `feature/v1.2`。逐版細節見 [CHANGELOG.md](CHANGELOG.md)；設計文件見 `docs/`。
+> 版本：**4.0.1**（2026-11-05）。分支 `feature/v1.2`。逐版細節見 [CHANGELOG.md](CHANGELOG.md)；設計文件見 `docs/`。
 > 慣例：金額內部一律用**整數最小單位**（TWD 的 1 元 = 100），不要用浮點數；使用者可見文字一律**繁體中文（台灣用語）**。
 
 ---
@@ -190,7 +190,7 @@ JSON 完整備份／還原（含照片）、**加密備份**（PBKDF2-SHA256 310
 ---
 
 ## 6. 測試與品質
-- 前端 Vitest **537 項**（`tests/unit/`，fake-indexeddb）＋後端 pytest **161 項**（`server/tests/`）＝ **698 項**；`npm run check` = 型態檢查 + ESLint（0 警告）+ 測試；CI 於 main 與 feature 分支每次推送執行。
+- 前端 Vitest **539 項**（`tests/unit/`，fake-indexeddb）＋後端 pytest **161 項**（`server/tests/`）＝ **700 項**；`npm run check` = 型態檢查 + ESLint（0 警告）+ 測試；CI 於 main 與 feature 分支每次推送執行。
 - 純函式優先放 `src/domain/`（便於測試）；有副作用的放 `src/services/`；資料庫存取放 `src/db/repo/`。
 
 ## 7. 給修改者的注意事項（踩過的坑）
@@ -202,7 +202,8 @@ JSON 完整備份／還原（含照片）、**加密備份**（PBKDF2-SHA256 310
 6. 圓角容器底下若墊有色塊（滑動刪除的紅色），平常要隱藏，否則圓角邊緣會透色。
 7. NAS 部署：compose 專案名是 `aster`（`sudo docker compose -p aster up -d`）；**不要刪除 Aster 資料夾**（容器 bind mount 會失效，報價代理 502），只覆蓋檔案；`.env` 與 `data/` 不在 `aster-nas.zip` 內。
 8. 每次更新流程：測試通過 → 更新版本號（`package.json`、`package-lock.json`、`server/app/main.py`）與 `CHANGELOG.md`、README／總覽的測試數 → commit（訊息尾端加 Co-Authored-By）→ 推 `feature/v1.2` → `npm run pack:nas`。**版本號由使用者決定；合併／推送 `main` 要使用者明說。**
-9. 使用者面向的文字一律繁體中文（台灣用語）；不要在回覆或文件中複述金鑰、權杖。
+9. **新功能要加「新功能標記」**：標題前放 `<NewMark since="版本" />`（`ui/NewMark.tsx`，過兩個次版本自動消失）；設定頁與子頁的段落用 `ui/Fold.tsx`（可折疊、標題＋一行小字介紹）；確認操作用 `askConfirm()`（`stores/ui.ts`＋`app/overlays.tsx` 的 `ConfirmHost`），不要用 `window.confirm`（iOS 內建視窗）。
+10. 使用者面向的文字一律繁體中文（台灣用語）；不要在回覆或文件中複述金鑰、權杖。
 
 ## 8. 想看更細？
 | 主題 | 文件 |

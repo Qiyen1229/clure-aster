@@ -10,6 +10,7 @@ import { summarizePlan, type ResolvedStep } from '@/domain/agent/plan';
 import { formatMoney } from '@/domain/money';
 import { useSettings } from '@/stores/settings';
 import { snackUndo, useUI } from '@/stores/ui';
+import { NewMark } from '@/ui/NewMark';
 
 const EXAMPLES = [
   '把上個月所有 Uber 跟台灣大車隊都歸到「交通」，並設交通每月預算 3000，超過 80% 提醒我',
@@ -67,7 +68,7 @@ export function AgentCard({ initialText = '' }: { initialText?: string }) {
 
   return (
     <section className="card" aria-label="操作助手" style={{ minWidth: 0 }}>
-      <div className="row-title" style={{ whiteSpace: 'normal' }}>🧰 用說的整理帳本</div>
+      <div className="row-title" style={{ whiteSpace: 'normal' }}><NewMark since="4.0.0" /> 🧰 用說的整理帳本</div>
       <div className="row-sub" style={{ whiteSpace: 'normal' }}>
         說出你想做的事，AI 只負責規劃；你會先看到「執行預覽」（影響幾筆、預算怎麼變、帳戶餘額），確認才會執行，之後還能一鍵還原。
         只會送出這句話與分類、帳戶的名稱（1 點額度）。
@@ -75,7 +76,7 @@ export function AgentCard({ initialText = '' }: { initialText?: string }) {
 
       <form style={{ display: 'grid', gap: 8, marginTop: 10 }} onSubmit={(e) => { e.preventDefault(); void run(text); }}>
         <textarea className="input" rows={2} value={text} onChange={(e) => setText(e.target.value)} maxLength={300} aria-label="想做的事"
-          placeholder="例如：把上個月所有 Uber 都改歸類到「交通」，並設每月預算 3000" style={{ resize: 'vertical' }} />
+          placeholder="例如：把上個月所有 Uber 都改歸類到「交通」，並設每月預算 3000" style={{ resize: 'vertical', padding: '13px 14px', lineHeight: 1.5, minHeight: 76 }} />
         <button className="btn" type="submit" disabled={busy || !text.trim()}>{busy && !plan ? '規劃中…' : '產生執行預覽'}</button>
       </form>
       {!plan && !done && !busy && (

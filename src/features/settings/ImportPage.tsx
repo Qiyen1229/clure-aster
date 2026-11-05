@@ -13,6 +13,7 @@ import { SwitchField } from '@/ui/form';
 import { useSettings } from '@/stores/settings';
 import { useUI } from '@/stores/ui';
 import { Icon } from '@/ui/Icon';
+import { NewMark } from '@/ui/NewMark';
 import { aiEnabledLocally, aiStatement, quotaLabel, type StatementEntry } from '@/services/ai';
 import { ReconcilePanel } from './ReconcilePanel';
 
@@ -143,7 +144,7 @@ export default function ImportPage() {
             <input type="file" accept=".csv,text/csv,text/plain" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; setMode('import'); if (f) void onFile(f); }} />
           </label>
           <div className="card" style={{ marginTop: 12 }}>
-            <p style={{ marginTop: 0 }}><b>🧾 對帳：核對帳單和你的帳本</b></p>
+            <p style={{ marginTop: 0 }}><NewMark since="4.0.0" /> <b>🧾 對帳：核對帳單和你的帳本</b></p>
             <p className="muted" style={{ fontSize: '0.88rem', marginTop: 0, whiteSpace: 'normal' }}>
               拿信用卡或銀行帳單來核對，不會匯入：列出「已吻合、漏記、金額有差（匯差、手續費）、帳本多記」，勾選後一鍵補齊並平帳，可復原。
               日期容差 ±3 天，比對在你的手機上完成。

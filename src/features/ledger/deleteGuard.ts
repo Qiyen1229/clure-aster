@@ -6,6 +6,7 @@ import { db } from '@/db/schema';
 import { convertMinor, currencyInfo, formatMoney } from '@/domain/money';
 import { resolveRate } from '@/services/fx';
 import { useSettings } from '@/stores/settings';
+import { askConfirm } from '@/stores/ui';
 import type { Transaction, Transfer } from '@/db/types';
 
 /** 主幣別金額達此數字（整數元）就算大額 */
@@ -40,13 +41,13 @@ export async function withTransferBase(x: DeleteTarget, base = useSettings.getSt
 }
 
 /** 需要確認時跳出確認框；回傳是否可以刪除 */
-export function confirmDelete(x: DeleteTarget): boolean {
+export async function confirmDelete(x: DeleteTarget): Promise<boolean> {
   const why = deleteWarning(x);
-  return !why || window.confirm(`確定要刪除這筆帳目嗎？\n${why}`);
+  return !why || askConfirm({ title: '確定要刪除這筆帳目嗎？', message: `${why}\n刪除後可以在提示上按「復原」。`, confirmText: '刪除', danger: true });
 }
 
 export async function confirmDeleteById(kind: 'tx' | 'transfer', id: string): Promise<boolean> {
   const row = kind === 'tx' ? await db.transactions.get(id) : await db.transfers.get(id);
   if (!row) return true;
-  return confirmDelete(await withTransferBase(kind === 'tx' ? { tx: row as Transaction } : { tr: row as Transfer }));
+  return await confirmDelete(await withTransferBase(kind === 'tx' ? { tx: row as Transaction } : { tr: row as Transfer }));
 }

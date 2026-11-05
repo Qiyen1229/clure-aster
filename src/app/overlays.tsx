@@ -28,6 +28,37 @@ export function SnackbarHost() {
   );
 }
 
+/**
+ * 確認視窗（自製，取代瀏覽器／iOS 內建的 confirm）：置中的圓角卡片，點背景或按 Esc＝取消，
+ * 預設焦點在「取消」（誤按 Enter 不會執行破壞性操作）。比一般彈窗層級更高，可疊在記帳面板上。
+ */
+export function ConfirmHost() {
+  const c = useUI((s) => s.confirm);
+  const close = useUI((s) => s.closeConfirm);
+  useEffect(() => {
+    if (!c) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); close(false); } };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [c, close]);
+  if (!c) return null;
+  return (
+    <div className="dlg-wrap" key={c.id}>
+      <div className="dlg-backdrop" onClick={() => close(false)} aria-hidden="true" />
+      <div className="dlg" role="alertdialog" aria-modal="true" aria-labelledby={`dlg-t-${c.id}`} aria-describedby={c.message ? `dlg-m-${c.id}` : undefined}>
+        <div className="dlg-body">
+          <h2 id={`dlg-t-${c.id}`}>{c.title}</h2>
+          {c.message && <p id={`dlg-m-${c.id}`}>{c.message}</p>}
+        </div>
+        <div className="dlg-actions">
+          <button autoFocus onClick={() => close(false)}>{c.cancelText ?? '取消'}</button>
+          <button className={c.danger ? 'danger' : 'primary'} onClick={() => close(true)}>{c.confirmText ?? '確定'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ActionSheetHost() {
   const actions = useUI((s) => s.actions);
   const close = useUI((s) => s.closeActions);

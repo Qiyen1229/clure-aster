@@ -142,7 +142,7 @@ export function AiChatSheet() {
   const submit = (e: React.FormEvent) => { e.preventDefault(); const t = q; setQ(''); void send(t); };
 
   return (
-    <Sheet open={open} onClose={() => setOpen(false)} title="對話" full
+    <Sheet open={open} onClose={() => setOpen(false)} title="對話" full variant="rise"
       right={msgs.length ? <button className="accent" onClick={clear}>清除</button> : undefined}>
       <div className="chat-wrap">
         <div className="chat-list" role="log" aria-live="polite">

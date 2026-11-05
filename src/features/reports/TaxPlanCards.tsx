@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { adviceOf, overseasAdvice, sharesText, type DivAnalysis } from '@/domain/taxplan';
 import { loadTaxPlan } from '@/services/taxplan';
+import { NewMark } from '@/ui/NewMark';
 
 const n = (v: number) => `${v < 0 ? '−' : ''}$${Math.abs(Math.round(v)).toLocaleString('zh-TW')}`;
 const md = (d: string | null) => (d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8))}` : '—');
@@ -59,14 +60,14 @@ export function TaxPlanCards() {
   const oadv = ow ? overseasAdvice(ow) : null;
   return (
     <>
-      <div className="section-title">📅 除息前預警（未來 4 個月）</div>
+      <div className="section-title"><NewMark since="4.0.0" /> 📅 除息前預警（未來 4 個月）</div>
       {!plan.netIncomeSet && <p className="row-sub" style={{ margin: '0 8px 8px', whiteSpace: 'normal' }}>你還沒填下面的「綜合所得淨額」，目前以 0 估算（邊際稅率 5%）；填了之後建議會更準。</p>}
       {plan.events.length === 0 ? (
         <section className="card"><p style={{ margin: 0, whiteSpace: 'normal' }}>近期沒有持股要除息。公告或有去年的配息紀錄時，這裡會提早告訴你會不會被扣二代健保，以及要不要參與除息。</p></section>
       ) : plan.events.map((a) => <EventCard key={`${a.event.stockId}:${a.event.exDate ?? a.event.payDate}`} a={a} />)}
       {ow && oadv && (
         <>
-          <div className="section-title">🌏 海外所得控管（{plan.year} 年）</div>
+          <div className="section-title"><NewMark since="4.0.0" /> 🌏 海外所得控管（{plan.year} 年）</div>
           <section className="card">
             <div className="stat-grid">
               <div className="stat"><div className="k">海外所得（股利＋獲利）</div><div className="v num">{n(ow.income)}</div></div>

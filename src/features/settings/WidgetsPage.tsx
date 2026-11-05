@@ -7,6 +7,7 @@ import { useSettings } from '@/stores/settings';
 import { Switch } from '@/ui/controls';
 import { Icon } from '@/ui/Icon';
 
+import { Fold } from '@/ui/Fold';
 export default function WidgetsPage() {
   const navigate = useNavigate();
   const keys = useSettings((s) => s.homeWidgets);
@@ -34,7 +35,7 @@ export default function WidgetsPage() {
           <Switch checked={homeAiChat} label="顯示 AI 小圓球" onChange={(v) => set('homeAiChat', v)} />
         </div>
       </div>
-      <div className="section-title">顯示中（依序排列在首頁最下方；預設是空的，首頁保持簡潔）</div>
+      <Fold id="WidgetsPage.0" title="顯示中（依序排列在首頁最下方；預設是空的，首頁保持簡潔）" defaultOpen>
       <div className="list">
         {keys.map((k, i) => (
           <div key={k} className="row">
@@ -46,9 +47,10 @@ export default function WidgetsPage() {
         ))}
         {keys.length === 0 && <div className="row muted">目前首頁沒有小工具（淨資產、投資、帳單可以在「帳戶」頁看到）；要的話從下面加回來</div>}
       </div>
+      </Fold>
       {hidden.length > 0 && (
         <>
-          <div className="section-title">已隱藏</div>
+          <Fold id="WidgetsPage.1" title="已隱藏">
           <div className="list">
             {hidden.map((w) => (
               <div key={w.key} className="row">
@@ -57,6 +59,7 @@ export default function WidgetsPage() {
               </div>
             ))}
           </div>
+          </Fold>
         </>
       )}
     </main>

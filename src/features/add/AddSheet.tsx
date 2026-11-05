@@ -22,7 +22,7 @@ import { getRate } from '@/services/fx';
 import { discardAttachments, saveImageAttachment } from '@/services/attachments';
 import { useAccounts, useCategories, useProjects, useTags } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
-import { snackUndo, useUI, type AddMode } from '@/stores/ui';
+import { askConfirm, snackUndo, useUI, type AddMode } from '@/stores/ui';
 import { confirmDeleteById } from '../ledger/deleteGuard';
 import { Sheet } from '@/ui/Sheet';
 import { Segmented, Switch } from '@/ui/controls';
@@ -241,7 +241,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
   };
 
   const dirty = !saved.current && (expr !== '' || note !== '' || atts.some((a) => a.fresh));
-  const confirmClose = () => !dirty || editing || window.confirm('放棄這筆尚未儲存的記帳？');
+  const confirmClose = () => !dirty || editing || askConfirm({ title: '放棄這筆記帳？', message: '已輸入的內容還沒儲存，離開後就不會保留。', confirmText: '放棄', cancelText: '繼續編輯', danger: true });
   const handleClose = () => {
     if (!saved.current) void discardAttachments(atts.filter((a) => a.fresh).map((a) => a.id));
     onClose();

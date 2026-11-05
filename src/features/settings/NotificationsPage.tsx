@@ -12,6 +12,7 @@ import { Switch } from '@/ui/controls';
 import { Icon } from '@/ui/Icon';
 import type { NotifySettings } from '@/db/repo/settings';
 
+import { Fold } from '@/ui/Fold';
 const STATE_TEXT: Record<PermissionState, string> = {
   granted: '已允許系統通知 ✓',
   denied: '通知已被封鎖。請到 iPhone「設定 → 通知 → Aster」或瀏覽器網站設定中允許。',
@@ -77,7 +78,7 @@ export default function NotificationsPage() {
       </div>
       {AUTH_ENABLED && (
         <>
-          <div className="section-title">背景推播</div>
+          <Fold id="NotificationsPage.0" title="背景推播" defaultOpen>
           <div className="list">
             <div className="field"><span className="label" style={{ flex: 1 }}>App 關閉時也提醒<span className="row-sub" style={{ display: 'block' }}>經你的伺服器發送：每日記帳、繳款、續約、心願、週報月報、備份</span></span>
               <Switch checked={n.push} label="背景推播" onChange={async (v) => {
@@ -103,9 +104,10 @@ export default function NotificationsPage() {
             }}>傳送測試推播</button>}
             {!pushSupported() && <div className="row"><span className="row-main row-sub" style={{ whiteSpace: 'normal' }}>目前的瀏覽器無法使用背景推播（需 HTTPS；iPhone 需 iOS 16.4 以上並從主畫面開啟）。</span></div>}
           </div>
+          </Fold>
         </>
       )}
-      <div className="section-title">提醒項目</div>
+      <Fold id="NotificationsPage.1" title="提醒項目">
       <div className="list">
         {row('每日記帳提醒', 'daily', '設定時間後若當天沒有記帳')}
         {n.daily && <div className="field"><span className="label">提醒時間</span><input type="time" value={n.dailyTime} onChange={(e) => set({ dailyTime: e.target.value || '21:00' })} /></div>}
@@ -127,6 +129,7 @@ export default function NotificationsPage() {
       <p className="muted" style={{ fontSize: '0.78rem', margin: 8 }}>
         沒開背景推播時，提醒只會在「開啟 App」與「App 在前景」時檢查並發出。背景推播由 App 每次開啟時預先排好接下來 14 天的提醒；預算與到價提醒需要即時資料，仍在 App 開啟時檢查。
       </p>
+      </Fold>
     </main>
   );
 }

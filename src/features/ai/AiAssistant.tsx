@@ -27,6 +27,7 @@ import { Switch } from '@/ui/controls';
 import { AiInsightsCard } from './AiInsights';
 import { lastCompleted } from '@/services/summary';
 import { AgentCard } from './AgentCard';
+import { SmartAlerts } from './SmartAlerts';
 
 const ASK_CHIPS = ['這個月哪裡花太多？', '我的儲蓄率健康嗎？', '有哪些固定支出可以檢討？', '怎麼更快達成存錢目標？'];
 const Err = ({ text }: { text: string }) => (text ? <p className="row-sub" role="alert" style={{ color: 'var(--danger)', whiteSpace: 'normal' }}>{text}</p> : null);
@@ -295,7 +296,7 @@ export default function AiAssistant() {
       <button className="icon-btn" aria-label="AI 設定" onClick={() => navigate('/settings/ai')}><Icon name="sliders" /></button>
     </header>
   );
-  if (!AUTH_ENABLED) return <main className="page">{header}<p className="muted" style={{ margin: 16 }}>AI 功能需要登入帳號與自架伺服器。</p></main>;
+  if (!AUTH_ENABLED) return <main className="page">{header}<p className="muted" style={{ margin: 16 }}>AI 功能需要登入帳號與自架伺服器。</p><SmartAlerts /></main>;
   if (!ai?.enabled) {
     return (
       <main className="page">{header}
@@ -304,6 +305,7 @@ export default function AiAssistant() {
           <p style={{ whiteSpace: 'normal' }}>問問題、下個月預算建議、白話解讀、整理分類、拍照記帳。預設關閉，需要先在設定開啟，並看過會送出哪些內容。</p>
           <button className="btn" onClick={() => navigate('/settings/ai')}>前往 AI 設定</button>
         </section>
+        <SmartAlerts />
       </main>
     );
   }
@@ -329,6 +331,7 @@ export default function AiAssistant() {
         )}
         <CategorizeCard />
         <ReceiptCard />
+        <SmartAlerts />
       </div>
       <p className="set-note">AI 的建議僅供參考，不構成投資或財務專業建議。可到「設定 → AI 設定」查看送出的內容與額度。</p>
     </main>

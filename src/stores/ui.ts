@@ -60,12 +60,27 @@ interface UIState {
   showSnack: (s: Omit<SnackItem, 'id'>) => void;
   dismissSnack: () => void;
 
+  /** 自製確認視窗（取代瀏覽器／iOS 內建的 confirm）：用 askConfirm() 取得使用者的選擇 */
+  confirm: ConfirmRequest | null;
+  closeConfirm: (ok: boolean) => void;
+
   actions: { title?: string; items: ActionItem[] } | null;
   showActions: (title: string | undefined, items: ActionItem[]) => void;
   closeActions: () => void;
 }
 
+export interface ConfirmOptions {
+  title: string;
+  message?: string;
+  confirmText?: string;
+  cancelText?: string;
+  /** 確認鍵是破壞性操作（刪除、放棄）：用紅色 */
+  danger?: boolean;
+}
+export interface ConfirmRequest extends ConfirmOptions { id: number; resolve: (ok: boolean) => void }
+
 let snackSeq = 0;
+let confirmSeq = 0;
 
 export const useUI = create<UIState>((set) => ({
   selectedDate: todayKey(),
@@ -82,6 +97,9 @@ export const useUI = create<UIState>((set) => ({
   showSnack: (s) => set({ snack: { ...s, id: ++snackSeq } }),
   dismissSnack: () => set({ snack: null }),
 
+  confirm: null,
+  closeConfirm: (ok) => set((s) => { s.confirm?.resolve(ok); return { confirm: null }; }),
+
   actions: null,
   showActions: (title, items) => set({ actions: { title, items } }),
   closeActions: () => set({ actions: null }),
@@ -90,4 +108,12 @@ export const useUI = create<UIState>((set) => ({
 /** 統一的「已刪除・復原」提示 */
 export function snackUndo(text: string, undo: () => void | Promise<void>) {
   useUI.getState().showSnack({ text, actionLabel: '復原', onAction: () => void undo(), duration: 5000 });
+}
+
+/** 自製的確認視窗；回傳 true＝按了確認。同時只會顯示一個，後來的會取代前一個（前一個視為取消） */
+export function askConfirm(opts: ConfirmOptions): Promise<boolean> {
+  return new Promise((resolve) => {
+    useUI.getState().confirm?.resolve(false);
+    useUI.setState({ confirm: { ...opts, id: ++confirmSeq, resolve } });
+  });
 }

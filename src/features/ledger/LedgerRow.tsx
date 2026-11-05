@@ -27,7 +27,7 @@ interface Props {
 }
 
 export async function deleteItem(item: LedgerItem) {
-  if (!confirmDelete(await withTransferBase(item.kind === 'tx' ? { tx: item.tx } : { tr: item.tr }))) return;
+  if (!(await confirmDelete(await withTransferBase(item.kind === 'tx' ? { tx: item.tx } : { tr: item.tr })))) return;
   if (item.kind === 'tx') {
     void deleteTransactions([item.id]).then(() => snackUndo('已刪除 1 筆', () => restoreTransactions([item.id])));
   } else {

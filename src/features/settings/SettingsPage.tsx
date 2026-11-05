@@ -16,6 +16,8 @@ import type { AccentKey } from '@/db/repo/settings';
 import { Segmented, Switch } from '@/ui/controls';
 import { Icon, type IconName } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
+import { Fold } from '@/ui/Fold';
+import { NewMark } from '@/ui/NewMark';
 import { AUTH_ENABLED, useAuth } from '@/stores/auth';
 import { ChangePasswordForm } from '../auth/AuthPages';
 import { setEncryption, syncNow, unlockEncryption, useSync } from '@/services/sync';
@@ -108,15 +110,15 @@ export const ACCENTS: { key: AccentKey; name: string; color: string }[] = [
 ];
 
 /** 設定列：左側色塊圖示 + 標題 + 簡短說明；有 onClick 就是可點的子頁／動作 */
-function Row({ label, children, onClick, sub, icon, tint, danger }: {
-  label: string; children?: React.ReactNode; onClick?: () => void; sub?: string; icon?: IconName; tint?: string; danger?: boolean;
+function Row({ label, children, onClick, sub, icon, tint, danger, newSince }: {
+  label: string; children?: React.ReactNode; onClick?: () => void; sub?: string; icon?: IconName; tint?: string; danger?: boolean; newSince?: string;
 }) {
   const Tag = onClick ? 'button' : 'div';
   return (
     <Tag className={`row${icon ? ' with-icon' : ''}`} onClick={onClick}>
-      {icon && <span className={`set-tile${icon === 'ai' ? ' big' : ''}`} style={tint ? { ['--c' as string]: tint } : undefined} aria-hidden="true"><Icon name={icon} size={icon === 'ai' ? 34 : 18} /></span>}
+      {icon && <span className="set-tile" style={tint ? { ['--c' as string]: tint } : undefined} aria-hidden="true"><Icon name={icon} size={18} /></span>}
       <div className="row-main">
-        <div className="row-title" style={danger ? { color: 'var(--danger)' } : undefined}>{label}</div>
+        <div className="row-title" style={danger ? { color: 'var(--danger)' } : undefined}>{newSince && <NewMark since={newSince} className="new-before" />}{label}</div>
         {sub && <div className="row-sub" style={{ whiteSpace: 'normal' }}>{sub}</div>}
       </div>
       {children}
@@ -125,14 +127,16 @@ function Row({ label, children, onClick, sub, icon, tint, danger }: {
   );
 }
 
-/** 一組設定：小標題 + 圓角清單 */
-function Group({ title, children, note }: { title?: string; children: React.ReactNode; note?: string }) {
+/** 一組設定：有標題的組可折疊（標題＋一行小字介紹，點開才看到內容）；沒有標題的組（帳號）直接顯示 */
+function Group({ id, title, desc, note, newSince, defaultOpen, children }: {
+  id?: string; title?: string; desc?: string; note?: string; newSince?: string; defaultOpen?: boolean; children: React.ReactNode;
+}) {
+  if (!title) return <section className="set-group"><div className="list">{children}</div></section>;
   return (
-    <section className="set-group">
-      {title && <div className="section-title">{title}</div>}
+    <Fold id={`settings.${id ?? title}`} title={title} desc={desc} newSince={newSince} defaultOpen={defaultOpen}>
       <div className="list">{children}</div>
       {note && <p className="set-note">{note}</p>}
-    </section>
+    </Fold>
   );
 }
 
@@ -185,7 +189,7 @@ export default function SettingsPage() {
         </>
       )}
 
-      <Group title="外觀">
+      <Group id="look" title="外觀" desc="深淺色、主題色、文字大小、漲跌顏色">
         <div className="row set-stack">
           <Segmented value={s.theme} onChange={(v) => s.set('theme', v)} ariaLabel="深淺色"
             options={[{ value: 'system', label: '跟隨系統' }, { value: 'light', label: '淺色' }, { value: 'dark', label: '深色' }]} />
@@ -224,7 +228,7 @@ export default function SettingsPage() {
         </Row>
       </Group>
 
-      <Group title="記帳偏好">
+      <Group id="prefs" title="記帳偏好" desc="主幣別、記帳月起算、一週起始、小數位數、匯率">
         <div className="field">
           <label htmlFor="s-base">主幣別</label>
           <select id="s-base" value={s.baseCurrency} onChange={(e) => {
@@ -259,33 +263,19 @@ export default function SettingsPage() {
           sub={fxAt ? `上次更新 ${new Date(fxAt).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : '尚未更新'} />
       </Group>
 
-      <Group title="分類與規則">
+      <Group id="cats" title="分類與規則" desc="分類、標籤、自動分類規則、首頁小工具">
         <Row icon="pie" tint="#FF375F" label="支出／收入分類" sub="名稱、圖示、顏色、排序、封存" onClick={() => navigate('/settings/categories')} />
         <Row icon="tag" tint="#BF5AF2" label="標籤" onClick={() => navigate('/settings/tags')} />
         <Row icon="filter" tint="#30B0C7" label="自動分類規則" sub="依備註、商家帶入分類與標籤" onClick={() => navigate('/settings/rules')} />
         <Row icon="grip" tint="#FF9F0A" label="首頁小工具" sub="今日花費、預算、淨資產…" onClick={() => navigate('/settings/widgets')} />
       </Group>
 
-      {AUTH_ENABLED && (
-        <Group title="AI">
-          <Row icon="ai" tint="#17181c" label="AI 助理" sub="問答、下月預算建議、白話解讀、整理分類、拍照記帳" onClick={() => navigate('/ai')} />
-          <Row icon="sliders" tint="#8E8E93" label="AI 設定與額度" sub="開關、會送出哪些內容、每日／週／月額度" onClick={() => navigate('/settings/ai')} />
-        </Group>
-      )}
-
-      <Group title="智慧提醒" note="平常全部在這台裝置上用規則運算，不計入 AI 額度，白話說明可無限次查看。系統會在你每新增一筆支出時自動偵測一次（沒有手動重新偵測）。大額但本來就大的項目（買家電、學雜費、買車…）不會提醒；吃飯、超商這類小額支出突然出現大額才會。">
-        <div className="field"><span className="label" style={{ flex: 1 }}>異常與訂閱偵測<span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>找出沒登記的訂閱、漲價、重複扣款、異常大額、分類暴增</span></span>
-          <Switch checked={s.insights.anomaly} label="異常與訂閱偵測" onChange={(v) => s.set('insights', { ...s.insights, anomaly: v })} /></div>
-        <div className="field"><span className="label" style={{ flex: 1 }}>預算預警<span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>照目前花法會超支時，提早提醒並告訴你每天最多能花多少</span></span>
-          <Switch checked={s.insights.budgetWarn} label="預算預警" onChange={(v) => s.set('insights', { ...s.insights, budgetWarn: v })} /></div>
-        {AUTH_ENABLED && s.insights.anomaly && (
-          <div className="field"><span className="label" style={{ flex: 1 }}>規則判斷不了時，請 AI 查市價<span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>{s.ai?.enabled ? '只在新支出比平常高很多、又查不到行情時才問，每筆只問一次，不計額度；送出的內容可在「AI 設定 → 查看送出過什麼」檢查' : '需要先到「AI 設定」開啟 AI 功能；沒開時只在金額離譜到極端才提醒'}</span></span>
-            <Switch checked={s.insights.aiPrice && !!s.ai?.enabled} label="請 AI 查市價" onChange={(v) => { if (s.ai?.enabled) s.set('insights', { ...s.insights, aiPrice: v }); }} /></div>
-        )}
-        {(s.insights.anomaly || s.insights.budgetWarn) && <Row icon="bell" tint="#FF9F0A" label="查看目前的偵測結果" onClick={() => navigate('/insights')} />}
+      <Group id="ai" title="AI 助理" desc="問答、用說的整理帳本、智慧提醒、額度與隱私">
+        <Row icon="ai" tint="#17181c" label="AI 助理" sub="用說的整理帳本、問答、預算建議、拍照記帳、智慧提醒（異常與預算預警）" onClick={() => navigate('/ai')} newSince="4.0.0" />
+        {AUTH_ENABLED && <Row icon="sliders" tint="#8E8E93" label="AI 設定與額度" sub="開關、會送出哪些內容、每日／週／月額度" onClick={() => navigate('/settings/ai')} />}
       </Group>
 
-      <Group title="自動化與整合">
+      <Group id="auto" title="自動化與整合" desc="收件匣、電子發票、通知、外部通知、股票資料源">
         {AUTH_ENABLED && <Row icon="download" tint="#30D158" label="自動記帳收件匣" sub="Apple Pay、銀行簡訊、Siri 經 iPhone 捷徑記帳" onClick={() => navigate('/inbox')} />}
         <Row icon="note" tint="#0A84FF" label="電子發票" sub="手機條碼載具、掃描 QR Code、匯入明細、自動對獎" onClick={() => navigate('/settings/invoice')} />
         <Row icon="bell" tint="#FF3B30" label="通知與提醒" sub="記帳、繳款、預算、訂閱、到價、週報月報" onClick={() => navigate('/settings/notifications')} />
@@ -293,8 +283,8 @@ export default function SettingsPage() {
         <Row icon="trend" tint="#5E5CE6" label="股票資料源與 API Key" sub="代理網址、資料源順序、手續費、成本法" onClick={() => navigate('/settings/invest')} />
       </Group>
 
-      <Group title="資料">
-        <Row icon="folder" tint="#0A84FF" label="備份、匯入與匯出" sub="JSON 備份／還原、CSV、Excel、PDF、銀行對帳單、Moze" onClick={() => navigate('/settings/backup')} />
+      <Group id="data" title="資料" desc="備份、匯入與匯出、對帳、資料健康檢查、範例資料">
+        <Row icon="folder" tint="#0A84FF" label="備份、匯入與匯出" sub="JSON 備份／還原、CSV、Excel、PDF、銀行對帳單、Moze；新增「對帳」" onClick={() => navigate('/settings/backup')} newSince="4.0.0" />
         <Row icon="check" tint="#30D158" label="資料健康檢查" sub="餘額、換算金額、遺失關聯、多餘照片" onClick={() => navigate('/settings/health')} />
         {sample ? (
           <Row icon="template" tint="#8E8E93" label="清除範例資料" sub="只刪除範例帳戶與帳目">
@@ -313,7 +303,7 @@ export default function SettingsPage() {
         )}
       </Group>
 
-      <Group title="關於">
+      <Group id="about" title="關於" desc="版本與更新、首次引導、隱私說明">
         <Row icon="info" tint="#8E8E93" label="版本" sub={`v${__APP_VERSION__} · 建置於 ${__BUILD_TIME__.slice(0, 10)}`}>
           <button className="pill" disabled={checking} onClick={async () => {
             setChecking(true);
@@ -332,7 +322,7 @@ export default function SettingsPage() {
         </details>
       </Group>
 
-      <Group title="帳號與資料管理">
+      <Group id="danger" title="帳號與資料管理" desc="登出、清除所有資料">
         {account && (
           <Row danger label="登出" onClick={() => { if (window.confirm('確定登出？帳目已同步到伺服器，在任何裝置重新登入即可繼續使用。')) void auth.logout(); }} />
         )}
