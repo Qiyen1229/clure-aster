@@ -152,7 +152,7 @@ features/                 各頁面（見下表）
 | `/add` | AddDeepLink → 開啟 AddSheet | 參數：`type amount category account note date tags project text` |
 | `/ledger` | LedgerPage | 虛擬捲動、篩選、批次 |
 | `/accounts`、`/accounts/:id` | AccountsPage（錢包｜投資分頁 `?tab=invest`）、帳戶詳情 | 信用卡帳單、貸款攤還 |
-| `/plan`、`/plan/projects/:id` | PlanPage（預算／專案／週期／分期／分帳／目標／心願）、專案詳情 | 分頁在 `features/plan/*.tsx` |
+| `/plan`、`/plan/projects/:id` | PlanPage（預算／專案／週期與分期／應收應付／目標（含心願冷靜期）／耐用品；舊網址 ?tab=installment、?tab=wish 自動轉址）、專案詳情 | 分頁在 `features/plan/*.tsx` |
 | `/reports` | ReportsPage | 另有 `/reports/review/:year`（年度回顧）、`/reports/print`、`/reports/fire`、`/reports/tax`、`/reports/cashflow`、`/reports/summary`（週報／月報） |
 | `/invest/stock/:id`、`/invest/watchlist`、`/invest/dividends` | 個股、觀察清單、股利 | `/invest` 轉址到 `/accounts?tab=invest` |
 | `/settings` + 子頁 | `categories tags fx invest security notifications backup import health widgets rules invoice` | 七組：帳號、外觀、記帳偏好、分類與規則、自動化與整合、資料、關於 |

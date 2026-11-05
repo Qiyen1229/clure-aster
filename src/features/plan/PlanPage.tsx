@@ -1,5 +1,6 @@
 /**
- * 專案與預算（Tab 2）：預算｜專案｜週期｜分期｜應收應付｜目標｜心願｜耐用品
+ * 專案與預算（Tab 2）：預算｜專案｜週期與分期｜應收應付｜目標（含心願冷靜期）｜耐用品
+ * 舊網址 ?tab=installment 轉到週期與分期、?tab=wish 轉到目標，通知與書籤都不會失效。
  */
 import { lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -18,18 +19,18 @@ const DurableSection = lazy(() => import('./durables'));
 const TABS = [
   { key: 'budget', label: '預算', icon: '🎯' },
   { key: 'project', label: '專案', icon: '🧳' },
-  { key: 'recurring', label: '週期', icon: '🔁' },
-  { key: 'installment', label: '分期', icon: '💳' },
+  { key: 'recurring', label: '週期與分期', icon: '🔁' },
   { key: 'debt', label: '應收應付', icon: '🤝' },
   { key: 'goal', label: '目標', icon: '🐷' },
-  { key: 'wish', label: '心願', icon: '🧊' },
   { key: 'durable', label: '耐用品', icon: '🧰' },
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
 
 export default function PlanPage() {
   const [params, setParams] = useSearchParams();
-  const tab = (TABS.some((t) => t.key === params.get('tab')) ? params.get('tab') : 'budget') as TabKey;
+  const raw = params.get('tab');
+  const legacy = raw === 'installment' ? 'recurring' : raw === 'wish' ? 'goal' : raw;
+  const tab = (TABS.some((t) => t.key === legacy) ? legacy : 'budget') as TabKey;
   const set = (k: TabKey) => { params.set('tab', k); setParams(params, { replace: true }); };
 
   return (
@@ -45,11 +46,9 @@ export default function PlanPage() {
       <Suspense fallback={<SkeletonRows />}>
         {tab === 'budget' && <BudgetSection />}
         {tab === 'project' && <ProjectSection />}
-        {tab === 'recurring' && <RecurringSection />}
-        {tab === 'installment' && <InstallmentSection />}
+        {tab === 'recurring' && <><RecurringSection /><InstallmentSection /></>}
         {tab === 'debt' && <DebtSection />}
-        {tab === 'goal' && <GoalSection />}
-        {tab === 'wish' && <WishlistSection />}
+        {tab === 'goal' && <><GoalSection /><WishlistSection /></>}
         {tab === 'durable' && <DurableSection />}
       </Suspense>
       <p className="disclaimer"><Icon name="info" size={14} /> 週期帳目與分期會在每次開啟 App 時自動補齊到今天。</p>

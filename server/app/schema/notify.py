@@ -66,7 +66,7 @@ class EventRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=120)
     body: str = Field("", max_length=1000)
     level: str = "info"
-    # App 內的路徑（例如 /insights）；伺服器有設定 CLURE_PUBLIC_URL 時會變成可點的完整連結
+    # App 內的路徑（例如 /ai）；伺服器有設定 CLURE_PUBLIC_URL 時會變成可點的完整連結
     path: str = Field("", max_length=200)
     fields: list[tuple[str, str]] = Field(default_factory=list, max_length=10)
     # 去重用：同一個 key 24 小時內只轉送一次（兩台裝置各自偵測到同一件事時不會重複通知）

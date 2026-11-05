@@ -2,15 +2,15 @@
  * 全域搜尋：帳目與「轉帳」（備註、商家、發票號碼、分類、帳戶、標籤、專案、金額、日期、類型）。
  * 多個條件以空白分隔、全部符合才算，例如「5000 轉帳 上週」「麥當勞 10/25」「1000-5000 #旅遊」，規則見 domain/search。
  * 結果依日期新到舊，最多顯示 300 筆。
- * 用問的查帳：輸入「上個月吃飯花多少」這類問句時，直接回答並列出符合的帳目（services/nlquery）。
+ * 用問的查帳：輸入「上個月吃飯花多少」這類問句時，規則看得懂就直接回答並列出符合的帳目（services/nlquery，本機、免費）；
+ * 規則看不懂的自然語言一律交給 AI 對話框（/ai?q=），搜尋頁不再自己養一套 AI 搜尋。
  * 桌機可用 ⌘K / Ctrl+K 開啟。
  */
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useAccounts, useCategories, useProjects, useTags } from '@/app/hooks';
-import { describeTerm, parseSearch, planToSearch, preferPlainSearch } from '@/domain/search';
-import type { LedgerItem } from '@/db/repo/ledger';
+import { describeTerm, parseSearch, preferPlainSearch } from '@/domain/search';
 import { todayKey } from '@/domain/period';
 import { searchLedger } from '@/services/search';
 import { useSettings } from '@/stores/settings';
@@ -19,7 +19,7 @@ import { EmptyState, SkeletonRows } from '@/ui/controls';
 import { LedgerRow } from '../ledger/LedgerRow';
 import { isQuestion, looksLikeAiQuestion, rangeText } from '@/domain/nlquery';
 import { ask, type QueryAnswer } from '@/services/nlquery';
-import { aiEnabledLocally, aiSearchPlan, quotaLabel } from '@/services/ai';
+import { aiEnabledLocally } from '@/services/ai';
 
 const EXAMPLES = ['上個月吃飯花多少', '這週咖啡喝了幾次', '今年最大一筆', '上個月錢都花到哪', '最近 30 天平均每天花多少', '去年收入多少'];
 const TIPS = ['5000', '5000 轉帳', '10/25 午餐', '1000-5000 上週', '>=3000 #旅遊', '@玉山 本月', '麥當勞 支出'];
@@ -60,39 +60,20 @@ export default function SearchPage() {
     return searchLedger(parsed, matchCtx);
   }, [dq, question, ruleFailed, parsed, matchCtx]);
 
-  // ✨ AI 搜尋：把一句話描述（「前幾天跟朋友吃飯大概五千」）轉成條件再搜。只送描述與分類／帳戶／標籤名稱，不送帳目。
-  const [aiRes, setAiRes] = useState<{ q: string; items: LedgerItem[]; truncated: boolean; chips: string[]; cached: boolean; quota?: string } | null>(null);
-  const [aiBusy, setAiBusy] = useState(false);
-  const [aiErr, setAiErr] = useState('');
-  useEffect(() => { setAiRes(null); setAiErr(''); }, [dq]);
-  const runAi = async () => {
-    setAiBusy(true); setAiErr('');
-    try {
-      const r = await aiSearchPlan(dq);
-      const planned = planToSearch(r.value.plan);
-      const found = await searchLedger(planned, matchCtx);
-      setAiRes({ q: dq, items: found.items, truncated: found.truncated, chips: planned.terms.map(describeTerm), cached: r.cached, quota: r.quota ? quotaLabel(r.quota) : undefined });
-    } catch (e) { setAiErr((e as Error).message); } finally { setAiBusy(false); }
-  };
   const results = search?.items;
   const lowDq = dq.toLowerCase();
   const chips = parsed.terms.length > 1 || parsed.terms.some((t) => t.kind !== 'text') ? parsed.terms.map(describeTerm) : [];
 
-  const aiPrompt = (found: number) => (aiEnabledLocally() && dq.length >= 4 && found >= 0 && (found === 0 || dq.length >= 8) && !aiRes ? (
+  // 搜尋頁只做篩選：自然語言的問答、分析全部交給 AI 對話框（同一個輸入框、同一份對話）
+  const noHit = search !== null && search !== undefined && search.items.length === 0;
+  const wantsAi = !!dq && (ruleFailed || looksLikeAiQuestion(dq) || (noHit && dq.length >= 8));
+  const handOff = wantsAi ? (
     <section className="card ask-answer">
-      <p className="ask-text"><AiMark /> {found === 0 ? '找不到？' : '想用說的找？'}讓 AI 把「{dq.length > 18 ? `${dq.slice(0, 18)}…` : dq}」轉成搜尋條件。</p>
-      {aiErr && <p className="row-sub" role="alert" style={{ color: 'var(--danger)', whiteSpace: 'normal' }}>{aiErr}</p>}
-      <button className="btn small" disabled={aiBusy} onClick={() => void runAi()}>{aiBusy ? 'AI 理解中…' : '用 AI 找'}</button>
+      <p className="ask-text">{ruleFailed ? '這個問題我用規則看不懂，先列出可能相關的帳目。' : '這像是一個請教的問題。'}</p>
+      {aiEnabledLocally()
+        ? <button className="btn small" onClick={() => navigate(`/ai?q=${encodeURIComponent(dq)}`)}><AiMark /> 交給 AI 對話深入分析 →</button>
+        : <p className="muted" style={{ margin: '4px 0 0' }}>到「設定 → AI 助理」開啟 AI 後，可以問更複雜的問題。</p>}
     </section>
-  ) : null);
-  const aiResults = aiRes && aiRes.q === dq ? (
-    <>
-      <div className="section-title"><AiMark /> AI 找到（{aiRes.items.length}{aiRes.truncated ? '+' : ''}）</div>
-      <div className="ask-chips" aria-label="AI 理解的搜尋條件" style={{ margin: '0 4px 8px' }}>{aiRes.chips.map((c, i) => <span key={i} className="chip">{c}</span>)}</div>
-      {aiRes.items.length === 0 && <p className="muted" style={{ margin: '0 8px' }}>用這些條件沒有找到帳目，可以換個說法再試。</p>}
-      {aiRes.items.map((it) => <LedgerRow key={`ai:${it.kind}:${it.id}`} item={it} cats={cats.map} accounts={accounts.map} tags={tags.map} showDate />)}
-      <p className="row-sub" style={{ margin: '4px 8px 12px', whiteSpace: 'normal' }}>{aiRes.cached ? '使用先前的理解（未扣額度）' : aiRes.quota}</p>
-    </>
   ) : null;
 
   const matchedAccounts = dq && parsed.terms.length === 1 && parsed.terms[0].kind === 'text' ? accounts.all.filter((a) => a.name.toLowerCase().includes(lowDq)) : [];
@@ -136,7 +117,7 @@ export default function SearchPage() {
               {answer.query.accountIds.map((id) => <span key={id} className="chip">{accounts.map.get(id)?.icon} {accounts.map.get(id)?.name}</span>)}
             </div>
           </section>
-          {answer.items.length === 0 && <>{aiPrompt(0)}{aiResults}</>}
+          {answer.items.length === 0 && handOff}
           <div className="section-title">符合的帳目（{answer.items.length}）</div>
           {answer.items.slice(0, 300).map((t) => (
             <LedgerRow key={t.id} item={{ kind: 'tx', id: t.id, date: t.date, ts: t.ts, tx: t }} cats={cats.map} accounts={accounts.map} tags={tags.map} showDate />
@@ -144,22 +125,7 @@ export default function SearchPage() {
         </>
       ) : (
         <>
-          {ruleFailed && (
-            <section className="card ask-answer">
-              <p className="ask-text">💬 這個問題我用規則看不懂，先列出可能相關的帳目。</p>
-              {aiEnabledLocally()
-                ? <button className="btn small" onClick={() => navigate(`/ai?q=${encodeURIComponent(q.trim())}`)}><AiMark /> 問 AI</button>
-                : <p className="muted" style={{ margin: '4px 0 0' }}>到「設定 → AI 助理」開啟 AI 後，可以問更複雜的問題。</p>}
-            </section>
-          )}
-          {!ruleFailed && aiEnabledLocally() && looksLikeAiQuestion(q) && (
-            <section className="card ask-answer">
-              <p className="ask-text"><AiMark /> 這像是一個請教的問題，要問 AI 嗎？</p>
-              <button className="btn small" onClick={() => navigate(`/ai?q=${encodeURIComponent(q.trim())}`)}>問 AI</button>
-            </section>
-          )}
-          {aiPrompt(search?.items.length ?? -1)}
-          {aiResults}
+          {handOff}
           {chips.length > 0 && (
             <div className="ask-chips" aria-label="我理解的搜尋條件" style={{ margin: '0 4px 8px' }}>
               {chips.map((c, i) => <span key={i} className="chip">{c}</span>)}

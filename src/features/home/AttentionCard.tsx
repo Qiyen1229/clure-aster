@@ -1,6 +1,7 @@
 /**
  * 首頁「需要你看一下」：把原本散在畫面中間的三種提醒併成同一張卡、同一種樣式——
  *   📥 收件匣待確認、🔔 預算預警與 🔎 異常偵測（只讀快取）、✨ AI 上週重點（選用，可收合）。
+ * 只放需要立刻動手的（待確認、已超支、除息）；異常與其他提醒統一在右上角鈴鐺（提醒中心），這裡只留入口。
  * 依重要性排序、最多 4 行；沒有事情要看時整張卡都不出現。
  */
 import { useEffect, useState } from 'react';
@@ -16,7 +17,7 @@ const readOpen = () => { try { return localStorage.getItem(KEY) === '1'; } catch
 
 type Weekly = Awaited<ReturnType<typeof import('@/services/ai').autoWeeklyInsight>>;
 
-export function AttentionCard() {
+export function AttentionCard({ onOpenReminders }: { onOpenReminders: () => void }) {
   const navigate = useNavigate();
   const inboxCount = useInboxCount((s) => s.n);
   const cfg = useSettings((s) => s.insights);
@@ -33,11 +34,11 @@ export function AttentionCard() {
     return () => { alive = false; };
   }, [aiAuto]);
 
-  const rows: { key: string; icon: string; text: string; tone?: 'danger' | 'warn'; to: string }[] = [];
-  if (cfg?.budgetWarn) for (const w of (snap?.warnings ?? []).slice(0, 2)) rows.push({ key: w.id, icon: w.level === 'over' ? '⚠️' : '🔔', text: w.title, tone: w.level === 'over' ? 'danger' : 'warn', to: '/plan?tab=budget' });
+  const rows: { key: string; icon: string; text: string; tone?: 'danger' | 'warn'; to?: string }[] = [];
+  if (cfg?.budgetWarn) for (const w of (snap?.warnings ?? []).filter((w) => w.level === 'over').slice(0, 2)) rows.push({ key: w.id, icon: w.level === 'over' ? '⚠️' : '🔔', text: w.title, tone: w.level === 'over' ? 'danger' : 'warn', to: '/plan?tab=budget' });
   if (inboxCount > 0) rows.push({ key: 'inbox', icon: '📥', text: `收件匣有 ${inboxCount} 筆待確認`, to: '/inbox' });
   const warnN = cfg?.anomaly ? (snap?.findings ?? []).filter((f) => f.severity === 'warn').length : 0;
-  if (warnN > 0) rows.push({ key: 'anomaly', icon: '🔎', text: `${warnN} 項異常或疑似重複，點開看白話說明`, to: '/insights' });
+  if (warnN > 0) rows.push({ key: 'anomaly', icon: '🔎', text: `${warnN} 項異常或疑似重複，點開看白話說明`, });
   for (const t of taxRows) rows.push({ key: t.key, icon: '📅', text: t.text, tone: 'warn', to: '/reports/tax' });
   if (!rows.length && !weekly) return null;
 
@@ -47,7 +48,7 @@ export function AttentionCard() {
     <section className="attn-card" aria-label="需要你看一下">
       <div className="attn-title">需要你看一下</div>
       {shown.map((r) => (
-        <button key={r.key} className={`attn-row${r.tone ? ` ${r.tone}` : ''}`} onClick={() => navigate(r.to)}>
+        <button key={r.key} className={`attn-row${r.tone ? ` ${r.tone}` : ''}`} onClick={() => (r.to ? navigate(r.to) : onOpenReminders())}>
           <span className="attn-ico" aria-hidden="true">{r.icon}</span>
           <span className="attn-text">{r.text}</span>
           <Icon name="chevronR" size={16} />

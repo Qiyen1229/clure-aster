@@ -13,12 +13,12 @@ import { isQuestion, looksLikeAiQuestion } from '@/domain/nlquery';
 import { isAggregationQuestion } from '@/domain/search';
 import { formatMoney } from '@/domain/money';
 import { looksLikeOperation } from '@/domain/agent/intent';
-import { aiDataEnabled, aiAsk, aiEnabledLocally, quotaLabel } from '@/services/ai';
+import { aiDataEnabled, aiAsk, aiEnabledLocally, aiReceipt, quotaLabel } from '@/services/ai';
 import { ask } from '@/services/nlquery';
-import { bookDrafts, draftsFromText, draftsSmart } from '@/services/quickentry';
+import { bookDrafts, draftsFromText, draftsSmart, fallbackAccount, resolveDraft } from '@/services/quickentry';
 import { useSettings } from '@/stores/settings';
 import { snackUndo, useUI } from '@/stores/ui';
-import { AiMark } from '@/ui/Icon';
+import { AiMark, Icon } from '@/ui/Icon';
 import { summarizePlan } from '@/domain/agent/plan';
 import type { AgentOpLog } from '@/services/agent';
 import { PlanPreview } from '../ai/PlanPreview';
@@ -94,7 +94,26 @@ async function send(text: string, opts: { open?: boolean } = {}) {
   } finally { useChat.setState({ busy: false }); }
 }
 
-// ───────────── 對話彈窗 ─────────────
+/** 丟一張收據／發票照片：辨識後在對話裡回草稿卡（和打字記帳同一種泡泡） */
+async function sendImage(file: File) {
+  const st = useChat.getState();
+  if (st.busy) return;
+  const pending = nextSeq();
+  useChat.setState((s) => ({ busy: true, msgs: [...s.msgs.slice(-30), { id: nextSeq(), role: 'user', text: `📷 ${file.name || '收據照片'}` }, { id: pending, role: 'ai', kind: 'pending' }] }));
+  try {
+    if (!aiEnabledLocally()) { useChat.getState().patch(pending, { role: 'ai', kind: 'text', text: '拍照記帳需要開啟 AI（照片縮小後送出，不會保存在伺服器）。', link: { label: '前往 AI 設定', to: '/settings/ai' } } as Partial<Msg>); return; }
+    const r = await aiReceipt(file);
+    const fb = await fallbackAccount();
+    const drafts = await Promise.all(r.drafts.map((d) => resolveDraft(d, fb)));
+    useChat.getState().patch(pending, (drafts.length
+      ? { role: 'ai', kind: 'entries', drafts, via: 'ai', sub: `${quotaLabel(r.quota)}　AI 可能看錯，建議先「帶入記帳面板」確認金額。` }
+      : { role: 'ai', kind: 'text', text: '看不出這張照片的消費金額，請拍清楚一點或改用打字記帳。' }) as Partial<Msg>);
+  } catch (e) {
+    useChat.getState().patch(pending, { role: 'ai', kind: 'text', text: (e as Error).message } as Partial<Msg>);
+  } finally { useChat.setState({ busy: false }); }
+}
+
+// ───────────── 對話彈窗 ─────
 
 function AgentBubble({ m }: { m: Extract<Msg, { kind: 'agent' }> }) {
   const [busy, setBusy] = useState(false);
@@ -189,6 +208,8 @@ const CHAT_EXAMPLES = [
   '把上個月 Uber 歸到交通，並設交通每月預算 3000',
   '以後只要出現 Uber 就自動歸到交通',
   '我今年股利會被扣二代健保嗎？',
+  '把「其他」分類的帳目重新分類',
+  '依過去 3 個月的花費，幫我設定各分類的每月預算',
 ];
 
 /**
@@ -202,6 +223,7 @@ export function ChatPanel({ embedded, onLeave, autoSend, onAutoSent, autoFocus }
   const [ops, setOps] = useState<AgentOpLog[]>([]);
   const end = useRef<HTMLDivElement>(null);
   const sent = useRef(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const aiOn = useSettings((s) => !!s.ai?.enabled);
   useEffect(() => { if (embedded || open) end.current?.scrollIntoView({ block: 'end' }); }, [embedded, open, msgs]);
   useEffect(() => { if (autoSend && !sent.current) { sent.current = true; onAutoSent?.(); void send(autoSend, { open: !embedded }); } }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -262,6 +284,8 @@ export function ChatPanel({ embedded, onLeave, autoSend, onAutoSent, autoFocus }
         </details>
       )}
       <form className="chat-input" onSubmit={submit}>
+        <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (fileRef.current) fileRef.current.value = ''; if (f) void sendImage(f); }} />
+        <button className="icon-btn plain" type="button" aria-label="拍照或選擇收據照片" disabled={busy} onClick={() => fileRef.current?.click()}><Icon name="camera" size={20} /></button>
         <input value={q} onChange={(e) => setQ(e.target.value)} maxLength={300} enterKeyHint="send" aria-label="輸入訊息" placeholder="記帳、查帳、問或整理帳本" autoFocus={autoFocus} />
         <button className="btn small" type="submit" disabled={busy || !q.trim()}>送出</button>
       </form>

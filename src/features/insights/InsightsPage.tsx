@@ -1,5 +1,5 @@
 /**
- * 異常與訂閱偵測、預算預警（/insights）。
+ * 異常與訂閱偵測、預算預警的結果清單（顯示在 AI 助理頁的「智慧提醒」裡；舊網址 /insights 會轉到 /ai）。
  * 平常全部在這台裝置用規則運算（不呼叫伺服器、不計入 AI 額度）；只有規則判斷不了的新支出，才（在使用者開啟 AI 的前提下）請 AI 查市價。
  * 沒有手動「重新偵測」：系統在每新增一筆支出、以及開啟 App 時自動偵測；白話說明可以無限次展開。
  */
@@ -11,15 +11,14 @@ import type { BudgetWarning } from '@/domain/budgetwarn';
 import { createSubscriptionFrom, dismissFinding, loadSnapshot, runInsights, type InsightsSnapshot } from '@/services/insights';
 import { useSettings } from '@/stores/settings';
 import { snackUndo, useUI } from '@/stores/ui';
-import { Icon } from '@/ui/Icon';
-import { EmptyState, SkeletonRows } from '@/ui/controls';
+import { SkeletonRows } from '@/ui/controls';
 import { WhyToggle } from './WhyToggle';
 
 const KIND_ICON: Record<Finding['kind'], string> = { subscription: '🔁', price_up: '📈', duplicate: '🧾', large: '💥', surge: '📊' };
 const KIND_LABEL: Record<Finding['kind'], string> = { subscription: '新發現的訂閱', price_up: '漲價', duplicate: '疑似重複', large: '異常大額', surge: '分類暴增' };
 const LEVEL_COLOR = { over: 'var(--danger)', critical: 'var(--warning)', early: 'var(--accent-text)' } as const;
 
-export default function InsightsPage() {
+export function InsightsResults() {
   const navigate = useNavigate();
   const cfg = useSettings((s) => s.insights);
   const snap = useLiveQuery(() => loadSnapshot(), [], undefined as InsightsSnapshot | null | undefined);
@@ -27,6 +26,7 @@ export default function InsightsPage() {
 
   // 進來時用（新的）快取；過期才重算
   useEffect(() => { if (on) void runInsights(); }, [on, cfg.anomaly, cfg.budgetWarn]);
+  if (!on) return null;
 
   const findings = snap?.findings ?? [];
   const warnings = snap?.warnings ?? [];
@@ -34,50 +34,32 @@ export default function InsightsPage() {
   const infoList = findings.filter((f) => f.severity === 'info');
 
   return (
-    <main className="page">
-      <header className="topbar">
-        <button className="icon-btn" aria-label="返回" onClick={() => navigate(-1)}><Icon name="chevronL" /></button>
-        <h1>異常與訂閱偵測</h1>
-        <div style={{ width: 44 }} />
-      </header>
-
-      {!on ? (
-        <EmptyState emoji="🔕" title="偵測已關閉" text="到「設定 → 智慧提醒」開啟異常與訂閱偵測、預算預警。"
-          action={<button className="btn small" onClick={() => navigate('/settings')}>前往設定</button>} />
-      ) : (
+    <div style={{ marginTop: 8 }}>
+      {snap === undefined ? <SkeletonRows /> : (
         <>
-          <p className="muted" style={{ fontSize: '0.85rem', margin: '0 4px 12px' }}>
-            系統會在你每新增一筆支出、以及開啟 App 時自動偵測，不用手動操作，也沒有次數限制。判斷用規則運算<b>不計入 AI 額度</b>；
-            少數規則判斷不了的新支出，如果你開啟了 AI 功能，才會請 AI 查市價（每筆只問一次，不計額度）。
-          </p>
-          {snap && <p className="muted" style={{ fontSize: '0.8rem', margin: '0 4px 12px' }}>上次偵測 {new Date(snap.at).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>}
-
-          {snap === undefined ? <SkeletonRows /> : (
+          {snap && <p className="muted" style={{ fontSize: '0.8rem', margin: '0 4px 8px' }}>目前的偵測結果（上次偵測 {new Date(snap.at).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}）</p>}
+          {cfg.budgetWarn && (
             <>
-              {cfg.budgetWarn && (
-                <>
-                  <div className="section-title">預算預警</div>
-                  {warnings.length === 0 ? <p className="muted" style={{ margin: '0 8px 12px' }}>目前所有預算的花費速度都在額度內 ✓</p> : (
-                    warnings.map((w) => <WarningCard key={w.id} w={w} onOpen={() => navigate('/plan?tab=budget')} />)
-                  )}
-                </>
+              <div className="section-title">預算預警</div>
+              {warnings.length === 0 ? <p className="muted" style={{ margin: '0 8px 12px' }}>目前所有預算的花費速度都在額度內 ✓</p> : (
+                warnings.map((w) => <WarningCard key={w.id} w={w} onOpen={() => navigate('/plan?tab=budget')} />)
               )}
-              {cfg.anomaly && (
-                <>
-                  <div className="section-title">需要留意</div>
-                  {warnList.length === 0 ? <p className="muted" style={{ margin: '0 8px 12px' }}>沒有發現異常 ✓</p> : warnList.map((f) => <FindingCard key={f.id} f={f} />)}
-                  {infoList.length > 0 && <div className="section-title">其他發現</div>}
-                  {infoList.map((f) => <FindingCard key={f.id} f={f} />)}
-                </>
-              )}
-              <p className="muted" style={{ fontSize: '0.75rem', margin: '16px 8px' }}>
-                偵測依據：最近 14 個月的帳目。資料太少或金額太小時不會判斷，以免誤報。按「略過」後這一項不再提醒（會同步到你的其他裝置）。
-              </p>
             </>
           )}
+          {cfg.anomaly && (
+            <>
+              <div className="section-title">需要留意</div>
+              {warnList.length === 0 ? <p className="muted" style={{ margin: '0 8px 12px' }}>沒有發現異常 ✓</p> : warnList.map((f) => <FindingCard key={f.id} f={f} />)}
+              {infoList.length > 0 && <div className="section-title">其他發現</div>}
+              {infoList.map((f) => <FindingCard key={f.id} f={f} />)}
+            </>
+          )}
+          <p className="muted" style={{ fontSize: '0.75rem', margin: '12px 8px 0' }}>
+            偵測依據：最近 14 個月的帳目。資料太少或金額太小時不會判斷，以免誤報。按「略過」後這一項不再提醒（會同步到你的其他裝置）。
+          </p>
         </>
       )}
-    </main>
+    </div>
   );
 }
 

@@ -2,7 +2,7 @@
  * CSV 匯入精靈：① 選檔 ② 欄位對應（自動辨識 Moze、套用已存的銀行格式）③ 預覽與檢查（疑似重複、自動分類）④ 匯入
  */
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { parseCSV } from '@/services/csv';
 import {
   autoMap, enrichRows, FIELD_LABELS, headerSignature, parseRows, planImport, runImport, type FieldKey, type ImportPlan, type Mapping, type ParsedRow,
@@ -32,7 +32,10 @@ export default function ImportPage() {
   const [rows, setRows] = useState<string[][]>([]);
   const [mapping, setMapping] = useState<Mapping>({});
   const [isMoze, setIsMoze] = useState(false);
-  const [defAccount, setDefAccount] = useState('匯入帳戶');
+  // 從帳戶頁的「帳單對帳」進來：?mode=reconcile&account=帳戶名稱——只顯示對帳，並預選該帳戶
+  const [qp] = useSearchParams();
+  const reconOnly = qp.get('mode') === 'reconcile';
+  const [defAccount, setDefAccount] = useState(qp.get('account') || '匯入帳戶');
   const [plan, setPlan] = useState<ImportPlan | null>(null);
   const [busy, setBusy] = useState(false);
   const [positiveIsExpense, setPositiveIsExpense] = useState(false);
@@ -40,7 +43,7 @@ export default function ImportPage() {
   const [enriched, setEnriched] = useState<ParsedRow[]>([]);
   const [profileName, setProfileName] = useState('');
   /** 對帳模式：不匯入，只拿帳單跟帳本核對（CSV 或帳單截圖） */
-  const [mode, setMode] = useState<'import' | 'reconcile'>('import');
+  const [mode, setMode] = useState<'import' | 'reconcile'>(reconOnly ? 'reconcile' : 'import');
   const [recon, setRecon] = useState<{ csv?: ParsedRow[]; ai?: StatementEntry[]; total?: number | null } | null>(null);
   const profiles = useSettings((s) => s.importProfiles);
   const { map: catMap } = useCategories();
@@ -122,13 +125,15 @@ export default function ImportPage() {
     <main className="page">
       <header className="topbar">
         <button className="icon-btn" aria-label="返回" onClick={() => { if (step === 2 && mode === 'reconcile' && recon?.ai) { setStep(0); setRecon(null); setMode('import'); } else if (step) setStep(step - 1); else navigate(-1); }}><Icon name="chevronL" /></button>
-        <h1>{mode === 'reconcile' ? '對帳' : '匯入 CSV'}</h1>
+        <h1>{mode === 'reconcile' ? '帳單對帳' : '匯入 CSV'}</h1>
         <div style={{ width: 44 }} />
       </header>
       <div className="steps">{[0, 1, 2, 3].map((i) => <i key={i} className={i === step ? 'on' : ''} />)}</div>
 
       {step === 0 && (
         <>
+          {!reconOnly && (
+            <>
           <div className="card">
             <p style={{ marginTop: 0 }}><b>支援格式</b></p>
             <ul className="muted" style={{ paddingLeft: 20, fontSize: '0.9rem', lineHeight: 1.7 }}>
@@ -144,7 +149,9 @@ export default function ImportPage() {
             選擇 CSV 檔（匯入）
             <input type="file" accept=".csv,text/csv,text/plain" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; setMode('import'); if (f) void onFile(f); }} />
           </label>
-          <div className="card" style={{ marginTop: 12 }}>
+            </>
+          )}
+          <div className="card" style={{ marginTop: reconOnly ? 0 : 12 }}>
             <p style={{ marginTop: 0 }}><NewMark since="4.0.0" /> <b>🧾 對帳：核對帳單和你的帳本</b></p>
             <p className="muted" style={{ fontSize: '0.88rem', marginTop: 0, whiteSpace: 'normal' }}>拿信用卡或銀行帳單核對帳本：找出漏記和金額有差的，一鍵補齊。</p>
             <label className="btn tinted" style={{ cursor: 'pointer' }}>

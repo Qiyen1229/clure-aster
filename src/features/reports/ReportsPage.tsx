@@ -29,7 +29,6 @@ import { chartTheme } from './chart-theme';
 import { SankeyCard } from './SankeyCard';
 
 const EChart = lazy(() => import('./EChart'));
-const WEEK = ['日', '一', '二', '三', '四', '五', '六'];
 
 interface RFilter { accountIds: string[]; projectIds: string[]; tagIds: string[]; currencies: string[] }
 
@@ -173,15 +172,6 @@ export default function ReportsPage() {
     ],
   } : null, [nw, base]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 長條＝消費「次數」；提示框同時顯示該時段的花費金額
-  const distOption = (counts: number[], amounts: number[], labels: string[]) => ({
-    grid: { left: 4, right: 4, top: 8, bottom: 4, containLabel: true },
-    tooltip: { trigger: 'axis', formatter: (ps: { dataIndex: number; axisValueLabel: string }[]) => `${ps[0].axisValueLabel}：${counts[ps[0].dataIndex]} 筆・${formatMoney(amounts[ps[0].dataIndex], base)}` },
-    xAxis: { type: 'category', data: labels, axisLabel: { color: t.text3, fontSize: 10 }, axisLine: { lineStyle: { color: t.sep } } },
-    yAxis: { type: 'value', show: false },
-    series: [{ type: 'bar', data: counts.map((v) => ({ value: v, itemStyle: { color: v === Math.max(...counts) && v > 0 ? t.accent : t.text3, borderRadius: [3, 3, 0, 0] } })), barMaxWidth: 14 }],
-  });
-
   const Change = ({ cur, prevV, invert }: { cur: number; prevV: number; invert?: boolean }) => {
     const c = pctChange(cur, prevV);
     if (c === null) return <span className="muted">—</span>;
@@ -255,7 +245,6 @@ export default function ReportsPage() {
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px', marginTop: 12, fontSize: '0.85rem' }} className="muted">
               {a.maxTx && <button className="accent" onClick={() => setDetail({ title: '最大單筆', txs: [a.maxTx!] })}>最大單筆 {formatMoney(statAmount(a.maxTx), base)}（{a.maxTx.note || cats.map.get(a.maxTx.categoryId)?.name}）</button>}
-              {a.expense > 0 && <span>最常花錢：週{WEEK[a.topWeekday]}・{a.topHour}:00 時段（{a.weekdayCount[a.topWeekday]} 筆／{a.hourCount[a.topHour]} 筆）</span>}
               <span>{a.count} 筆</span>
             </div>
           </section>
@@ -328,7 +317,7 @@ export default function ReportsPage() {
             </section>
           )}
 
-          {year12 && (
+          {year12 && unit !== 'year' && (
             <section className="card" aria-label="近 12 個月">
               <div style={{ fontWeight: 600, marginBottom: 4 }}>近 12 個月</div>
               <Suspense fallback={<div className="skeleton" style={{ height: 220 }} />}>
@@ -353,16 +342,11 @@ export default function ReportsPage() {
             </section>
           )}
 
-          {a.expense > 0 && (
-            <section className="card" aria-label="花費分佈">
-              <div style={{ fontWeight: 600 }}>消費次數最多的星期幾／時段</div>
-              <Suspense fallback={<div className="skeleton" style={{ height: 120 }} />}>
-                <EChart option={distOption(a.weekdayCount, a.byWeekday, WEEK.map((w) => `週${w}`))} height={120} ariaLabel="星期消費次數分佈" />
-                <EChart option={distOption(a.hourCount, a.byHour, Array.from({ length: 24 }, (_, i) => String(i)))} height={120} ariaLabel="時段消費次數分佈" />
-              </Suspense>
+          {a.expense > 0 && a.topNotes.length > 0 && (
+            <section className="card" aria-label="花最多的項目">
               {a.topNotes.length > 0 && (
                 <>
-                  <div style={{ fontWeight: 600, margin: '8px 0 4px' }}>花最多的項目</div>
+                  <div style={{ fontWeight: 600, margin: '0 0 4px' }}>花最多的項目</div>
                   {a.topNotes.map((n) => (
                     <div key={n.note} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', padding: '4px 0' }}>
                       <span>{n.note} <span className="muted">×{n.count}</span></span><span className="num">{formatMoney(n.amount, base)}</span>
@@ -380,11 +364,6 @@ export default function ReportsPage() {
             <Icon name="chevronR" />
           </button>
           <div className="list" style={{ marginTop: 12 }}>
-            <button className="row" onClick={() => navigate('/reports/summary?unit=week')}>
-              <span aria-hidden="true" style={{ fontSize: 22 }}>📊</span>
-              <span className="row-main"><span className="row-title">週報／月報</span><span className="row-sub" style={{ display: 'block' }}>上週、上個月花了多少，和前一期比哪裡變多了</span></span>
-              <Icon name="chevronR" className="row-chev" />
-            </button>
             <button className="row" onClick={() => navigate('/reports/cashflow')}>
               <span aria-hidden="true" style={{ fontSize: 22 }}>🔮</span>
               <span className="row-main"><span className="row-title">現金流預測</span><span className="row-sub" style={{ display: 'block' }}>未來 30～180 天的錢夠不夠用、哪天哪個帳戶會不夠付卡費</span></span>

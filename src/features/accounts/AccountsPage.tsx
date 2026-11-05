@@ -304,6 +304,11 @@ export function AccountDetailPage() {
       <button className="row" style={{ borderRadius: 16 }} onClick={() => navigate(`/ledger?account=${account.id}`)}>
         <Icon name="list" /><span className="row-main">查看此帳戶所有帳目</span><Icon name="chevronR" className="row-chev" />
       </button>
+      {!account.loan && (
+        <button className="row" style={{ borderRadius: 16, marginTop: 8 }} onClick={() => navigate(`/settings/import?mode=reconcile&account=${encodeURIComponent(account.name)}`)}>
+          <Icon name="check" /><span className="row-main"><span className="row-title">帳單對帳</span><span className="row-sub" style={{ display: 'block' }}>用帳單 CSV 或截圖核對，找出漏記與金額有差的</span></span><Icon name="chevronR" className="row-chev" />
+        </button>
+      )}
       <AccountSheet open={editing} onClose={() => setEditing(false)} account={account} />
     </main>
   );

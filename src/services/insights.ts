@@ -139,7 +139,7 @@ export async function checkNewTransactions(ids: string[], today = todayKey()): P
     if (!f) continue;
     const cur = await loadAi();
     await saveAi({ ...cur, findings: [...cur.findings.filter((x) => x.id !== f!.id), f] });
-    if (!(await db.reminders.get(f.id))) await notify(`🔎 ${f.title}`, f.tip, '/insights', 'insight', f.id);
+    if (!(await db.reminders.get(f.id))) await notify(`🔎 ${f.title}`, f.tip, '/ai', 'insight', f.id);
     added++;
   }
   if (added) await runInsights({ force: true });
@@ -170,7 +170,7 @@ async function notifyNew(snap: InsightsSnapshot) {
   for (const f of snap.findings.filter((x) => x.severity === 'warn')) {
     if (sent >= 3) return;
     if (await db.reminders.get(f.id)) continue;
-    await notify(`🔎 ${f.title}`, f.tip, '/insights', 'insight', f.id);
+    await notify(`🔎 ${f.title}`, f.tip, '/ai', 'insight', f.id);
     sent++;
   }
 }

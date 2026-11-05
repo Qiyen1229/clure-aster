@@ -8,8 +8,8 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, uid } from '@/db/schema';
-import type { Attachment, Template } from '@/db/types';
+import { db } from '@/db/schema';
+import type { Attachment } from '@/db/types';
 import {
   addTransaction, addTransfer, deleteTransactions, deleteTransfers, lastTransaction, restoreTransactions, restoreTransfers,
   updateTransaction, updateTransfer,
@@ -39,18 +39,17 @@ import type { NoteSuggestion } from '@/domain/notesuggest';
 import type { ResolvedDraft } from '@/services/quickentry';
 import { QuickEntry } from './QuickEntry';
 
-const MODES: { value: AddMode; label: string }[] = [
+/** 頂部只有 4 格：借貸裡再分借出（應收）／借入（應付）；餘額調整不是日常記帳，從帳戶頁的「調整餘額」進來才會多出一格 */
+const MODES: { value: AddMode | 'loan'; label: string }[] = [
   { value: 'expense', label: '支出' },
   { value: 'income', label: '收入' },
   { value: 'transfer', label: '轉帳' },
-  { value: 'receivable', label: '應收' },
-  { value: 'payable', label: '應付' },
-  { value: 'adjust', label: '調整' },
+  { value: 'loan', label: '借貸' },
 ];
 
 const isLoanMode = (m: AddMode): m is 'receivable' | 'payable' => m === 'receivable' || m === 'payable';
 
-type Picker = null | 'account' | 'toAccount' | 'currency' | 'tags' | 'project' | 'templates' | 'photo' | 'split';
+type Picker = null | 'account' | 'toAccount' | 'currency' | 'tags' | 'project' | 'photo' | 'split';
 
 const nowTime = () => { const d = new Date(); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
 
@@ -72,7 +71,6 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
   const { all: allCats, map: catMap } = useCategories();
   const { list: tags, map: tagMap } = useTags();
   const { list: projects, map: projMap } = useProjects();
-  const templates = useLiveQuery(() => db.templates.orderBy('sort').toArray(), []) ?? [];
   const people = useLiveQuery(() => db.people.toArray(), []) ?? [];
 
   const editing = !!(editTxId || editTransferId);
@@ -111,7 +109,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
   const [picker, setPicker] = useState<Picker>(null);
   const [viewer, setViewer] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [listening, setListening] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   /** 使用者是否已手動選過分類（是的話不再自動分類） */
   const catTouched = useRef(!!prefill?.categoryId);
   const [autoCat, setAutoCat] = useState<(CategorySuggestion & { prev: string }) | null>(null);
@@ -436,36 +434,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
     navigator.vibrate?.(8);
   };
 
-  // ── 範本、複製上一筆 ──
-  const applyTemplate = (t: Template) => {
-    catTouched.current = true;
-    const p = t.payload;
-    if (p.type && p.type !== 'transfer_fee') setMode(p.type);
-    if (p.categoryId) {
-      const c = catMap.get(p.categoryId);
-      if (c) { setCatByKind((s) => ({ ...s, [c.kind]: c.id })); setMainOpen(c.parentId || c.id); }
-    }
-    if (p.accountId && accMap.has(p.accountId)) setAccountId(p.accountId);
-    if (p.amountMinor) setExpr(fromMinor(p.amountMinor, p.currency ?? txCurrency).toString());
-    if (p.currency) setCurrency(p.currency);
-    if (p.note !== undefined) setNote(p.note);
-    if (p.tagIds) setTagIds(p.tagIds);
-    void db.templates.update(t.id, { useCount: t.useCount + 1 });
-    setPicker(null);
-  };
-  const saveTemplate = async () => {
-    const name = window.prompt('範本名稱', note || catMap.get(categoryId)?.name || '常用');
-    if (!name) return;
-    const now = Date.now();
-    await db.templates.add({
-      id: uid(), name, sort: templates.length, useCount: 0, createdAt: now, updatedAt: now,
-      payload: {
-        type: mode === 'income' ? 'income' : 'expense', categoryId, accountId, currency: txCurrency, note, tagIds,
-        amountMinor: value && value.gt(0) ? toMinor(value, txCurrency) : undefined,
-      },
-    });
-    useUI.getState().showSnack({ text: `已存成範本「${name}」` });
-  };
+  // ── 複製上一筆 ──
   const copyLast = async () => {
     const t = await lastTransaction();
     if (!t) { useUI.getState().showSnack({ text: '還沒有上一筆' }); return; }
@@ -519,21 +488,6 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
     if (a) setViewer(URL.createObjectURL(a.blob));
   };
 
-  // ── 語音輸入備註（Web Speech API；iOS Safari 14.5+ 支援 webkitSpeechRecognition） ──
-  const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-  const listen = () => {
-    if (!SR) return;
-    const rec = new SR();
-    rec.lang = 'zh-TW';
-    rec.interimResults = false;
-    rec.maxAlternatives = 1;
-    rec.onresult = (e: any) => setNote((n) => (n ? `${n} ` : '') + e.results[0][0].transcript);
-    rec.onend = () => setListening(false);
-    rec.onerror = () => { setListening(false); useUI.getState().showSnack({ text: '語音辨識失敗，請確認已允許麥克風' }); };
-    setListening(true);
-    rec.start();
-  };
-
   // ── 畫面 ──
   const display = (() => {
     if (!expr) return '0';
@@ -563,7 +517,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
         {/* 上半部可捲動、數字鍵盤固定在下方：內容永遠停在鍵盤上緣，不會被鍵盤蓋住 */}
         <div className="add-layout">
           <div className="add-scroll">
-          {!editing && (
+          {!editing && prefill?.quickText && (
             <QuickEntry initialText={prefill?.quickText} accMap={accMap} catMap={catMap} onApply={applyDraft}
               onBooked={() => {
                 saved.current = true;
@@ -572,12 +526,19 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
               }} />
           )}
           {!editTransferId && !(editTxId && mode === 'adjust') && (
-            <Segmented value={mode} onChange={(m) => {
-              setMode(m);
-              if (m === 'adjust') setExpr('');
-              if (m === 'expense' || m === 'income') { const c = catMap.get(catByKind[m]); setMainOpen(c?.parentId || c?.id || ''); }
-            }}
-              options={editing ? MODES.filter((m) => m.value === 'expense' || m.value === 'income') : MODES} ariaLabel="記帳類型" />
+            <>
+              <Segmented value={isLoanMode(mode) ? 'loan' : mode} onChange={(m) => {
+                const next = (m === 'loan' ? 'receivable' : m) as AddMode;
+                setMode(next);
+                if (next === 'adjust') setExpr('');
+                if (next === 'expense' || next === 'income') { const c = catMap.get(catByKind[next]); setMainOpen(c?.parentId || c?.id || ''); }
+              }}
+                options={editing ? MODES.filter((m) => m.value === 'expense' || m.value === 'income') : mode === 'adjust' ? [...MODES, { value: 'adjust', label: '調整' }] : MODES} ariaLabel="記帳類型" />
+              {isLoanMode(mode) && !editing && (
+                <Segmented value={mode} onChange={(m) => setMode(m as AddMode)} ariaLabel="借貸方向"
+                  options={[{ value: 'receivable', label: '借出（誰欠你）' }, { value: 'payable', label: '借入（你欠誰）' }]} />
+              )}
+            </>
           )}
 
           {/* 金額 */}
@@ -716,7 +677,39 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
               <input type="time" value={time} onChange={(e) => setTime(e.target.value)} aria-label="時間"
                 style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%' }} />
             </span>
-            {mode !== 'adjust' && !loan && (
+            {mode === 'transfer' && (
+              <span className="pill">
+                手續費
+                <input inputMode="decimal" value={fee} onChange={(e) => setFee(e.target.value.replace(/[^0-9.]/g, ''))}
+                  placeholder="0" aria-label="轉帳手續費" style={{ width: 56, border: 0, background: 'transparent', outline: 'none' }} />
+              </span>
+            )}
+            {editing && (
+              <button className="pill" style={{ color: 'var(--danger)' }} onClick={async () => {
+                if (!(await confirmDeleteById(editTxId ? 'tx' : 'transfer', (editTxId ?? editTransferId)!))) return;
+                if (editTxId) void deleteTransactions([editTxId]).then(() => snackUndo('已刪除', () => restoreTransactions([editTxId])));
+                if (editTransferId) void deleteTransfers([editTransferId]).then(() => snackUndo('已刪除轉帳', () => restoreTransfers([editTransferId])));
+                saved.current = true;
+                onClose();
+              }}><Icon name="trash" size={16} />刪除</button>
+            )}
+          </div>
+
+          {/* 少用的欄位收在「更多選項」；已經選了內容就自動展開，不會藏起來 */}
+          {(mode === 'expense' || mode === 'income') && (() => {
+            const active = tagIds.length > 0 || !!projectId || durableYears > 0 || skipBudget || split.people.length > 0 || atts.length > 0;
+            const open = moreOpen || active;
+            return (
+              <>
+                {!open && (
+                  <div className="meta-row">
+                    <button className="pill" onClick={() => setMoreOpen(true)} aria-expanded={false}>更多選項 ▾</button>
+                    {!editing && <button className="pill" onClick={copyLast}><Icon name="copy" size={16} />上一筆</button>}
+                  </div>
+                )}
+                {open && (
+                  <div className="meta-row" aria-label="更多選項">
+            {(
               <>
                 <button className="pill" onClick={() => setPicker('tags')} aria-pressed={tagIds.length > 0}>
                   <Icon name="tag" size={16} />{tagIds.length ? tagIds.map((id) => tagMap.get(id)?.name).filter(Boolean).join('、') : '標籤'}
@@ -751,31 +744,21 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
                 <Icon name="users" size={16} />{split.people.length ? `分帳 ${split.people.length + 1} 人` : '分帳'}
               </button>
             )}
-            {mode === 'transfer' && (
-              <span className="pill">
-                手續費
-                <input inputMode="decimal" value={fee} onChange={(e) => setFee(e.target.value.replace(/[^0-9.]/g, ''))}
-                  placeholder="0" aria-label="轉帳手續費" style={{ width: 56, border: 0, background: 'transparent', outline: 'none' }} />
-              </span>
-            )}
-            {editing && (
-              <button className="pill" style={{ color: 'var(--danger)' }} onClick={async () => {
-                if (!(await confirmDeleteById(editTxId ? 'tx' : 'transfer', (editTxId ?? editTransferId)!))) return;
-                if (editTxId) void deleteTransactions([editTxId]).then(() => snackUndo('已刪除', () => restoreTransactions([editTxId])));
-                if (editTransferId) void deleteTransfers([editTransferId]).then(() => snackUndo('已刪除轉帳', () => restoreTransfers([editTransferId])));
-                saved.current = true;
-                onClose();
-              }}><Icon name="trash" size={16} />刪除</button>
-            )}
-            {(mode === 'expense' || mode === 'income') && !editing && (
-              <>
-                <button className="pill" onClick={() => setPicker('templates')}><Icon name="template" size={16} />範本</button>
-                <button className="pill" onClick={copyLast}><Icon name="copy" size={16} />上一筆</button>
+                    {(mode === 'expense' || mode === 'income') && (
+                      <label className="pill" style={{ cursor: 'pointer' }} aria-pressed={atts.length > 0}>
+                        <Icon name="camera" size={16} />收據照片
+                        <input type="file" accept="image/*" multiple className="sr-only" onChange={(e) => { void onPhoto(e.target.files); e.target.value = ''; }} />
+                      </label>
+                    )}
+                    {!editing && <button className="pill" onClick={copyLast}><Icon name="copy" size={16} />上一筆</button>}
+                    {!active && <button className="pill" onClick={() => setMoreOpen(false)}>收合 ▴</button>}
+                  </div>
+                )}
               </>
-            )}
-          </div>
+            );
+          })()}
 
-          {/* 備註 + 語音 + 照片 */}
+          {/* 備註 */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <input className="input" placeholder={mode === 'transfer' ? '備註（例如：提款）' : loan ? '備註（例如：代墊車資）' : '備註、店家…'} value={note}
               onChange={(e) => setNote(e.target.value)} maxLength={200} aria-label="備註"
@@ -791,18 +774,6 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
                   if (p) setMainOpen(p.parentId || p.id);
                   setAutoCat(null);
                 }}>🪄 自動分類 ✕</button>
-            )}
-            {SR && (
-              <button className="icon-btn" onClick={listen} aria-label="語音輸入備註" aria-pressed={listening}
-                style={listening ? { background: 'var(--danger)', color: '#fff' } : undefined}>
-                <Icon name="mic" />
-              </button>
-            )}
-            {(mode === 'expense' || mode === 'income') && (
-              <label className="icon-btn" aria-label="加入收據照片" style={{ cursor: 'pointer' }}>
-                <Icon name="camera" />
-                <input type="file" accept="image/*" multiple className="sr-only" onChange={(e) => { void onPhoto(e.target.files); e.target.value = ''; }} />
-              </label>
             )}
           </div>
           {(() => {
@@ -852,30 +823,6 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
         totalMinor={value && value.gt(0) ? toMinor(value, txCurrency) : 0} currency={txCurrency} />
       <TagPicker open={picker === 'tags'} onClose={() => setPicker(null)} tags={tags} value={tagIds} onChange={setTagIds} />
       <ProjectPicker open={picker === 'project'} onClose={() => setPicker(null)} projects={projects} value={projectId} onPick={setProjectId} />
-      <Sheet open={picker === 'templates'} onClose={() => setPicker(null)} title="常用範本">
-        {templates.length === 0 ? (
-          <p className="muted" style={{ textAlign: 'center' }}>還沒有範本。把常記的項目（早餐、通勤…）存成範本，一鍵帶入。</p>
-        ) : (
-          <div className="list">
-            {[...templates].sort((a, b) => b.useCount - a.useCount).map((t) => {
-              const c = t.payload.categoryId ? catMap.get(t.payload.categoryId) : undefined;
-              return (
-                <div key={t.id} className="row with-icon">
-                  <button className="row-main" style={{ display: 'flex', gap: 12, alignItems: 'center', textAlign: 'left' }} onClick={() => applyTemplate(t)}>
-                    <span className="cat-icon sm" style={{ ['--c' as string]: c?.color }}>{c?.icon ?? '⭐'}</span>
-                    <span>
-                      <div className="row-title">{t.name}</div>
-                      <div className="row-sub">{c?.name}{t.payload.amountMinor ? ` · ${formatMoney(t.payload.amountMinor, t.payload.currency ?? 'TWD')}` : ''}</div>
-                    </span>
-                  </button>
-                  <button className="icon-btn plain" aria-label={`刪除範本 ${t.name}`} onClick={() => void db.templates.delete(t.id)}><Icon name="trash" size={18} /></button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-        <button className="btn tinted" onClick={() => void saveTemplate()}>將目前內容存為範本</button>
-      </Sheet>
       <Sheet open={!!viewer} onClose={() => { if (viewer) URL.revokeObjectURL(viewer); setViewer(null); }} title="收據" full>
         {viewer && <img src={viewer} alt="收據照片" style={{ width: '100%', borderRadius: 12 }} />}
       </Sheet>

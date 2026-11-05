@@ -46,8 +46,8 @@ export default function BudgetSection() {
       <SectionHead title="預算" onAdd={() => setEdit('new')} />
       {AUTH_ENABLED && (
         <button className="card" style={{ width: '100%', textAlign: 'left', marginBottom: 8 }} onClick={() => navigate('/ai?tool=budget')}>
-          <span className="row-title"><AiMark /> 讓 AI 建議下個月預算</span>
-          <span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>依過去花費與固定支出，算出總預算與每天的日常預算</span>
+          <span className="row-title"><AiMark /> 請 AI 規劃預算</span>
+          <span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>依過去花費由操作助手規劃，先預覽、你確認才建立，建立後 7 天內可還原</span>
         </button>
       )}
       {!views ? <SkeletonRows /> : views.length === 0 ? (

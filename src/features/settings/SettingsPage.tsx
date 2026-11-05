@@ -138,6 +138,95 @@ function Group({ id, title, note, newSince, children }: { id?: string; title?: s
   );
 }
 
+/** 外觀與顯示：深淺色、主題色、文字大小、漲跌顏色（裝好 App 設一次就很少再動，所以收在一列裡） */
+function AppearanceSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const s = useSettings();
+  return (
+    <Sheet open={open} onClose={onClose} title="外觀與顯示">
+      <div className="list">
+        <div className="row set-stack">
+          <Segmented value={s.theme} onChange={(v) => s.set('theme', v)} ariaLabel="深淺色"
+            options={[{ value: 'system', label: '跟隨系統' }, { value: 'light', label: '淺色' }, { value: 'dark', label: '深色' }]} />
+        </div>
+        <div className="row set-stack">
+          <div className="row-title">主題色</div>
+          <div className="swatches" role="radiogroup" aria-label="主題色">
+            {ACCENTS.map((a) => (
+              <button key={a.key} className="swatch" style={{ ['--c' as string]: a.color }} aria-pressed={s.accent === a.key}
+                aria-label={a.name} title={a.name} onClick={() => s.set('accent', a.key)} />
+            ))}
+          </div>
+        </div>
+        <div className="row set-stack">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div className="row-main">
+              <div className="row-title">文字大小</div>
+              <div className="row-sub" style={{ whiteSpace: 'normal' }}>{s.fontSize === 'system' ? '跟隨 iPhone 的文字大小設定' : '只套用在這台裝置'}</div>
+            </div>
+            <Switch checked={s.fontSize === 'system'} label="跟隨系統文字大小"
+              onChange={(v) => s.set('fontSize', v ? 'system' : FONT_SIZES[1].px)} />
+          </div>
+          {s.fontSize !== 'system' && (
+            <Segmented value={s.fontSize} onChange={(v) => s.set('fontSize', v)} ariaLabel="文字大小"
+              options={FONT_SIZES.map((f) => ({ value: f.px, label: f.label }))} />
+          )}
+          <div className="font-preview" aria-hidden="true">
+            <span>午餐・便當</span><span className="num">$120</span>
+          </div>
+        </div>
+        <Row label="收支／漲跌顏色" sub={s.upColor === 'red' ? '紅漲綠跌（台股習慣）' : '綠漲紅跌'}>
+          <div style={{ width: 128, flex: 'none' }}>
+            <Segmented value={s.upColor} onChange={(v) => s.set('upColor', v)} ariaLabel="收支顏色"
+              options={[{ value: 'red', label: <span style={{ color: 'var(--up-red)' }}>紅漲</span> }, { value: 'green', label: <span style={{ color: 'var(--down-green)' }}>綠漲</span> }]} />
+          </div>
+        </Row>
+      </div>
+    </Sheet>
+  );
+}
+
+/** 記帳格式與起算日：主幣別、記帳月起算、一週起始、小數位數、千分位 */
+function PrefsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const s = useSettings();
+  const navigate = useNavigate();
+  return (
+    <Sheet open={open} onClose={onClose} title="記帳格式與起算日">
+      <div className="list">
+        <div className="field">
+          <label htmlFor="s-base">主幣別</label>
+          <select id="s-base" value={s.baseCurrency} onChange={(e) => {
+            s.set('baseCurrency', e.target.value);
+            useUI.getState().showSnack({ text: '已變更主幣別，建議重算舊帳目的換算金額', actionLabel: '前往', onAction: () => navigate('/settings/health'), duration: 6000 });
+            void refreshRates(e.target.value).catch(() => undefined);
+          }}>
+            {Object.values(CURRENCIES).map((c) => <option key={c.code} value={c.code}>{c.code} {c.name}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="s-msd">記帳月起算</label>
+          <select id="s-msd" value={s.monthStartDay} onChange={(e) => s.set('monthStartDay', Number(e.target.value))}>
+            {Array.from({ length: 28 }, (_, i) => <option key={i} value={i + 1}>每月 {i + 1} 日</option>)}
+            <option value={31}>每月最後一天</option>
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="s-ws">一週起始</label>
+          <select id="s-ws" value={s.weekStart} onChange={(e) => s.set('weekStart', Number(e.target.value) as 0 | 1)}>
+            <option value={0}>週日</option><option value={1}>週一</option>
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="s-dec">小數位數</label>
+          <select id="s-dec" value={String(s.decimals)} onChange={(e) => s.set('decimals', e.target.value === 'auto' ? 'auto' : (Number(e.target.value) as 0 | 1 | 2))}>
+            <option value="auto">自動（有零頭才顯示）</option><option value="0">0 位</option><option value="1">1 位</option><option value="2">2 位</option>
+          </select>
+        </div>
+        <div className="field"><span className="label" style={{ flex: 1 }}>千分位</span><Switch checked={s.thousands} onChange={(v) => s.set('thousands', v)} label="千分位" /></div>
+      </div>
+    </Sheet>
+  );
+}
+
 export default function SettingsPage() {
   const s = useSettings();
   const navigate = useNavigate();
@@ -148,6 +237,8 @@ export default function SettingsPage() {
   const auth = useAuth();
   const [pwOpen, setPwOpen] = useState(false);
   const [encOpen, setEncOpen] = useState(false);
+  const [lookOpen, setLookOpen] = useState(false);
+  const [prefsOpen, setPrefsOpen] = useState(false);
   const syncPhase = useSync((x) => x.phase);
   const syncE2ee = useSync((x) => x.e2ee);
   const snack = (text: string) => useUI.getState().showSnack({ text });
@@ -187,102 +278,40 @@ export default function SettingsPage() {
         </>
       )}
 
-      <Group id="look" title="外觀" desc="深淺色、主題色、文字大小、漲跌顏色">
-        <div className="row set-stack">
-          <Segmented value={s.theme} onChange={(v) => s.set('theme', v)} ariaLabel="深淺色"
-            options={[{ value: 'system', label: '跟隨系統' }, { value: 'light', label: '淺色' }, { value: 'dark', label: '深色' }]} />
-        </div>
-        <div className="row set-stack">
-          <div className="row-title">主題色</div>
-          <div className="swatches" role="radiogroup" aria-label="主題色">
-            {ACCENTS.map((a) => (
-              <button key={a.key} className="swatch" style={{ ['--c' as string]: a.color }} aria-pressed={s.accent === a.key}
-                aria-label={a.name} title={a.name} onClick={() => s.set('accent', a.key)} />
-            ))}
-          </div>
-        </div>
-        <div className="row set-stack">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div className="row-main">
-              <div className="row-title">文字大小</div>
-              <div className="row-sub" style={{ whiteSpace: 'normal' }}>{s.fontSize === 'system' ? '跟隨 iPhone 的文字大小設定' : '只套用在這台裝置'}</div>
-            </div>
-            <Switch checked={s.fontSize === 'system'} label="跟隨系統文字大小"
-              onChange={(v) => s.set('fontSize', v ? 'system' : FONT_SIZES[1].px)} />
-          </div>
-          {s.fontSize !== 'system' && (
-            <Segmented value={s.fontSize} onChange={(v) => s.set('fontSize', v)} ariaLabel="文字大小"
-              options={FONT_SIZES.map((f) => ({ value: f.px, label: f.label }))} />
-          )}
-          <div className="font-preview" aria-hidden="true">
-            <span>午餐・便當</span><span className="num">$120</span>
-          </div>
-        </div>
-        <Row label="收支／漲跌顏色" sub={s.upColor === 'red' ? '紅漲綠跌（台股習慣）' : '綠漲紅跌'}>
-          <div style={{ width: 128, flex: 'none' }}>
-            <Segmented value={s.upColor} onChange={(v) => s.set('upColor', v)} ariaLabel="收支顏色"
-              options={[{ value: 'red', label: <span style={{ color: 'var(--up-red)' }}>紅漲</span> }, { value: 'green', label: <span style={{ color: 'var(--down-green)' }}>綠漲</span> }]} />
-          </div>
+      <Group id="ai" title="AI 與自動化">
+        <Row icon="ai" tint="#17181c" label="AI 助理" sub="記帳、查帳、整理帳本、拍照記帳、智慧提醒都在同一個對話框" onClick={() => navigate('/ai')} newSince="4.0.0" />
+        {AUTH_ENABLED && <Row icon="sliders" tint="#8E8E93" label="AI 設定與額度" sub="開關、會送出哪些內容、每日／週／月額度" onClick={() => navigate('/settings/ai')} />}
+        <Row icon="ai" tint="#5E5CE6" label="首頁 AI 小圓球" sub="首頁右上角（搜尋左邊），點開就能對話記帳">
+          <Switch checked={s.homeAiChat} label="顯示 AI 小圓球" onChange={(v) => s.set('homeAiChat', v)} />
         </Row>
+        {AUTH_ENABLED && <Row icon="download" tint="#30D158" label="自動記帳收件匣" sub="Apple Pay、銀行簡訊、Siri 經 iPhone 捷徑記帳" onClick={() => navigate('/inbox')} />}
+        <Row icon="note" tint="#0A84FF" label="電子發票" sub="手機條碼載具、掃描 QR Code、匯入明細、自動對獎" onClick={() => navigate('/settings/invoice')} />
+        <Row icon="check" tint="#FF9F0A" label="帳單對帳" sub="用信用卡或銀行帳單（CSV／截圖）核對帳本，一鍵補齊漏記" onClick={() => navigate('/settings/import?mode=reconcile')} newSince="4.0.0" />
       </Group>
 
-      <Group id="prefs" title="記帳偏好" desc="主幣別、記帳月起算、一週起始、小數位數、匯率">
-        <div className="field">
-          <label htmlFor="s-base">主幣別</label>
-          <select id="s-base" value={s.baseCurrency} onChange={(e) => {
-            s.set('baseCurrency', e.target.value);
-            useUI.getState().showSnack({ text: '已變更主幣別，建議重算舊帳目的換算金額', actionLabel: '前往', onAction: () => navigate('/settings/health'), duration: 6000 });
-            void refreshRates(e.target.value).catch(() => undefined);
-          }}>
-            {Object.values(CURRENCIES).map((c) => <option key={c.code} value={c.code}>{c.code} {c.name}</option>)}
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="s-msd">記帳月起算</label>
-          <select id="s-msd" value={s.monthStartDay} onChange={(e) => s.set('monthStartDay', Number(e.target.value))}>
-            {Array.from({ length: 28 }, (_, i) => <option key={i} value={i + 1}>每月 {i + 1} 日</option>)}
-            <option value={31}>每月最後一天</option>
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="s-ws">一週起始</label>
-          <select id="s-ws" value={s.weekStart} onChange={(e) => s.set('weekStart', Number(e.target.value) as 0 | 1)}>
-            <option value={0}>週日</option><option value={1}>週一</option>
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="s-dec">小數位數</label>
-          <select id="s-dec" value={String(s.decimals)} onChange={(e) => s.set('decimals', e.target.value === 'auto' ? 'auto' : (Number(e.target.value) as 0 | 1 | 2))}>
-            <option value="auto">自動（有零頭才顯示）</option><option value="0">0 位</option><option value="1">1 位</option><option value="2">2 位</option>
-          </select>
-        </div>
-        <div className="field"><span className="label" style={{ flex: 1 }}>千分位</span><Switch checked={s.thousands} onChange={(v) => s.set('thousands', v)} label="千分位" /></div>
-        <Row icon="globe" tint="#0A84FF" label="幣別與匯率" onClick={() => navigate('/settings/fx')}
-          sub={fxAt ? `上次更新 ${new Date(fxAt).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : '尚未更新'} />
-      </Group>
-
-      <Group id="cats" title="分類與規則" desc="分類、標籤、自動分類規則、首頁小工具">
+      <Group id="cats" title="分類與規則">
         <Row icon="pie" tint="#FF375F" label="支出／收入分類" sub="名稱、圖示、顏色、排序、封存" onClick={() => navigate('/settings/categories')} />
         <Row icon="tag" tint="#BF5AF2" label="標籤" onClick={() => navigate('/settings/tags')} />
         <Row icon="filter" tint="#30B0C7" label="自動分類規則" sub="依備註、商家帶入分類與標籤" onClick={() => navigate('/settings/rules')} />
-        <Row icon="grip" tint="#FF9F0A" label="首頁小工具" sub="今日花費、預算、淨資產…" onClick={() => navigate('/settings/widgets')} />
       </Group>
 
-      <Group id="ai" title="AI 助理">
-        <Row icon="ai" tint="#17181c" label="AI 助理" sub="用說的整理帳本、問答、預算建議、拍照記帳、智慧提醒（異常與預算預警）" onClick={() => navigate('/ai')} newSince="4.0.0" />
-        {AUTH_ENABLED && <Row icon="sliders" tint="#8E8E93" label="AI 設定與額度" sub="開關、會送出哪些內容、每日／週／月額度" onClick={() => navigate('/settings/ai')} />}
-      </Group>
-
-      <Group id="auto" title="自動化與整合" desc="收件匣、電子發票、通知、外部通知、股票資料源">
-        {AUTH_ENABLED && <Row icon="download" tint="#30D158" label="自動記帳收件匣" sub="Apple Pay、銀行簡訊、Siri 經 iPhone 捷徑記帳" onClick={() => navigate('/inbox')} />}
-        <Row icon="note" tint="#0A84FF" label="電子發票" sub="手機條碼載具、掃描 QR Code、匯入明細、自動對獎" onClick={() => navigate('/settings/invoice')} />
+      <Group id="auto" title="通知與整合">
         <Row icon="bell" tint="#FF3B30" label="通知與提醒" sub="記帳、繳款、預算、訂閱、到價、週報月報" onClick={() => navigate('/settings/notifications')} />
         {AUTH_ENABLED && <Row icon="globe" tint="#5E5CE6" label="外部通知" sub="Discord、Telegram、LINE、自訂 Webhook" onClick={() => navigate('/settings/channels')} />}
         <Row icon="trend" tint="#5E5CE6" label="股票資料源與 API Key" sub="代理網址、資料源順序、手續費、成本法" onClick={() => navigate('/settings/invest')} />
       </Group>
 
+      <Group id="look" title="顯示與格式">
+        <Row icon="eye" tint="#0A84FF" label="外觀與顯示" sub={`${s.theme === 'system' ? '跟隨系統' : s.theme === 'dark' ? '深色' : '淺色'}・${ACCENTS.find((a) => a.key === s.accent)?.name ?? ''}・${s.upColor === 'red' ? '紅漲綠跌' : '綠漲紅跌'}`} onClick={() => setLookOpen(true)} />
+        <Row icon="sliders" tint="#8E8E93" label="記帳格式與起算日" sub={`${s.baseCurrency}・每月 ${s.monthStartDay === 31 ? '最後一天' : `${s.monthStartDay} 日`}起算・一週從${s.weekStart === 0 ? '週日' : '週一'}`} onClick={() => setPrefsOpen(true)} />
+        <Row icon="globe" tint="#0A84FF" label="幣別與匯率" onClick={() => navigate('/settings/fx')}
+          sub={fxAt ? `上次更新 ${new Date(fxAt).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : '尚未更新'} />
+      </Group>
+      <AppearanceSheet open={lookOpen} onClose={() => setLookOpen(false)} />
+      <PrefsSheet open={prefsOpen} onClose={() => setPrefsOpen(false)} />
+
       <Group id="data" title="資料">
-        <Row icon="folder" tint="#0A84FF" label="備份、匯入與匯出" sub="JSON 備份／還原、CSV、Excel、PDF、銀行對帳單、Moze；新增「對帳」" onClick={() => navigate('/settings/backup')} newSince="4.0.0" />
+        <Row icon="folder" tint="#0A84FF" label="備份、匯入與匯出" sub="JSON 備份／還原、CSV、Excel、PDF、Moze 匯入" onClick={() => navigate('/settings/backup')} />
         <Row icon="check" tint="#30D158" label="資料健康檢查" sub="餘額、換算金額、遺失關聯、多餘照片" onClick={() => navigate('/settings/health')} />
         {sample ? (
           <Row icon="template" tint="#8E8E93" label="清除範例資料" sub="只刪除範例帳戶與帳目">

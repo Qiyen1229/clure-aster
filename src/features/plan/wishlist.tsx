@@ -43,7 +43,7 @@ export default function WishlistSection() {
 
   return (
     <>
-      <SectionHead title="心願清單" onAdd={() => setAdding(true)} addLabel="想買" />
+      <SectionHead title="購物冷靜清單" onAdd={() => setAdding(true)} addLabel="想買" />
       <div className="card glass">
         <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
           <div><div className="muted" style={{ fontSize: '0.75rem' }}>冷靜中</div><div className="num" style={{ fontWeight: 700 }}>{waiting.length}</div></div>
