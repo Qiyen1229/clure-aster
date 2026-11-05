@@ -17,7 +17,7 @@ import { todayKey } from '@/domain/period';
 import { useCategories, useProjects } from '@/app/hooks';
 import { AUTH_ENABLED } from '@/stores/auth';
 import { useSettings } from '@/stores/settings';
-import { snackUndo, useUI } from '@/stores/ui';
+import { snackUndo, useUI, ask } from '@/stores/ui';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { AmountField, CategoryField, DateField, SelectField, SwitchField, TextField } from '@/ui/form';
 import { Sheet } from '@/ui/Sheet';
@@ -207,7 +207,7 @@ function BudgetForm({ budget, onClose }: { budget?: Budget; onClose: () => void 
       <button className="btn" onClick={() => void save()}>儲存</button>
       {budget && (
         <button className="btn danger" style={{ marginTop: 10 }} onClick={async () => {
-          if (!window.confirm(`刪除「${budget.name}」？帳目不受影響。`)) return;
+          if (!await ask(`刪除「${budget.name}」？帳目不受影響。`)) return;
           await deleteBudget(budget.id);
           onClose();
         }}>刪除預算</button>

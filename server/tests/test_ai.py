@@ -785,3 +785,23 @@ def test_agent_plan_recurring_without_category_is_kept(api: Api, monkeypatch) ->
     assert r.status_code == 200, r.text
     steps = r.json()["steps"]
     assert len(steps) == 1 and steps[0]["args"]["category"] is None and steps[0]["args"]["name"] == "Netflix"
+
+
+def test_agent_plan_new_tools_add_rule_and_goal(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    plan = {"summary": "規則與目標", "steps": [
+        {"tool": "add_rule", "args": {"pattern": "uber", "category": "通勤", "account": "玉山"}},
+        {"tool": "add_rule", "args": {"pattern": "x", "category": "通勤"}},                     # 關鍵字太短：丟掉
+        {"tool": "add_rule", "args": {"pattern": "全聯", "category": "不存在"}},               # 分類不在名單：丟掉
+        {"tool": "add_goal", "args": {"name": "日本旅行", "target_amount": "50,000", "deadline": "2026-12-31"}},
+        {"tool": "add_goal", "args": {"name": "舊目標", "target_amount": 100, "deadline": "2020-01-01"}},  # 過去的截止日：改成 None
+        {"tool": "add_goal", "args": {"name": "", "target_amount": 100}},                      # 沒名稱：丟掉
+    ]}
+    fake(monkeypatch, lambda n, p: ok(plan))
+    api.register("alice")
+    r = api.post("/api/ai/agent-plan", AGENT_BODY)
+    assert r.status_code == 200, r.text
+    steps = r.json()["steps"]
+    assert [s["tool"] for s in steps] == ["add_rule", "add_goal", "add_goal"]
+    assert steps[0]["args"] == {"pattern": "uber", "category": "通勤", "account": "玉山"}
+    assert steps[1]["args"] == {"name": "日本旅行", "target_amount": 50000, "deadline": "2026-12-31"}
+    assert steps[2]["args"]["deadline"] is None

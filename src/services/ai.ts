@@ -112,7 +112,10 @@ export interface AskValue { answer: string; followups: string[] }
 
 export async function aiAsk(question: string): Promise<Cached<AskValue>> {
   const { loadFinanceSummary } = await import('./aisummary');
-  const { summary } = await loadFinanceSummary();
+  const { summary: base } = await loadFinanceSummary();
+  // 持股、除息與稅務的去識別化統計（整數元合計＋股票代號），讓「我今年股利會被扣二代健保嗎？」這類問題有資料可答；失敗就不附
+  const investAndTax = await import('./taxplan').then((m) => m.investTaxSummary()).catch(() => null);
+  const summary = investAndTax ? { ...base, investAndTax } : base;
   const q = question.trim();
   return cached('ask', { q, summary }, 6 * HOUR, () => aiPost<AskValue & { quota: AiQuota }>('/ai/ask', { question: q, summary }));
 }

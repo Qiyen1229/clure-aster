@@ -12,7 +12,7 @@ import { evaluate } from '@/domain/calc-expr';
 import { fromDateKey, todayKey } from '@/domain/period';
 import { useCategories } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
-import { snackUndo, useUI } from '@/stores/ui';
+import { snackUndo, useUI, ask } from '@/stores/ui';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { AmountField, CategoryField, SelectField, TextField } from '@/ui/form';
 import { Sheet } from '@/ui/Sheet';
@@ -73,8 +73,8 @@ export default function WishlistSection() {
               <div className="btn-row">
                 <button className="btn small secondary" style={{ flex: 1 }} onClick={() => void extendWish(w.id, 7)}>再冷靜 7 天</button>
                 <button className="btn small tinted" style={{ flex: 1 }} onClick={() => abandon(w)}>放棄購買</button>
-                <button className="btn small" style={{ flex: 1 }} onClick={() => {
-                  if (left > 0 && !window.confirm(`冷靜期還有 ${left} 天，確定現在就買？`)) return;
+                <button className="btn small" style={{ flex: 1 }} onClick={async () => {
+                  if (left > 0 && !await ask(`冷靜期還有 ${left} 天，確定現在就買？`)) return;
                   buy(w);
                 }}>買了</button>
               </div>

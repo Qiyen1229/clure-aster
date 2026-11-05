@@ -127,4 +127,32 @@ describe('資料層：即將除息事件', () => {
     await notifyUpcomingDividends(); // 同一事件不會重複通知
     expect(await db.reminders.count()).toBe(1);
   });
+
+  it('今年已除息、還沒發放的股利也算進同年基準（不會高估剩餘的 8.5% 抵減額度）', async () => {
+    // 已除息（exDate 在過去）但發放日在未來、狀態仍是 announced：不在「未來事件」裡，但同年度已確定會領到
+    await db.dividends.add({ id: 'dx', stockId: 's1', accountId: 'a', kind: 'cash', status: 'announced', exDate: addDays(today, -3), payDate: addDays(today, 10), perShareDec: '2', sharesHeldDec: '15000', grossMinor: 0, withholdingTaxMinor: 0, nhiSupplementMinor: 0, feeMinor: 0, netMinor: 0, currency: 'TWD', createdAt: 1, updatedAt: 1 } as never);
+    await db.dividends.add({ id: 'dn', stockId: 's1', accountId: 'a', kind: 'cash', status: 'announced', exDate: addDays(today, 5), payDate: addDays(today, 25), perShareDec: '1.4', sharesHeldDec: '15000', grossMinor: 0, withholdingTaxMinor: 0, nhiSupplementMinor: 0, feeMinor: 0, netMinor: 0, currency: 'TWD', createdAt: 1, updatedAt: 1 } as never);
+    const plan = await loadTaxPlan(today);
+    expect(plan.events).toHaveLength(1); // 只有未來那筆是事件
+    // 基準 ＝ 已除息未發放的 30,000；抵減已用掉 round(30,000 × 8.5%) = 2,550，剩下 80,000 − 2,550
+    expect(plan.events[0].creditRemainingBefore).toBe(80_000 - 2_550);
+  });
+});
+
+describe('給問 AI 的投資與稅務統計', () => {
+  it('只有整數元合計、股票代號與日期；沒有持股也沒有事件時不附', async () => {
+    const { investTaxSummary } = await import('@/services/taxplan');
+    await db.delete(); await db.open();
+    useSettings.setState({ ...DEFAULT_SETTINGS, tax: { netIncome: 500_000 } } as never);
+    expect(await investTaxSummary()).toBeNull();
+    const today = todayKey();
+    await db.stocks.add({ id: 's1', market: 'TWSE', symbol: '00878', name: '國泰永續高股息', currency: 'TWD', assetType: 'etf', lotSize: 1000, createdAt: 1, updatedAt: 1 } as never);
+    await db.stock_trades.add({ id: 't1', stockId: 's1', accountId: 'a', type: 'buy', date: addDays(today, -400), ts: 1, sharesDec: '15000', priceDec: '20', feeMinor: 0, taxMinor: 0, createdAt: 1, updatedAt: 1 } as never);
+    await db.price_cache.put({ stockId: 's1', priceDec: '22', prevCloseDec: '22', changeDec: '0', changePctDec: '0', updatedAt: Date.now() } as never);
+    await db.dividends.add({ id: 'd1', stockId: 's1', accountId: 'a', kind: 'cash', status: 'announced', exDate: addDays(today, 5), payDate: addDays(today, 25), perShareDec: '1.4', sharesHeldDec: '15000', grossMinor: 0, withholdingTaxMinor: 0, nhiSupplementMinor: 0, feeMinor: 0, netMinor: 0, currency: 'TWD', createdAt: 1, updatedAt: 1 } as never);
+    const s = await investTaxSummary();
+    expect(s?.upcomingDividends).toEqual([{ symbol: '00878', exDate: addDays(today, 5), gross: 21000, nhi: 443, recommendation: 'join' }]);
+    expect(s?.holdingsValue).toBe(330_000); // 15,000 股 × 22
+    expect(JSON.stringify(s)).not.toMatch(/shares|cost|國泰/); // 不含股數、成本、名稱
+  });
 });

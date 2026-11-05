@@ -12,7 +12,7 @@ import { schedulePush } from '@/services/push';
 import { AUTH_ENABLED } from '@/stores/auth';
 import { useSettings } from '@/stores/settings';
 import { useSync } from '@/services/sync';
-import { useUI } from '@/stores/ui';
+import { useUI, ask } from '@/stores/ui';
 import { EmptyState, Segmented, SkeletonRows, Switch } from '@/ui/controls';
 import { SwitchField, TextField } from '@/ui/form';
 import { Icon } from '@/ui/Icon';
@@ -114,7 +114,7 @@ function ChannelCard({ c, busy, onTest, onChange }: { c: Channel; busy: boolean;
         <button className="btn small tinted" style={{ flex: 1 }} disabled={busy} onClick={onTest}>{busy ? '傳送中…' : '傳送測試'}</button>
         <button className="btn small secondary" style={{ flex: 1 }} onClick={() => setEdit(true)}>換權杖</button>
         <button className="btn small tinted" style={{ flex: 1, color: 'var(--danger)' }} onClick={async () => {
-          if (!window.confirm(`刪除「${c.name}」？之後不會再傳到這裡。`)) return;
+          if (!await ask(`刪除「${c.name}」？之後不會再傳到這裡。`)) return;
           try { await deleteChannel(c.id); await onChange(); } catch (e) { snack((e as Error).message); }
         }}>刪除</button>
       </div>

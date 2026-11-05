@@ -6,7 +6,7 @@ import { isDockNav } from './app/navSource';
 import { Component, lazy, Suspense, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { TabBar } from './app/TabBar';
-import { ActionSheetHost, ConfirmHost, PrivacyShield, SnackbarHost, UpdatePrompt } from './app/overlays';
+import { ActionSheetHost, PrivacyShield, SnackbarHost, UpdatePrompt } from './app/overlays';
 import HomePage from './features/home/HomePage';
 import { useSettings } from './stores/settings';
 import { useUI, type AddMode } from './stores/ui';
@@ -305,7 +305,6 @@ export default function App() {
       {onboarded && !fullscreen && <Suspense fallback={null}><WhatsNewSheet /></Suspense>}
       <ActionSheetHost />
       <SnackbarHost />
-      <ConfirmHost />
       <UpdatePrompt />
       <PrivacyShield />
       <LockScreen />

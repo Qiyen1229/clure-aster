@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { db, uid } from '@/db/schema';
 import { CATEGORY_COLORS } from '@/db/seed/categories';
 import { useTags } from '@/app/hooks';
-import { useUI } from '@/stores/ui';
+import { useUI, ask } from '@/stores/ui';
 import { EmptyState } from '@/ui/controls';
 import { Icon } from '@/ui/Icon';
 
@@ -41,7 +41,7 @@ export default function TagsPage() {
               <input className="row-main" defaultValue={t.name} aria-label="標籤名稱" style={{ border: 0, background: 'transparent', outline: 'none', minHeight: 40 }}
                 onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== t.name) void db.tags.update(t.id, { name: v, updatedAt: Date.now() }); }} />
               <button className="icon-btn plain" aria-label={`刪除 ${t.name}`} onClick={async () => {
-                if (!window.confirm(`刪除標籤「${t.name}」？帳目本身不會被刪除。`)) return;
+                if (!await ask(`刪除標籤「${t.name}」？帳目本身不會被刪除。`)) return;
                 await db.transaction('rw', db.tags, db.transactions, async () => {
                   await db.transactions.where('tagIds').equals(t.id).modify((tx) => { tx.tagIds = tx.tagIds.filter((x) => x !== t.id); });
                   await db.tags.delete(t.id);

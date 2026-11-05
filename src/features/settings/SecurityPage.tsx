@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { biometricAvailable, disableLock, registerBiometric, setPin, useLock } from '@/services/lock';
 import { useSettings } from '@/stores/settings';
-import { useUI } from '@/stores/ui';
+import { useUI, ask } from '@/stores/ui';
 import { Switch } from '@/ui/controls';
 import { Icon } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
@@ -38,7 +38,7 @@ export default function SecurityPage() {
       <div className="section-title">App 鎖</div>
       <div className="list">
         <div className="field"><span className="label" style={{ flex: 1 }}>啟用 PIN 碼鎖定</span>
-          <Switch checked={s.lock.enabled} label="App 鎖" onChange={(v) => { if (v) setPinStep('new'); else if (window.confirm('關閉 App 鎖？')) disableLock(); }} />
+          <Switch checked={s.lock.enabled} label="App 鎖" onChange={async (v) => { if (v) setPinStep('new'); else if (await ask('關閉 App 鎖？')) disableLock(); }} />
         </div>
         {s.lock.enabled && (
           <>

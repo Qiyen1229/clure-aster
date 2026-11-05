@@ -48,12 +48,14 @@ export async function loadTaxPlan(today = todayKey()): Promise<TaxPlan> {
 
   // 事件：已公告（未來的）＋ 依去年推估（沒有公告的持股）
   const events: DivEvent[] = [];
+  const eventDivIds = new Set<string>(); // 已列入「未來事件」的公告股利（基準不要重複算）
   const end = addDays(today, HORIZON_DAYS);
   for (const d of cash.filter((x) => x.status === 'announced')) {
     const h = held.get(d.stockId);
     const when = d.exDate || d.payDate;
     if (!h || when < today || when > end) continue;
     const per = Number(d.perShareDec);
+    eventDivIds.add(d.id);
     events.push({ stockId: h.stock.id, symbol: h.stock.symbol, name: h.stock.name, assetType: h.stock.assetType, exDate: d.exDate || null, payDate: d.payDate || null, source: 'announced', shares: h.shares, perShare: per, price: priceOf.get(h.stock.id) ?? 0, gross: d.grossMinor ? yuan(d.grossMinor) : Math.floor(per * h.shares) });
   }
   const yearAgo = addDays(today, -365);
@@ -71,7 +73,10 @@ export async function loadTaxPlan(today = todayKey()): Promise<TaxPlan> {
 
   // 同一年度其他國內股利（已領＋這批事件裡的其他筆）＝邊際稅額的基準
   const payYear = (e: DivEvent) => Number((e.payDate ?? e.exDate ?? today).slice(0, 4));
-  const paidInYear = (y: number) => cash.filter((d) => d.status === 'paid' && d.payDate.startsWith(String(y))).reduce((a, d) => a + yuan(d.grossMinor), 0);
+  // 同年度基準 ＝ 已發放 ＋「已除息、已公告但還沒發放」（不在未來事件裡的）；少算後者會高估剩餘的 8.5% 抵減額度
+  const paidInYear = (y: number) => cash
+    .filter((d) => !eventDivIds.has(d.id) && (d.status === 'paid' || d.status === 'announced') && (d.payDate || d.exDate).startsWith(String(y)))
+    .reduce((a, d) => a + (d.grossMinor ? yuan(d.grossMinor) : Math.floor(Number(d.perShareDec) * Number(d.sharesHeldDec || 0))), 0);
   const analyses = events.map((e) => {
     const others = paidInYear(payYear(e)) + events.filter((x) => x !== e && payYear(x) === payYear(e)).reduce((a, x) => a + x.gross, 0);
     const fee = (price: number) => twFee(price, e.shares, cfg, held.get(e.stockId)?.stock.lotSize || 1000) / 100;
@@ -116,4 +121,31 @@ export async function taxAlertRows(today = todayKey()): Promise<{ key: string; t
     .filter((a) => a.event.source === 'announced' && a.event.exDate && a.event.exDate <= soon && (a.nhi > 0 || a.recommendation === 'consider_skip'))
     .slice(0, 2)
     .map((a) => ({ key: `taxdiv:${a.event.stockId}:${a.event.exDate}`, text: `${a.event.symbol} ${Number(a.event.exDate!.slice(5, 7))}/${Number(a.event.exDate!.slice(8))} 除息：預計配息 ${Math.round(a.event.gross).toLocaleString('zh-TW')} 元${a.nhi ? `，會扣二代健保 ${a.nhi} 元` : ''}，點開看建議` }));
+}
+
+export interface InvestTaxSummary {
+  /** 持股市值合計（主幣別，整數元）與未實現損益 */
+  holdingsValue: number;
+  unrealizedPnl: number;
+  /** 未來 4 個月內即將除息的持股（最多 4 筆）：只含代號、日期與整數元金額，不含股數與成本 */
+  upcomingDividends: { symbol: string; exDate: string | null; gross: number; nhi: number; recommendation: 'join' | 'consider_skip' }[];
+  /** 今年海外所得（股利＋獲利，元）與 100 萬免計入門檻的使用比例（%） */
+  overseasIncome: number;
+  overseasPct: number;
+}
+
+/**
+ * 給「問 AI」的去識別化投資與稅務統計：只有整數元合計、股票代號與日期；沒有持股也沒有除息事件時回傳 null（不多送一個空區塊）。
+ * 使用者要先允許 AI 分析收支統計（ai.allowData）才會送出，內容也會出現在「AI 設定 → 查看送出過什麼」。
+ */
+export async function investTaxSummary(today = todayKey()): Promise<InvestTaxSummary | null> {
+  const st = useSettings.getState();
+  const [plan, pf] = await Promise.all([loadTaxPlan(today), import('./portfolio').then((m) => m.investMarketValueBase())]);
+  const major = (minor: number) => Math.round(fromMinor(minor, st.baseCurrency).toNumber());
+  if (!plan.events.length && !pf.mv && !plan.overseas) return null;
+  return {
+    holdingsValue: major(pf.mv), unrealizedPnl: major(pf.unrealized),
+    upcomingDividends: plan.events.slice(0, 4).map((a) => ({ symbol: a.event.symbol, exDate: a.event.exDate, gross: Math.round(a.event.gross), nhi: a.nhi, recommendation: a.recommendation })),
+    overseasIncome: Math.round(plan.overseas?.income ?? 0), overseasPct: Math.round(plan.overseas?.pct ?? 0),
+  };
 }

@@ -19,6 +19,8 @@ import { bookDrafts, draftsFromText, draftsSmart } from '@/services/quickentry';
 import { useSettings } from '@/stores/settings';
 import { snackUndo, useUI } from '@/stores/ui';
 import { AiMark } from '@/ui/Icon';
+import { summarizePlan } from '@/domain/agent/plan';
+import { PlanPreview } from '../ai/PlanPreview';
 import { Sheet } from '@/ui/Sheet';
 
 import { nextSeq, useChat, type Msg, type Reply } from './aiChatStore';
@@ -32,9 +34,15 @@ export async function respond(text: string): Promise<Reply> {
 
   // 要整理帳本（批次改分類、設預算、建週期、提前還款）：交給操作助手——先預覽影響、你確認才執行、可一鍵還原
   if (looksLikeOperation(t)) {
-    return aiEnabledLocally()
-      ? { role: 'ai', kind: 'text', text: '這是要「整理帳本」的操作。我會先幫你規劃並列出影響（幾筆帳目、預算怎麼變、帳戶餘額），你確認才會執行，之後也能一鍵還原。', link: { label: '交給操作助手，看執行預覽', to: `/ai?agent=${encodeURIComponent(t.slice(0, 300))}` } }
-      : { role: 'ai', kind: 'text', text: '整理帳本的操作需要開啟 AI（它只負責規劃，執行前一定先給你預覽）。', link: { label: '前往 AI 設定', to: '/settings/ai' } };
+    if (!aiEnabledLocally()) return { role: 'ai', kind: 'text', text: '整理帳本的操作需要開啟 AI（它只負責規劃，執行前一定先給你預覽）。', link: { label: '前往 AI 設定', to: '/settings/ai' } };
+    // 直接在對話裡規劃並預覽：確認執行、一鍵還原都在這個泡泡完成（AI 只規劃；預覽與執行在本機）
+    try {
+      const [{ aiAgentPlan }, { previewPlan }] = await Promise.all([import('@/services/ai'), import('@/services/agent')]);
+      const r = await aiAgentPlan(t);
+      return { role: 'ai', kind: 'agent', summary: r.plan.summary, steps: await previewPlan(r.plan.steps), quota: quotaLabel(r.quota) };
+    } catch (e) {
+      return { role: 'ai', kind: 'text', text: (e as Error).message, link: { label: '到 AI 助理手動整理', to: `/ai?agent=${encodeURIComponent(t.slice(0, 300))}` } };
+    }
   }
 
   // 先當記帳：「昨天午餐 150」這類說法帶有日期詞，isQuestion 會誤判成查帳，所以只要有金額、又不是統計問法（多少、幾次、最大…）就先試著記帳
@@ -85,6 +93,46 @@ async function send(text: string) {
 }
 
 // ───────────── 對話彈窗 ─────────────
+
+function AgentBubble({ m }: { m: Extract<Msg, { kind: 'agent' }> }) {
+  const [busy, setBusy] = useState(false);
+  const diff = summarizePlan(m.steps);
+  const patch = (p: Partial<Extract<Msg, { kind: 'agent' }>>) => useChat.getState().patch(m.id, p as Partial<Msg>);
+  const run = async () => {
+    setBusy(true);
+    try {
+      const { applyPlan } = await import('@/services/agent');
+      const log = await applyPlan(m.steps, m.summary);
+      patch({ phase: 'done', opId: log.id, note: `已執行 ${log.titles.length} 項操作` });
+    } catch (e) { patch({ note: `執行失敗，沒有任何資料被改動：${(e as Error).message}` }); } finally { setBusy(false); }
+  };
+  const undo = async () => {
+    if (!m.opId) return;
+    setBusy(true);
+    try {
+      const { undoOp } = await import('@/services/agent');
+      const r = await undoOp(m.opId);
+      patch({ phase: 'undone', note: r.skipped ? `已還原 ${r.restored} 筆；${r.skipped} 筆在執行後又被你改過，沒有動它` : `已還原 ${r.restored} 筆` });
+    } catch (e) { patch({ note: (e as Error).message }); } finally { setBusy(false); }
+  };
+  return (
+    <div className="agent-preview">
+      <div className="row-title" style={{ whiteSpace: 'normal' }}>執行預覽{m.summary ? `：${m.summary}` : ''}</div>
+      <PlanPreview steps={m.steps} />
+      {!m.phase && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <button className="btn secondary small" style={{ flex: 1 }} disabled={busy} onClick={() => patch({ phase: 'cancelled', note: '已取消，沒有改動任何資料' })}>取消</button>
+          <button className="btn small" style={{ flex: 2 }} disabled={busy || !diff.executable} onClick={() => void run()}>
+            {diff.executable ? `確認執行（${diff.executable} 項）` : diff.readonly ? '這是試算，不需要執行' : '沒有可以執行的步驟'}
+          </button>
+        </div>
+      )}
+      {m.phase === 'done' && <button className="btn small tinted" style={{ marginTop: 10 }} disabled={busy} onClick={() => void undo()}>✅ 已執行・一鍵還原</button>}
+      {m.note && <p className="row-sub" style={{ whiteSpace: 'normal' }}>{m.note}</p>}
+      {!m.phase && <p className="row-sub" style={{ whiteSpace: 'normal' }}>{m.quota}　執行是「全部成功或全部不動」，之後 7 天內可一鍵還原。</p>}
+    </div>
+  );
+}
 
 function EntriesBubble({ m }: { m: Extract<Msg, { kind: 'entries' }> }) {
   const accounts = useAccounts(true);
@@ -161,6 +209,7 @@ export function AiChatSheet() {
                 </>
               )}
               {m.kind === 'entries' && <EntriesBubble m={m} />}
+              {m.kind === 'agent' && <AgentBubble m={m} />}
             </div>
           ))}
           <div ref={end} />

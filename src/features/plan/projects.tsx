@@ -15,7 +15,7 @@ import { fromMinor, toMinor } from '@/domain/money';
 import { evaluate } from '@/domain/calc-expr';
 import { useAccounts, useCategories, useTags } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
-import { useUI } from '@/stores/ui';
+import { useUI, ask } from '@/stores/ui';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { AmountField, CurrencyField, DateField, TextField } from '@/ui/form';
 import { Icon } from '@/ui/Icon';
@@ -128,7 +128,7 @@ function ProjectForm({ project, onClose }: { project?: Project; onClose: () => v
             {project.status === 'active' ? '標記為已結束' : '重新開啟'}
           </button>
           <button className="btn danger" onClick={async () => {
-            if (!window.confirm(`刪除專案「${project.name}」？帳目會保留，只移除專案標記。`)) return;
+            if (!await ask(`刪除專案「${project.name}」？帳目會保留，只移除專案標記。`)) return;
             await deleteProject(project.id);
             onClose();
             navigate('/plan?tab=project');

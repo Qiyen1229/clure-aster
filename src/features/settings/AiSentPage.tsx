@@ -9,6 +9,7 @@ import { AI_FEATURE_LABEL, clearAiLog, loadAiLog } from '@/services/aiLog';
 import { Icon } from '@/ui/Icon';
 import { EmptyState } from '@/ui/controls';
 
+import { ask } from '@/stores/ui';
 export default function AiSentPage() {
   const navigate = useNavigate();
   const log = useLiveQuery(() => loadAiLog(), []);
@@ -44,7 +45,7 @@ export default function AiSentPage() {
               </div>
             ))}
           </div>
-          <button className="btn secondary" style={{ marginTop: 12 }} onClick={() => { if (window.confirm('清除所有送出紀錄？（只影響這份檢視，不影響 AI 功能）')) void clearAiLog(); }}>清除紀錄</button>
+          <button className="btn secondary" style={{ marginTop: 12 }} onClick={async () => { if (await ask('清除所有送出紀錄？（只影響這份檢視，不影響 AI 功能）')) void clearAiLog(); }}>清除紀錄</button>
         </>
       )}
     </main>

@@ -2,7 +2,7 @@
  * 全域浮層：Snackbar（復原）、長按動作選單、新版本提示、背景隱私遮罩。
  */
 import { ICON_192 } from '@/ui/assets';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useUI } from '@/stores/ui';
 import { useSettings } from '@/stores/settings';
 import { Sheet } from '@/ui/Sheet';
@@ -35,6 +35,13 @@ export function SnackbarHost() {
 export function ConfirmHost() {
   const c = useUI((s) => s.confirm);
   const close = useUI((s) => s.closeConfirm);
+  const prevFocus = useRef<HTMLElement | null>(null);
+  // 開啟前記住原本的焦點（按鈕或抽屜內的元件），關閉後還回去，鍵盤與讀屏使用者不會掉到頁面最上面
+  useEffect(() => {
+    if (!c) return;
+    prevFocus.current = document.activeElement as HTMLElement | null;
+    return () => { const el = prevFocus.current; prevFocus.current = null; setTimeout(() => el?.isConnected && el.focus?.({ preventScroll: true }), 0); };
+  }, [c?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!c) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); close(false); } };

@@ -70,4 +70,31 @@ describe('對帳：載入、補齊、平帳、復原', () => {
     const rows = await loadLedgerRows(acc.id, [{ id: 's', date: '2026-10-10', amountMinor: 1, kind: 'expense', text: '' }]);
     expect(rows.map((r) => r.text)).toEqual(['在範圍']);
   });
+
+  it('差額併回原帳目靠 id：同日同店兩筆、無備註、收入（退款）都配得對', async () => {
+    // 同日同店兩筆（金額不同）：只有其中一筆有匯差
+    const a = await tx('2026-10-12', 100, '咖啡店');
+    const b = await tx('2026-10-12', 300, '咖啡店');
+    // 無備註的支出
+    const c = await tx('2026-10-14', 500, '');
+    // 收入（退款）
+    const r = await addTransaction({ type: 'income', accountId: acc.id, categoryId: 'i-other', amountMinor: 20000, currency: 'TWD', date: '2026-10-15', ts: 1, note: '退款' });
+    const stmt = [
+      { id: 's1', date: '2026-10-12', amountMinor: 30500, kind: 'expense' as const, text: '咖啡店' }, // b 多 5 元
+      { id: 's2', date: '2026-10-14', amountMinor: 50300, kind: 'expense' as const, text: '' },     // c 多 3 元（無備註）
+      { id: 's3', date: '2026-10-15', amountMinor: 19600, kind: 'income' as const, text: '退款' },  // r 少 4 元（收入）
+      { id: 's0', date: '2026-10-12', amountMinor: 10000, kind: 'expense' as const, text: '咖啡店' },
+    ];
+    const rep = reconcile(stmt, await loadLedgerRows(acc.id, stmt), 'TWD');
+    expect(rep.variances).toHaveLength(3);
+    await applyFixes(acc as never, { missing: [], variances: rep.variances, adjustTo: null });
+    const adj = (await db.transactions.toArray()).filter((t) => t.note.includes('匯差／手續費調整'));
+    expect(adj.map((t) => `${t.type}:${t.amountMinor}`).sort()).toEqual(['expense:300', 'expense:500', 'expense:400'].sort());
+    // 再對一次：全部吻合，沒有任何金額有差、沒有漏記
+    const rep2 = reconcile(stmt, await loadLedgerRows(acc.id, stmt), 'TWD');
+    expect(rep2.variances).toHaveLength(0);
+    expect(rep2.missing).toHaveLength(0);
+    expect(rep2.matched).toHaveLength(4);
+    void a; void b; void c; void r;
+  });
 });

@@ -135,6 +135,37 @@ describe('操作助手：預覽、執行、還原', () => {
     expect(r.op && r.op.kind === 'recat' && r.op.categoryId).toBe('exp-commute');
   });
 
+  it('新工具：自動分類規則＋存錢目標——預覽、執行、一鍵還原；與改分類串聯（過去改分類＋以後自動歸類）', async () => {
+    await spend('Uber 上班', 200, today); await spend('Uber 回家', 300, today);
+    const steps = await previewPlan([
+      { tool: 'reclassify', args: { keywords: ['uber'], to_category: '通勤' } },
+      { tool: 'add_rule', args: { pattern: 'Uber', category: '通勤', account: '玉山' } },
+      { tool: 'add_goal', args: { name: '日本旅行', target_amount: 50000, deadline: addDays(today, 150) } },
+    ]);
+    expect(steps.every((s) => !s.preview.blocked)).toBe(true);
+    // 規則預覽看得到「前面步驟改分類後」已有 2 筆在通勤
+    expect(steps[1].preview.lines.join('')).toContain('其中 2 筆已在');
+    expect(steps[2].preview.lines.join('')).toMatch(/平均每月要存 \$\d/);
+    expect(summarizePlan(steps)).toMatchObject({ affectedTx: 2, autoRulesCreated: 1, goalsCreated: 1, executable: 3 });
+    const log = await applyPlan(steps, 'x');
+    expect(await db.rules.toArray()).toMatchObject([{ keyword: 'Uber', match: 'contains', kind: 'expense', categoryId: 'exp-commute', accountId: accId, enabled: true }]);
+    expect(await db.goals.toArray()).toMatchObject([{ name: '日本旅行', targetMinor: 5_000_000, status: 'active' }]);
+    const r = await undoOp(log.id);
+    expect(r.skipped).toBe(0);
+    expect(await db.rules.count()).toBe(0);
+    expect(await db.goals.count()).toBe(0);
+  });
+
+  it('新工具的安全檢查：關鍵字太短、找不到分類、金額不正確都會被擋下', async () => {
+    const steps = await previewPlan([
+      { tool: 'add_rule', args: { pattern: 'x', category: '通勤' } },
+      { tool: 'add_rule', args: { pattern: 'uber', category: '亂寫' } },
+      { tool: 'add_goal', args: { name: '', target_amount: 1000 } },
+      { tool: 'add_goal', args: { name: '旅行', target_amount: 0 } },
+    ]);
+    expect(steps.every((s) => !!s.preview.blocked && !s.op)).toBe(true);
+  });
+
   it('資料載入：候選帳目只含近一年未刪除的', async () => {
     await spend('今天', 1, today); await spend('兩年前', 1, addDays(today, -800));
     expect((await loadAgentData()).txs.map((t) => t.note)).toEqual(['今天']);

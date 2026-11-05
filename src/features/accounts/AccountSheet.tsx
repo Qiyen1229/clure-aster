@@ -12,7 +12,7 @@ import { evaluate } from '@/domain/calc-expr';
 import { CATEGORY_COLORS } from '@/db/seed/categories';
 import { useAccounts } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
-import { useUI } from '@/stores/ui';
+import { useUI, ask } from '@/stores/ui';
 import { Sheet } from '@/ui/Sheet';
 import { Switch } from '@/ui/controls';
 
@@ -73,7 +73,7 @@ function Inner({ onClose, account }: { onClose: () => void; account?: Account })
   };
 
   const remove = async () => {
-    if (!account || !window.confirm(`刪除「${account.name}」？若已有帳目，將改為封存以保留歷史紀錄。`)) return;
+    if (!account || !await ask(`刪除「${account.name}」？若已有帳目，將改為封存以保留歷史紀錄。`)) return;
     const r = await deleteOrArchiveAccount(account.id);
     useUI.getState().showSnack({ text: r === 'deleted' ? '已刪除帳戶' : '帳戶有帳目，已改為封存' });
     onClose();

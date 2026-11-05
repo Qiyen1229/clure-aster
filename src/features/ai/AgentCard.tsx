@@ -7,22 +7,22 @@ import { useEffect, useRef, useState } from 'react';
 import { applyPlan, listAgentOps, previewPlan, undoOp, type AgentOpLog } from '@/services/agent';
 import { aiAgentPlan, quotaLabel } from '@/services/ai';
 import { summarizePlan, type ResolvedStep } from '@/domain/agent/plan';
-import { formatMoney } from '@/domain/money';
-import { useSettings } from '@/stores/settings';
 import { snackUndo, useUI } from '@/stores/ui';
 import { NewMark } from '@/ui/NewMark';
 import { Hint } from '@/ui/Hint';
+import { PlanPreview } from './PlanPreview';
 
 const EXAMPLES = [
   '把上個月所有 Uber 跟台灣大車隊都歸到「交通」，並設交通每月預算 3000，超過 80% 提醒我',
   '幫我建立每月 12 號 Netflix 390 元的訂閱',
   '如果我一次還房貸 20 萬，可以省多少利息？',
+  '以後只要出現 Uber 就自動歸到交通',
+  '幫我設一個年底前存 5 萬去日本玩的目標',
 ];
 
 const when = (t: number) => new Date(t).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 export function AgentCard({ initialText = '' }: { initialText?: string }) {
-  const base = useSettings((s) => s.baseCurrency);
   const [text, setText] = useState(initialText);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -87,34 +87,7 @@ export function AgentCard({ initialText = '' }: { initialText?: string }) {
       {plan && diff && (
         <div className="agent-preview" aria-live="polite">
           <div className="row-title" style={{ marginTop: 14, whiteSpace: 'normal' }}>執行預覽{plan.summary ? `：${plan.summary}` : ''}</div>
-          <div className="agent-diff">
-            {diff.affectedTx > 0 && <span className="pill">影響 {diff.affectedTx} 筆帳目</span>}
-            {diff.budgetChanges > 0 && <span className="pill">預算 {diff.budgetChanges} 項</span>}
-            {diff.rulesCreated > 0 && <span className="pill">新增週期 {diff.rulesCreated} 條</span>}
-            <span className="pill">帳戶餘額不變</span>
-          </div>
-          {plan.steps.map((s, i) => (
-            <div key={i} className={`agent-step${s.preview.blocked ? ' blocked' : ''}`}>
-              <div className="agent-step-title">
-                <span className="agent-n">{i + 1}</span>{s.preview.blocked ? `${s.preview.title}（不會執行）` : s.preview.title}
-                {s.preview.readonly && !s.preview.blocked && <span className="agent-tag">僅試算</span>}
-              </div>
-              {s.preview.blocked ? <p className="row-sub" style={{ color: 'var(--danger)', whiteSpace: 'normal' }}>{s.preview.blocked}</p> : (
-                <>
-                  <ul className="agent-lines">{s.preview.lines.map((l, j) => <li key={j}>{l}</li>)}</ul>
-                  {s.preview.samples && (
-                    <details className="agent-samples">
-                      <summary>抽樣看 {s.preview.samples.length} 筆（核對有沒有誤傷）</summary>
-                      {s.preview.samples.map((x, j) => (
-                        <div key={j} className="agent-sample"><span>{x.date.slice(5)}　{x.note}</span><span className="num">{formatMoney(x.amountMinor, base, { decimals: 0 })}　<i>{x.from}</i></span></div>
-                      ))}
-                    </details>
-                  )}
-                  {s.preview.warnings.map((w, j) => <p key={j} className="row-sub" style={{ color: 'var(--warning)', whiteSpace: 'normal' }}>⚠️ {w}</p>)}
-                </>
-              )}
-            </div>
-          ))}
+          <PlanPreview steps={plan.steps} />
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
             <button className="btn secondary" style={{ flex: 1 }} onClick={() => setPlan(null)} disabled={busy}>取消</button>
             <button className="btn" style={{ flex: 2 }} onClick={() => void execute()} disabled={busy || !diff.executable}>

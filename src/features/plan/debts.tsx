@@ -12,7 +12,7 @@ import { evaluate } from '@/domain/calc-expr';
 import { todayKey } from '@/domain/period';
 import { useAccounts, useCategories } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
-import { useUI } from '@/stores/ui';
+import { useUI, ask } from '@/stores/ui';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { AccountField, AmountField, CategoryField, DateField, TextField } from '@/ui/form';
 import { Sheet } from '@/ui/Sheet';
@@ -133,7 +133,7 @@ function PersonDebts({ personId, debts }: { personId: string; debts: Debt[] }) {
       </div>
       <button className="btn secondary small" onClick={() => setShowSettled((s) => !s)}>{showSettled ? '隱藏已結清' : '顯示已結清'}</button>
       <button className="btn danger small" style={{ marginLeft: 8 }} onClick={async () => {
-        if (!window.confirm('刪除此人的所有已結清紀錄？')) return;
+        if (!await ask('刪除此人的所有已結清紀錄？')) return;
         await db.debts.where('personId').equals(personId).filter((d) => !!d.settled).delete();
       }}>清除已結清</button>
     </>

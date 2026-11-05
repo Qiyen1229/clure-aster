@@ -27,25 +27,40 @@ export function stmtFromAi(entries: StatementEntry[], accountCurrency: string): 
   })).filter((r) => r.amountMinor > 0);
 }
 
-/** 「匯差／手續費調整」帳目的備註尾巴：下次對帳時據此併回原本那筆，才不會又被當成金額有差 */
+/**
+ * 「匯差／手續費調整」帳目的備註格式：「<原帳目名稱> 匯差／手續費調整（對帳）·<原帳目 id 末 10 碼（uuidv7 的前段是時間戳，會撞，所以取末段）>」。
+ * 下次對帳時據 id 把這筆差額併回原帳目（不靠名稱猜，所以同日同店兩筆、無備註、收入／退款都配得對）；
+ * 舊版沒有 id 的調整帳目退回用名稱比對（不限收支、同一筆原帳目不重複配）。
+ */
 export const ADJ_SUFFIX = ' 匯差／手續費調整（對帳）';
+const ADJ_RE = /^(.*?)\s?匯差／手續費調整（對帳）(?:·([0-9a-f]{10}))?$/s;
+export const adjustmentNote = (label: string, ledgerId: string) => `${label.trim()}${ADJ_SUFFIX}·${ledgerId.slice(-10)}`;
 
 /** 帳本裡這個帳戶、帳單期間（前後各 3 天）內的收支帳目 */
 export async function loadLedgerRows(accountId: string, stmt: StmtRow[]): Promise<LedgerRow[]> {
   if (!stmt.length) return [];
   const dates = stmt.map((s) => s.date).sort();
-  const txs = await db.transactions.where('date').between(addDays(dates[0], -4), addDays(dates[dates.length - 1], 4), true, true)
-    .filter((t) => t.accountId === accountId && !t.deletedAt && !t.transferId && (t.type === 'expense' || t.type === 'income' || t.type === 'transfer_fee')).toArray();
+  const txs = (await db.transactions.where('date').between(addDays(dates[0], -4), addDays(dates[dates.length - 1], 4), true, true).toArray())
+    .filter((t) => t.accountId === accountId && !t.deletedAt && !t.transferId && (t.type === 'expense' || t.type === 'income' || t.type === 'transfer_fee'));
   const rows: LedgerRow[] = [];
-  const adjustments: { base: string; date: string; signed: number }[] = [];
+  const adjustments: { base: string; id8?: string; date: string; kind: 'expense' | 'income'; amount: number }[] = [];
   for (const t of txs) {
-    if (t.note.endsWith(ADJ_SUFFIX)) { adjustments.push({ base: t.note.slice(0, -ADJ_SUFFIX.length).trim(), date: t.date, signed: (t.type === 'income' ? -1 : 1) * Math.abs(t.accountAmountMinor) }); continue; }
+    const m = ADJ_RE.exec(t.note);
+    if (m) { adjustments.push({ base: m[1].trim(), id8: m[2], date: t.date, kind: t.type === 'income' ? 'income' : 'expense', amount: Math.abs(t.accountAmountMinor) }); continue; }
     rows.push({ id: t.id, date: t.date, accountMinor: Math.abs(t.accountAmountMinor), origMinor: Math.abs(t.amountMinor), origCurrency: t.currency, kind: t.type === 'income' ? 'income' : 'expense', text: `${t.note} ${t.merchant ?? ''}`.trim() });
   }
-  // 先前對帳補的差額併回原本那筆（同名、日期最近的一筆支出）
+  // 先前對帳補的差額併回原本那筆：優先用 id；舊資料用名稱＋日期最近，且同一筆原帳目不重複配
+  const used = new Set<string>();
   for (const a of adjustments) {
-    const target = rows.filter((r) => r.kind === 'expense' && r.text.trim() === a.base).sort((x, y) => Math.abs(Date.parse(x.date) - Date.parse(a.date)) - Math.abs(Date.parse(y.date) - Date.parse(a.date)))[0];
-    if (target) target.accountMinor += a.signed;
+    let target = a.id8 ? rows.find((r) => r.id.endsWith(a.id8!)) : undefined;
+    if (!target) {
+      target = rows.filter((r) => !used.has(r.id) && (r.text.trim() === a.base || (!r.text.trim() && !a.base)))
+        .sort((x, y) => Math.abs(Date.parse(x.date) - Date.parse(a.date)) - Math.abs(Date.parse(y.date) - Date.parse(a.date)))[0];
+    }
+    if (!target) continue;
+    used.add(target.id);
+    // 差額方向和原帳目同向（支出對支出、收入對收入）＝金額變大；反向＝變小
+    target.accountMinor += (a.kind === target.kind ? 1 : -1) * a.amount;
   }
   return rows;
 }
@@ -92,12 +107,19 @@ export async function applyFixes(account: Account, f: Fixes): Promise<string[]> 
     });
     ids.push(t.id);
   }
+  const otherInc = refundCat;
   for (const v of f.variances) {
     const diff = v.diffMinor;
-    if (!diff || (diff > 0 ? !feeCat : !refundCat)) continue;
+    if (!diff) continue;
+    // 差額帳目的收支方向＝讓「原帳目＋差額」等於帳單金額：支出原帳目帳單較大→再記一筆支出（手續費），較小→收入（退回）；
+    // 收入原帳目（退款、入帳）則相反
+    const same = diff > 0; // 帳單金額比帳本大
+    const type: 'expense' | 'income' = (v.ledger.kind === 'expense') === same ? 'expense' : 'income';
+    const categoryId = type === 'expense' ? feeCat : otherInc;
+    if (!categoryId) continue;
     const t = await addTransaction({
-      type: diff > 0 ? 'expense' : 'income', accountId: account.id, categoryId: diff > 0 ? feeCat : refundCat, amountMinor: Math.abs(diff), currency: account.currency,
-      date: v.stmt.date, ts: at(v.stmt.date), note: `${v.ledger.text.trim() || v.stmt.text}${ADJ_SUFFIX}`,
+      type, accountId: account.id, categoryId, amountMinor: Math.abs(diff), currency: account.currency,
+      date: v.stmt.date, ts: at(v.stmt.date), note: adjustmentNote(v.ledger.text.trim() || v.stmt.text, v.ledger.id),
     });
     ids.push(t.id);
   }

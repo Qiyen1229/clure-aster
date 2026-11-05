@@ -10,7 +10,7 @@ import type { CategoryKind, CategoryRule } from '@/db/types';
 import { categoryLabel, useAccounts, useCategories, useTags } from '@/app/hooks';
 import { deleteRule, ruleCandidates, saveRule } from '@/services/autocat';
 import { ruleMatches } from '@/domain/rules';
-import { useUI } from '@/stores/ui';
+import { useUI, ask } from '@/stores/ui';
 import { EmptyState, Segmented } from '@/ui/controls';
 import { AccountField, CategoryField, SelectField, SwitchField, TextField } from '@/ui/form';
 import { Icon } from '@/ui/Icon';
@@ -127,7 +127,7 @@ export default function RulesPage() {
             )}
             {draft.id && (
               <button className="btn danger" style={{ width: '100%' }} onClick={async () => {
-                if (!window.confirm('刪除這條規則？')) return;
+                if (!await ask('刪除這條規則？')) return;
                 await deleteRule(draft.id!);
                 setDraft(null);
               }}>刪除規則</button>

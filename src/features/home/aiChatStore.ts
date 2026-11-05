@@ -3,11 +3,13 @@
  */
 import { create } from 'zustand';
 import type { ResolvedDraft } from '@/services/quickentry';
+import type { ResolvedStep } from '@/domain/agent/plan';
 
 export type Msg =
   | { id: number; role: 'user'; text: string }
   | { id: number; role: 'ai'; kind: 'text'; text: string; sub?: string; link?: { label: string; to: string }; followups?: string[] }
   | { id: number; role: 'ai'; kind: 'entries'; drafts: ResolvedDraft[]; via: 'rule' | 'ai'; sub?: string; booked?: boolean }
+  | { id: number; role: 'ai'; kind: 'agent'; summary: string; steps: ResolvedStep[]; quota: string; phase?: 'done' | 'undone' | 'cancelled'; opId?: string; note?: string }
   | { id: number; role: 'ai'; kind: 'pending' };
 
 export type DistOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;

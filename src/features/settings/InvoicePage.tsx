@@ -14,7 +14,7 @@ import {
 import { CARD_NO_RE, carrierServerStatus, syncCarrier } from '@/services/carrier';
 import { suggestAccount, suggestCategory } from '@/services/autocat';
 import { useSettings } from '@/stores/settings';
-import { useUI } from '@/stores/ui';
+import { useUI, ask } from '@/stores/ui';
 import { AccountField, SwitchField } from '@/ui/form';
 import { Icon } from '@/ui/Icon';
 
@@ -69,7 +69,7 @@ export default function InvoicePage() {
         return;
       }
       if ((await existingInvoiceNos([invoice.number])).has(invoice.number)) {
-        if (!window.confirm(`發票 ${invoice.number} 已經記過帳，仍要再記一筆？`)) return;
+        if (!await ask(`發票 ${invoice.number} 已經記過帳，仍要再記一筆？`)) return;
       }
       const note = invoiceNote(invoice);
       const [sug, acc] = await Promise.all([note ? suggestCategory(note, 'expense') : null, note ? suggestAccount(note) : undefined]);
@@ -132,8 +132,8 @@ export default function InvoicePage() {
         )}
         {lastResult && <div className="row"><span className="row-main row-sub" style={{ whiteSpace: 'normal' }}>{lastResult}</span></div>}
         {cfg.cardNo && cardNo === cfg.cardNo && code === cfg.verifyCode && (
-          <button className="row danger" style={{ color: 'var(--danger)' }} onClick={() => {
-            if (!window.confirm('移除這個手機條碼與驗證碼？已記的帳目不受影響。')) return;
+          <button className="row danger" style={{ color: 'var(--danger)' }} onClick={async () => {
+            if (!await ask('移除這個手機條碼與驗證碼？已記的帳目不受影響。')) return;
             update({ cardNo: '', verifyCode: '' });
             setCardNo('');
             setCode('');

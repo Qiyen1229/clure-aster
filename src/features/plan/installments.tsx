@@ -11,7 +11,7 @@ import { formatMoney, toMinor } from '@/domain/money';
 import { evaluate } from '@/domain/calc-expr';
 import { addMonths, todayKey } from '@/domain/period';
 import { useAccounts } from '@/app/hooks';
-import { useUI } from '@/stores/ui';
+import { useUI, ask } from '@/stores/ui';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { AccountField, AmountField, CategoryField, DateField, SelectField, TextField } from '@/ui/form';
 import { Sheet } from '@/ui/Sheet';
@@ -73,7 +73,7 @@ export default function InstallmentSection() {
           <>
             <ScheduleTable inst={view} />
             <button className="btn danger" style={{ marginTop: 12 }} onClick={async () => {
-              if (!window.confirm('刪除這筆分期？已入帳的期數會保留在帳目中，未到期的期數將取消。')) return;
+              if (!await ask('刪除這筆分期？已入帳的期數會保留在帳目中，未到期的期數將取消。')) return;
               await deleteInstallment(view.id);
               setView(null);
             }}>刪除分期</button>

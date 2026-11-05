@@ -18,6 +18,7 @@ import { AUTH_ENABLED, useAuth } from '@/stores/auth';
 import { useLock } from '@/services/lock';
 import { initialSync, startSync, unlockEncryption, useSync } from '@/services/sync';
 
+import { ask } from '@/stores/ui';
 const LoginPage = lazy(() => import('../features/auth/AuthPages').then((m) => ({ default: m.LoginPage })));
 const RegisterPage = lazy(() => import('../features/auth/AuthPages').then((m) => ({ default: m.RegisterPage })));
 const ForgotPasswordPage = lazy(() => import('../features/auth/AuthPages').then((m) => ({ default: m.ForgotPasswordPage })));
@@ -156,7 +157,7 @@ export default function AuthGate() {
             setData({ phase: (await finishBootstrap(() => setData({ phase: 'syncing' }))) === 'locked' ? 'unlock' : 'ready' });
           }}>歸到我的帳號</button>
           <button className="btn secondary" style={{ marginTop: 10 }} onClick={async () => {
-            if (!window.confirm('確定刪除這些舊資料？此動作無法復原。')) return;
+            if (!await ask('確定刪除這些舊資料？此動作無法復原。')) return;
             setData({ phase: 'loading' });
             await discardLegacyData();
             setData({ phase: (await finishBootstrap(() => setData({ phase: 'syncing' }))) === 'locked' ? 'unlock' : 'ready' });

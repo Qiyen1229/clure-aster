@@ -117,3 +117,18 @@ export function askConfirm(opts: ConfirmOptions): Promise<boolean> {
     useUI.setState({ confirm: { ...opts, id: ++confirmSeq, resolve } });
   });
 }
+
+const DANGER_RE = /刪除|移除|撤銷|清除|停用|取代|登出|重設|強制|放棄/;
+
+/**
+ * 一句話版的確認視窗（取代 window.confirm）：第一句當標題、其餘當說明；含「刪除、移除、清除…」等字眼時確認鍵用紅色。
+ * 用法：`if (!(await ask('刪除這個目標？'))) return;`
+ */
+export function ask(message: string, opts: Partial<ConfirmOptions> = {}): Promise<boolean> {
+  const m = /^([^。？！\n]*[。？！])\s*([\s\S]*)$/.exec(message);
+  const title = m ? m[1] : message;
+  const rest = m ? m[2].trim() : '';
+  const danger = opts.danger ?? DANGER_RE.test(title);
+  const confirmText = opts.confirmText ?? (/刪除|移除|撤銷/.test(title) ? '刪除' : /清除/.test(title) ? '清除' : /登出/.test(title) ? '登出' : '確定');
+  return askConfirm({ title, message: rest || undefined, danger, confirmText, cancelText: '取消', ...opts });
+}

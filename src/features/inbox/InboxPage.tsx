@@ -20,7 +20,7 @@ import {
 import { aiEnabledLocally, aiParseText } from '@/services/ai';
 import { fallbackAccount, resolveDraft } from '@/services/quickentry';
 import { useSettings } from '@/stores/settings';
-import { snackUndo, useUI } from '@/stores/ui';
+import { snackUndo, useUI, ask } from '@/stores/ui';
 import { AccountField, SwitchField } from '@/ui/form';
 import { EmptyState, SkeletonRows } from '@/ui/controls';
 import { AiMark, Icon } from '@/ui/Icon';
@@ -150,7 +150,7 @@ export default function InboxPage() {
   };
 
   const resetLink = async () => {
-    if (!link || !window.confirm('重新產生連結碼？已加入的捷徑會失效，需要重新加入。')) return;
+    if (!link || !await ask('重新產生連結碼？已加入的捷徑會失效，需要重新加入。')) return;
     await revokeToken(link.id).catch(() => undefined);
     forgetLink();
     setTokens((l) => l?.filter((x) => x.id !== link.id) ?? null);
@@ -321,7 +321,7 @@ export default function InboxPage() {
               <span className="row-sub">{t.last_used_at ? `上次送出：${new Date(`${t.last_used_at}Z`).toLocaleString('zh-TW')}` : '還沒有送過資料'}</span>
             </span>
             <button className="pill" style={{ color: 'var(--danger)' }} onClick={async () => {
-              if (!window.confirm(`撤銷「${t.name}」？使用這組權杖的捷徑將無法再送出。`)) return;
+              if (!await ask(`撤銷「${t.name}」？使用這組權杖的捷徑將無法再送出。`)) return;
               try {
                 await revokeToken(t.id);
                 setTokens((l) => l?.filter((x) => x.id !== t.id) ?? null);

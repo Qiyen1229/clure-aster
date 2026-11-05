@@ -30,7 +30,7 @@ import { lastCompleted } from '@/services/summary';
 import { AgentCard } from './AgentCard';
 import { SmartAlerts } from './SmartAlerts';
 
-const ASK_CHIPS = ['這個月哪裡花太多？', '我的儲蓄率健康嗎？', '有哪些固定支出可以檢討？', '怎麼更快達成存錢目標？'];
+const ASK_CHIPS = ['這個月哪裡花太多？', '我的儲蓄率健康嗎？', '有哪些固定支出可以檢討？', '怎麼更快達成存錢目標？', '我今年股利會被扣二代健保嗎？'];
 const Err = ({ text }: { text: string }) => (text ? <p className="row-sub" role="alert" style={{ color: 'var(--danger)', whiteSpace: 'normal' }}>{text}</p> : null);
 
 // ───────────── 問 AI ─────────────
@@ -54,7 +54,7 @@ function AskCard({ initialQ }: { initialQ: string }) {
 
   return (
     <section className="card" aria-label="問 AI">
-      <Hint id="ai.ask" title="💬 問 AI" hint="依你近 6 個月的收支統計回答，例如「這個月哪裡花太多？」。" />
+      <Hint id="ai.ask" title="💬 問 AI" hint="依你近 6 個月的收支統計（有持股的話還有投資與股利稅務統計）回答，例如「這個月哪裡花太多？」「我今年股利會被扣二代健保嗎？」。" />
       {thread.map((m, i) => (
         <div key={i} style={{ marginTop: 10 }}>
           <div className="muted">你：{m.q}</div>

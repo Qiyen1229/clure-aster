@@ -14,7 +14,7 @@ import { todayKey } from '@/domain/period';
 import { resolveRate } from '@/services/fx';
 import { useAccounts } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
-import { useUI } from '@/stores/ui';
+import { useUI, ask } from '@/stores/ui';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { AccountField, AmountField, DateField, SelectField, SwitchField } from '@/ui/form';
 import { Icon } from '@/ui/Icon';
@@ -236,7 +236,7 @@ function DividendForm({ stockId: initialStock, dividend, onClose }: { stockId?: 
       )}
       <button className="btn" onClick={() => void save()}>儲存</button>
       {dividend && (
-        <button className="btn danger" style={{ marginTop: 10 }} onClick={async () => { if (window.confirm('刪除這筆股利？相關的入帳帳目或配股也會移除。')) { await deleteDividend(dividend.id); onClose(); } }}>刪除</button>
+        <button className="btn danger" style={{ marginTop: 10 }} onClick={async () => { if (await ask('刪除這筆股利？相關的入帳帳目或配股也會移除。')) { await deleteDividend(dividend.id); onClose(); } }}>刪除</button>
       )}
     </>
   );

@@ -2,7 +2,7 @@
 
 > 目的：讓接手的 AI（或新開發者）**不用逐檔翻程式碼**就知道「這個 App 能做什麼、每個功能怎麼運作、規則是什麼、程式在哪」。
 > 與 [PROJECT_OVERVIEW_FOR_AI.md](PROJECT_OVERVIEW_FOR_AI.md)（技術棧、架構、部署、檔案地圖）互補：那份偏「怎麼建」，這份偏「做了什麼」。
-> 版本：**4.0.2**（2026-11-05）。分支 `feature/v1.2`。逐版細節見 [CHANGELOG.md](CHANGELOG.md)；設計文件見 `docs/`。
+> 版本：**4.0.3**（2026-11-05）。分支 `feature/v1.2`。逐版細節見 [CHANGELOG.md](CHANGELOG.md)；設計文件見 `docs/`。
 > 慣例：金額內部一律用**整數最小單位**（TWD 的 1 元 = 100），不要用浮點數；使用者可見文字一律**繁體中文（台灣用語）**。
 
 ---
@@ -117,7 +117,7 @@
 - **隱私**：統計類只送整數統計與分類名稱（無備註、商家、帳戶名、單筆）；送出前去除網址、身分證、卡號、連續 10 碼數字；輸出驗證（分類必須在使用者名單內）並純文字顯示；**AI 送出紀錄**（設定 → AI 設定）把每次送出的原文記在本機（不同步、最多 25 筆）。免費層的內容可能被供應商用於改進產品。
 
 ### 3.3b 操作助手（v4.0，`domain/agent/`、`services/agent.ts`、`features/ai/AgentCard.tsx`）
-用一句話整理帳本：AI（`/api/ai/agent-plan`，1 點）只規劃成「工具＋參數」，工具白名單＝批次改分類、建立／調整預算、建立週期帳目、貸款提前還款試算（只試算）；`resolvePlan`（純函式）在記憶體工作副本上依序模擬，產生**執行預覽卡**（筆數、預算變化、餘額不變、抽樣）；`applyPlan` 單一 Dexie 交易**原子寫入**；每次執行記下修改前的樣子（本機 `meta`，7 天、20 筆），**一鍵還原**（執行後被改過的略過）。一次最多 500 筆、沒有篩選條件會被擋、沒有工具會刪帳目或動餘額。首頁對話框的「整理帳本」說法（`intent.ts`，保守）會引導過來。
+用一句話整理帳本：AI（`/api/ai/agent-plan`，1 點）只規劃成「工具＋參數」，工具白名單＝批次改分類、建立／調整預算、建立週期帳目、貸款提前還款試算（只試算）、建立自動分類規則、建立存錢目標；`resolvePlan`（純函式）在記憶體工作副本上依序模擬，產生**執行預覽卡**（筆數、預算變化、餘額不變、抽樣）；`applyPlan` 單一 Dexie 交易**原子寫入**；每次執行記下修改前的樣子（本機 `meta`，7 天、20 筆），**一鍵還原**（執行後被改過的略過）。一次最多 500 筆、沒有篩選條件會被擋、沒有工具會刪帳目或動餘額。首頁對話框的「整理帳本」說法（`intent.ts`，保守）會引導過來。
 
 ### 3.3c 對帳（v4.0，`domain/reconcile.ts`、`services/reconcile.ts`、`features/settings/ReconcilePanel.tsx`，入口＝匯入 CSV →「對帳」）
 帳單（CSV 或 AI 讀截圖 `/api/ai/statement`，每張 2 點）vs 帳本同帳戶：一對一配對（日期 ±3 天、金額、店名），分 **吻合／漏記／金額有差（匯差、海外手續費 1.5%）／帳本多**；一鍵補齊＝補漏記帳目、金額差另記一筆「匯差／手續費調整（對帳）」（原帳目不動，下次對帳 `ADJ_SUFFIX` 併回）、可選填實際餘額補餘額調整；可復原。截圖的明細加總與帳單合計驗證，不符要使用者確認。
@@ -190,7 +190,7 @@ JSON 完整備份／還原（含照片）、**加密備份**（PBKDF2-SHA256 310
 ---
 
 ## 6. 測試與品質
-- 前端 Vitest **541 項**（`tests/unit/`，fake-indexeddb）＋後端 pytest **162 項**（`server/tests/`）＝ **703 項**；`npm run check` = 型態檢查 + ESLint（0 警告）+ 測試；CI 於 main 與 feature 分支每次推送執行。
+- 前端 Vitest **546 項**（`tests/unit/`，fake-indexeddb）＋後端 pytest **163 項**（`server/tests/`）＝ **709 項**；`npm run check` = 型態檢查 + ESLint（0 警告）+ 測試；CI 於 main 與 feature 分支每次推送執行。
 - 純函式優先放 `src/domain/`（便於測試）；有副作用的放 `src/services/`；資料庫存取放 `src/db/repo/`。
 
 ## 7. 給修改者的注意事項（踩過的坑）
@@ -202,7 +202,7 @@ JSON 完整備份／還原（含照片）、**加密備份**（PBKDF2-SHA256 310
 6. 圓角容器底下若墊有色塊（滑動刪除的紅色），平常要隱藏，否則圓角邊緣會透色。
 7. NAS 部署：compose 專案名是 `aster`（`sudo docker compose -p aster up -d`）；**不要刪除 Aster 資料夾**（容器 bind mount 會失效，報價代理 502），只覆蓋檔案；`.env` 與 `data/` 不在 `aster-nas.zip` 內。
 8. 每次更新流程：測試通過 → 更新版本號（`package.json`、`package-lock.json`、`server/app/main.py`）與 `CHANGELOG.md`、README／總覽的測試數 → commit（訊息尾端加 Co-Authored-By）→ 推 `feature/v1.2` → `npm run pack:nas`。**版本號由使用者決定；合併／推送 `main` 要使用者明說。**
-9. **新功能要加「新功能標記」**：標題前放 `<NewMark since="版本" />`（`ui/NewMark.tsx`，過兩個次版本自動消失）；**說明文字要可折疊**：卡片標題用 `ui/Hint.tsx` 的 `Hint`（標題旁 ⓘ）、獨立說明用 `Intro`、表單列用 `LabelHint`（`SwitchField` 已內建）——折疊的是「介紹文字」，不是整組設定；確認操作用 `askConfirm()`（`stores/ui.ts`＋`app/overlays.tsx` 的 `ConfirmHost`），不要用 `window.confirm`（iOS 內建視窗）。
+9. **新功能要加「新功能標記」**：標題前放 `<NewMark since="版本" />`（`ui/NewMark.tsx`，過兩個次版本自動消失）；**說明文字要可折疊**：卡片標題用 `ui/Hint.tsx` 的 `Hint`（標題旁 ⓘ）、獨立說明用 `Intro`、表單列用 `LabelHint`（`SwitchField` 已內建）——折疊的是「介紹文字」，不是整組設定；確認操作用 `askConfirm()`（`stores/ui.ts`＋`app/overlays.tsx` 的 `ConfirmHost`），不要用 `window.confirm`（iOS 內建視窗）；一句話確認用 `ask('刪除這個目標？')`（`stores/ui.ts`，ConfirmHost 在 `main.tsx` 最外層）。
 10. 使用者面向的文字一律繁體中文（台灣用語）；不要在回覆或文件中複述金鑰、權杖。
 
 ## 8. 想看更細？

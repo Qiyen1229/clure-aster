@@ -13,7 +13,7 @@ import { todayKey } from '@/domain/period';
 import { resolveRate } from '@/services/fx';
 import { useAccounts, useCategories } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
-import { useUI } from '@/stores/ui';
+import { useUI, ask } from '@/stores/ui';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { AccountField, AmountField, CategoryField, DateField, SelectField, TextField } from '@/ui/form';
 import { Sheet } from '@/ui/Sheet';
@@ -242,7 +242,7 @@ function RecurringForm({ rule, subscription, onClose }: { rule?: RecurringRule; 
         <div className="btn-row" style={{ marginTop: 10 }}>
           <button className="btn secondary" onClick={async () => { await db.recurring_rules.update(rule.id, { active: rule.active ? 0 : 1 }); onClose(); }}>{rule.active ? '停用' : '啟用'}</button>
           <button className="btn danger" onClick={async () => {
-            if (!window.confirm(`刪除「${rule.name}」？已入帳的帳目會保留。`)) return;
+            if (!await ask(`刪除「${rule.name}」？已入帳的帳目會保留。`)) return;
             await db.recurring_rules.delete(rule.id);
             onClose();
           }}>刪除</button>

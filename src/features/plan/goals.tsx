@@ -12,7 +12,7 @@ import { evaluate } from '@/domain/calc-expr';
 import { todayKey } from '@/domain/period';
 import { useAccounts } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
-import { useUI } from '@/stores/ui';
+import { useUI, ask } from '@/stores/ui';
 import { Amount, EmptyState, SkeletonRows } from '@/ui/controls';
 import { AmountField, CurrencyField, DateField, Ring, TextField } from '@/ui/form';
 import { Sheet } from '@/ui/Sheet';
@@ -111,7 +111,7 @@ function GoalForm({ goal, onClose }: { goal?: Goal; onClose: () => void }) {
       {goal && (
         <div className="btn-row" style={{ marginTop: 10 }}>
           <button className="btn secondary" onClick={async () => { await saveGoal({ ...goal, status: goal.status === 'archived' ? 'active' : 'archived' }, goal.id); onClose(); }}>{goal.status === 'archived' ? '取消封存' : '封存'}</button>
-          <button className="btn danger" onClick={async () => { if (window.confirm('刪除這個目標？')) { await db.goals.delete(goal.id); onClose(); } }}>刪除</button>
+          <button className="btn danger" onClick={async () => { if (await ask('刪除這個目標？')) { await db.goals.delete(goal.id); onClose(); } }}>刪除</button>
         </div>
       )}
     </>

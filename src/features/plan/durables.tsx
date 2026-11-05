@@ -15,7 +15,7 @@ import { currencyInfo, formatMoney, fromMinor, toMinor } from '@/domain/money';
 import { todayKey } from '@/domain/period';
 import { useAccounts, useCategories } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
-import { snackUndo, useUI } from '@/stores/ui';
+import { snackUndo, useUI, ask } from '@/stores/ui';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { AccountField, AmountField, CategoryField, DateField, SelectField, SwitchField, TextField } from '@/ui/form';
 import { Sheet } from '@/ui/Sheet';
@@ -64,8 +64,8 @@ export default function DurableSection() {
             action={<button className="btn small" onClick={() => setForm({})}>新增耐用品</button>} />
         ) : active.map((d) => <ActiveCard key={d.id} d={d} today={today} onEdit={() => setForm({ edit: d })} onSell={() => setSelling(d)} />)
       ) : done.length === 0 ? <EmptyState emoji="📭" title="還沒有賣掉或淘汰的物品" /> : done.map((d) => (
-        <DoneCard key={d.id} d={d} onReopen={() => void reopenDurable(d.id).then((r) => useUI.getState().showSnack({ text: r.removedSale ? '已改回還在用，並刪除當時記的二手賣出收入（可在「最近刪除」復原）' : '已改回還在用' }))} onDelete={() => {
-          if (!window.confirm(`刪除「${d.name}」的紀錄？已記的帳目不受影響。`)) return;
+        <DoneCard key={d.id} d={d} onReopen={() => void reopenDurable(d.id).then((r) => useUI.getState().showSnack({ text: r.removedSale ? '已改回還在用，並刪除當時記的二手賣出收入（可在「最近刪除」復原）' : '已改回還在用' }))} onDelete={async () => {
+          if (!await ask(`刪除「${d.name}」的紀錄？已記的帳目不受影響。`)) return;
           const copy = { ...d };
           void deleteDurable(d.id).then(() => snackUndo('已刪除', async () => { await db.durables.put(copy); }));
         }} />

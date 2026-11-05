@@ -7,7 +7,7 @@
  *
  * 安全：工具白名單；每個工具的參數都重新驗證；一次最多改 MAX_AFFECTED 筆帳目；沒有任何工具會動帳戶餘額、刪帳目或轉帳。
  */
-import type { Account, Budget, Category, RecurringRule, Transaction } from '@/db/types';
+import type { Account, Budget, Category, CategoryRule, Goal, RecurringRule, Transaction } from '@/db/types';
 import { statAmount } from '@/domain/ledger';
 import { currencyInfo, formatMoney } from '@/domain/money';
 import { accountingMonth, addDays, type Range } from '@/domain/period';
@@ -17,14 +17,16 @@ import { loanStatus, simulatePrepayment } from '@/domain/loan';
 export const MAX_AFFECTED = 500;
 export const MAX_STEPS = 6;
 
-export type ToolName = 'reclassify' | 'set_budget' | 'add_recurring' | 'prepayment_sim';
+export type ToolName = 'reclassify' | 'set_budget' | 'add_recurring' | 'prepayment_sim' | 'add_goal' | 'add_rule';
 export interface RawStep { tool: string; args: Record<string, unknown> }
 
 /** 計畫執行時要真的做的事（services/agent.ts 照這個寫入） */
 export type Op =
   | { kind: 'recat'; ids: string[]; categoryId: string }
   | { kind: 'budget'; id?: string; input: Omit<Budget, 'id' | 'createdAt' | 'updatedAt'> }
-  | { kind: 'recurring'; input: Omit<RecurringRule, 'id' | 'createdAt' | 'updatedAt' | 'nextDue' | 'doneCount' | 'pendingDates'> };
+  | { kind: 'recurring'; input: Omit<RecurringRule, 'id' | 'createdAt' | 'updatedAt' | 'nextDue' | 'doneCount' | 'pendingDates'> }
+  | { kind: 'goal'; input: Omit<Goal, 'id' | 'createdAt' | 'updatedAt'> }
+  | { kind: 'rule'; input: Omit<CategoryRule, 'id' | 'createdAt' | 'updatedAt' | 'hits'> };
 
 export interface StepPreview {
   tool: ToolName;
@@ -43,6 +45,9 @@ export interface StepPreview {
   affectedTx?: number;
   budgetChanges?: number;
   rulesCreated?: number;
+  /** 新增的存錢目標、自動分類規則數 */
+  goalsCreated?: number;
+  autoRulesCreated?: number;
 }
 
 export interface ResolvedStep { preview: StepPreview; op: Op | null }
@@ -55,6 +60,8 @@ export interface AgentData {
   accounts: Account[];
   budgets: Budget[];
   recurring: RecurringRule[];
+  goals?: Goal[];
+  rules?: CategoryRule[];
   /** 候選帳目（近一年，未刪除）；預覽在這份的複本上模擬 */
   txs: Transaction[];
   defaultAccountId?: string;
@@ -280,6 +287,57 @@ function prepayment(a: Record<string, unknown>, d: AgentData): ResolvedStep {
   return { op: null, preview: { tool: 'prepayment_sim', title: `「${acc.name}」提前還款試算`, lines, warnings: [], readonly: true } };
 }
 
+function addGoal(a: Record<string, unknown>, d: AgentData): ResolvedStep {
+  const blocked = (why: string): ResolvedStep => ({ op: null, preview: { tool: 'add_goal', title: '建立存錢目標', lines: [], warnings: [], blocked: why } });
+  const name = str(a.name).slice(0, 30);
+  const amount = num(a.target_amount);
+  if (!name || !(amount > 0)) return blocked('目標名稱或金額不正確');
+  const cur = d.baseCurrency;
+  const targetMinor = minorOf(amount, cur);
+  const deadline = dateOrNull(a.deadline);
+  const warnings: string[] = [];
+  const lines = [`目標金額 ${fmt(targetMinor, cur)}（已存 $0，之後可在「規劃 → 目標」連結帳戶或手動存入）`];
+  if (deadline && deadline > d.today) {
+    const months = Math.max(1, Math.ceil((Date.parse(deadline) - Date.parse(d.today)) / 86_400_000 / 30.44));
+    lines.push(`截止日 ${deadline}（約 ${months} 個月後），平均每月要存 ${fmt(Math.ceil(targetMinor / months), cur)}`);
+  } else {
+    lines.push('沒有設定截止日');
+    if (deadline) warnings.push('你說的截止日已經過了，所以不設截止日');
+  }
+  const dup = (d.goals ?? []).find((g) => g.status === 'active' && g.name.trim() === name);
+  if (dup) warnings.push(`已經有一個同名的進行中目標「${dup.name}」，執行後會有兩個`);
+  return {
+    op: { kind: 'goal', input: { start: d.today, name, icon: '🎯', color: '#0A84FF', targetMinor, currency: cur, deadline: deadline && deadline > d.today ? deadline : undefined, linkedAccountIds: [], manualSavedMinor: 0, status: 'active' } },
+    preview: { tool: 'add_goal', title: `建立存錢目標「${name}」${fmt(targetMinor, cur)}`, lines: [...lines, '帳戶餘額：不受影響'], warnings, goalsCreated: 1 },
+  };
+}
+
+function addRule(a: Record<string, unknown>, d: AgentData, work: Transaction[]): ResolvedStep {
+  const blocked = (why: string): ResolvedStep => ({ op: null, preview: { tool: 'add_rule', title: '建立自動分類規則', lines: [], warnings: [], blocked: why } });
+  const pattern = str(a.pattern).slice(0, 20);
+  if (pattern.length < 2) return blocked('關鍵字至少要兩個字');
+  const cat = findCategory(d.categories, str(a.category));
+  if (!cat) return blocked(`找不到分類「${str(a.category)}」`);
+  const acc = str(a.account) ? findAccount(d.accounts, str(a.account)) : undefined;
+  const key = pattern.toLowerCase();
+  const warnings: string[] = [];
+  const same = (d.rules ?? []).find((r) => r.enabled && r.match === 'contains' && r.keyword.trim().toLowerCase() === key);
+  if (same) warnings.push(`已經有一條關鍵字相同的規則（歸到另一個分類時以優先順序較前的為準），執行後會有兩條`);
+  // 目前已有幾筆帳目符合（模擬過前面步驟的改分類）：提醒「過去的帳要不要一起改」
+  const hits = work.filter((t) => !t.deletedAt && t.type === cat.kind && `${t.note} ${t.merchant ?? ''}`.toLowerCase().includes(key));
+  const already = hits.filter((t) => t.categoryId === cat.id).length;
+  const lines = [
+    `之後記帳時，備註或商家含「${pattern}」→ 自動歸入「${cat.name}」${acc ? `、記到「${acc.name}」` : ''}`,
+    hits.length ? `目前近一年有 ${hits.length} 筆帳目含「${pattern}」（其中 ${already} 筆已在「${cat.name}」）；規則只管以後的帳，過去的要改請搭配「改分類」` : `目前近一年沒有帳目含「${pattern}」`,
+    '帳戶餘額：不受影響',
+  ];
+  const priority = Math.max(0, ...(d.rules ?? []).map((r) => r.priority)) + 1;
+  return {
+    op: { kind: 'rule', input: { keyword: pattern, match: 'contains', kind: cat.kind, categoryId: cat.id, accountId: acc?.id, priority, enabled: true } },
+    preview: { tool: 'add_rule', title: `新增自動分類規則：「${pattern}」→「${cat.name}」`, lines, warnings, autoRulesCreated: 1 },
+  };
+}
+
 // ───────────── 入口 ─────────────
 
 /** 驗證並模擬整份計畫。回傳每一步的預覽與要執行的操作；不修改傳入的資料（在複本上模擬） */
@@ -293,22 +351,26 @@ export function resolvePlan(steps: RawStep[], data: AgentData): ResolvedStep[] {
     else if (s.tool === 'set_budget') out.push(setBudget(a, data, work, draftBudgets));
     else if (s.tool === 'add_recurring') out.push(addRecurring(a, data));
     else if (s.tool === 'prepayment_sim') out.push(prepayment(a, data));
+    else if (s.tool === 'add_goal') out.push(addGoal(a, data));
+    else if (s.tool === 'add_rule') out.push(addRule(a, data, work));
     else out.push({ op: null, preview: { tool: 'reclassify', title: '不支援的操作', lines: [], warnings: [], blocked: `不支援的操作「${String(s.tool).slice(0, 20)}」` } });
   }
   return out;
 }
 
-export interface PlanDiff { affectedTx: number; budgetChanges: number; rulesCreated: number; executable: number; blocked: number; readonly: number }
+export interface PlanDiff { affectedTx: number; budgetChanges: number; rulesCreated: number; goalsCreated: number; autoRulesCreated: number; executable: number; blocked: number; readonly: number }
 
 /** 影響彙總（執行預覽卡最上面那排） */
 export function summarizePlan(steps: ResolvedStep[]): PlanDiff {
-  const d: PlanDiff = { affectedTx: 0, budgetChanges: 0, rulesCreated: 0, executable: 0, blocked: 0, readonly: 0 };
+  const d: PlanDiff = { affectedTx: 0, budgetChanges: 0, rulesCreated: 0, goalsCreated: 0, autoRulesCreated: 0, executable: 0, blocked: 0, readonly: 0 };
   for (const s of steps) {
     if (s.preview.blocked) { d.blocked++; continue; }
     if (s.op) d.executable++; else if (s.preview.readonly) d.readonly++;
     d.affectedTx += s.preview.affectedTx ?? 0;
     d.budgetChanges += s.preview.budgetChanges ?? 0;
     d.rulesCreated += s.preview.rulesCreated ?? 0;
+    d.goalsCreated += s.preview.goalsCreated ?? 0;
+    d.autoRulesCreated += s.preview.autoRulesCreated ?? 0;
   }
   return d;
 }

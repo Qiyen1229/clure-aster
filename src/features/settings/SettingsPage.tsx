@@ -11,7 +11,7 @@ import { CURRENCIES } from '@/domain/money';
 import { checkForUpdate } from '@/services/appUpdate';
 import { refreshRates } from '@/services/fx';
 import { useSettings } from '@/stores/settings';
-import { useUI } from '@/stores/ui';
+import { useUI, ask } from '@/stores/ui';
 import type { AccentKey } from '@/db/repo/settings';
 import { Segmented, Switch } from '@/ui/controls';
 import { Icon, type IconName } from '@/ui/Icon';
@@ -62,14 +62,14 @@ function EncryptionSheet({ open, onClose }: { open: boolean; onClose: () => void
           </div>
           {pw2 && pw !== pw2 && <p className="muted" style={{ margin: '0 8px 8px', color: 'var(--danger)' }}>兩次輸入不一致</p>}
           <button className="btn" disabled={busy || !valid} onClick={() => void run(async () => {
-            if (!window.confirm(e2ee?.enabled ? '更換後，其他裝置需要輸入新的加密密碼才能繼續同步。確定？' : '啟用後，其他裝置需要輸入這個加密密碼才能同步。確定啟用？')) return;
+            if (!await ask(e2ee?.enabled ? '更換後，其他裝置需要輸入新的加密密碼才能繼續同步。確定？' : '啟用後，其他裝置需要輸入這個加密密碼才能同步。確定啟用？')) return;
             await setEncryption(pw);
             snack(e2ee?.enabled ? '已更換加密密碼' : '已啟用端對端加密，資料已重新加密上傳');
             onClose();
           })}>{busy ? '加密並上傳中…' : e2ee?.enabled ? '更換密碼並重新加密' : '啟用端對端加密'}</button>
           {e2ee?.enabled && (
             <button className="btn danger" style={{ marginTop: 8 }} disabled={busy} onClick={() => void run(async () => {
-              if (!window.confirm('停用後，資料會以明文重新上傳到伺服器。確定停用？')) return;
+              if (!await ask('停用後，資料會以明文重新上傳到伺服器。確定停用？')) return;
               await setEncryption(null);
               snack('已停用端對端加密');
               onClose();
@@ -322,10 +322,10 @@ export default function SettingsPage() {
 
       <Group id="danger" title="帳號與資料管理" desc="登出、清除所有資料">
         {account && (
-          <Row danger label="登出" onClick={() => { if (window.confirm('確定登出？帳目已同步到伺服器，在任何裝置重新登入即可繼續使用。')) void auth.logout(); }} />
+          <Row danger label="登出" onClick={async () => { if (await ask('確定登出？帳目已同步到伺服器，在任何裝置重新登入即可繼續使用。')) void auth.logout(); }} />
         )}
         <Row danger label="清除所有資料" sub="刪除此裝置上的全部資料，無法復原" onClick={async () => {
-          if (!window.confirm('確定要刪除所有資料？此動作無法復原。')) return;
+          if (!await ask('確定要刪除所有資料？此動作無法復原。')) return;
           if (window.prompt('請輸入「刪除」以確認') !== '刪除') return;
           await db.delete();
           location.replace('/');

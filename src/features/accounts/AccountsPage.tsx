@@ -20,7 +20,7 @@ import { resolveRate } from '@/services/fx';
 import { convertMinor, formatMoney } from '@/domain/money';
 import { useAccounts } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
-import { useUI } from '@/stores/ui';
+import { useUI, ask } from '@/stores/ui';
 import { ExplainButton } from '@/ui/Explain';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { Icon } from '@/ui/Icon';
@@ -193,7 +193,7 @@ function LoanPanel({ account }: { account: Account }) {
           </div>
           <button className="row accent" disabled={busy} onClick={async () => {
             const date = st.next && st.next.date <= todayKey() ? st.next.date : todayKey();
-            if (!window.confirm(`記錄 ${date} 還款 ${formatMoney(st.paymentMinor, account.currency)}？本金以轉帳記入、利息記為支出。`)) return;
+            if (!await ask(`記錄 ${date} 還款 ${formatMoney(st.paymentMinor, account.currency)}？本金以轉帳記入、利息記為支出。`)) return;
             setBusy(true);
             try {
               const r = await recordLoanPayment(account.id, fromId, date, st.paymentMinor);

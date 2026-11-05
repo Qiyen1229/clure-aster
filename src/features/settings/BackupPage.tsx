@@ -12,7 +12,7 @@ import { BackupPassphraseError, MIN_BACKUP_PASSPHRASE, exportBackup, exportCSV, 
 import { loadSettings } from '@/db/repo/settings';
 import { accountingMonth, todayKey } from '@/domain/period';
 import { useSettings } from '@/stores/settings';
-import { useUI } from '@/stores/ui';
+import { useUI, ask } from '@/stores/ui';
 import { Segmented, Switch } from '@/ui/controls';
 import { Icon } from '@/ui/Icon';
 
@@ -79,11 +79,11 @@ export default function BackupPage() {
         </div>
         <label className="row accent" style={{ cursor: 'pointer' }}>
           {busy === 'restore' ? '還原中…' : '選擇備份檔並還原'}
-          <input type="file" accept="application/json,.json" className="sr-only" onChange={(e) => {
+          <input type="file" accept="application/json,.json" className="sr-only" onChange={async (e) => {
             const f = e.target.files?.[0];
             e.target.value = '';
             if (!f) return;
-            if (mode === 'replace' && !window.confirm(AUTH_ENABLED ? '完全取代會刪除目前所有資料，並同步到這個帳號的其他裝置，確定？' : '完全取代會刪除這台裝置上目前所有資料，確定？')) return;
+            if (mode === 'replace' && !await ask(AUTH_ENABLED ? '完全取代會刪除目前所有資料，並同步到這個帳號的其他裝置，確定？' : '完全取代會刪除這台裝置上目前所有資料，確定？')) return;
             void (async () => {
               if (await isEncryptedBackup(f)) { setPending(f); setRestorePass(''); setRestoreErr(''); return; } // 加密檔：先問密碼
               await run('restore', async () => {

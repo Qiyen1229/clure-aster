@@ -7,7 +7,7 @@ import type { Category, CategoryKind } from '@/db/types';
 import { addCategory, buildTree, deleteOrArchiveCategory, reorderCategories, updateCategory } from '@/db/repo/categories';
 import { CATEGORY_COLORS, OTHER_SUB_NAME } from '@/db/seed/categories';
 import { useCategories } from '@/app/hooks';
-import { useUI } from '@/stores/ui';
+import { useUI, ask } from '@/stores/ui';
 import { Segmented } from '@/ui/controls';
 import { Icon } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
@@ -115,7 +115,7 @@ function EditorBody({ edit, onClose }: { edit: NonNullable<Edit>; onClose: () =>
             {edit.cat.archived ? '取消封存' : '封存'}
           </button>
           <button className="btn danger" onClick={async () => {
-            if (!window.confirm(`刪除「${edit.cat!.name}」？已被使用的分類會改為封存。`)) return;
+            if (!await ask(`刪除「${edit.cat!.name}」？已被使用的分類會改為封存。`)) return;
             const r = await deleteOrArchiveCategory(edit.cat!.id);
             snack(r === 'deleted' ? '已刪除' : '分類已有帳目，已改為封存');
             onClose();

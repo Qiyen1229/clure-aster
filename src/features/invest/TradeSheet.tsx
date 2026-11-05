@@ -17,7 +17,7 @@ import { getRate } from '@/services/fx';
 import { twFeeConfig } from '@/services/portfolio';
 import { useAccounts } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
-import { snackUndo, useUI } from '@/stores/ui';
+import { snackUndo, useUI, ask } from '@/stores/ui';
 import { Segmented } from '@/ui/controls';
 import { AccountField, AmountField, DateField, SwitchField, TextField } from '@/ui/form';
 import { Sheet } from '@/ui/Sheet';
@@ -115,7 +115,7 @@ function TradeForm({ stockId, trade, initialType, onClose }: { stockId?: string;
     if (shares.lte(0)) return useUI.getState().showSnack({ text: type === 'split' ? '請輸入分割倍數' : '請輸入股數' });
     if ((type === 'buy' || type === 'sell') && (!price || new Decimal(price).lte(0))) return useUI.getState().showSnack({ text: '請輸入成交價' });
     if (type === 'sell' && shares.gt(pos.shares)) {
-      if (!window.confirm(`賣出 ${shares} 股超過目前持有的 ${pos.shares} 股，確定要儲存？`)) return;
+      if (!await ask(`賣出 ${shares} 股超過目前持有的 ${pos.shares} 股，確定要儲存？`)) return;
     }
     if (sync && (type === 'buy' || type === 'sell') && !cashAccountId) return useUI.getState().showSnack({ text: '請選擇扣款／入帳帳戶，或關閉同步記帳' });
     const input = {

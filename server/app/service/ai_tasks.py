@@ -40,6 +40,7 @@ ASK = f"""你是 Aster 記帳 App 內的理財小助手。使用者會附上自�
 規則：
 - 不要編造摘要裡沒有的數字；資料不足就直說，並說明還需要什麼資料。
 - 涉及計算時，簡短寫出依據（例如「近三個月平均 X」）。
+- 摘要若有 investAndTax（持股市值、未實現損益、即將除息的股票代號與配息、二代健保、海外所得），可據此說明股利稅務與資產狀況；不要預測漲跌或建議買賣個股。
 - 不提供個股買賣、預測漲跌等投資建議；可以說明收支、預算與儲蓄。
 - 繁體中文（台灣用語）、口吻友善直接，200 字內，最多 5 個重點，不要用 Markdown 語法。"""
 
@@ -113,6 +114,10 @@ AGENT_PLAN = f"""你是記帳 App 的操作助手。使用者用一句話描述�
    args：{{"name":"名稱","amount":金額,"freq":"month|week|year","day":每月幾號(1到31，只有 month 要填，其他填null),"category":"分類名稱","account":"帳戶名稱或null","kind":"expense|subscription|income","start_date":"YYYY-MM-DD或null"}}
 4. prepayment_sim：貸款提前還款試算（只試算，不會真的還款）。
    args：{{"account":"貸款帳戶名稱","lump_sum":一次還款金額或0,"extra_monthly":每月多還金額或0}}
+5. add_rule：建立自動分類規則（以後記帳，備註或商家含關鍵字就自動歸到某分類；和 reclassify 搭配＝過去的帳改分類＋以後自動歸類）。
+   args：{{"pattern":"關鍵字，例如 uber","category":"分類名稱","account":"預設帳戶名稱或null"}}
+6. add_goal：建立存錢目標。
+   args：{{"name":"目標名稱","target_amount":目標金額,"deadline":"YYYY-MM-DD或null"}}
 規則：
 - 所有分類、帳戶名稱必須完全等於「可選分類」「可選帳戶」清單裡的名稱，找不到就填 null（to_category、add_recurring 的 category 找不到就不要輸出那一步）。
 - 日期依「今天」換算（上個月、這個月、去年…）；沒提到時間範圍就填 null。
@@ -226,7 +231,7 @@ def v_search_plan(data: object, categories: list[str], accounts: list[str], tags
     return out
 
 
-AGENT_TOOLS = ("reclassify", "set_budget", "add_recurring", "prepayment_sim")
+AGENT_TOOLS = ("reclassify", "set_budget", "add_recurring", "prepayment_sim", "add_goal", "add_rule")
 
 
 def v_agent_plan(data: object, categories: list[str], accounts: list[str], today: date) -> dict:
@@ -297,6 +302,15 @@ def v_agent_plan(data: object, categories: list[str], accounts: list[str], today
             lump, extra = money(a.get("lump_sum"), allow_zero=True) or 0, money(a.get("extra_monthly"), allow_zero=True) or 0
             if acc and (lump > 0 or extra > 0):
                 args = {"account": acc, "lump_sum": lump, "extra_monthly": extra}
+        elif tool == "add_rule":
+            pat, cat = _text(a.get("pattern"), 20), pick(a.get("category"), categories)
+            if len(pat) >= 2 and cat:
+                args = {"pattern": pat, "category": cat, "account": pick(a.get("account"), accounts)}
+        elif tool == "add_goal":
+            amt, gname = money(a.get("amount") if a.get("target_amount") is None else a.get("target_amount")), _text(a.get("name"), 30)
+            dl = day(a.get("deadline"))
+            if amt is not None and gname:
+                args = {"name": gname, "target_amount": amt, "deadline": dl if dl and dl >= today.isoformat() else None}
         if args is not None:
             steps.append({"tool": tool, "args": args})
     if not steps:

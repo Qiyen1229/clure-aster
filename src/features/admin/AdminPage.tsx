@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '@/services/api';
 import { useAuth } from '@/stores/auth';
-import { useUI } from '@/stores/ui';
+import { useUI, ask } from '@/stores/ui';
 import { EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { SwitchField } from '@/ui/form';
 import { Icon } from '@/ui/Icon';
@@ -109,7 +109,7 @@ function RegistrationSwitch() {
   const cur = s ?? data;
   if (error || !cur) return null;
   const toggle = async (open: boolean) => {
-    if (!open || window.confirm('開放註冊後，知道網址的任何人都能建立帳號。確定要開放嗎？')) {
+    if (!open || await ask('開放註冊後，知道網址的任何人都能建立帳號。確定要開放嗎？')) {
       setBusy(true);
       try {
         setS(await api<SystemSettings>('/admin/settings', { method: 'PATCH', body: { allow_registration: open } }));
@@ -356,12 +356,12 @@ function Users() {
               {locked(sel) && sel.is_active && (
                 <button className="btn tinted" disabled={busy} onClick={() => void act(() => api(`/admin/users/${sel.id}/status`, { method: 'PATCH', body: { is_active: true } }), '已解除鎖定')}>解除登入鎖定</button>
               )}
-              <button className="btn tinted" disabled={busy} onClick={() => {
-                if (!window.confirm(`強制登出「${sel.username}」的所有裝置？`)) return;
+              <button className="btn tinted" disabled={busy} onClick={async () => {
+                if (!await ask(`強制登出「${sel.username}」的所有裝置？`)) return;
                 void act(() => api(`/admin/users/${sel.id}/force-logout`, { method: 'POST' }), '已強制登出');
               }}>強制登出所有裝置</button>
               <button className="btn secondary" disabled={busy} onClick={async () => {
-                if (!window.confirm(`重設「${sel.username}」的密碼？會產生一組臨時密碼，對方下次登入時必須變更。`)) return;
+                if (!await ask(`重設「${sel.username}」的密碼？會產生一組臨時密碼，對方下次登入時必須變更。`)) return;
                 setBusy(true);
                 try {
                   const r = await api<{ temporary_password: string }>(`/admin/users/${sel.id}/reset-password`, { method: 'POST' });
