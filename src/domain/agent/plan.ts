@@ -96,7 +96,8 @@ export function spentInMonth(txs: Transaction[], budgetCategoryId: string, catMa
 // ───────────── 各工具 ─────────────
 
 function reclassify(a: Record<string, unknown>, d: AgentData, work: Transaction[]): ResolvedStep {
-  const to = findCategory(d.categories, str(a.to_category));
+  const wantKind = a.type === 'income' || a.type === 'expense' ? a.type : undefined; // 同名的收入／支出分類不要挑錯
+  const to = findCategory(d.categories, str(a.to_category), wantKind) ?? (wantKind ? undefined : findCategory(d.categories, str(a.to_category)));
   const blocked = (why: string): ResolvedStep => ({ op: null, preview: { tool: 'reclassify', title: '批次改分類', lines: [], warnings: [], blocked: why } });
   if (!to) return blocked(`找不到分類「${str(a.to_category)}」`);
   const from = str(a.from_category) ? findCategory(d.categories, str(a.from_category)) : undefined;
@@ -209,8 +210,14 @@ function addRecurring(a: Record<string, unknown>, d: AgentData): ResolvedStep {
   const amount = num(a.amount);
   if (!name || !(amount > 0)) return blocked('名稱或金額不正確');
   const kind = a.kind === 'income' ? 'income' : 'expense';
-  const cat = findCategory(d.categories, str(a.category), kind);
-  if (!cat) return blocked(`找不到${kind === 'income' ? '收入' : '支出'}分類「${str(a.category)}」`);
+  let cat = str(a.category) ? findCategory(d.categories, str(a.category), kind) : undefined;
+  let catNote = '';
+  if (!cat && !str(a.category)) {
+    // 使用者沒說分類（例如「建立每月 12 號 Netflix 390 的訂閱」）：訂閱類優先找「訂閱」，否則放「其他」，並在預覽提醒
+    cat = (a.kind === 'subscription' ? d.categories.find((c) => c.kind === kind && usableCat(c) && /訂閱/.test(c.name)) : undefined) ?? d.categories.find((c) => c.kind === kind && usableCat(c) && /^其他/.test(c.name));
+    if (cat) catNote = `你沒有指定分類，先放在「${cat.name}」，之後可到週期帳目修改`;
+  }
+  if (!cat) return blocked(str(a.category) ? `找不到${kind === 'income' ? '收入' : '支出'}分類「${str(a.category)}」` : '請說明要記在哪個分類');
   const acc = (str(a.account) ? findAccount(d.accounts, str(a.account)) : undefined) ?? d.accounts.find((x) => x.id === d.defaultAccountId && !x.archived) ?? d.accounts.find((x) => !x.archived && !x.deletedAt && (x.type === 'bank' || x.type === 'cash'));
   if (!acc) return blocked('找不到可用的帳戶');
   const freq = a.freq === 'week' || a.freq === 'year' ? a.freq : 'month';
@@ -229,7 +236,7 @@ function addRecurring(a: Record<string, unknown>, d: AgentData): ResolvedStep {
   const next = occurrences(rule, start, d.today, addDays(d.today, 800), 3);
   const cur = acc.currency;
   const amountMinor = minorOf(amount, cur);
-  const warnings: string[] = [];
+  const warnings: string[] = catNote ? [catNote] : [];
   const dup = d.recurring.find((r) => r.active && r.name.trim().toLowerCase() === name.toLowerCase());
   if (dup) warnings.push(`已經有一條同名的週期帳目「${dup.name}」，執行後會有兩條；要取代請先到「規劃 → 週期」刪掉舊的`);
   const freqText = freq === 'month' ? `每月${day ? ` ${day} 號` : ''}` : freq === 'week' ? '每週' : '每年';

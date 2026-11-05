@@ -283,7 +283,8 @@ def v_agent_plan(data: object, categories: list[str], accounts: list[str], today
         elif tool == "add_recurring":
             amt, cat, name = money(a.get("amount")), pick(a.get("category"), categories), _text(a.get("name"), 30)
             freq = a.get("freq")
-            if amt is not None and cat and name and freq in ("month", "week", "year"):
+            # 分類可以是 None（使用者沒說）：前端會自動帶「訂閱」或「其他」並在預覽提醒；有給但不在名單內的名稱仍視為壞資料
+            if amt is not None and name and freq in ("month", "week", "year") and (cat or a.get("category") in (None, "")):
                 try:
                     dom = int(_num(a.get("day")))
                 except (TypeError, ValueError):

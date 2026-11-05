@@ -68,7 +68,9 @@ export function ReconcilePanel({ csvRows, aiEntries, printedTotal, defaultAccoun
   const printedMinor = printedTotal ? toMinor(printedTotal, cur) : null;
   const totalGap = printedMinor !== null ? report.stmtTotalMinor - printedMinor : null;
   const needVerify = source === 'ai' && (totalGap === null || totalGap !== 0);
-  const adjustTarget = actual.trim() ? (acc.isLiability ? -1 : 1) * toMinor(Math.abs(Number(actual.replace(/,/g, '')) || 0), cur) : null;
+  const parsedActual = Number(actual.replace(/,/g, ''));
+  // 只有填了合法數字才校正；只打了「.」「,」之類的不算（否則會被當成 0 元，把帳戶餘額歸零）
+  const adjustTarget = actual.trim() !== '' && Number.isFinite(parsedActual) ? (acc.isLiability ? -1 : 1) * toMinor(Math.abs(parsedActual), cur) : null;
   const expectedBalance = acc.balanceMinor
     - missingSel.reduce((a, m) => a + (m.kind === 'expense' ? m.amountMinor : -m.amountMinor), 0)
     - varSel.reduce((a, v) => a + v.diffMinor, 0);
@@ -97,7 +99,7 @@ export function ReconcilePanel({ csvRows, aiEntries, printedTotal, defaultAccoun
       <div className="card glass">
         <div className="field" style={{ padding: 0 }}>
           <span className="label">對帳的帳戶</span>
-          <select value={accountId} onChange={(e) => { setAccountId(e.target.value); setApplied(null); }} aria-label="對帳的帳戶">
+          <select value={accountId} onChange={(e) => { setAccountId(e.target.value); setApplied(null); setOffMissing(new Set()); setOffVar(new Set()); setVerified(false); setActual(''); }} aria-label="對帳的帳戶">
             {accounts.list.map((a) => <option key={a.id} value={a.id}>{a.name}（{a.currency}）</option>)}
           </select>
         </div>
@@ -117,7 +119,7 @@ export function ReconcilePanel({ csvRows, aiEntries, printedTotal, defaultAccoun
           <summary style={{ cursor: 'pointer' }}>AI 讀到的 {rows.length} 筆明細（可修改金額、刪除讀錯的）</summary>
           <div className="list" style={{ marginTop: 8 }}>
             {rows.map((r) => (
-              <div key={r.id} className="row" style={{ gap: 8 }}>
+              <div key={`${r.id}:${cur}`} className="row" style={{ gap: 8 }}>
                 <span className="row-main"><span className="row-title">{r.text || '（無說明）'}</span><span className="row-sub" style={{ display: 'block' }}>{r.date}{r.kind === 'income' ? ' · 收入／退款' : ''}{r.foreignCurrency ? ` · 原幣 ${fromMinor(r.foreignMinor ?? 0, r.foreignCurrency).toString()} ${r.foreignCurrency}` : ''}</span></span>
                 <input className="input num" inputMode="decimal" style={{ width: 92, textAlign: 'right' }} aria-label={`${r.text} 金額`} defaultValue={fromMinor(r.amountMinor, cur).toString()}
                   onBlur={(e) => { const v = Number(e.target.value.replace(/,/g, '')); if (v > 0) setRows((x) => x.map((y) => (y.id === r.id ? { ...y, amountMinor: toMinor(v, cur) } : y))); }} />

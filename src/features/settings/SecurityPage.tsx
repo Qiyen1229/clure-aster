@@ -1,6 +1,7 @@
 /**
  * 隱私與安全：App 鎖（PIN）、Face ID／Touch ID（WebAuthn）、自動上鎖時間、背景模糊、隱藏金額。
  */
+import { LabelHint } from '@/ui/Hint';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { biometricAvailable, disableLock, registerBiometric, setPin, useLock } from '@/services/lock';
@@ -11,7 +12,6 @@ import { Icon } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
 import { PinPad } from '@/app/LockScreen';
 
-import { Fold } from '@/ui/Fold';
 export default function SecurityPage() {
   const navigate = useNavigate();
   const s = useSettings();
@@ -35,7 +35,7 @@ export default function SecurityPage() {
         <h1>隱私與安全</h1>
         <div style={{ width: 44 }} />
       </header>
-      <Fold id="SecurityPage.0" title="App 鎖" defaultOpen>
+      <div className="section-title">App 鎖</div>
       <div className="list">
         <div className="field"><span className="label" style={{ flex: 1 }}>啟用 PIN 碼鎖定</span>
           <Switch checked={s.lock.enabled} label="App 鎖" onChange={(v) => { if (v) setPinStep('new'); else if (window.confirm('關閉 App 鎖？')) disableLock(); }} />
@@ -43,7 +43,7 @@ export default function SecurityPage() {
         {s.lock.enabled && (
           <>
             <button className="row" onClick={() => setPinStep('new')}><span className="row-main">變更 PIN 碼</span><Icon name="chevronR" className="row-chev" /></button>
-            <div className="field"><span className="label" style={{ flex: 1 }}>Face ID／Touch ID{!bioOK && <span className="row-sub" style={{ display: 'block' }}>此裝置或瀏覽器不支援（需 HTTPS）</span>}</span>
+            <div className="field">{bioOK ? <span className="label" style={{ flex: 1 }}>Face ID／Touch ID</span> : <LabelHint id="sec.bio" label="Face ID／Touch ID" hint="此裝置或瀏覽器不支援（需 HTTPS）" />}
               <Switch checked={!!s.lock.webauthn} label="生物辨識" onChange={async (v) => {
                 if (!v) { s.set('lock', { ...s.lock, webauthn: null }); return; }
                 try { await registerBiometric(); useUI.getState().showSnack({ text: '已啟用生物辨識解鎖' }); }
@@ -59,8 +59,7 @@ export default function SecurityPage() {
           </>
         )}
       </div>
-      </Fold>
-      <Fold id="SecurityPage.1" title="畫面隱私">
+      <div className="section-title">畫面隱私</div>
       <div className="list">
         <div className="field"><span className="label" style={{ flex: 1 }}>切到背景時模糊畫面</span><Switch checked={s.blurOnHide} onChange={(v) => s.set('blurOnHide', v)} label="背景模糊" /></div>
         <div className="field"><span className="label" style={{ flex: 1 }}>隱藏所有金額</span><Switch checked={s.hideAmounts} onChange={(v) => s.set('hideAmounts', v)} label="隱藏金額" /></div>
@@ -71,7 +70,6 @@ export default function SecurityPage() {
       <Sheet open={!!pinStep} onClose={() => setPinStep(null)} title={pinStep === 'confirm' ? '再輸入一次' : '設定 6 位數 PIN'}>
         {pinStep && <PinPad key={pinStep} onComplete={(p) => void onPin(p)} />}
       </Sheet>
-      </Fold>
     </main>
   );
 }

@@ -24,6 +24,7 @@ import { useSettings } from '@/stores/settings';
 import { snackUndo, useUI } from '@/stores/ui';
 import { AiMark, Icon } from '@/ui/Icon';
 import { Switch } from '@/ui/controls';
+import { Hint } from '@/ui/Hint';
 import { AiInsightsCard } from './AiInsights';
 import { lastCompleted } from '@/services/summary';
 import { AgentCard } from './AgentCard';
@@ -53,8 +54,7 @@ function AskCard({ initialQ }: { initialQ: string }) {
 
   return (
     <section className="card" aria-label="問 AI">
-      <div className="row-title">💬 問 AI</div>
-      <div className="row-sub" style={{ whiteSpace: 'normal' }}>依你近 6 個月的收支統計回答，例如「這個月哪裡花太多？」。</div>
+      <Hint id="ai.ask" title="💬 問 AI" hint="依你近 6 個月的收支統計回答，例如「這個月哪裡花太多？」。" />
       {thread.map((m, i) => (
         <div key={i} style={{ marginTop: 10 }}>
           <div className="muted">你：{m.q}</div>
@@ -111,11 +111,8 @@ function BudgetCard({ auto }: { auto: boolean }) {
   const money = (v: number) => (p ? formatMoney(Math.round(v * 10 ** p.decimals), p.currency, { decimals: 0 }) : String(v));
   return (
     <section className="card" aria-label="下個月預算建議" aria-live="polite">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-        <div className="row-title">📅 下個月預算建議</div>
-        <button className="btn small" disabled={busy} onClick={() => void run(!!res)}>{busy ? '分析中…' : res ? '重新產生' : '產生建議'}</button>
-      </div>
-      <div className="row-sub" style={{ whiteSpace: 'normal' }}>依過去花費、每月固定支出（訂閱／分期／貸款）與存錢目標，建議總預算與各分類，並算出每天的日常預算。</div>
+      <Hint id="ai.budget" title="📅 下個月預算建議" hint="依過去花費、每月固定支出（訂閱／分期／貸款）與存錢目標，建議總預算與各分類，並算出每天的日常預算。"
+        right={<button className="btn small" disabled={busy} onClick={() => void run(!!res)}>{busy ? '分析中…' : res ? '重新產生' : '產生建議'}</button>} />
       <Err text={err} />
       {p && (
         <div style={{ marginTop: 10 }}>
@@ -195,11 +192,8 @@ function CategorizeCard() {
 
   return (
     <section className="card" aria-label="AI 整理分類">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-        <div className="row-title">🗂 AI 整理分類</div>
-        <button className="btn small" disabled={busy} onClick={() => void scan()}>{busy ? '分析中…' : '掃描「其他」'}</button>
-      </div>
-      <div className="row-sub" style={{ whiteSpace: 'normal' }}>找出近一年歸在「其他」的帳目，依備註建議分類。備註文字會送給 AI（一次 1 點額度、最多 40 種備註）。</div>
+      <Hint id="ai.categorize" title="🗂 AI 整理分類" hint="找出近一年歸在「其他」的帳目，依備註建議分類。備註文字會送給 AI（一次 1 點額度、最多 40 種備註）。"
+        right={<button className="btn small" disabled={busy} onClick={() => void scan()}>{busy ? '分析中…' : '掃描「其他」'}</button>} />
       <Err text={err} />
       {msg && <p className="row-sub" style={{ whiteSpace: 'normal' }}>{msg}</p>}
       {!!groups?.length && (
@@ -258,12 +252,9 @@ function ReceiptCard() {
   };
   return (
     <section className="card" aria-label="拍照記帳">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-        <div className="row-title">📷 拍照記帳</div>
-        <button className="btn small" disabled={busy} onClick={() => fileRef.current?.click()}>{busy ? '辨識中…' : '拍照／選擇收據'}</button>
-      </div>
+      <Hint id="ai.receipt" title="📷 拍照記帳" hint="拍下收據或發票，AI 辨識金額、店名與日期（一次 2 點額度）。照片縮小後送出，不會保存在伺服器。"
+        right={<button className="btn small" disabled={busy} onClick={() => fileRef.current?.click()}>{busy ? '辨識中…' : '拍照／選擇收據'}</button>} />
       <input ref={fileRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => void pick(e.target.files?.[0])} />
-      <div className="row-sub" style={{ whiteSpace: 'normal' }}>拍下收據或發票，AI 辨識金額、店名與日期（一次 2 點額度）。照片縮小後送出，不會保存在伺服器。</div>
       <Err text={err} />
       {drafts.map((d, i) => (
         <div key={i} className="row" style={{ marginTop: 8, gap: 8 }}>
@@ -324,8 +315,7 @@ export default function AiAssistant() {
           </>
         ) : (
           <section className="card">
-            <div className="row-title">💬 問 AI、📅 預算建議、<AiMark /> 白話解讀</div>
-            <p style={{ whiteSpace: 'normal' }}>這幾項需要讓 AI 看你「去識別化的收支統計」（各月與各分類合計，不含單筆帳目與備註）。</p>
+            <Hint id="ai.dataOff" title={<>💬 問 AI、📅 預算建議、<AiMark /> 白話解讀</>} hint="這幾項需要讓 AI 看你「去識別化的收支統計」（各月與各分類合計，不含單筆帳目與備註）。" />
             <button className="btn" onClick={() => navigate('/settings/ai')}>前往允許</button>
           </section>
         )}

@@ -13,7 +13,6 @@ import { Segmented, Switch } from '@/ui/controls';
 import { Icon } from '@/ui/Icon';
 import type { InvestSettings, QuoteSettings } from '@/db/repo/settings';
 
-import { Fold } from '@/ui/Fold';
 function Order({ title, value, onChange }: { title: string; value: string[]; onChange: (v: string[]) => void }) {
   const move = (i: number, d: -1 | 1) => {
     const j = i + d;
@@ -24,7 +23,7 @@ function Order({ title, value, onChange }: { title: string; value: string[]; onC
   };
   return (
     <>
-      <Fold id="InvestSettingsPage.0" title={`${title}（由上而下依序嘗試）`} defaultOpen>
+      <div className="section-title">{title}（由上而下依序嘗試）</div>
       <div className="list">
         {value.map((id, i) => (
           <div key={id} className="row">
@@ -35,7 +34,6 @@ function Order({ title, value, onChange }: { title: string; value: string[]; onC
           </div>
         ))}
       </div>
-      </Fold>
     </>
   );
 }
@@ -83,7 +81,7 @@ export default function InvestSettingsPage() {
         <div style={{ width: 44 }} />
       </header>
 
-      <Fold id="InvestSettingsPage.1" title="CORS 代理">
+      <div className="section-title">CORS 代理</div>
       <div className="list">
         {text('代理網址', q.proxyUrl, (v) => setQ({ proxyUrl: v }), { placeholder: '/proxy 或 https://xxx.workers.dev' })}
         {text('代理權杖', q.proxyToken, (v) => setQ({ proxyToken: v }), { placeholder: '未設定可留空', type: 'password' })}
@@ -103,8 +101,7 @@ export default function InvestSettingsPage() {
       </div>
       <p className="muted" style={{ fontSize: '0.78rem', margin: '0 8px 8px' }}>NAS Docker 版預設 /proxy（同源，免設定）。部署在其他靜態主機時，請依 proxy/README.md 部署 Cloudflare Worker 並填入網址。</p>
 
-      </Fold>
-      <Fold id="InvestSettingsPage.2" title="更新">
+      <div className="section-title">更新</div>
       <div className="list">
         <div className="field"><span className="label">盤中自動刷新</span>
           <select value={q.refreshSec} onChange={(e) => setQ({ refreshSec: Number(e.target.value) })}>
@@ -116,8 +113,7 @@ export default function InvestSettingsPage() {
       <Order title="台股資料源" value={q.twOrder} onChange={(v) => setQ({ twOrder: v })} />
       <Order title="美股／全球資料源" value={q.usOrder} onChange={(v) => setQ({ usOrder: v })} />
 
-      </Fold>
-      <Fold id="InvestSettingsPage.3" title="API Key（選填，免費申請）">
+      <div className="section-title">API Key（選填，免費申請）</div>
       <div className="list">
         {text('Finnhub', q.keys.finnhub, (v) => setQ({ keys: { ...q.keys, finnhub: v } }), { type: 'password', placeholder: 'finnhub.io' })}
         {text('Twelve Data', q.keys.twelvedata, (v) => setQ({ keys: { ...q.keys, twelvedata: v } }), { type: 'password', placeholder: 'twelvedata.com' })}
@@ -126,8 +122,7 @@ export default function InvestSettingsPage() {
       </div>
       <p className="muted" style={{ fontSize: '0.78rem', margin: '0 8px 8px' }}>API Key 會隨設定同步到你自己的伺服器，其他裝置登入後不必重填。Finnhub／Twelve Data／Alpha Vantage 支援直接連線，Key 不會經過代理。</p>
 
-      </Fold>
-      <Fold id="InvestSettingsPage.4" title="成本與記帳">
+      <div className="section-title">成本與記帳</div>
       <div className="list">
         <div className="row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
           <div className="row-title" style={{ marginBottom: 6 }}>成本計算方式</div>
@@ -136,8 +131,7 @@ export default function InvestSettingsPage() {
         <div className="field"><span className="label" style={{ flex: 1 }}>交易預設同步記帳</span><Switch checked={inv.syncToLedger} onChange={(v) => setI({ syncToLedger: v })} label="預設同步記帳" /></div>
       </div>
 
-      </Fold>
-      <Fold id="InvestSettingsPage.5" title="台股手續費與稅">
+      <div className="section-title">台股手續費與稅</div>
       <div className="list">
         {text('手續費率', inv.feeRateDec, (v) => setI({ feeRateDec: v || '0.001425' }), { mode: 'decimal' })}
         {text('券商折扣', inv.discountDec, (v) => setI({ discountDec: v || '1' }), { mode: 'decimal', placeholder: '例：0.6 = 六折' })}
@@ -148,7 +142,6 @@ export default function InvestSettingsPage() {
         {text('證交稅（債券 ETF）', inv.taxBondEtfDec, (v) => setI({ taxBondEtfDec: v || '0' }), { mode: 'decimal' })}
       </div>
       <p className="disclaimer">報價可能延遲，僅供參考，不構成投資建議。</p>
-      </Fold>
     </main>
   );
 }

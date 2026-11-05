@@ -2,6 +2,7 @@
  * AI 輔助：一句話／語音記帳規則看不懂時，才請伺服器設定的 AI 解析（預設關閉）。
  * 這頁顯示開關、每日／每週／每月的剩餘額度與下次重置時間。
  */
+import { Intro } from '@/ui/Hint';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAiStatus, type AiQuotaWindow, type AiStatus } from '@/services/ai';
@@ -9,7 +10,6 @@ import { useSettings } from '@/stores/settings';
 import { SwitchField } from '@/ui/form';
 import { AiMark, Icon } from '@/ui/Icon';
 
-import { Fold } from '@/ui/Fold';
 const resetText = (iso: string) => new Date(iso + 'Z').toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 
 function Bar({ label, w }: { label: string; w: AiQuotaWindow }) {
@@ -53,28 +53,28 @@ export default function AiPage() {
         <SwitchField label="首頁自動顯示「上週重點」" checked={!!ai?.enabled && !!ai?.allowData && !!ai?.auto} onChange={(v) => set('ai', { ...ai, enabled: true, allowData: true, auto: v })}
           sub="每週最多自動用 1 點額度；沒開的話只在你按下按鈕時才用 AI" />
       </div>
-      <p className="set-note">
+      <Intro id="aipage.1">
         <b>一句話記帳／整理分類／拍照記帳</b>：送出你輸入的那一句話（整理分類是帳目備註、拍照記帳是縮小後的收據照片），以及你的分類與帳戶「名稱」。
         一句話記帳只有規則解析找不到金額時才會用到，輸入過程中的即時預覽不會用到額度。
         <b>新支出的市價檢查</b>（設定 → 智慧提醒，可關閉）：規則判斷不了的新支出（比平常高很多、又沒有行情資料），會送出<b>那一筆</b>的分類名稱、備註、金額與你這個分類平常一筆約多少，請 AI 查市價；每筆只問一次、<b>不計額度</b>，送出的原文可在「查看送出過什麼」檢查。
         <b>搜尋</b>的「用 AI 找」只送你輸入的描述與分類、帳戶、標籤名稱，不送任何帳目。
         <b>收件匣</b>的「<AiMark /> AI 解析」會送出那則簡訊／通知的文字（已先去掉網址、身分證、卡號與連續 10 碼以上的數字），只有你按下按鈕才會送。
-      </p>
-      <p className="set-note">
+      </Intro>
+      <Intro id="aipage.2">
         <b>收支統計</b>（需另外允許）：最近約 6 個月每月的收入、支出與各分類合計、每月固定支出（訂閱／分期／貸款）、各預算的上限與已花、存錢目標進度與淨資產，全部是整數統計。
         <b>不會送出</b>：單筆帳目、備註、商家、日期明細、帳戶名稱、標籤。
-      </p>
-      <p className="set-note">
+      </Intro>
+      <Intro id="aipage.3">
         送出的內容會經過你的伺服器與管理員設定的第三方 AI 供應商，不在端對端加密的範圍內。免費方案的供應商可能把內容用於改進產品（例如 Google Gemini 免費層），請不要在輸入裡寫入敏感資料。
         相同內容的結果會暫存在這台裝置，重複查詢不會再扣額度。
-      </p>
+      </Intro>
       <div className="list">
         <button className="row" onClick={() => navigate('/settings/ai/sent')}>
           <span className="row-main"><span className="row-title">🔍 查看送出過什麼</span><span className="row-sub" style={{ display: 'block' }}>每一次送去 AI 的原文都記在這台裝置，隨時檢查</span></span>
           <Icon name="chevronR" className="row-chev" />
         </button>
       </div>
-      <Fold id="AiPage.0" title="我的額度" defaultOpen>
+      <div className="section-title">我的額度</div>
       {err ? <p className="muted" style={{ margin: '0 8px' }}>{err}</p> : !st ? null : (
         <>
           <div className="list">
@@ -83,10 +83,9 @@ export default function AiPage() {
             <Bar label="本週" w={st.quota.weekly} />
             <Bar label="本月" w={st.quota.monthly} />
           </div>
-          <p className="set-note">每日 00:00、每週一 00:00、每月 1 日 00:00（台北時間）重置；任何一層用完就暫停，其他記帳功能不受影響。AI 失敗或看不懂時不扣額度。一般使用者與管理員的額度分開計算，由管理員設定。</p>
+          <Intro id="aipage.4">每日 00:00、每週一 00:00、每月 1 日 00:00（台北時間）重置；任何一層用完就暫停，其他記帳功能不受影響。AI 失敗或看不懂時不扣額度。一般使用者與管理員的額度分開計算，由管理員設定。</Intro>
         </>
       )}
-      </Fold>
     </main>
   );
 }

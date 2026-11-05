@@ -1,6 +1,8 @@
 /**
  * 備份與匯出：JSON 完整備份（可含照片）／還原（取代或合併）、CSV／Excel 匯出（可選期間）、PDF 報表、匯入精靈。
  */
+import { LabelHint } from '@/ui/Hint';
+import { NewMark } from '@/ui/NewMark';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -14,7 +16,6 @@ import { useUI } from '@/stores/ui';
 import { Segmented, Switch } from '@/ui/controls';
 import { Icon } from '@/ui/Icon';
 
-import { Fold } from '@/ui/Fold';
 export default function BackupPage() {
   const navigate = useNavigate();
   const msd = useSettings((s) => s.monthStartDay);
@@ -54,10 +55,10 @@ export default function BackupPage() {
         <div className="muted" style={{ fontSize: '0.85rem' }}>{info?.txs ?? 0} 筆帳目、{info?.photos ?? 0} 張照片。帳目會自動同步到你的伺服器；收據照片只存在這台裝置，仍建議定期備份。</div>
       </div>
 
-      <Fold id="BackupPage.0" title="完整備份（JSON）" defaultOpen>
+      <div className="section-title">完整備份（JSON）</div>
       <div className="list">
         <div className="field"><span className="label" style={{ flex: 1 }}>包含收據照片</span><Switch checked={photos} onChange={setPhotos} label="包含照片" /></div>
-        <div className="field"><span className="label" style={{ flex: 1 }}>用密碼加密備份檔<span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>備份檔含全部帳目與收據，弄丟時別人打不開（AES-256；忘記密碼無法復原）</span></span><Switch checked={enc} onChange={setEnc} label="加密備份檔" /></div>
+        <div className="field"><LabelHint id="bk.enc" label="用密碼加密備份檔" hint="備份檔含全部帳目與收據，弄丟時別人打不開（AES-256；忘記密碼無法復原）" /><Switch checked={enc} onChange={setEnc} label="加密備份檔" /></div>
         {enc && (
           <>
             <div className="field"><span className="label">備份密碼</span><input type="password" autoComplete="new-password" value={pass} placeholder={`至少 ${MIN_BACKUP_PASSPHRASE} 個字元`} onChange={(e) => setPass(e.target.value)} /></div>
@@ -71,8 +72,7 @@ export default function BackupPage() {
         {enc && pass && pass2 && pass !== pass2 && <p className="insight-limit" role="alert" style={{ margin: '4px 12px 8px' }}>兩次輸入的密碼不一樣</p>}
       </div>
 
-      </Fold>
-      <Fold id="BackupPage.1" title="還原備份">
+      <div className="section-title">還原備份</div>
       <div className="list">
         <div className="row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
           <Segmented value={mode} onChange={setMode} options={[{ value: 'merge', label: '合併（保留現有）' }, { value: 'replace', label: '完全取代' }]} ariaLabel="還原方式" />
@@ -119,8 +119,7 @@ export default function BackupPage() {
         </div>
       )}
 
-      </Fold>
-      <Fold id="BackupPage.2" title="匯出表格">
+      <div className="section-title">匯出表格</div>
       <div className="list">
         <div className="field"><span className="label">開始</span><input type="date" value={range.start} max={range.end} onChange={(e) => setRange((r) => ({ ...r, start: e.target.value }))} /></div>
         <div className="field"><span className="label">結束</span><input type="date" value={range.end} min={range.start} onChange={(e) => setRange((r) => ({ ...r, end: e.target.value }))} /></div>
@@ -129,15 +128,13 @@ export default function BackupPage() {
         <button className="row accent" onClick={() => navigate(`/reports/print?start=${m.start}&end=${m.end}`)}>本月 PDF 報表（列印／儲存為 PDF）</button>
       </div>
 
-      </Fold>
-      <Fold id="BackupPage.3" title="匯入">
+      <div className="section-title"><NewMark since="4.0.0" /> 匯入與對帳</div>
       <div className="list">
         <button className="row" onClick={() => navigate('/settings/import')}>
-          <span className="row-main"><span className="row-title">從 CSV／Moze 匯入</span><span className="row-sub" style={{ display: 'block' }}>自動辨識 Moze 匯出檔，其他 App 可手動對應欄位</span></span>
+          <span className="row-main"><span className="row-title">從 CSV／Moze 匯入・帳單對帳</span><span className="row-sub" style={{ display: 'block' }}>自動辨識 Moze 匯出檔，其他 App 可手動對應欄位</span></span>
           <Icon name="chevronR" className="row-chev" />
         </button>
       </div>
-      </Fold>
     </main>
   );
 }

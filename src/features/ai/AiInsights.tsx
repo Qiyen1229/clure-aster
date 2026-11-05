@@ -12,6 +12,7 @@ import { aiInsights, quotaLabel, type InsightsValue } from '@/services/ai';
 import { loadSummary, summaryRange, summaryTitle, type SummaryUnit } from '@/services/summary';
 import { todayKey, type DateKey } from '@/domain/period';
 import { useSettings } from '@/stores/settings';
+import { Hint } from '@/ui/Hint';
 
 export function AiInsightsCard({ unit, anchor }: { unit: SummaryUnit; anchor: DateKey }) {
   const navigate = useNavigate();
@@ -37,18 +38,15 @@ export function AiInsightsCard({ unit, anchor }: { unit: SummaryUnit; anchor: Da
   if (!enabled) {
     return (
       <section className="card" style={{ marginTop: 12 }}>
-        <div className="row-title"><AiMark /> AI 白話解讀你的資產狀況</div>
-        <div className="row-sub" style={{ whiteSpace: 'normal' }}>讓 AI 用幾句話說明這一期的重點與建議。需要先在設定允許 AI 分析收支統計。</div>
+        <Hint id="ai.insights" title={<><AiMark /> AI 白話解讀你的資產狀況</>} hint="讓 AI 用幾句話說明這一期的重點與建議。需要先在設定允許 AI 分析收支統計。" />
         <button className="btn small tinted" style={{ marginTop: 8 }} onClick={() => navigate('/settings/ai')}>前往 AI 設定</button>
       </section>
     );
   }
   return (
     <section className="card" style={{ marginTop: 12 }} aria-live="polite">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-        <div className="row-title"><AiMark /> AI 白話解讀你的資產狀況</div>
-        <button className="btn small" disabled={busy} onClick={() => void run(!!shown)}>{busy ? '分析中…' : shown ? '重新分析' : '請 AI 解讀'}</button>
-      </div>
+      <Hint id="ai.insights" title={<><AiMark /> AI 白話解讀你的資產狀況</>} hint="讓 AI 用幾句話說明這一期的重點與建議；同一期結果會快取，不會重複扣額度。"
+        right={<button className="btn small" disabled={busy} onClick={() => void run(!!shown)}>{busy ? '分析中…' : shown ? '重新分析' : '請 AI 解讀'}</button>} />
       {err && <p className="row-sub" style={{ color: 'var(--danger)', whiteSpace: 'normal' }}>{err}</p>}
       {shown && (
         <div style={{ marginTop: 8 }}>

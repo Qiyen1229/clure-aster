@@ -771,3 +771,17 @@ def test_statement_rejects_garbage_and_bad_images(api: Api, monkeypatch) -> None
     assert api.post("/api/ai/statement", STMT_BODY).status_code == 422
     assert usage_rows() == []  # 失敗不扣額度
     assert api.post("/api/ai/statement", {**STMT_BODY, "image": "http://evil/x.png"}).status_code == 422
+
+
+def test_agent_plan_recurring_without_category_is_kept(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    """使用者沒說分類（例如「建立每月 12 號 Netflix 390 的訂閱」）：步驟保留、category 為 None，由前端帶預設分類並提醒。"""
+    plan = {"summary": "訂閱", "steps": [
+        {"tool": "add_recurring", "args": {"name": "Netflix", "amount": 390, "freq": "month", "day": 12, "category": None, "account": None, "kind": "subscription"}},
+        {"tool": "add_recurring", "args": {"name": "亂", "amount": 1, "freq": "month", "day": 1, "category": "不在名單", "account": None}},  # 給了名稱但不在名單：丟掉
+    ]}
+    fake(monkeypatch, lambda n, p: ok(plan))
+    api.register("alice")
+    r = api.post("/api/ai/agent-plan", AGENT_BODY)
+    assert r.status_code == 200, r.text
+    steps = r.json()["steps"]
+    assert len(steps) == 1 and steps[0]["args"]["category"] is None and steps[0]["args"]["name"] == "Netflix"

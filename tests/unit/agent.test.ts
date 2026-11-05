@@ -118,6 +118,23 @@ describe('操作助手：預覽、執行、還原', () => {
     expect(await db.recurring_rules.count()).toBe(0);
   });
 
+  it('週期帳目沒說分類：訂閱類帶「訂閱」、其他帶「其他」，並在預覽提醒；有給但找不到的分類仍會擋下', async () => {
+    const step = { tool: 'add_recurring', args: { name: 'Netflix', amount: 390, freq: 'month', day: 12, category: null, account: '玉山', kind: 'subscription' } };
+    const [a] = await previewPlan([step]);
+    expect(a.preview.blocked).toBeUndefined();
+    expect(a.op && a.op.kind === 'recurring' && a.op.input.template.categoryId).toBe('exp-sub');
+    expect(a.preview.warnings.join('')).toContain('沒有指定分類');
+    const [b] = await previewPlan([{ ...step, args: { ...step.args, category: '亂寫' } }]);
+    expect(b.preview.blocked).toContain('找不到');
+  });
+
+  it('批次改分類：同名的收入／支出分類依 type 挑對的那個', async () => {
+    await db.categories.add(cat('inc-commute', '通勤', 'income') as never);
+    await spend('Uber', 200, today);
+    const [r] = await previewPlan([{ tool: 'reclassify', args: { keywords: ['uber'], type: 'expense', to_category: '通勤' } }]);
+    expect(r.op && r.op.kind === 'recat' && r.op.categoryId).toBe('exp-commute');
+  });
+
   it('資料載入：候選帳目只含近一年未刪除的', async () => {
     await spend('今天', 1, today); await spend('兩年前', 1, addDays(today, -800));
     expect((await loadAgentData()).txs.map((t) => t.note)).toEqual(['今天']);

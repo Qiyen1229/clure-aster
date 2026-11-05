@@ -18,7 +18,6 @@ import { useUI } from '@/stores/ui';
 import { AccountField, SwitchField } from '@/ui/form';
 import { Icon } from '@/ui/Icon';
 
-import { Fold } from '@/ui/Fold';
 const summary = (r: InvoiceImportResult) =>
   [`新記 ${r.created} 筆`, r.matched ? `對到 ${r.matched} 筆手動記帳` : '', r.skipped ? `略過 ${r.skipped} 張（已記過或作廢）` : '',
     r.usedDefault ? `${r.usedDefault} 筆記到預設帳戶` : ''].filter(Boolean).join('、');
@@ -103,7 +102,7 @@ export default function InvoicePage() {
         <div style={{ width: 44 }} />
       </header>
 
-      <Fold id="InvoicePage.0" title="對獎" defaultOpen>
+      <div className="section-title">對獎</div>
       <div className="list">
         <button className="row accent" onClick={() => navigate('/settings/invoice/prize')}>
           <span className="row-main">🎉 統一發票對獎<span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>每期開獎後自動拿你記過的發票對獎，中了一鍵記成收入</span></span>
@@ -111,8 +110,7 @@ export default function InvoicePage() {
         </button>
       </div>
 
-      </Fold>
-      <Fold id="InvoicePage.1" title="手機條碼載具">
+      <div className="section-title">手機條碼載具</div>
       <div className="list">
         <div className="field">
           <label htmlFor="ei-card">手機條碼</label>
@@ -151,8 +149,7 @@ export default function InvoicePage() {
         </div>
       )}
 
-      </Fold>
-      <Fold id="InvoicePage.2" title="記到哪個帳戶">
+      <div className="section-title">記到哪個帳戶</div>
       <div className="list">
         <AccountField label="預設帳戶" value={defaultAcc?.id ?? ''} onChange={(v) => update({ defaultAccountId: v })} accounts={accounts}
           filter={(a) => a.type !== 'loan' && a.type !== 'brokerage'} />
@@ -163,8 +160,7 @@ export default function InvoicePage() {
         </button>
       </div>
 
-      </Fold>
-      <Fold id="InvoicePage.3" title="掃描紙本發票">
+      <div className="section-title">掃描紙本發票</div>
       <div className="list">
         <label className="row accent" style={{ cursor: 'pointer' }}>
           <Icon name="camera" />
@@ -174,8 +170,7 @@ export default function InvoicePage() {
         </label>
       </div>
 
-      </Fold>
-      <Fold id="InvoicePage.4" title="匯入載具消費明細">
+      <div className="section-title">匯入載具消費明細</div>
       <div className="list">
         <label className="row accent" style={{ cursor: 'pointer' }}>
           <Icon name="download" />
@@ -188,10 +183,9 @@ export default function InvoicePage() {
         </span></div>
       </div>
 
-      </Fold>
       {list.length > 0 && (
         <>
-          <Fold id="InvoicePage.5" title={`共 ${list.length} 張・待記帳 ${todo.length} 張`}>
+          <div className="section-title">共 {list.length} 張・待記帳 {todo.length} 張</div>
           <div className="list">
             {list.slice(0, 100).map((i) => {
               const skip = done.has(i.number) ? '已記帳' : isVoided(i) ? i.status : '';
@@ -214,7 +208,6 @@ export default function InvoicePage() {
               setDone(await existingInvoiceNos(list.map((x) => x.number)));
             } catch (e) { snack(`匯入失敗：${(e as Error).message}`); } finally { setBusy(''); }
           }}>{busy === 'import' ? '匯入中…' : `記帳 ${todo.length} 張`}</button>
-          </Fold>
         </>
       )}
     </main>

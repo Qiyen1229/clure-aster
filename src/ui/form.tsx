@@ -1,6 +1,7 @@
 /**
  * 表單共用元件（iOS 設定頁風格的列）：文字、金額、日期、下拉、帳戶、分類、開關。
  */
+import { LabelHint } from './Hint';
 import { useId, type ReactNode } from 'react';
 import type { Account, Category, CategoryKind } from '@/db/types';
 import { buildTree } from '@/db/repo/categories';
@@ -73,10 +74,7 @@ export function SelectField<T extends string | number>({ label, value, onChange,
 export function SwitchField({ label, checked, onChange, sub }: { label: string; checked: boolean; onChange: (v: boolean) => void; sub?: string }) {
   return (
     <div className="field">
-      <span className="label" style={{ flex: 1, width: 'auto' }}>
-        {label}
-        {sub && <span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>{sub}</span>}
-      </span>
+      {sub ? <LabelHint id={`sw.${label}`} label={label} hint={sub} /> : <span className="label" style={{ flex: 1, width: 'auto' }}>{label}</span>}
       <Switch checked={checked} onChange={onChange} label={label} />
     </div>
   );

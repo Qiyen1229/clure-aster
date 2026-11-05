@@ -19,7 +19,6 @@ import { Icon } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
 import { Guide } from './GuideView';
 
-import { Fold } from '@/ui/Fold';
 const snack = (text: string, duration?: number) => useUI.getState().showSnack({ text, duration });
 const when = (iso: string | null) => (iso ? new Date(iso.endsWith('Z') ? iso : `${iso}Z`).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '');
 
@@ -66,18 +65,16 @@ export default function ChannelsPage() {
             <EmptyState emoji="📣" title="還沒有通知通道" text="新增一個通道，異常和預算警示就會直接傳到你的聊天軟體。" action={<button className="btn small" onClick={() => setAdding(true)}>新增通道</button>} />
           ) : list.map((c) => <ChannelCard key={c.id} c={c} busy={busy === c.id} onTest={() => void test(c)} onChange={changed} />)}
 
-          <Fold id="ChannelsPage.0" title="設定教學（點開看步驟）" defaultOpen>
+          <div className="section-title">設定教學（點開看步驟）</div>
           {(['discord', 'telegram', 'line', 'webhook'] as ChannelKind[]).map((k) => <Guide key={k} kind={k} />)}
 
-          </Fold>
-          <Fold id="ChannelsPage.1" title="隱私">
+          <div className="section-title">隱私</div>
           <div className="list">
             <SwitchField label="訊息包含金額與名稱" sub={e2ee ? '你啟用了端對端加密：關閉時只送「預算提醒」這類通用標題，不送金額與商家，避免內容經過聊天軟體' : '關閉時只送通用標題，不送金額與商家'} checked={detail} onChange={(v) => set('outgoingDetail', v)} />
           </div>
           <p className="muted" style={{ fontSize: '0.78rem', margin: '8px 4px' }}>
             通道的網址與權杖以 AES-256-GCM 加密後存在你的伺服器。訊息會經過 Discord、Telegram、LINE 的伺服器，請不要把含有敏感資訊的訊息送到不信任的頻道；排程的週報、月報本來就只有標題，不含金額。
           </p>
-          </Fold>
         </>
       )}
 
@@ -161,7 +158,7 @@ function AddForm({ onDone }: { onDone: () => void }) {
       <div className="list" style={{ marginTop: 12 }}>
         <TextField label="名稱" value={name} onChange={setName} placeholder={`例如：家人${KIND_INFO[kind].label}`} maxLength={40} />
       </div>
-      <Fold id="ChannelsPage.2" title="要收哪些通知">
+      <div className="section-title">要收哪些通知</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
         {(Object.keys(EVENT_INFO) as OutEvent[]).map((ev) => <button key={ev} className="pill" aria-pressed={events.includes(ev)} onClick={() => toggle(ev)}>{EVENT_INFO[ev].label}</button>)}
       </div>
@@ -172,7 +169,6 @@ function AddForm({ onDone }: { onDone: () => void }) {
         snack(r.ok ? '已新增，測試通知已送出，請到對方的 App 確認' : `已新增，但測試失敗：${r.detail}`, 8000);
         onDone();
       }} />
-      </Fold>
     </>
   );
 }

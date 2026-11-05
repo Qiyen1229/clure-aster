@@ -1693,25 +1693,29 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
 @keyframes dlg-in { from { opacity: 0; transform: scale(0.9); } }
 @keyframes dlg-fade { from { opacity: 0; } }
 
-/* 可折疊區塊（設定頁各組與子頁段落）：標題＋小字介紹＋箭頭；內容用 grid 行高 0fr→1fr 展開 */
-.fold { margin: 10px 0; }
-.fold-head { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 8px 16px; text-align: left; border-radius: var(--radius); background: var(--surface); border: 0.5px solid var(--glass-border); }
-.fold.open .fold-head { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
-.fold-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.fold-title { display: flex; align-items: center; gap: 6px; font-size: 0.98rem; font-weight: 650; color: var(--text); }
-.fold-desc { font-size: 0.78rem; line-height: 1.4; color: var(--text-2); }
-.fold-chev { flex: none; color: var(--text-3); transition: transform 280ms var(--ease); }
-.fold.open .fold-chev { transform: rotate(180deg); }
-.fold-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 300ms var(--ease); }
-.fold.open .fold-body { grid-template-rows: 1fr; }
-.fold-inner { min-height: 0; overflow: hidden; visibility: hidden; transition: visibility 0s linear 300ms; }
-.fold.open .fold-inner { visibility: visible; transition-delay: 0s; }
-.fold-inner > .list:first-child, .fold-inner > .card:first-child { margin-top: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
-.fold-inner > .section-title { display: none; }
-.fold-inner .set-note { margin-top: 8px; }
-@media (prefers-reduced-motion: reduce) { .fold-body, .fold-chev { transition: none; } }
+/* 說明文字可折疊：標題旁一顆 ⓘ，點開才看到小字介紹（用 grid 行高 0fr→1fr 展開） */
+.hint-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.hint-head > .row-title { flex: 0 1 auto; min-width: 0; }
+.hint-spacer { flex: 1; }
+.hint-btn { flex: none; width: 28px; height: 28px; margin: -4px -2px -4px -2px; border-radius: 50%; display: grid; place-items: center; color: var(--text-3); transition: color 160ms ease, transform 280ms var(--ease); }
+.hint-btn svg { width: 17px; height: 17px; }
+.hint-btn[aria-expanded='true'] { color: var(--accent-text); }
+.hint-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 280ms var(--ease); }
+.hint-body.open { grid-template-rows: 1fr; }
+.hint-inner { min-height: 0; overflow: hidden; visibility: hidden; transition: visibility 0s linear 280ms; }
+.hint-body.open .hint-inner { visibility: visible; transition-delay: 0s; }
+.hint-inner > p, .hint-inner > .row-sub { margin: 6px 0 2px; font-size: 0.85rem; line-height: 1.55; color: var(--text-2); white-space: normal; }
+.intro-toggle { display: inline-flex; align-items: center; gap: 4px; margin: 4px 16px 0; min-height: 30px; font-size: 0.8rem; color: var(--text-3); }
+.intro-toggle svg { width: 15px; height: 15px; }
+.intro-toggle[aria-expanded='true'] { color: var(--accent-text); }
+.intro-body { margin: 0 16px; }
+.intro-body .hint-inner > p { margin: 2px 0 8px; font-size: 0.8rem; }
+@media (prefers-reduced-motion: reduce) { .hint-body { transition: none; } }
 
 /* 新功能標記（閃亮符號） */
 .new-mark { display: inline-flex; flex: none; vertical-align: -2px; animation: nm-twinkle 2.6s ease-in-out infinite; filter: drop-shadow(0 0 3px rgba(255, 190, 40, 0.55)); }
 @keyframes nm-twinkle { 0%, 100% { transform: scale(1) rotate(0); opacity: 1; } 50% { transform: scale(1.18) rotate(12deg); opacity: 0.82; } }
 @media (prefers-reduced-motion: reduce) { .new-mark { animation: none; } }
+
+/* 設定頁各列的說明小字：最多顯示一行（點進去就有完整說明），整頁不會堆滿小字 */
+.settings-page button.row .row-sub { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; }

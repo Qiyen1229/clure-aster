@@ -16,8 +16,8 @@ import type { AccentKey } from '@/db/repo/settings';
 import { Segmented, Switch } from '@/ui/controls';
 import { Icon, type IconName } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
-import { Fold } from '@/ui/Fold';
 import { NewMark } from '@/ui/NewMark';
+import { Intro } from '@/ui/Hint';
 import { AUTH_ENABLED, useAuth } from '@/stores/auth';
 import { ChangePasswordForm } from '../auth/AuthPages';
 import { setEncryption, syncNow, unlockEncryption, useSync } from '@/services/sync';
@@ -127,16 +127,14 @@ function Row({ label, children, onClick, sub, icon, tint, danger, newSince }: {
   );
 }
 
-/** 一組設定：有標題的組可折疊（標題＋一行小字介紹，點開才看到內容）；沒有標題的組（帳號）直接顯示 */
-function Group({ id, title, desc, note, newSince, defaultOpen, children }: {
-  id?: string; title?: string; desc?: string; note?: string; newSince?: string; defaultOpen?: boolean; children: React.ReactNode;
-}) {
-  if (!title) return <section className="set-group"><div className="list">{children}</div></section>;
+/** 一組設定：小標題 + 圓角清單；底下的長說明收在「ⓘ 說明」裡，點開才看（畫面不會一次堆滿小字） */
+function Group({ id, title, note, newSince, children }: { id?: string; title?: string; desc?: string; note?: string; newSince?: string; defaultOpen?: boolean; children: React.ReactNode }) {
   return (
-    <Fold id={`settings.${id ?? title}`} title={title} desc={desc} newSince={newSince} defaultOpen={defaultOpen}>
+    <section className="set-group">
+      {title && <div className="section-title">{newSince && <NewMark since={newSince} />} {title}</div>}
       <div className="list">{children}</div>
-      {note && <p className="set-note">{note}</p>}
-    </Fold>
+      {note && <Intro id={`settings.${id ?? title}`}>{note}</Intro>}
+    </section>
   );
 }
 
@@ -270,7 +268,7 @@ export default function SettingsPage() {
         <Row icon="grip" tint="#FF9F0A" label="首頁小工具" sub="今日花費、預算、淨資產…" onClick={() => navigate('/settings/widgets')} />
       </Group>
 
-      <Group id="ai" title="AI 助理" desc="問答、用說的整理帳本、智慧提醒、額度與隱私">
+      <Group id="ai" title="AI 助理">
         <Row icon="ai" tint="#17181c" label="AI 助理" sub="用說的整理帳本、問答、預算建議、拍照記帳、智慧提醒（異常與預算預警）" onClick={() => navigate('/ai')} newSince="4.0.0" />
         {AUTH_ENABLED && <Row icon="sliders" tint="#8E8E93" label="AI 設定與額度" sub="開關、會送出哪些內容、每日／週／月額度" onClick={() => navigate('/settings/ai')} />}
       </Group>
@@ -283,7 +281,7 @@ export default function SettingsPage() {
         <Row icon="trend" tint="#5E5CE6" label="股票資料源與 API Key" sub="代理網址、資料源順序、手續費、成本法" onClick={() => navigate('/settings/invest')} />
       </Group>
 
-      <Group id="data" title="資料" desc="備份、匯入與匯出、對帳、資料健康檢查、範例資料">
+      <Group id="data" title="資料">
         <Row icon="folder" tint="#0A84FF" label="備份、匯入與匯出" sub="JSON 備份／還原、CSV、Excel、PDF、銀行對帳單、Moze；新增「對帳」" onClick={() => navigate('/settings/backup')} newSince="4.0.0" />
         <Row icon="check" tint="#30D158" label="資料健康檢查" sub="餘額、換算金額、遺失關聯、多餘照片" onClick={() => navigate('/settings/health')} />
         {sample ? (
