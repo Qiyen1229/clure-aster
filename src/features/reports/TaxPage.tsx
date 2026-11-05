@@ -42,8 +42,8 @@ export default function TaxPage() {
           <div className="list">
             <div className="field">
               <label htmlFor="tax-net">綜合所得淨額</label>
-              <input id="tax-net" type="number" inputMode="numeric" className="num" value={tax.netIncome || ''} placeholder="不含股利，例如 800000"
-                onChange={(e) => set('tax', { ...tax, netIncome: Math.max(0, Number(e.target.value) || 0) })} />
+              <input id="tax-net" type="text" inputMode="numeric" className="num" value={tax.netIncome ? String(tax.netIncome) : ''} placeholder="不含股利，例如 800000"
+                onChange={(e) => set('tax', { ...tax, netIncome: Math.max(0, Number(e.target.value.replace(/\D/g, '')) || 0) })} />
             </div>
           </div>
           <p className="muted" style={{ fontSize: '0.8rem', margin: '-4px 8px 12px' }}>薪資等所得扣除免稅額、扣除額後的金額（不含股利）。用來判斷邊際稅率與基本稅額；不填則以 0 估算。</p>

@@ -20,6 +20,16 @@ if (typeof window !== 'undefined') {
   });
 }
 
+// 數字欄位一點進去就全選：要改的時候直接輸入或一鍵刪除（全站共用，不必每個欄位各自處理）
+if (typeof document !== 'undefined') {
+  document.addEventListener('focusin', (e) => {
+    const el = e.target;
+    if (!(el instanceof HTMLInputElement) || el.readOnly || el.disabled) return;
+    const mode = el.inputMode;
+    if (el.type === 'number' || mode === 'decimal' || mode === 'numeric') setTimeout(() => { if (document.activeElement === el) el.select(); }, 0);
+  });
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>

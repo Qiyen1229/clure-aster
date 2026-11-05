@@ -19,12 +19,23 @@ import { chartTheme } from './chart-theme';
 
 const EChart = lazy(() => import('./EChart'));
 
-function NumField({ label, value, onChange, suffix, step = 1 }: { label: string; value: number; onChange: (v: number) => void; suffix?: string; step?: number }) {
+function NumField({ label, value, onChange, suffix }: { label: string; value: number; onChange: (v: number) => void; suffix?: string; step?: number }) {
   const id = `fire-${label}`;
+  // 用字串暫存輸入：全部刪光時保持空白（不跳成 0），輸入也不會變成 01234；離開欄位時才補回上一個有效數字
+  const [text, setText] = useState<string | null>(null);
+  const shown = text ?? (Number.isFinite(value) ? String(value) : '');
   return (
     <div className="field">
       <label htmlFor={id}>{label}</label>
-      <input id={id} type="number" inputMode="decimal" step={step} value={Number.isFinite(value) ? value : ''} onChange={(e) => onChange(Number(e.target.value))} className="num" />
+      <input id={id} type="text" inputMode="decimal" value={shown} className="num"
+        onChange={(e) => {
+          const t = e.target.value.replace(/[^0-9.]/g, '');
+          setText(t);
+          const n = Number(t);
+          if (t === '') onChange(0);
+          else if (t !== '.' && Number.isFinite(n)) onChange(n);
+        }}
+        onBlur={() => setText(null)} />
       {suffix && <span className="muted">{suffix}</span>}
     </div>
   );
