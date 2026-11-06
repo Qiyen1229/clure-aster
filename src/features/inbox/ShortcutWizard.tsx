@@ -21,7 +21,7 @@ function load(): Done {
 }
 function save(d: Done) { try { localStorage.setItem(key(), JSON.stringify(d)); } catch { /* 私密瀏覽 */ } }
 
-export function ShortcutWizard({ preparing, onAdd, hasLink }: { preparing: boolean; onAdd: (s: Def) => Promise<'shared' | 'cancelled' | 'downloaded' | void>; hasLink: boolean }) {
+export function ShortcutWizard({ preparing, onAdd, hasLink }: { preparing: boolean; onAdd: (s: Def) => Promise<void>; hasLink: boolean }) {
   const [done, setDone] = useState<Done>(load);
   const [justAdded, setJustAdded] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -49,9 +49,7 @@ export function ShortcutWizard({ preparing, onAdd, hasLink }: { preparing: boole
 
   const add = async (s: Def) => {
     try { sessionStorage.setItem(PENDING, s.key); } catch { /* 忽略 */ }
-    const how = await onAdd(s);
-    // 關掉分享選單、沒有真的去「捷徑」App：不要在回來時自動打勾
-    if (how === 'cancelled') { try { sessionStorage.removeItem(PENDING); } catch { /* 忽略 */ } }
+    await onAdd(s);
   };
 
   const left = SHORTCUTS.filter((s) => !done.added.includes(s.key));
@@ -69,7 +67,7 @@ export function ShortcutWizard({ preparing, onAdd, hasLink }: { preparing: boole
         <p className="wiz-next" role="status">✅ 「{SHORTCUTS.find((s) => s.key === justAdded)?.name}」已標記為加入。下一個：<b>{next.title}</b></p>
       )}
       <ol className="oneclick-steps">
-        <li>按「<b>加入</b>」：自動複製你的<b>連結碼</b>，跳出分享選單，點「<b>捷徑</b>」</li>
+        <li>按「<b>加入</b>」：自動複製你的<b>連結碼</b>並下載捷徑（問要不要下載時按「<b>下載</b>」），會自動跳到「捷徑」App</li>
         <li>按「<b>設定捷徑</b>」，長按輸入框 →「<b>貼上</b>」，再按「<b>加入捷徑</b>」</li>
         <li>回到 Aster（左上角「◀ Aster」），這裡會自動打勾，接著加下一個</li>
       </ol>

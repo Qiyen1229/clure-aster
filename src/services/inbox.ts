@@ -83,49 +83,31 @@ type ShortcutDef = (typeof SHORTCUTS)[number];
 export const shortcutFileUrl = (s: ShortcutDef) => `/shortcuts/aster-${s.key}.shortcut`;
 
 /**
- * 把捷徑檔交給「捷徑」App 匯入。
- * 注意：不能用 shortcuts://import-shortcut?url=… ——它只接受 iCloud 分享連結，自架網址一律顯示「提供的捷徑 URL 無效」（v4.1.4 以前踩過）。
- * 做法：先在背景把六個檔案抓好（保留點擊當下的手勢）→ 按「加入」時用 iOS 分享選單（navigator.share 帶檔案），選「捷徑」就進匯入畫面；
- * 分享選單不能用（桌面、舊瀏覽器、檔案類型被拒）就改成下載檔案，再從「檔案」App 的「下載項目」點開。
+ * 把捷徑檔交給「捷徑」App 匯入：下載簽署過的 .shortcut 檔，iOS 會直接開啟「捷徑」App 的匯入畫面（按「加入捷徑」就好）。
+ * 注意：不能用 shortcuts://import-shortcut?url=… ——它只接受 iCloud 分享連結，自架網址一律顯示「提供的捷徑 URL 無效」；
+ * 也不用分享選單（選單裡常找不到「捷徑」）。檔案用 target=_blank 開，主畫面版 Aster 的視窗不會被導到下載頁。
  */
-const fileCache = new Map<string, File>();
-
-/** 預先抓好捷徑檔；回傳有問題的檔案（伺服器沒回傳捷徑檔：多半是還沒更新到新版、或被登入保護擋住而回傳網頁） */
-export async function prefetchShortcuts(): Promise<string[]> {
-  const bad: string[] = [];
-  await Promise.all(SHORTCUTS.map(async (s) => {
-    if (fileCache.has(s.key)) return;
-    try {
-      const r = await fetch(shortcutFileUrl(s), { cache: 'no-cache' });
-      const blob = await r.blob();
-      if (!r.ok || /text\/html/i.test(r.headers.get('content-type') ?? '') || blob.size < 1000) { bad.push(s.name); return; }
-      fileCache.set(s.key, new File([blob], `${s.name}.shortcut`, { type: 'application/octet-stream' }));
-    } catch { bad.push(s.name); }
-  }));
-  return bad;
-}
-
-/** 用瀏覽器下載捷徑檔（備用）：下載後點開檔案就會進入匯入畫面，名稱取自檔名 */
-export function downloadShortcut(s: ShortcutDef) {
+export function openShortcutImport(s: ShortcutDef): void {
   const a = document.createElement('a');
   a.href = shortcutFileUrl(s);
   a.download = `${s.name}.shortcut`;
   a.target = '_blank';
+  a.rel = 'noopener';
   document.body.appendChild(a);
   a.click();
   a.remove();
 }
 
-/** 回傳：shared＝已跳出分享選單；cancelled＝你關掉了分享選單；downloaded＝改用下載 */
-export async function openShortcutImport(s: ShortcutDef): Promise<'shared' | 'cancelled' | 'downloaded'> {
-  const f = fileCache.get(s.key);
-  if (f && typeof navigator.share === 'function' && navigator.canShare?.({ files: [f] })) {
-    try { await navigator.share({ files: [f], title: s.name }); return 'shared'; } catch (e) {
-      if ((e as Error).name === 'AbortError') return 'cancelled';
-    }
-  }
-  downloadShortcut(s);
-  return 'downloaded';
+/** 檢查伺服器真的有回傳捷徑檔；回傳有問題的捷徑名稱（多半是還沒更新到新版、或被登入保護擋住而回傳網頁） */
+export async function checkShortcutFiles(): Promise<string[]> {
+  const bad: string[] = [];
+  await Promise.all(SHORTCUTS.map(async (s) => {
+    try {
+      const r = await fetch(shortcutFileUrl(s), { method: 'HEAD', cache: 'no-cache' });
+      if (!r.ok || /text\/html/i.test(r.headers.get('content-type') ?? '')) bad.push(s.name);
+    } catch { bad.push(s.name); }
+  }));
+  return bad;
 }
 
 /** 連結碼＝網址＋?t=權杖：捷徑匯入時只要貼上這一串。存在這台裝置（依使用者區分），之後加其他捷徑可重用 */
