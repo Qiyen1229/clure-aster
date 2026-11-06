@@ -87,15 +87,27 @@ type ShortcutDef = (typeof SHORTCUTS)[number];
 export const shortcutFileUrl = (s: ShortcutDef) => `/shortcuts/aster-${s.key}.shortcut`;
 
 /**
- * 打開「捷徑」App 的匯入畫面（需要 HTTPS 網址）。
- * 用 shortcuts:// 自訂網址：直接切到「捷徑」App，這個 PWA 的畫面不會被導向別的頁面，
- * 匯入完按左上角「◀ Aster」就能回來。（以前用下載檔案的方式，在主畫面版 App 會讓整個視窗停在下載頁，沒有返回鍵）
+ * 把捷徑檔交給「捷徑」App 匯入。
+ * 注意：不能用 shortcuts://import-shortcut?url=… ——它只接受 iCloud 分享連結，自架網址一律顯示「提供的捷徑 URL 無效」（v4.1.4 以前踩過）。
+ * 做法：先在背景把六個檔案抓好（保留點擊當下的手勢）→ 按「加入」時用 iOS 分享選單（navigator.share 帶檔案），選「捷徑」就進匯入畫面；
+ * 分享選單不能用（桌面、舊瀏覽器、檔案類型被拒）就改成下載檔案，再從「檔案」App 的「下載項目」點開。
  */
-export const shortcutImportUrl = (s: ShortcutDef) =>
-  `shortcuts://import-shortcut?url=${encodeURIComponent(location.origin + shortcutFileUrl(s))}&name=${encodeURIComponent(s.name)}`;
+const fileCache = new Map<string, File>();
 
-/** HTTP（本機測試）時「捷徑」App 不接受網址匯入，改成下載檔案 */
-export const canImportByUrl = () => location.protocol === 'https:';
+/** 預先抓好捷徑檔；回傳有問題的檔案（伺服器沒回傳捷徑檔：多半是還沒更新到新版、或被登入保護擋住而回傳網頁） */
+export async function prefetchShortcuts(): Promise<string[]> {
+  const bad: string[] = [];
+  await Promise.all(SHORTCUTS.map(async (s) => {
+    if (fileCache.has(s.key)) return;
+    try {
+      const r = await fetch(shortcutFileUrl(s), { cache: 'no-cache' });
+      const blob = await r.blob();
+      if (!r.ok || /text\/html/i.test(r.headers.get('content-type') ?? '') || blob.size < 1000) { bad.push(s.name); return; }
+      fileCache.set(s.key, new File([blob], `${s.name}.shortcut`, { type: 'application/octet-stream' }));
+    } catch { bad.push(s.name); }
+  }));
+  return bad;
+}
 
 /** 用瀏覽器下載捷徑檔（備用）：下載後點開檔案就會進入匯入畫面，名稱取自檔名 */
 export function downloadShortcut(s: ShortcutDef) {
@@ -108,9 +120,16 @@ export function downloadShortcut(s: ShortcutDef) {
   a.remove();
 }
 
-export function openShortcutImport(s: ShortcutDef) {
-  if (canImportByUrl()) location.href = shortcutImportUrl(s);
-  else downloadShortcut(s);
+/** 回傳：shared＝已跳出分享選單；cancelled＝你關掉了分享選單；downloaded＝改用下載 */
+export async function openShortcutImport(s: ShortcutDef): Promise<'shared' | 'cancelled' | 'downloaded'> {
+  const f = fileCache.get(s.key);
+  if (f && typeof navigator.share === 'function' && navigator.canShare?.({ files: [f] })) {
+    try { await navigator.share({ files: [f], title: s.name }); return 'shared'; } catch (e) {
+      if ((e as Error).name === 'AbortError') return 'cancelled';
+    }
+  }
+  downloadShortcut(s);
+  return 'downloaded';
 }
 
 /** 連結碼＝網址＋?t=權杖：捷徑匯入時只要貼上這一串。存在這台裝置（依使用者區分），之後加其他捷徑可重用 */

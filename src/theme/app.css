@@ -1762,7 +1762,8 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
 .ctx-chip { font-weight: 600; background: var(--accent-soft, var(--surface-2)); color: var(--accent-text, var(--accent)); }
 
 /* ───── v4.1.3 提醒中心各區塊間距、計算機 ───── */
-.rem-stack { display: grid; gap: 12px; }
+.rem-stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; max-width: 100%; }
+.rem-stack > * { min-width: 0; max-width: 100%; }
 .rem-stack > .attn-card, .rem-stack > .card, .rem-stack > .list { margin: 0; }
 .calc-display { padding: 14px 16px 12px; margin-bottom: 10px; border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); border: 0.5px solid var(--glass-border); text-align: right; }
 .calc-expr { min-height: 1.3em; font-size: 0.9rem; color: var(--text-2); overflow-x: auto; white-space: nowrap; }
