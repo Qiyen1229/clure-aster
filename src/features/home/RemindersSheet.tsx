@@ -28,6 +28,8 @@ export function RemindersSheet({ open, onClose }: { open: boolean; onClose: () =
           <button className="accent" style={{ minHeight: 44 }} onClick={() => void runReminderChecks()}>重新檢查</button>
         </span>
       )}>
+      {/* 各區塊（系統通知提示、需要你看一下、提醒清單）之間固定留間距，不再黏在一起 */}
+      <div className="rem-stack">
       {support !== 'granted' && (
         <button className="card" style={{ width: '100%', textAlign: 'left' }} onClick={() => { onClose(); navigate('/settings/notifications'); }}>
           🔔 {support === 'needs-install' ? '把 App 加入主畫面後即可開啟系統通知（iOS 16.4+）' : support === 'unsupported' ? '此瀏覽器不支援系統通知，提醒會顯示在這裡' : '開啟系統通知，帳單與預算提醒不漏接 →'}
@@ -48,6 +50,7 @@ export function RemindersSheet({ open, onClose }: { open: boolean; onClose: () =
           ))}
         </div>
       )}
+      </div>
     </Sheet>
   );
 }

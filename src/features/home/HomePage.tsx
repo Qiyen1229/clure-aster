@@ -30,6 +30,7 @@ import { LedgerRow } from '../ledger/LedgerRow';
 
 // 小工具（連投資組合、報價都會載入）與對話視窗都比較大：用到才載入，不拖慢首頁
 
+const CalculatorSheet = lazy(() => import('./CalculatorSheet').then((m) => ({ default: m.CalculatorSheet })));
 const Widgets = lazy(() => import('./Widgets').then((m) => ({ default: m.Widgets })));
 const WEEK_NAMES = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
 
@@ -41,6 +42,8 @@ export default function HomePage() {
   const { weekStart, calendarCollapsed, baseCurrency, homeAiChat, homeWidgets, set } = useSettings();
   const [monthOpen, setMonthOpen] = useState(false);
   const [remindersOpen, setRemindersOpen] = useState(false);
+  const [calcOpen, setCalcOpen] = useState(false);
+  const [calcUsed, setCalcUsed] = useState(false); // 第一次打開才載入計算機（之後保持掛載，關閉動畫才完整）
   const unread = useUnreadCount() + useInboxCount((x) => x.n);
 
   const sel = fromDateKey(selected);
@@ -107,6 +110,9 @@ export default function HomePage() {
             </button>
           )}
           {homeAiChat && <AiOrb />}
+          <button className="icon-btn" aria-label="計算機" onClick={() => { setCalcUsed(true); setCalcOpen(true); }}>
+            <Icon name="calculator" />
+          </button>
           <button className="icon-btn" aria-label="搜尋" onClick={() => navigate('/search')}>
             <Icon name="search" />
           </button>
@@ -180,6 +186,7 @@ export default function HomePage() {
 
       <MonthPicker open={monthOpen} onClose={() => setMonthOpen(false)} year={year} month0={month0} onPick={goMonth} />
       <RemindersSheet open={remindersOpen} onClose={() => setRemindersOpen(false)} />
+      {calcUsed && <Suspense fallback={null}><CalculatorSheet open={calcOpen} onClose={() => setCalcOpen(false)} /></Suspense>}
     </main>
   );
 }

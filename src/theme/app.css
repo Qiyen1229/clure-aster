@@ -1760,3 +1760,22 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
 .agent-toggle { margin-left: auto; flex: none; padding: 4px 10px; min-height: 30px; border-radius: 999px; font-size: 0.78rem; font-weight: 600; background: var(--surface-3); color: var(--text-2); }
 .agent-toggle.on { background: var(--accent-soft, var(--surface-3)); color: var(--accent-text, var(--accent)); }
 .ctx-chip { font-weight: 600; background: var(--accent-soft, var(--surface-2)); color: var(--accent-text, var(--accent)); }
+
+/* ───── v4.1.3 提醒中心各區塊間距、計算機 ───── */
+.rem-stack { display: grid; gap: 12px; }
+.rem-stack > .attn-card, .rem-stack > .card, .rem-stack > .list { margin: 0; }
+.calc-display { padding: 14px 16px 12px; margin-bottom: 10px; border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); border: 0.5px solid var(--glass-border); text-align: right; }
+.calc-expr { min-height: 1.3em; font-size: 0.9rem; color: var(--text-2); overflow-x: auto; white-space: nowrap; }
+.calc-value { font-size: 2.4rem; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; overflow-x: auto; white-space: nowrap; }
+.calc-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+.calc-quick { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 8px; scrollbar-width: none; }
+.calc-quick::-webkit-scrollbar { display: none; }
+.calc-quick .pill { flex: none; }
+.calc-hint { margin-left: 4px; font-size: 0.7rem; font-weight: 400; color: var(--text-3); }
+.sheet .keypad { padding-top: 0; }
+.calc-history-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 14px 4px 6px; }
+.calc-history-tools { display: inline-flex; align-items: center; gap: 10px; }
+.calc-history-tools select { background: var(--surface-2); color: var(--text); border: 0; border-radius: 8px; padding: 4px 8px; font-size: 0.8rem; }
+.calc-row { gap: 2px; }
+.calc-row-main { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; text-align: left; }
+.calc-row-expr { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
