@@ -113,6 +113,8 @@ export async function runStartupTasks() {
         useUI.getState().showSnack({ text: `電子發票：新記 ${r.created} 筆${r.matched ? `、對到 ${r.matched} 筆手動記帳` : ''}${r.usedDefault ? `（${r.usedDefault} 筆記到預設帳戶）` : ''}` });
       }
     }),
+    // 預計扣款：只更新收件匣的數字（本機推算）
+    step('forecast', () => import('./forecast').then((m) => m.refreshForecastCount())),
     // 自動記帳收件匣（iPhone 捷徑送來的 Apple Pay、簡訊、Siri）
     step('inbox', async () => {
       const r = await (await import('./inbox')).processInboxOnStartup();
@@ -146,6 +148,7 @@ export function startAutoRefresh(): () => void {
     await runReminderChecks().catch(() => undefined);
     void import('./push').then((m) => m.schedulePush()).catch(() => undefined); // 滾動更新接下來 14 天的排程
     await import('./insights').then((m) => m.runInsights({ notifyNew: true })).catch(() => undefined);
+    await import('./forecast').then((m) => m.refreshForecastCount()).catch(() => undefined);
   };
   const id = setInterval(() => void tick(), 5000);
   document.addEventListener('visibilitychange', onVis);

@@ -136,6 +136,8 @@ export interface InboxSettings {
   defaultAccountId: string;
   /** Apple Pay 卡片名稱 → 帳戶（確認記帳時自動學習） */
   cardMap: Record<string, string>;
+  /** 把「看起來是固定扣款、今天該扣了」的項目放進收件匣待確認（預設開啟；只在本機推算，不連網） */
+  forecast: boolean;
 }
 
 export interface EinvoiceSettings {
@@ -207,7 +209,7 @@ export const DEFAULT_SETTINGS: Settings = {
   fire: { birthYear: 1995, retireAge: 55, endAge: 90, returnPct: 6, volPct: 15, inflationPct: 2, swrPct: 4, annualExpense: 0, annualSaving: 0, startAssets: 0 },
   tax: { netIncome: 0 },
   einvoice: { cardNo: '', verifyCode: '', defaultAccountId: '', autoSync: true },
-  inbox: { autoBook: false, defaultAccountId: '', cardMap: {} },
+  inbox: { autoBook: false, defaultAccountId: '', cardMap: {}, forecast: true },
   ai: { enabled: false, allowData: false, auto: false },
   insights: { anomaly: true, budgetWarn: true, dismissed: [], aiPrice: true },
   seenWhatsNew: '',

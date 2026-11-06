@@ -44,7 +44,7 @@ export default function HomePage() {
   const [remindersOpen, setRemindersOpen] = useState(false);
   const [calcOpen, setCalcOpen] = useState(false);
   const [calcUsed, setCalcUsed] = useState(false); // 第一次打開才載入計算機（之後保持掛載，關閉動畫才完整）
-  const unread = useUnreadCount() + useInboxCount((x) => x.n);
+  const unread = useUnreadCount() + useInboxCount((x) => x.n + x.extra);
 
   const sel = fromDateKey(selected);
   const year = sel.getFullYear();

@@ -17,7 +17,7 @@ import { holdGuard, openVoice, releaseVoice } from '@/services/voice';
 import { markDockNav } from './navSource';
 import { useUI } from '@/stores/ui';
 import { useUnreadCount } from '@/features/home/RemindersSheet';
-import { useInboxCount } from '@/services/inboxCount';
+import { useInboxTotal } from '@/services/inboxCount';
 import { useChat } from '@/features/home/aiChatStore';
 
 const LEFT: { to: string; icon: IconName; label: string }[] = [
@@ -270,7 +270,7 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
 
   // 智慧情境感知：未讀提醒筆數＋待處理收件匣（如發票匯入）
   const unreadCount = useUnreadCount();
-  const inboxCount = useInboxCount((s) => s.n);
+  const inboxCount = useInboxTotal();
   const hasAlert = unreadCount > 0 || inboxCount > 0;
 
   /** 叫出 AI 對話（任何頁面都一樣；AI 助理頁不再內嵌對話，也是開同一個視窗） */

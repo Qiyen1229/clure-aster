@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useInboxCount } from '@/services/inboxCount';
+import { useInboxTotal } from '@/services/inboxCount';
 import { loadSnapshot } from '@/services/insightsCache';
 import { useSettings } from '@/stores/settings';
 import { AiMark, Icon } from '@/ui/Icon';
@@ -18,7 +18,7 @@ type Weekly = Awaited<ReturnType<typeof import('@/services/ai').autoWeeklyInsigh
 
 export function AttentionCard({ onGo }: { onGo?: () => void }) {
   const navigate = useNavigate();
-  const inboxCount = useInboxCount((s) => s.n);
+  const inboxCount = useInboxTotal();
   const cfg = useSettings((s) => s.insights);
   const snap = useLiveQuery(() => loadSnapshot(), []);
   // 除息提醒與每週重點都要用到較大的模組：動態載入，不放進首頁的初始檔案

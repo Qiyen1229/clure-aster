@@ -169,6 +169,7 @@
 ### 3.4 自動記帳與分類
 - **自動記帳收件匣**（`features/inbox/`、`/api/hook/inbox`、`docs/INBOX.md`）：iPhone 捷徑把 Apple Pay 交易、銀行簡訊、Siri 內容送進來，規則解析成草稿，確認才入帳；含來源去重。**六個做好、簽署過的捷徑**（Apple Pay、簡訊、Siri、**快速記帳、貼上記帳、分享記帳**，`public/shortcuts/`、`scripts/make-shortcuts.py --only …`）由**安裝精靈**（`ShortcutWizard.tsx`）帶著一個一個加入：從「捷徑」App 回來自動打勾並提示下一個，Apple Pay／簡訊加入後用清單帶做完「建立自動化」（iPhone 不允許 App 代設；勾選狀態只存本機 localStorage，只是備忘不是偵測）。
 - **Email 轉寄收帳單（方案 A，v4.1.4）**：使用者在信箱設「銀行帳單信自動轉寄」→ Cloudflare Email Routing 的 Email Worker 把整封信 POST 到 `/api/hook/mail`（Email 轉寄專用權杖，可設寄件人白名單 `allow_from`）→ `mail_service.py`（標準函式庫解析 RFC 822／JSON）→ 收件匣項目（來源 `email`）＋附件（CSV 1MB、截圖 3MB、PDF 4MB，≤3 個，表 `inbox_attachments`、遷移 `0010_mail_inbox`）。**帳單信不自動記帳**（`isStatementMail`）；CSV／截圖附件按「對帳」下載後交給對帳（`stores/pendingStatement.ts`），完成後那則信移除；**PDF 不解析**只提供下載。設定 UI：`MailSetup.tsx`（建立權杖、複製網址／Worker 程式碼、白名單、傳送測試信）。
+- **預計扣款（本機推算，無伺服器）**：收件匣最上面的「預計扣款」區。`domain/forecast.ts` 把異常偵測（`detectInsights`）的「看起來是固定扣款、未登記」結果推算下一次扣款日（每月同一天、每年同月同日、每週 +7；寬限 週3／月10／年14 天），`services/forecast.ts` 組合週期帳目的 `pendingDates` 與預測項目；動作＝記帳（日期用預計日）、編輯、登記成週期（`createSubscriptionFrom`）、略過這一次（本機 meta `forecast.skipped`，≤100）。數字放在 `useInboxCount.extra`（只算預測，週期待確認已有鈴鐺通知），顯示用 `useInboxTotal()`。設定 `inbox.forecast`（預設開）。
 - **自動分類規則＋商家記憶**（`domain/rules.ts`、`services/autocat.ts`）。
 - **銀行／信用卡對帳單 CSV 匯入**（民國年、正數為支出、疑似重複偵測、可儲存格式），自動辨識 Moze。
 - **不支援**：直連銀行 API（台灣沒有開放給個人的管道）、直接讀取使用者信箱（只收主動轉寄的信）、PDF 帳單解析。
@@ -226,7 +227,7 @@ JSON 完整備份／還原（含照片）、**加密備份**（PBKDF2-SHA256 310
 ---
 
 ## 6. 測試與品質
-- 前端 Vitest **562 項**（`tests/unit/`，fake-indexeddb；含 `agent-actions`、`agent-intent`、`calc-history`、`inbox-mail`）＋後端 pytest **169 項**（`server/tests/`）＝ **731 項**；`npm run check` = 型態檢查 + ESLint（0 警告）+ 測試；CI 於 main 與 feature 分支每次推送執行。
+- 前端 Vitest **570 項**（`tests/unit/`，fake-indexeddb；含 `agent-actions`、`agent-intent`、`calc-history`、`inbox-mail`、`forecast`）＋後端 pytest **169 項**（`server/tests/`）＝ **739 項**；`npm run check` = 型態檢查 + ESLint（0 警告）+ 測試；CI 於 main 與 feature 分支每次推送執行。
 - 純函式優先放 `src/domain/`（便於測試）；有副作用的放 `src/services/`；資料庫存取放 `src/db/repo/`。
 
 ## 7. 給修改者的注意事項（踩過的坑）

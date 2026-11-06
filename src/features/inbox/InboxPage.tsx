@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAccounts, useCategories } from '@/app/hooks';
-import { formatMoney, toMinor } from '@/domain/money';
+import { formatMoney, fromMinor, toMinor } from '@/domain/money';
 import { shortDate } from '@/domain/nlp';
 import { todayKey } from '@/domain/period';
 import { deleteTransactions, deleteTransfers } from '@/db/repo/ledger';
@@ -27,6 +27,8 @@ import { AiMark, Icon } from '@/ui/Icon';
 import { ShortcutWizard } from './ShortcutWizard';
 import { MailSetup } from './MailSetup';
 import { usePendingStatement } from '@/stores/pendingStatement';
+import { bookForecast, confirmRulePending, loadForecast, registerForecast, skipForecast, skipRulePending, type ForecastData } from '@/services/forecast';
+import type { ForecastItem } from '@/domain/forecast';
 
 const snack = (text: string, duration?: number) => useUI.getState().showSnack({ text, duration });
 
@@ -50,6 +52,23 @@ export default function InboxPage() {
   const [link, setLink] = useState(savedLink);
   const [preparing, setPreparing] = useState(false);
   const today = todayKey();
+
+  // 預計扣款：週期帳目的待確認 + 看起來是固定扣款、預計日到了的項目（本機推算）
+  const [fc, setFc] = useState<ForecastData | null>(null);
+  const loadFc = useCallback(() => loadForecast().then(setFc, () => setFc({ rules: [], predicted: [] })), []);
+  useEffect(() => { void loadFc(); }, [loadFc]);
+  const fcRun = async (fn: () => Promise<unknown>) => {
+    setBusy(true);
+    try { await fn(); await loadFc(); } catch (e) { snack((e as Error).message); } finally { setBusy(false); }
+  };
+  const bookFc = (p: ForecastItem) => fcRun(async () => {
+    const id = await bookForecast(p);
+    snackUndo(`已記下 ${p.name} ${formatMoney(p.amountMinor, p.currency)}`, async () => { await deleteTransactions([id]); await loadFc(); });
+  });
+  const editFc = (p: ForecastItem) => useUI.getState().openAdd({
+    mode: 'expense', amount: fromMinor(p.amountMinor, p.currency).toString(), date: p.dueDate, accountId: p.accountId, categoryId: p.categoryId, note: p.name,
+  });
+  const fcCount = (fc?.rules.length ?? 0) + (fc?.predicted.length ?? 0);
 
   const reload = useCallback(async () => {
     try { setEntries(await loadInbox()); setError(''); } catch (e) { setError((e as Error).message); setEntries([]); }
@@ -220,6 +239,55 @@ export default function InboxPage() {
         </p>
       </details>
 
+      {fcCount > 0 && (
+        <>
+          <div className="section-title">預計扣款（{fcCount}）</div>
+          <div className="list">
+            {fc?.rules.map((it) => {
+              const t = it.rule.template;
+              const cur = t.currency ?? 'TWD';
+              const c = t.categoryId ? catMap.get(t.categoryId) : undefined;
+              return (
+                <div key={it.id} className="row inbox-row">
+                  <span className="cat-icon sm" style={{ ['--c' as string]: c?.color }} aria-hidden="true">{it.rule.kind === 'subscription' ? '🔁' : c?.icon ?? '🔁'}</span>
+                  <span className="row-main">
+                    <span className="row-title">{it.rule.name}</span>
+                    <span className="row-sub">🔁 {shortDate(it.date, today)} · 週期帳目 · {accMap.get(t.accountId ?? '')?.name ?? '?'}</span>
+                  </span>
+                  <span className="num neg">{formatMoney(t.amountMinor ?? 0, cur)}</span>
+                  <span className="inbox-actions">
+                    <button className="pill accent-pill" disabled={busy} onClick={() => void fcRun(() => confirmRulePending(it))}>確認入帳</button>
+                    <button className="pill" disabled={busy} onClick={() => void fcRun(() => skipRulePending(it))}>略過</button>
+                  </span>
+                </div>
+              );
+            })}
+            {fc?.predicted.map((p) => {
+              const c = catMap.get(p.categoryId);
+              return (
+                <div key={p.id} className="row inbox-row">
+                  <span className="cat-icon sm" style={{ ['--c' as string]: c?.color }} aria-hidden="true">{c?.icon ?? '🔮'}</span>
+                  <span className="row-main">
+                    <span className="row-title">{p.name}</span>
+                    <span className="row-sub" style={{ whiteSpace: 'normal' }}>
+                      🔮 預計 {shortDate(p.dueDate, today)}{p.lateDays > 0 ? `（已過 ${p.lateDays} 天）` : ''} · {p.period === 'week' ? '每週' : p.period === 'month' ? '每月' : '每年'}固定 · {accMap.get(p.accountId)?.name ?? '?'}
+                    </span>
+                  </span>
+                  <span className="num neg">{formatMoney(p.amountMinor, p.currency)}</span>
+                  <span className="inbox-actions">
+                    <button className="pill accent-pill" disabled={busy} onClick={() => void bookFc(p)}>記帳</button>
+                    <button className="pill" disabled={busy} onClick={() => editFc(p)}>編輯</button>
+                    <button className="pill" disabled={busy} onClick={() => void fcRun(() => registerForecast(p))} title="之後每期到了固定提醒你確認">登記成週期</button>
+                    <button className="pill" disabled={busy} onClick={() => void fcRun(() => skipForecast(p.id))}>略過</button>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          {fc && fc.predicted.length > 0 && <p className="muted" style={{ fontSize: '0.78rem', margin: '4px 4px 0' }}>🔮 是從你的記帳紀錄推算的（連續幾期金額差不多），不一定真的扣了；已經手動記過的會自動消失。</p>}
+        </>
+      )}
+
       <div className="section-title">待確認{entries?.length ? `（${entries.length}）` : ''}</div>
       {error && <div className="card"><p style={{ margin: 0 }}>無法取得收件匣：{error}</p></div>}
       {entries === null ? <SkeletonRows n={2} /> : entries.length === 0 ? (
@@ -368,6 +436,8 @@ export default function InboxPage() {
       <div className="list">
         <SwitchField label="看得懂的直接記帳" sub="開啟 App 時自動記下有金額的項目，不用一筆筆確認。Apple Pay 偶爾會送來空白或被拒絕的交易，建議先手動確認一陣子再開啟"
           checked={cfg.autoBook} onChange={(v) => update({ autoBook: v })} />
+        <SwitchField label="預計扣款提醒" sub="從記帳紀錄推算固定扣款（訂閱、房租、保費…），預計日到了就放進收件匣，一鍵記帳。只在本機推算，不連網、不用 AI"
+          checked={cfg.forecast !== false} onChange={(v) => { update({ forecast: v }); window.setTimeout(() => void loadFc(), 0); }} />
         <AccountField label="判斷不出帳戶時" value={cfg.defaultAccountId} onChange={(v) => update({ defaultAccountId: v })} accounts={accounts}
           allowEmpty emptyLabel="上次記帳的帳戶" filter={(a) => a.type !== 'loan' && a.type !== 'brokerage'} />
       </div>
