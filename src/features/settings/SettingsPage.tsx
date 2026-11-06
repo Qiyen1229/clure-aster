@@ -284,7 +284,7 @@ export default function SettingsPage() {
         <Row icon="ai" tint="#5E5CE6" label="首頁 AI 小圓球" sub="首頁右上角（搜尋左邊），點開就能對話記帳">
           <Switch checked={s.homeAiChat} label="顯示 AI 小圓球" onChange={(v) => s.set('homeAiChat', v)} />
         </Row>
-        {AUTH_ENABLED && <Row icon="download" tint="#30D158" label="自動記帳收件匣" sub="Apple Pay、銀行簡訊、Siri 經 iPhone 捷徑記帳" onClick={() => navigate('/inbox')} />}
+        {AUTH_ENABLED && <Row icon="download" tint="#30D158" label="自動記帳收件匣" sub="Apple Pay、簡訊、Siri 等六個捷徑一鍵安裝，還能 Email 轉寄銀行帳單" onClick={() => navigate('/inbox')} newSince="4.1.4" />}
         <Row icon="note" tint="#0A84FF" label="電子發票" sub="手機條碼載具、掃描 QR Code、匯入明細、自動對獎" onClick={() => navigate('/settings/invoice')} />
         <Row icon="check" tint="#FF9F0A" label="帳單對帳" sub="用信用卡或銀行帳單（CSV／截圖）核對帳本，一鍵補齊漏記" onClick={() => navigate('/settings/import?mode=reconcile')} newSince="4.0.0" />
       </Group>

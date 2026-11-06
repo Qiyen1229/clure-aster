@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
-"""產生並簽署三個可匯入的 iPhone 捷徑，輸出到 public/shortcuts/。
+"""產生並簽署六個可匯入的 iPhone 捷徑，輸出到 public/shortcuts/。
 
 - Aster 記一筆（Siri）：聽寫一句話 → 送到收件匣 → 唸出結果
+- Aster 快速記帳：跳出輸入框，打一句話（「午餐 120」）→ 送到收件匣（適合動作按鈕、背面輕點、主畫面）
+- Aster 貼上記帳：把剪貼簿的文字（從銀行 App、LINE 複製的交易明細）送到收件匣
+- Aster 分享記帳：出現在任何 App 的分享選單，把分享的文字送到收件匣
 - Aster Apple Pay 記帳：給「交易」自動化使用，送出金額、商家、卡片
 - Aster 簡訊記帳：給「訊息」自動化使用，送出整則簡訊
 
@@ -9,7 +12,8 @@
 連結碼就是 https://你的網址/api/hook/inbox?t=clr_… 。所以同一組檔案每位使用者都能用。
 
 簽署需要 macOS 的 shortcuts 指令（--mode anyone 會連到 Apple 簽署，需登入 Apple ID）：
-    python3 scripts/make-shortcuts.py
+    python3 scripts/make-shortcuts.py                     # 全部
+    python3 scripts/make-shortcuts.py --only quick,share  # 只重做指定的（不動已經發布過的檔案）
 """
 from __future__ import annotations
 
@@ -52,7 +56,7 @@ def dict_value(items: list[dict]) -> dict:
     return {"Value": {"WFDictionaryFieldValueItems": items}, "WFSerializationType": "WFDictionaryFieldValue"}
 
 
-def build(body: list[dict], extra_actions: list[dict] | None = None, speak_result: bool = False, before: list[dict] | None = None) -> dict:
+def build(body: list[dict], extra_actions: list[dict] | None = None, speak_result: bool = False, before: list[dict] | None = None, types: list[str] | None = None) -> dict:
     """連結碼（匯入時填）→ 其他前置動作 → POST JSON → （Siri）唸出伺服器回覆"""
     code_id, req_id, msg_id = (str(uuid.uuid4()).upper() for _ in range(3))
     actions = [
@@ -84,7 +88,7 @@ def build(body: list[dict], extra_actions: list[dict] | None = None, speak_resul
         "WFWorkflowMinimumClientVersion": 900,
         "WFWorkflowMinimumClientVersionString": "900",
         "WFWorkflowIcon": {"WFWorkflowIconStartColor": 4282601983, "WFWorkflowIconGlyphNumber": 59446},
-        "WFWorkflowTypes": [],
+        "WFWorkflowTypes": types or [],
         "WFWorkflowHasShortcutInputVariables": True,
         "WFWorkflowInputContentItemClasses": [
             "WFAppContentItem", "WFArticleContentItem", "WFContactContentItem", "WFDateContentItem", "WFEmailAddressContentItem",
@@ -108,6 +112,24 @@ def siri() -> dict:
     return build([field("source", text("siri")), field("text", var_text(output(dictate_id, "聽寫的文字")))], speak_result=True, before=[dictate])
 
 
+def quick() -> dict:
+    ask_id = str(uuid.uuid4()).upper()
+    ask = {"WFWorkflowActionIdentifier": "is.workflow.actions.ask",
+           "WFWorkflowActionParameters": {"UUID": ask_id, "WFAskActionPrompt": "記一筆（例如：午餐 120、昨天計程車 230）", "WFInputType": "Text"}}
+    return build([field("source", text("quick")), field("text", var_text(output(ask_id, "詢問的輸入")))], speak_result=True, before=[ask])
+
+
+def clipboard() -> dict:
+    clip_id = str(uuid.uuid4()).upper()
+    clip = {"WFWorkflowActionIdentifier": "is.workflow.actions.getclipboard", "WFWorkflowActionParameters": {"UUID": clip_id}}
+    return build([field("source", text("clipboard")), field("text", var_text(output(clip_id, "剪貼簿")))], speak_result=True, before=[clip])
+
+
+def share() -> dict:
+    # WFWorkflowTypes 含 ActionExtension 才會出現在分享選單；內容是分享進來的文字
+    return build([field("source", text("share")), field("text", var_text(shortcut_input()))], speak_result=True, types=["ActionExtension"])
+
+
 def applepay() -> dict:
     return build([
         field("source", text("applepay")),
@@ -123,14 +145,17 @@ def sms() -> dict:
 
 # 檔名用英文（打包成 zip 到 NAS 解壓縮時中文檔名可能變亂碼）；匯入後的中文名稱由 App 帶入
 # （shortcuts://import-shortcut 的 name 參數、下載連結的 download 屬性，見 src/services/inbox.ts 的 SHORTCUTS）
-SHORTCUTS = {"aster-siri": siri, "aster-applepay": applepay, "aster-sms": sms}
+SHORTCUTS = {"aster-siri": siri, "aster-applepay": applepay, "aster-sms": sms, "aster-quick": quick, "aster-clipboard": clipboard, "aster-share": share}
 
 
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     unsigned_only = "--unsigned" in sys.argv
+    only = {f"aster-{k.strip()}" for k in sys.argv[sys.argv.index("--only") + 1].split(",")} if "--only" in sys.argv else None
     with tempfile.TemporaryDirectory() as tmp:
         for name, fn in SHORTCUTS.items():
+            if only is not None and name not in only:
+                continue
             raw = Path(tmp) / f"{name}.shortcut"
             raw.write_bytes(plistlib.dumps(fn(), fmt=plistlib.FMT_BINARY))
             dest = OUT / f"{name}.shortcut"

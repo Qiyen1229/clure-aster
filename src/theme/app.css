@@ -1779,3 +1779,14 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
 .calc-row { gap: 2px; }
 .calc-row-main { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; text-align: left; }
 .calc-row-expr { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+
+/* ───── v4.1.4 捷徑安裝精靈、Email 轉寄 ───── */
+.wiz-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.wiz-bar { flex: 1; height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+.wiz-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width 300ms var(--ease); }
+.wiz-next { margin: 0 0 8px; padding: 8px 12px; border-radius: var(--radius-s); background: var(--accent-soft, var(--surface-2)); color: var(--accent-text, var(--text)); font-size: 0.88rem; white-space: normal; }
+.wiz-check { flex: none; width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--text-3); display: grid; place-items: center; font-weight: 700; color: var(--on-accent); }
+.wiz-check.on { background: var(--accent); border-color: var(--accent); }
+.oneclick-item.is-done .row-title { color: var(--text-2); }
+.wiz-auto { margin-top: 12px; padding: 12px; border-radius: var(--radius-s); background: var(--surface-2); border: 1px dashed var(--warning); }
+.wiz-auto-item + .wiz-auto-item { margin-top: 10px; padding-top: 10px; border-top: 0.5px solid var(--sep); }

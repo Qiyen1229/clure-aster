@@ -13,9 +13,9 @@ import { shortDate } from '@/domain/nlp';
 import { todayKey } from '@/domain/period';
 import { deleteTransactions, deleteTransfers } from '@/db/repo/ledger';
 import {
-  ackInbox, bookInboxEntries, mergeDuplicate, createToken, ensureLink, forgetLink, hookUrl, listTokens, loadInbox, revokeToken, savedLink,
+  ackInbox, bookInboxEntries, fetchAttachmentFile, isStatementMail, mergeDuplicate, createToken, ensureLink, forgetLink, hookUrl, listTokens, loadInbox, revokeToken, savedLink,
   canImportByUrl, openShortcutImport, shortcutFileUrl, SHORTCUTS, SOURCE_LABEL, useInboxCount,
-  type InboxEntry, type InboxToken,
+  type InboxAttachment, type InboxEntry, type InboxToken,
 } from '@/services/inbox';
 import { aiEnabledLocally, aiParseText } from '@/services/ai';
 import { fallbackAccount, resolveDraft } from '@/services/quickentry';
@@ -24,6 +24,9 @@ import { snackUndo, useUI, ask } from '@/stores/ui';
 import { AccountField, SwitchField } from '@/ui/form';
 import { EmptyState, SkeletonRows } from '@/ui/controls';
 import { AiMark, Icon } from '@/ui/Icon';
+import { ShortcutWizard } from './ShortcutWizard';
+import { MailSetup } from './MailSetup';
+import { usePendingStatement } from '@/stores/pendingStatement';
 
 const snack = (text: string, duration?: number) => useUI.getState().showSnack({ text, duration });
 
@@ -96,6 +99,28 @@ export default function InboxPage() {
       setEntries((l) => l?.map((x) => (x.item.id === e.item.id ? { ...x, drafts: list } : x)) ?? null);
       snack('AI 已解析，確認後按「記帳」');
     } catch (err) { snack((err as Error).message); } finally { setAiBusyId(null); }
+  };
+  /** Email 帳單附件：CSV／截圖 → 下載後帶進「對帳」（完成後那則信自動移除）；PDF → 下載給你自己看 */
+  const [attBusy, setAttBusy] = useState<number | null>(null);
+  const kindOf = (a: InboxAttachment) => (a.content_type.startsWith('image/') ? 'image' : /\.pdf$/i.test(a.filename) || a.content_type === 'application/pdf' ? 'pdf' : 'csv');
+  const attachmentLabel = (a: InboxAttachment) => (kindOf(a) === 'csv' ? '📊 CSV 對帳' : kindOf(a) === 'image' ? '🖼 截圖對帳' : '📄 下載 PDF');
+  const openAttachment = async (e: InboxEntry, a: InboxAttachment) => {
+    const kind = kindOf(a);
+    if (kind === 'image' && !aiEnabledLocally()) { snack('截圖對帳要用 AI 讀明細，請先在「設定 → AI 設定」開啟', 6000); return; }
+    setAttBusy(a.id);
+    try {
+      const f = await fetchAttachmentFile(a);
+      if (kind === 'pdf') {
+        const url = URL.createObjectURL(f);
+        const link = document.createElement('a');
+        link.href = url; link.download = a.filename; document.body.appendChild(link); link.click(); link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+        snack('已下載 PDF。Aster 不解析 PDF：請用銀行網銀匯出 CSV，或把帳單截圖對帳', 7000);
+      } else {
+        usePendingStatement.getState().set(f, e.item.id);
+        navigate('/settings/import?mode=reconcile');
+      }
+    } catch (err) { snack((err as Error).message); } finally { setAttBusy(null); }
   };
   const skip = async (e: InboxEntry) => {
     await ackInbox([e.item.id]).catch((err) => snack((err as Error).message));
@@ -210,10 +235,21 @@ export default function InboxPage() {
                     <span className="cat-icon sm" aria-hidden="true">{src.icon}</span>
                     <span className="row-main">
                       <span className="row-title">{e.item.merchant || e.item.text.slice(0, 40) || '（沒有內容）'}</span>
-                      <span className="row-sub">{src.label} · 看不懂金額，請手動記</span>
+                      <span className="row-sub" style={{ whiteSpace: 'normal' }}>
+                        {isStatementMail(e.item)
+                          ? `${src.label} · 帳單信${e.item.attachments?.length ? `，${e.item.attachments.length} 個附件` : ''}：用附件對帳，不會當成一筆消費`
+                          : `${src.label} · 看不懂金額，請手動記`}
+                      </span>
+                      {isStatementMail(e.item) && e.item.text && <span className="row-sub" style={{ whiteSpace: 'normal' }}>{e.item.text.slice(0, 80)}</span>}
                     </span>
                     <span className="inbox-actions">
-                      {aiEnabledLocally() && (e.item.text || e.item.merchant) && <button className="pill accent-pill" disabled={aiBusyId === e.item.id} onClick={() => void aiParse(e)}>{aiBusyId === e.item.id ? '解析中…' : <><AiMark /> AI 解析</>}</button>}
+                      {e.item.attachments?.map((a) => (
+                        <button key={a.id} className="pill accent-pill" disabled={attBusy === a.id} onClick={() => void openAttachment(e, a)}
+                          title={`${a.filename}（${Math.max(1, Math.round(a.size / 1024))} KB）`}>
+                          {attBusy === a.id ? '下載中…' : attachmentLabel(a)}
+                        </button>
+                      ))}
+                      {aiEnabledLocally() && !isStatementMail(e.item) && (e.item.text || e.item.merchant) && <button className="pill accent-pill" disabled={aiBusyId === e.item.id} onClick={() => void aiParse(e)}>{aiBusyId === e.item.id ? '解析中…' : <><AiMark /> AI 解析</>}</button>}
                       <button className="pill" onClick={() => edit(e)}>手動記</button>
                       <button className="pill" onClick={() => void skip(e)} aria-label="略過">略過</button>
                     </span>
@@ -266,32 +302,8 @@ export default function InboxPage() {
       )}
 
       <div className="section-title">加入 iPhone 捷徑</div>
-      <div className="card inbox-oneclick">
-        <ol className="oneclick-steps">
-          <li>按下面的「<b>加入</b>」：自動複製你的<b>連結碼</b>，並切換到「捷徑」App</li>
-          <li>按「<b>設定捷徑</b>」，長按輸入框 →「<b>貼上</b>」</li>
-          <li>按「<b>加入捷徑</b>」就完成了（名稱可以自己改）</li>
-        </ol>
-        {SHORTCUTS.map((s) => (
-          <div key={s.key} className="oneclick-item">
-            <div className="oneclick-row">
-              <span className="cat-icon sm" aria-hidden="true">{s.icon}</span>
-              <span className="row-main">
-                <span className="row-title">{s.title}</span>
-                <span className="row-sub">捷徑名稱「{s.name}」</span>
-              </span>
-              <button className="pill accent-pill" disabled={preparing} onClick={() => void addShortcut(s)}>{preparing ? '準備中…' : '加入'}</button>
-            </div>
-            {s.key === 'siri' ? (
-              <p className="muted oneclick-note">說「嘿 Siri，<b>{s.name}</b>」，再說「午餐 120」或「昨天晚餐 300 刷玉山卡」。名稱改成「記一筆」就說「嘿 Siri，記一筆」。</p>
-            ) : (
-              <p className="muted oneclick-note">
-                加入後再設定一次自動化（iPhone 不允許 App 代設）：「捷徑」→ 下方「<b>自動化</b>」→「＋」→「<b>{s.automation}</b>」{
-                s.key === 'applepay' ? '→ 選卡片 ' : '→「寄件者」選銀行或「訊息包含」填「消費」'}→ 選「<b>立即執行</b>」→「下一步」→ 選「<b>{s.name}</b>」。
-              </p>
-            )}
-          </div>
-        ))}
+      <ShortcutWizard preparing={preparing} hasLink={!!link} onAdd={addShortcut} />
+      <div className="card inbox-oneclick" style={{ marginTop: 10 }}>
         {link && (
           <div className="copy-row oneclick-code">
             <span className="label">連結碼</span><code>{link.code.replace(/t=(clr_.{4}).*(.{4})$/, 't=$1••••$2')}</code>
@@ -331,6 +343,8 @@ export default function InboxPage() {
           </div>
         ))}
       </div>
+
+      <MailSetup />
 
       <details className="card inbox-advanced">
         <summary><b>進階：自己動手建立捷徑</b></summary>

@@ -17,14 +17,15 @@ import { currentScreen, useScreen } from '@/stores/screenContext';
 import { ViewBubble } from '../ai/views/ViewBubble';
 import { aiDataEnabled, aiAsk, aiEnabledLocally, aiReceipt, quotaLabel } from '@/services/ai';
 import { ask } from '@/services/nlquery';
-import { bookDrafts, draftsFromText, draftsSmart, fallbackAccount, resolveDraft } from '@/services/quickentry';
+import { bookDrafts, draftsFromText, draftsSmart, fallbackAccount, resolveDraft, type ResolvedDraft } from '@/services/quickentry';
 import { useSettings } from '@/stores/settings';
-import { snackUndo, useUI } from '@/stores/ui';
+import { askConfirm, snackUndo, useUI } from '@/stores/ui';
 import { AiMark, Icon } from '@/ui/Icon';
 import { summarizePlan, type ResolvedStep } from '@/domain/agent/plan';
 import type { AgentOpLog } from '@/services/agent';
 import { PlanPreview } from '../ai/PlanPreview';
 import { Sheet } from '@/ui/Sheet';
+import { Switch } from '@/ui/controls';
 
 import { nextSeq, useChat, type Msg, type Reply } from './aiChatStore';
 
@@ -101,22 +102,51 @@ async function send(text: string, opts: { open?: boolean } = {}) {
   } finally { useChat.setState({ busy: false }); }
 }
 
-/** 丟一張收據／發票照片：辨識後在對話裡回草稿卡（和打字記帳同一種泡泡） */
-async function sendImage(file: File) {
+/** 一次最多辨識幾張收據（每張 2 點 AI 額度，上限避免一不小心把額度用光） */
+const MAX_BATCH = 8;
+
+/**
+ * 收據批次：一次丟好幾張收據／發票照片，逐張辨識（進度顯示在泡泡裡，視窗關掉也會繼續），
+ * 全部辨識完放在同一張草稿卡，每一筆可以取消勾選，再一次記帳。某一張失敗不影響其他張，失敗的會列在卡片底下。
+ */
+async function sendImages(files: File[]) {
   const st = useChat.getState();
-  if (st.busy) return;
+  if (st.busy || !files.length) return;
+  const list = files.slice(0, MAX_BATCH);
   const pending = nextSeq();
-  useChat.setState((s) => ({ busy: true, msgs: [...s.msgs.slice(-30), { id: nextSeq(), role: 'user', text: `📷 ${file.name || '收據照片'}` }, { id: pending, role: 'ai', kind: 'pending' }] }));
+  const patchPending = (p: object) => useChat.getState().patch(pending, p as Partial<Msg>);
+  if (!aiEnabledLocally()) {
+    useChat.setState((s) => ({ msgs: [...s.msgs.slice(-30), { id: nextSeq(), role: 'user', text: `📷 ${list.length > 1 ? `${list.length} 張收據` : list[0].name || '收據照片'}` }, { id: pending, role: 'ai', kind: 'text', text: '拍照記帳需要開啟 AI（照片縮小後送出，不會保存在伺服器）。', link: { label: '前往 AI 設定', to: '/settings/ai' } }] }));
+    return;
+  }
+  // 超過 2 張要先確認額度：一張 2 點，不要讓人不知不覺用掉一堆
+  if (list.length > 2 && !(await askConfirm({ title: `辨識 ${list.length} 張收據？`, message: `每張用 2 點 AI 額度，共 ${list.length * 2} 點。失敗的不扣額度。`, confirmText: '開始辨識', cancelText: '取消' }))) return;
+  useChat.setState((s) => ({ busy: true, msgs: [...s.msgs.slice(-30), { id: nextSeq(), role: 'user', text: `📷 ${list.length > 1 ? `${list.length} 張收據` : list[0].name || '收據照片'}${files.length > list.length ? `（一次最多 ${MAX_BATCH} 張，其餘 ${files.length - list.length} 張略過）` : ''}` }, { id: pending, role: 'ai', kind: 'pending' }] }));
+  const drafts: ResolvedDraft[] = [];
+  const fails: string[] = [];
+  let quota = '';
   try {
-    if (!aiEnabledLocally()) { useChat.getState().patch(pending, { role: 'ai', kind: 'text', text: '拍照記帳需要開啟 AI（照片縮小後送出，不會保存在伺服器）。', link: { label: '前往 AI 設定', to: '/settings/ai' } } as Partial<Msg>); return; }
-    const r = await aiReceipt(file);
     const fb = await fallbackAccount();
-    const drafts = await Promise.all(r.drafts.map((d) => resolveDraft(d, fb)));
-    useChat.getState().patch(pending, (drafts.length
-      ? { role: 'ai', kind: 'entries', drafts, via: 'ai', sub: `${quotaLabel(r.quota)}　AI 可能看錯，建議先「帶入記帳面板」確認金額。` }
-      : { role: 'ai', kind: 'text', text: '看不出這張照片的消費金額，請拍清楚一點或改用打字記帳。' }) as Partial<Msg>);
+    for (let i = 0; i < list.length; i++) {
+      if (list.length > 1) patchPending({ role: 'ai', kind: 'text', text: `辨識收據 ${i + 1}／${list.length}…（已讀到 ${drafts.length} 筆）` });
+      try {
+        const r = await aiReceipt(list[i]);
+        quota = quotaLabel(r.quota);
+        const found = await Promise.all(r.drafts.map((d) => resolveDraft(d, fb)));
+        if (!found.length) fails.push(`${list[i].name || `第 ${i + 1} 張`}：看不出消費金額`);
+        drafts.push(...found);
+      } catch (e) {
+        const msg = (e as Error).message;
+        fails.push(`${list[i].name || `第 ${i + 1} 張`}：${msg}`);
+        if (/額度|quota/i.test(msg)) { fails.push(`額度用完了，剩下 ${list.length - i - 1} 張沒有辨識`); break; }
+      }
+    }
+    const note = fails.length ? `\n沒有辨識到的：${fails.join('；')}` : '';
+    patchPending(drafts.length
+      ? { role: 'ai', kind: 'entries', drafts, via: 'ai', sub: `${quota}　AI 可能看錯，建議先看過金額再記帳${list.length > 1 ? '；不要的那筆把開關關掉' : '，或「帶入記帳面板」確認'}。${note}` }
+      : { role: 'ai', kind: 'text', text: list.length > 1 ? `這 ${list.length} 張都看不出消費金額，請拍清楚一點或改用打字記帳。${note}` : fails[0]?.split('：').slice(1).join('：') || '看不出這張照片的消費金額，請拍清楚一點或改用打字記帳。' });
   } catch (e) {
-    useChat.getState().patch(pending, { role: 'ai', kind: 'text', text: (e as Error).message } as Partial<Msg>);
+    patchPending({ role: 'ai', kind: 'text', text: (e as Error).message });
   } finally { useChat.setState({ busy: false }); }
 }
 
@@ -182,12 +212,17 @@ function EntriesBubble({ m }: { m: Extract<Msg, { kind: 'entries' }> }) {
   const cats = useCategories();
   const base = useSettings((s) => s.baseCurrency);
   const [busy, setBusy] = useState(false);
+  // 多筆草稿（一句話記好幾筆、收據批次）：每筆可以取消勾選，只記勾選的
+  const [off, setOff] = useState<Set<number>>(new Set());
+  const chosen = m.drafts.filter((_, i) => !off.has(i));
+  const multi = m.drafts.length > 1;
   const book = async () => {
+    if (!chosen.length) return;
     setBusy(true);
     try {
-      const r = await bookDrafts(m.drafts);
+      const r = await bookDrafts(chosen);
       useChat.getState().patch(m.id, { booked: true } as Partial<Msg>);
-      snackUndo(`已記下 ${m.drafts.length} 筆`, async () => {
+      snackUndo(`已記下 ${chosen.length} 筆`, async () => {
         if (r.txIds.length) await deleteTransactions(r.txIds);
         if (r.transferIds.length) await deleteTransfers(r.transferIds);
         useChat.getState().patch(m.id, { booked: false } as Partial<Msg>);
@@ -204,7 +239,9 @@ function EntriesBubble({ m }: { m: Extract<Msg, { kind: 'entries' }> }) {
       <div>{m.via === 'ai' ? <><AiMark /> AI 幫你整理成這樣：</> : '看起來是這幾筆：'}</div>
       <div className="list" style={{ marginTop: 6 }}>
         {m.drafts.map((d, i) => (
-          <div key={i} className="row">
+          <div key={i} className="row" style={off.has(i) ? { opacity: 0.45 } : undefined}>
+            {multi && !m.booked && <Switch checked={!off.has(i)} label={`記這一筆：${d.note || formatMoney(Math.round(d.amount * 100), d.currency ?? base, { decimals: 0 })}`}
+              onChange={(v) => setOff((o) => { const n = new Set(o); if (v) n.delete(i); else n.add(i); return n; })} />}
             <span className="row-main">
               <span className="row-title num">{d.kind === 'income' ? '＋' : d.kind === 'transfer' ? '↔ ' : '－'}{formatMoney(Math.round(d.amount * 100), d.currency ?? base, { decimals: 0 })}　{d.note || (d.kind === 'transfer' ? '轉帳' : '')}</span>
               <span className="row-sub" style={{ display: 'block' }}>
@@ -215,7 +252,7 @@ function EntriesBubble({ m }: { m: Extract<Msg, { kind: 'entries' }> }) {
         ))}
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-        {m.booked ? <span className="muted">✅ 已記帳</span> : <button className="btn small" disabled={busy} onClick={() => void book()}>記帳（{m.drafts.length} 筆）</button>}
+        {m.booked ? <span className="muted">✅ 已記帳</span> : <button className="btn small" disabled={busy || !chosen.length} onClick={() => void book()}>記帳（{chosen.length} 筆）</button>}
         {!m.booked && m.drafts.length === 1 && <button className="btn small tinted" onClick={toPanel}>帶入記帳面板</button>}
       </div>
       {m.sub && <div className="row-sub">{m.sub}</div>}
@@ -363,8 +400,8 @@ export function ChatPanel({ onLeave, autoFocus }: { onLeave?: () => void; autoFo
         </button>
       )}
       <form className="chat-input" onSubmit={submit}>
-        <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (fileRef.current) fileRef.current.value = ''; if (f) void sendImage(f); }} />
-        <button className="icon-btn plain" type="button" aria-label="拍照或選擇收據照片" disabled={busy} onClick={() => fileRef.current?.click()}><Icon name="camera" size={20} /></button>
+        <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => { const fs = [...(e.target.files ?? [])]; if (fileRef.current) fileRef.current.value = ''; if (fs.length) void sendImages(fs); }} />
+        <button className="icon-btn plain" type="button" aria-label="拍照或選擇收據照片（可一次選多張）" disabled={busy} onClick={() => fileRef.current?.click()}><Icon name="camera" size={20} /></button>
         {SpeechCtor && <button className="icon-btn plain" type="button" aria-label="語音輸入" aria-pressed={listening} disabled={busy} onClick={listen}
           style={listening ? { background: 'var(--danger)', color: '#fff' } : undefined}><Icon name="mic" size={20} /></button>}
         <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} maxLength={300} enterKeyHint="send" aria-label="輸入訊息" placeholder="記帳、查帳、問或整理帳本" autoFocus={autoFocus} />

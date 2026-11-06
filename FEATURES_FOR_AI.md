@@ -2,7 +2,7 @@
 
 > 目的：讓接手的 AI（或新開發者）**不用逐檔翻程式碼**就知道「這個 App 能做什麼、每個功能怎麼運作、規則是什麼、程式在哪」。
 > 與 [PROJECT_OVERVIEW_FOR_AI.md](PROJECT_OVERVIEW_FOR_AI.md)（技術棧、架構、部署、檔案地圖）互補：那份偏「怎麼建」，這份偏「做了什麼」。
-> 版本：**4.1.3**（2026-11-07）。分支 `feature/v1.2`。逐版細節見 [CHANGELOG.md](CHANGELOG.md)；設計文件見 `docs/`。
+> 版本：**4.1.4**（2026-11-07）。分支 `feature/v1.2`。逐版細節見 [CHANGELOG.md](CHANGELOG.md)；設計文件見 `docs/`。
 > 慣例：金額內部一律用**整數最小單位**（TWD 的 1 元 = 100），不要用浮點數；使用者可見文字一律**繁體中文（台灣用語）**。
 
 ---
@@ -135,7 +135,7 @@
 ### 3.3 AI 全面整合（`docs/AI.md`）
 - **預設關閉**，兩個隱私開關：`ai.enabled`、`ai.allowData`；管理員在 `.env` 設共用 Key（目前只用 **Gemini**）。
 - **後端**：供應商鏈 `gemini／openrouter／nvidia／custom`（OpenAI 相容），失敗自動換下一家、連續 3 次失敗冷卻 5 分鐘；額度（一般使用者／管理員分開，每日／週／月＋全站每日＋全站每分鐘；失敗不扣；收據與截圖辨識扣 2 點）。
-- **一個對話框走天下**（`features/home/AiChat.tsx` 的 `ChatPanel`／`AiChatSheet`，全站唯一，`App.tsx` 的 `ChatHost` 掛在最外層；打開過一次就保持掛載，空對話關閉也有完整退場動畫）：記帳、查帳、問 AI、整理帳本、📷 拍照記帳、🎤 語音輸入（瀏覽器 SpeechRecognition，講完填進輸入框再送）、檢視卡。入口：首頁 AI 小圓球、靈動島（任何頁面上滑／非記帳頁長按）、搜尋頁「交給 AI」、預算頁「請 AI 規劃預算」、舊連結 `/ai?q=`／`?agent=`／`?tool=budget`（`aiChatStore.ask()` 開視窗並自動送出）。
+- **一個對話框走天下**（`features/home/AiChat.tsx` 的 `ChatPanel`／`AiChatSheet`，全站唯一，`App.tsx` 的 `ChatHost` 掛在最外層；打開過一次就保持掛載，空對話關閉也有完整退場動畫）：記帳、查帳、問 AI、整理帳本、📷 拍照記帳（**可批次**：一次選最多 8 張，逐張辨識、進度顯示在泡泡裡，全部放在同一張草稿卡、每筆可取消勾選再一次記帳；超過 2 張先確認額度；某張失敗不影響其他張；`sendImages`）、🎤 語音輸入（瀏覽器 SpeechRecognition，講完填進輸入框再送）、檢視卡。入口：首頁 AI 小圓球、靈動島（任何頁面上滑／非記帳頁長按）、搜尋頁「交給 AI」、預算頁「請 AI 規劃預算」、舊連結 `/ai?q=`／`?agent=`／`?tool=budget`（`aiChatStore.ask()` 開視窗並自動送出）。
 - **路由一變動對話視窗自動收起**（`ScreenContextHost`），所以點檢視卡的「完整… →」會看到目的頁。
 - **`/ai` 頁（設定 → AI 助理）**：只剩「智慧提醒」與 AI 額度，**不再內嵌對話**。
 - **對話分流**（`respond()`，規則優先）：`localView` 短句 → 檢視卡；`looksLikeOperation` → 操作助手；規則記帳 → 草稿卡；規則查帳；問句 → `aiAsk`；口語記帳 → `draftsSmart`。
@@ -167,10 +167,11 @@
 即將除息的持股：預計配息、二代健保、邊際稅額變化（合併 vs 分開取較省）、**參與除息 vs 除息前賣出買回**（省下的稅與補充保費 − 手續費與證交稅；風險緩衝＝市值 0.5%），預設偏保守；海外所得離 100 萬門檻、稅損收割。鈴鐺的「需要你看一下」在 7 天內除息時提醒。
 
 ### 3.4 自動記帳與分類
-- **自動記帳收件匣**（`features/inbox/`、`/api/hook/inbox`）：iPhone 捷徑把 Apple Pay 交易、銀行簡訊、Siri 內容送進來，規則解析成草稿，確認才入帳；含來源去重。
+- **自動記帳收件匣**（`features/inbox/`、`/api/hook/inbox`、`docs/INBOX.md`）：iPhone 捷徑把 Apple Pay 交易、銀行簡訊、Siri 內容送進來，規則解析成草稿，確認才入帳；含來源去重。**六個做好、簽署過的捷徑**（Apple Pay、簡訊、Siri、**快速記帳、貼上記帳、分享記帳**，`public/shortcuts/`、`scripts/make-shortcuts.py --only …`）由**安裝精靈**（`ShortcutWizard.tsx`）帶著一個一個加入：從「捷徑」App 回來自動打勾並提示下一個，Apple Pay／簡訊加入後用清單帶做完「建立自動化」（iPhone 不允許 App 代設；勾選狀態只存本機 localStorage，只是備忘不是偵測）。
+- **Email 轉寄收帳單（方案 A，v4.1.4）**：使用者在信箱設「銀行帳單信自動轉寄」→ Cloudflare Email Routing 的 Email Worker 把整封信 POST 到 `/api/hook/mail`（Email 轉寄專用權杖，可設寄件人白名單 `allow_from`）→ `mail_service.py`（標準函式庫解析 RFC 822／JSON）→ 收件匣項目（來源 `email`）＋附件（CSV 1MB、截圖 3MB、PDF 4MB，≤3 個，表 `inbox_attachments`、遷移 `0010_mail_inbox`）。**帳單信不自動記帳**（`isStatementMail`）；CSV／截圖附件按「對帳」下載後交給對帳（`stores/pendingStatement.ts`），完成後那則信移除；**PDF 不解析**只提供下載。設定 UI：`MailSetup.tsx`（建立權杖、複製網址／Worker 程式碼、白名單、傳送測試信）。
 - **自動分類規則＋商家記憶**（`domain/rules.ts`、`services/autocat.ts`）。
 - **銀行／信用卡對帳單 CSV 匯入**（民國年、正數為支出、疑似重複偵測、可儲存格式），自動辨識 Moze。
-- **不支援**：直連銀行 API（台灣沒有開放給個人的管道）、Email 自動收帳單（規劃中，建議做「轉寄到專屬地址」）。
+- **不支援**：直連銀行 API（台灣沒有開放給個人的管道）、直接讀取使用者信箱（只收主動轉寄的信）、PDF 帳單解析。
 
 ### 3.5 資金流向桑基圖（`domain/sankey.ts`、`features/reports/SankeyCard.tsx`）
 收入來源 → 總收入 → 必要／非必要／投資／淨儲蓄 → 分類與帳戶；可展開子分類；可自訂「必要」分類（`sankeyEssential`）。
@@ -225,13 +226,13 @@ JSON 完整備份／還原（含照片）、**加密備份**（PBKDF2-SHA256 310
 ---
 
 ## 6. 測試與品質
-- 前端 Vitest **560 項**（`tests/unit/`，fake-indexeddb；含 `agent-actions`、`agent-intent`、`calc-history`）＋後端 pytest **165 項**（`server/tests/`）＝ **725 項**；`npm run check` = 型態檢查 + ESLint（0 警告）+ 測試；CI 於 main 與 feature 分支每次推送執行。
+- 前端 Vitest **562 項**（`tests/unit/`，fake-indexeddb；含 `agent-actions`、`agent-intent`、`calc-history`、`inbox-mail`）＋後端 pytest **169 項**（`server/tests/`）＝ **731 項**；`npm run check` = 型態檢查 + ESLint（0 警告）+ 測試；CI 於 main 與 feature 分支每次推送執行。
 - 純函式優先放 `src/domain/`（便於測試）；有副作用的放 `src/services/`；資料庫存取放 `src/db/repo/`。
 
 ## 7. 給修改者的注意事項（踩過的坑）
 1. **金額用整數最小單位**；不要新增浮點運算。
 2. 改帳目的流程要同時維護帳戶餘額（`bump`／`txEffect`）；刪除是軟刪除（`deletedAt`），**筆數不變**，快取不能只用筆數判斷是否過期。
-3. 新增會同步的資料表要同時改：`db/schema.ts`（版本）、`db/sync-tracking.ts`（`SYNCED_TABLES`）、`server/app/schema/sync.py`（`SYNC_TABLES`）；後端新表要加 Alembic 遷移（下一個是 `0010_…`）。
+3. 新增會同步的資料表要同時改：`db/schema.ts`（版本）、`db/sync-tracking.ts`（`SYNCED_TABLES`）、`server/app/schema/sync.py`（`SYNC_TABLES`）；後端新表要加 Alembic 遷移（下一個是 `0011_…`）。
 4. 表單裡的開關在卡片等非表單處用 `Switch`，不要用 `SwitchField`；全域 `appearance: none`，不要用原生核取方塊。
 5. 帶負邊距貼齊頁面邊緣的元件放進有內距的容器時要改邊距；grid 子項要 `min-width: 0`；彈窗內容要確認 375 寬不橫向溢出。
 6. 圓角容器底下若墊有色塊（滑動刪除的紅色），平常要隱藏。

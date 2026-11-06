@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import secrets
 from datetime import timedelta
 
@@ -16,14 +17,16 @@ from sqlalchemy.orm import Session
 
 from app.core.request_info import ClientInfo
 from app.core.security import utcnow
-from app.model import InboxItem, InboxToken, User
+from app.model import InboxAttachment, InboxItem, InboxToken, User
 from app.schema.inbox import HookItem
+from app.service import mail_service
 from app.service.audit_service import AuditService
 from app.service.errors import ServiceError
 
 TOKEN_PREFIX = "clr_"
 MAX_TOKENS = 10
 MAX_PENDING = 500
+MAX_ATTACHMENT_BYTES = 40 * 1024 * 1024  # 每人暫存的附件總量上限
 RETENTION = timedelta(days=30)
 
 
@@ -76,11 +79,59 @@ class InboxService:
         self.db.flush()
         return item
 
+    def set_allow_from(self, user: User, token_id: int, allow_from: str) -> InboxToken:
+        row = self.db.scalar(select(InboxToken).where(InboxToken.id == token_id, InboxToken.user_id == user.id))
+        if not row:
+            raise ServiceError(404, "找不到這組權杖")
+        row.allow_from = ", ".join(r for r in [x.strip().lstrip("@").lower() for x in re.split(r"[,\s;]+", allow_from)] if r)[:400]
+        return row
+
+    def receive_mail(self, user: User, token: InboxToken, mail: mail_service.ParsedMail) -> InboxItem | None:
+        """轉寄來的信 → 一則收件匣項目（source=email）＋附件。寄件人不在白名單回傳 None（不報錯，避免收信管道一直重試）"""
+        if not mail_service.allowed(mail.sender, token.allow_from):
+            return None
+        text = mail_service.item_text(mail)
+        if not (text or mail.attachments):
+            raise ServiceError(422, "信件是空的：沒有本文也沒有可用的附件")
+        pending = int(self.db.scalar(select(func.count(InboxItem.id)).where(InboxItem.user_id == user.id)) or 0)
+        used = int(self.db.scalar(select(func.coalesce(func.sum(InboxAttachment.size), 0)).where(InboxAttachment.user_id == user.id)) or 0)
+        incoming = sum(len(a.data) for a in mail.attachments)
+        if pending >= MAX_PENDING or used + incoming > MAX_ATTACHMENT_BYTES:
+            raise ServiceError(429, "收件匣已滿，請先打開 App 處理待確認的項目")
+        item = InboxItem(user_id=user.id, token_id=token.id, source="email", text=text, merchant=(mail.sender_name or mail.sender)[:120])
+        self.db.add(item)
+        self.db.flush()
+        for a in mail.attachments:
+            self.db.add(InboxAttachment(user_id=user.id, item_id=item.id, filename=a.filename, content_type=a.content_type, size=len(a.data), data=a.data))
+        token.last_used_at = utcnow()
+        self.db.flush()
+        return item
+
+    def attachments_for(self, ids: list[int]) -> dict[int, list[InboxAttachment]]:
+        out: dict[int, list[InboxAttachment]] = {}
+        if not ids:
+            return out
+        # 只取中繼資料（不載入檔案內容）
+        rows = self.db.execute(select(InboxAttachment.id, InboxAttachment.item_id, InboxAttachment.filename, InboxAttachment.content_type, InboxAttachment.size)
+                               .where(InboxAttachment.item_id.in_(ids)).order_by(InboxAttachment.id)).all()
+        for r in rows:
+            out.setdefault(r.item_id, []).append(r)  # type: ignore[arg-type]
+        return out
+
+    def attachment(self, user: User, attachment_id: int) -> InboxAttachment:
+        row = self.db.scalar(select(InboxAttachment).where(InboxAttachment.id == attachment_id, InboxAttachment.user_id == user.id))
+        if not row:
+            raise ServiceError(404, "找不到這個附件（可能已經處理過）")
+        return row
+
     def items(self, user: User) -> list[InboxItem]:
+        old = select(InboxItem.id).where(InboxItem.user_id == user.id, InboxItem.created_at < utcnow() - RETENTION)
+        self.db.execute(delete(InboxAttachment).where(InboxAttachment.item_id.in_(old)))
         self.db.execute(delete(InboxItem).where(InboxItem.user_id == user.id, InboxItem.created_at < utcnow() - RETENTION))
         return list(self.db.scalars(select(InboxItem).where(InboxItem.user_id == user.id).order_by(InboxItem.id.desc()).limit(MAX_PENDING)).all())
 
     def ack(self, user: User, ids: list[int]) -> list[int]:
-        # DELETE … RETURNING：同時確認時只有真正刪到的那一方會拿到 id
+        # 先刪附件（不依賴資料庫的外鍵串聯）；DELETE … RETURNING：同時確認時只有真正刪到的那一方會拿到 id
+        self.db.execute(delete(InboxAttachment).where(InboxAttachment.user_id == user.id, InboxAttachment.item_id.in_(ids)))
         stmt = delete(InboxItem).where(InboxItem.user_id == user.id, InboxItem.id.in_(ids)).returning(InboxItem.id)
         return sorted(self.db.execute(stmt).scalars().all())

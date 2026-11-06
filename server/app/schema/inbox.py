@@ -5,8 +5,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-SOURCES = ("applepay", "sms", "siri", "email", "other")
-SOURCE_ALIASES = {"apple_pay": "applepay", "wallet": "applepay", "錢包": "applepay", "message": "sms", "簡訊": "sms", "語音": "siri", "mail": "email"}
+SOURCES = ("applepay", "sms", "siri", "clipboard", "share", "quick", "email", "other")
+SOURCE_ALIASES = {"apple_pay": "applepay", "wallet": "applepay", "錢包": "applepay", "message": "sms", "簡訊": "sms", "語音": "siri", "mail": "email", "剪貼簿": "clipboard", "分享": "share", "快速": "quick"}
 
 
 def _clip(v: object, n: int) -> str:
@@ -79,6 +79,7 @@ class TokenOut(BaseModel):
     hint: str
     created_at: datetime
     last_used_at: datetime | None
+    allow_from: str = ""
 
 
 class TokenCreated(BaseModel):
@@ -86,6 +87,21 @@ class TokenCreated(BaseModel):
 
     token: str
     item: TokenOut
+
+
+class AttachmentOut(BaseModel):
+    """Email 帳單附件（內容用 /api/inbox/attachments/{id} 另外下載）"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    filename: str
+    content_type: str
+    size: int
+
+
+class TokenPatch(BaseModel):
+    allow_from: str = Field(default="", max_length=400)
 
 
 class InboxItemOut(BaseModel):
@@ -99,6 +115,7 @@ class InboxItemOut(BaseModel):
     card: str
     occurred: str
     created_at: datetime
+    attachments: list[AttachmentOut] = []
 
 
 class AckRequest(BaseModel):

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String
+from sqlalchemy import DateTime, ForeignKey, Integer, LargeBinary, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.security import utcnow
@@ -23,6 +23,8 @@ class InboxToken(Base):
     hint: Mapped[str] = mapped_column(String(8), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Email 轉寄用：只收這些寄件人（網域或完整地址，逗號分隔）；空白＝不限（權杖本身就是密碼）
+    allow_from: Mapped[str] = mapped_column(String(400), default="")
 
 
 class InboxItem(Base):
@@ -33,7 +35,7 @@ class InboxItem(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
     token_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("inbox_tokens.id", ondelete="SET NULL"), nullable=True)
-    # applepay／sms／siri／email／other
+    # applepay／sms／siri／clipboard／share／quick／email／other
     source: Mapped[str] = mapped_column(String(16), default="other")
     text: Mapped[str] = mapped_column(String(1000), default="")
     amount: Mapped[str] = mapped_column(String(40), default="")
@@ -42,3 +44,18 @@ class InboxItem(Base):
     # 捷徑傳來的交易時間（原樣保存，由 App 解析）
     occurred: Mapped[str] = mapped_column(String(40), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+
+
+class InboxAttachment(Base):
+    """Email 帳單附件（CSV、帳單截圖、PDF）：隨收件匣項目暫存，App 確認或略過後一併刪除；30 天未處理自動清除。"""
+
+    __tablename__ = "inbox_attachments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    item_id: Mapped[int] = mapped_column(Integer, ForeignKey("inbox_items.id", ondelete="CASCADE"), index=True)
+    filename: Mapped[str] = mapped_column(String(200), default="")
+    content_type: Mapped[str] = mapped_column(String(80), default="")
+    size: Mapped[int] = mapped_column(Integer, default=0)
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

@@ -21,14 +21,18 @@ import { bookDrafts, fallbackAccount, parseContext, resolveDraft, type ResolvedD
 
 export interface InboxRaw {
   id: number;
-  source: 'applepay' | 'sms' | 'siri' | 'email' | 'other';
+  source: 'applepay' | 'sms' | 'siri' | 'clipboard' | 'share' | 'quick' | 'email' | 'other';
   text: string;
   amount: string;
   merchant: string;
   card: string;
   occurred: string;
   created_at: string;
+  /** Email 轉寄來的帳單附件（CSV、截圖、PDF）；內容用 fetchAttachmentFile 下載 */
+  attachments?: InboxAttachment[];
 }
+
+export interface InboxAttachment { id: number; filename: string; content_type: string; size: number }
 
 /** 這則可能和已有的帳目、或收件匣裡的另一則是同一次消費 */
 export interface InboxDup {
@@ -51,12 +55,15 @@ export interface InboxEntry {
   dup?: InboxDup;
 }
 
-export interface InboxToken { id: number; name: string; hint: string; created_at: string; last_used_at: string | null }
+export interface InboxToken { id: number; name: string; hint: string; created_at: string; last_used_at: string | null; allow_from?: string }
 
 export const SOURCE_LABEL: Record<InboxRaw['source'], { icon: string; label: string }> = {
   applepay: { icon: '💳', label: 'Apple Pay' },
   sms: { icon: '💬', label: '簡訊' },
   siri: { icon: '🎙', label: 'Siri' },
+  clipboard: { icon: '📋', label: '剪貼簿' },
+  share: { icon: '📤', label: '分享' },
+  quick: { icon: '⚡', label: '快速記帳' },
   email: { icon: '✉️', label: 'Email' },
   other: { icon: '📥', label: '捷徑' },
 };
@@ -68,9 +75,12 @@ export const hookUrl = () => `${location.origin}/api/hook/inbox`;
 
 /** 預先做好、簽署過的捷徑（scripts/make-shortcuts.py 產生 public/shortcuts/aster-<key>.shortcut）；name＝匯入後的捷徑名稱 */
 export const SHORTCUTS = [
-  { key: 'siri', name: 'Aster 記一筆', icon: '🎙', title: '對 Siri 說一句話記帳', automation: null },
-  { key: 'applepay', name: 'Aster Apple Pay 記帳', icon: '💳', title: 'Apple Pay 付款後自動記帳', automation: '交易' },
-  { key: 'sms', name: 'Aster 簡訊記帳', icon: '💬', title: '銀行刷卡簡訊自動記帳', automation: '訊息' },
+  { key: 'applepay', name: 'Aster Apple Pay 記帳', icon: '💳', title: 'Apple Pay 付款後自動記帳', automation: '交易', hint: '最推薦：付款後自動送出金額、商家、卡片' },
+  { key: 'sms', name: 'Aster 簡訊記帳', icon: '💬', title: '銀行刷卡簡訊自動記帳', automation: '訊息', hint: '銀行刷卡簡訊、轉帳通知都能收' },
+  { key: 'siri', name: 'Aster 記一筆', icon: '🎙', title: '對 Siri 說一句話記帳', automation: null, hint: '「嘿 Siri，Aster 記一筆」，也可以綁在動作按鈕' },
+  { key: 'quick', name: 'Aster 快速記帳', icon: '⚡', title: '點一下、打一句話記帳', automation: null, hint: '放到主畫面或動作按鈕、背面輕點，跳出輸入框打「午餐 120」' },
+  { key: 'clipboard', name: 'Aster 貼上記帳', icon: '📋', title: '把剪貼簿的文字送去記帳', automation: null, hint: '在銀行 App、LINE 複製一段交易明細後執行' },
+  { key: 'share', name: 'Aster 分享記帳', icon: '📤', title: '從分享選單把文字送去記帳', automation: null, hint: '任何 App 的分享按鈕裡就會出現「Aster 分享記帳」' },
 ] as const;
 
 type ShortcutDef = (typeof SHORTCUTS)[number];
@@ -128,6 +138,41 @@ export async function ensureLink(): Promise<{ id: number; code: string; created?
   return { ...link, created: r.item };
 }
 
+// ───────────── Email 轉寄收帳單（方案 A） ─────────────
+// 使用者在自己的信箱設定「銀行帳單信自動轉寄到專屬地址」，收信管道（例如 Cloudflare Email Worker）把整封信 POST 到 /api/hook/mail。
+// Aster 不碰信箱帳密；信件變成收件匣項目（本文）＋附件（CSV、截圖、PDF），帳單附件可一鍵帶進「對帳」。
+
+export const mailHookUrl = () => `${location.origin}/api/hook/mail`;
+export const MAIL_TOKEN_NAME = 'Email 轉寄';
+
+/** Email 轉寄專用的權杖（和捷徑權杖分開，可以各自撤銷）。原文只在建立時拿得到 */
+export const createMailToken = () => createToken(MAIL_TOKEN_NAME);
+export const setAllowFrom = (id: number, allow_from: string) => api<InboxToken>(`/inbox/tokens/${id}`, { method: 'PATCH', body: { allow_from } });
+
+/** 貼進 Cloudflare Email Worker 的程式碼：把整封信轉成 HTTP 呼叫（ASTER_TOKEN 要設成機密變數，不要寫死在程式裡） */
+export const CLOUDFLARE_WORKER_CODE = `export default {
+  async email(message, env) {
+    const raw = await new Response(message.raw).arrayBuffer();
+    const r = await fetch(env.ASTER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'message/rfc822', 'X-Aster-Token': env.ASTER_TOKEN },
+      body: raw,
+    });
+    if (!r.ok) message.setReject('Aster 暫時收不下：' + r.status);
+  },
+};`;
+
+/** 下載附件成 File（App 登入中才有權限；下載後交給對帳流程） */
+export async function fetchAttachmentFile(a: InboxAttachment): Promise<File> {
+  const res = await fetch(`/api/inbox/attachments/${a.id}`, { credentials: 'same-origin', cache: 'no-store' });
+  if (!res.ok) throw new Error(res.status === 404 ? '附件已經處理過或過期了' : `下載失敗（${res.status}）`);
+  return new File([await res.blob()], a.filename || '附件', { type: a.content_type || 'application/octet-stream' });
+}
+
+/** 帳單類的信（有附件，或本文看起來是帳單）：不能把「應繳金額」當成一筆消費自動記帳，要走對帳或手動 */
+export const isStatementMail = (it: Pick<InboxRaw, 'source' | 'text' | 'attachments'>) =>
+  it.source === 'email' && (!!it.attachments?.length || /電子帳單|對帳單|帳單(?:已|通知)|應繳(?:總)?金額|繳款截止/.test(it.text));
+
 export const listTokens = () => api<InboxToken[]>('/inbox/tokens');
 export const createToken = (name: string) => api<{ token: string; item: InboxToken }>('/inbox/tokens', { method: 'POST', body: { name } });
 export const revokeToken = (id: number) => api(`/inbox/tokens/${id}`, { method: 'DELETE' });
@@ -181,6 +226,7 @@ export function cardAccount(card: string, ctx: Ctx, cardMap: Record<string, stri
 /** 把一則收件匣項目解析成帳目草稿 */
 export async function draftsFromItem(it: InboxRaw, ctx: Ctx, fallback: string): Promise<ResolvedDraft[]> {
   const { cardMap, defaultAccountId } = useSettings.getState().inbox;
+  if (isStatementMail(it)) return []; // 帳單信：「應繳金額」不是一筆消費，留在收件匣給你對帳
   const date = itemDate(it, ctx.today);
   const base = defaultAccountId && ctx.accounts.some((a) => a.id === defaultAccountId) ? defaultAccountId : fallback;
   const byCard = cardAccount(it.card, ctx, cardMap);
