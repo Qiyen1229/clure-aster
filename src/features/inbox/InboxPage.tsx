@@ -13,9 +13,9 @@ import { shortDate } from '@/domain/nlp';
 import { todayKey } from '@/domain/period';
 import { deleteTransactions, deleteTransfers } from '@/db/repo/ledger';
 import {
-  ackInbox, bookInboxEntries, fetchAttachmentFile, isStatementMail, mergeDuplicate, createToken, ensureLink, forgetLink, hookUrl, listTokens, loadInbox, revokeToken, savedLink,
+  ackInbox, bookInboxEntries, mergeDuplicate, createToken, ensureLink, forgetLink, hookUrl, listTokens, loadInbox, revokeToken, savedLink,
   openShortcutImport, prefetchShortcuts, shortcutFileUrl, SHORTCUTS, SOURCE_LABEL, useInboxCount,
-  type InboxAttachment, type InboxEntry, type InboxToken,
+  type InboxEntry, type InboxToken,
 } from '@/services/inbox';
 import { aiEnabledLocally, aiParseText } from '@/services/ai';
 import { fallbackAccount, resolveDraft } from '@/services/quickentry';
@@ -25,8 +25,6 @@ import { AccountField, SwitchField } from '@/ui/form';
 import { EmptyState, SkeletonRows } from '@/ui/controls';
 import { AiMark, Icon } from '@/ui/Icon';
 import { ShortcutWizard } from './ShortcutWizard';
-import { MailSetup } from './MailSetup';
-import { usePendingStatement } from '@/stores/pendingStatement';
 import { bookForecast, confirmRulePending, loadForecast, registerForecast, skipForecast, skipRulePending, type ForecastData } from '@/services/forecast';
 import type { ForecastItem } from '@/domain/forecast';
 
@@ -118,28 +116,6 @@ export default function InboxPage() {
       setEntries((l) => l?.map((x) => (x.item.id === e.item.id ? { ...x, drafts: list } : x)) ?? null);
       snack('AI 已解析，確認後按「記帳」');
     } catch (err) { snack((err as Error).message); } finally { setAiBusyId(null); }
-  };
-  /** Email 帳單附件：CSV／截圖 → 下載後帶進「對帳」（完成後那則信自動移除）；PDF → 下載給你自己看 */
-  const [attBusy, setAttBusy] = useState<number | null>(null);
-  const kindOf = (a: InboxAttachment) => (a.content_type.startsWith('image/') ? 'image' : /\.pdf$/i.test(a.filename) || a.content_type === 'application/pdf' ? 'pdf' : 'csv');
-  const attachmentLabel = (a: InboxAttachment) => (kindOf(a) === 'csv' ? '📊 CSV 對帳' : kindOf(a) === 'image' ? '🖼 截圖對帳' : '📄 下載 PDF');
-  const openAttachment = async (e: InboxEntry, a: InboxAttachment) => {
-    const kind = kindOf(a);
-    if (kind === 'image' && !aiEnabledLocally()) { snack('截圖對帳要用 AI 讀明細，請先在「設定 → AI 設定」開啟', 6000); return; }
-    setAttBusy(a.id);
-    try {
-      const f = await fetchAttachmentFile(a);
-      if (kind === 'pdf') {
-        const url = URL.createObjectURL(f);
-        const link = document.createElement('a');
-        link.href = url; link.download = a.filename; document.body.appendChild(link); link.click(); link.remove();
-        window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
-        snack('已下載 PDF。Aster 不解析 PDF：請用銀行網銀匯出 CSV，或把帳單截圖對帳', 7000);
-      } else {
-        usePendingStatement.getState().set(f, e.item.id);
-        navigate('/settings/import?mode=reconcile');
-      }
-    } catch (err) { snack((err as Error).message); } finally { setAttBusy(null); }
   };
   const skip = async (e: InboxEntry) => {
     await ackInbox([e.item.id]).catch((err) => snack((err as Error).message));
@@ -316,21 +292,10 @@ export default function InboxPage() {
                     <span className="cat-icon sm" aria-hidden="true">{src.icon}</span>
                     <span className="row-main">
                       <span className="row-title">{e.item.merchant || e.item.text.slice(0, 40) || '（沒有內容）'}</span>
-                      <span className="row-sub" style={{ whiteSpace: 'normal' }}>
-                        {isStatementMail(e.item)
-                          ? `${src.label} · 帳單信${e.item.attachments?.length ? `，${e.item.attachments.length} 個附件` : ''}：用附件對帳，不會當成一筆消費`
-                          : `${src.label} · 看不懂金額，請手動記`}
-                      </span>
-                      {isStatementMail(e.item) && e.item.text && <span className="row-sub" style={{ whiteSpace: 'normal' }}>{e.item.text.slice(0, 80)}</span>}
+                      <span className="row-sub" style={{ whiteSpace: 'normal' }}>{src.label} · 看不懂金額，請手動記</span>
                     </span>
                     <span className="inbox-actions">
-                      {e.item.attachments?.map((a) => (
-                        <button key={a.id} className="pill accent-pill" disabled={attBusy === a.id} onClick={() => void openAttachment(e, a)}
-                          title={`${a.filename}（${Math.max(1, Math.round(a.size / 1024))} KB）`}>
-                          {attBusy === a.id ? '下載中…' : attachmentLabel(a)}
-                        </button>
-                      ))}
-                      {aiEnabledLocally() && !isStatementMail(e.item) && (e.item.text || e.item.merchant) && <button className="pill accent-pill" disabled={aiBusyId === e.item.id} onClick={() => void aiParse(e)}>{aiBusyId === e.item.id ? '解析中…' : <><AiMark /> AI 解析</>}</button>}
+                      {aiEnabledLocally() && (e.item.text || e.item.merchant) && <button className="pill accent-pill" disabled={aiBusyId === e.item.id} onClick={() => void aiParse(e)}>{aiBusyId === e.item.id ? '解析中…' : <><AiMark /> AI 解析</>}</button>}
                       <button className="pill" onClick={() => edit(e)}>手動記</button>
                       <button className="pill" onClick={() => void skip(e)} aria-label="略過">略過</button>
                     </span>
@@ -430,7 +395,6 @@ export default function InboxPage() {
         ))}
       </div>
 
-      <MailSetup />
 
       <details className="card inbox-advanced">
         <summary><b>進階：自己動手建立捷徑</b></summary>

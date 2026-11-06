@@ -79,7 +79,6 @@ class TokenOut(BaseModel):
     hint: str
     created_at: datetime
     last_used_at: datetime | None
-    allow_from: str = ""
 
 
 class TokenCreated(BaseModel):
@@ -87,21 +86,6 @@ class TokenCreated(BaseModel):
 
     token: str
     item: TokenOut
-
-
-class AttachmentOut(BaseModel):
-    """Email 帳單附件（內容用 /api/inbox/attachments/{id} 另外下載）"""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    filename: str
-    content_type: str
-    size: int
-
-
-class TokenPatch(BaseModel):
-    allow_from: str = Field(default="", max_length=400)
 
 
 class InboxItemOut(BaseModel):
@@ -115,7 +99,6 @@ class InboxItemOut(BaseModel):
     card: str
     occurred: str
     created_at: datetime
-    attachments: list[AttachmentOut] = []
 
 
 class AckRequest(BaseModel):

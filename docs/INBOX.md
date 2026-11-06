@@ -96,38 +96,6 @@ App →「設定 → 自動記帳收件匣」→「加入 iPhone 捷徑」，**�
 - **送來空白或被拒絕的交易**：預設先放收件匣等你確認，可以按「略過」；確定都正確後再開「看得懂的直接記帳」
 - **銀行改用 App 推播**：iPhone 無法讀取其他 App 的推播，只能用簡訊或 Apple Pay
 
-## 6. Email 轉寄收帳單（方案 A，v4.1.4）
-
-銀行的電子帳單信，用你信箱的「自動轉寄」轉到自己的收信地址；Aster 收到後放進收件匣。**Aster 不會拿到信箱的帳號密碼**，只收你主動轉寄的信。
-
-```
-銀行寄電子帳單到你的 Gmail／Outlook
-        │  你設定的轉寄規則（寄件人是銀行 → 轉寄）
-        ▼
-你的收信地址（Cloudflare Email Routing，免費，需要一個放在 Cloudflare 的網域）
-        │  Email Worker：把整封信 POST 出去（程式碼在 App 裡有「複製」鈕）
-        ▼
-POST https://你的網址/api/hook/mail      ← Email 轉寄專用權杖（只能寄、不能讀帳）
-        ▼
-收件匣：一則「✉️ Email」項目＋附件 → 帳單附件一鍵帶進「對帳」
-```
-
-**設定**：App →「收件匣」→「✉️ Email 轉寄收帳單」：
-1. 按「建立 Email 轉寄權杖」，複製 `ASTER_URL` 與 `ASTER_TOKEN`（權杖只顯示這一次）。
-2. Cloudflare → Email Routing → 建一個收信地址 → 動作選「Send to a Worker」→ 建 Worker，貼上「Worker 程式碼」，在 Worker 的設定加兩個變數 `ASTER_URL`、`ASTER_TOKEN`（權杖設成「機密」）。
-3. 在 Gmail／Outlook 建轉寄規則：寄件人是銀行的信 → 轉寄到那個收信地址。Gmail 設定轉寄地址時會寄確認信到該地址，那封信會出現在收件匣，把驗證碼貼回 Gmail。
-4. 建議在 App 裡填「只收這些寄件人」（網域或地址，逗號分隔，子網域也算）；不在名單的信會被略過（回 `ok:false`，收信管道不會重試）。
-5. 按「傳送測試信」確認連得到。
-
-**伺服器怎麼處理**（`server/app/service/mail_service.py`，只用標準函式庫）：
-- 接受整封 RFC 822（`Content-Type: message/rfc822`）或 JSON（`{from, subject, text|html, attachments:[{filename, content_type, content_base64}]}`）；權杖放 `Authorization: Bearer`、`X-Aster-Token` 或 `?t=`，和 `/api/hook/inbox` 相同；整封信上限 10 MB、每組權杖每分鐘 30 封。
-- 本文取純文字（沒有就把 HTML 去標籤）；主旨＋本文截到 1000 字當成項目文字，寄件人顯示在商家欄位，來源 `email`。
-- 附件只收 **CSV（1 MB）、截圖 JPEG／PNG／WebP（3 MB）、PDF（4 MB）**，一封最多 3 個，其餘略過並在項目文字註明；每人附件總量上限 40 MB。附件存在 `inbox_attachments`（遷移 `0010_mail_inbox`），App 用 `GET /api/inbox/attachments/{id}` 下載（回應一律 `Content-Disposition: attachment` ＋ `nosniff`，外人寄來的內容不能在 Aster 網域被當成網頁執行）；項目確認／略過時附件一併刪除，30 天未處理自動清除。
-- **帳單信不會自動記帳**：有附件、或本文像帳單（電子帳單、對帳單、應繳金額…）的信，App 端 `isStatementMail` 判定後不解析成消費草稿（「應繳金額」不是一筆消費）；有消費明細的通知信（「您於全家消費 NT$85」）才會解析出草稿，和簡訊一樣。
-- **對帳**：項目上的「📊 CSV 對帳」「🖼 截圖對帳」會下載附件、交給對帳流程（`stores/pendingStatement.ts`），對帳完成後那則信自動移除。**PDF 不解析**（多數銀行 PDF 有密碼）：可下載，要對帳請改用網銀匯出的 CSV 或帳單截圖。
-
-**安全與隱私**：權杖只能送進收件匣、不能讀帳目，可隨時撤銷；暫存內容沒有端對端加密（收信管道沒有你的加密密碼）；信件會經過 Cloudflare 轉送，不想經過第三方的人可以只用捷徑；寄件人可能被偽造，所以所有信都只會變成「待確認」，要你按了才會記帳或對帳。
-
 ## 預計扣款（本機推算）
 
 收件匣最上面的「預計扣款」不經過伺服器：App 從你的記帳紀錄找出連續幾期金額差不多的固定扣款（訂閱、房租、保費…），**預計扣款日到了**就列出來；另外也列出設成「到期要確認」的週期帳目已到期的期數。

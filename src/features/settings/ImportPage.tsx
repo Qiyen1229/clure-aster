@@ -17,8 +17,6 @@ import { NewMark } from '@/ui/NewMark';
 import { Intro } from '@/ui/Hint';
 import { aiEnabledLocally, aiStatement, quotaLabel, type StatementEntry } from '@/services/ai';
 import { ReconcilePanel } from './ReconcilePanel';
-import { usePendingStatement } from '@/stores/pendingStatement';
-import { ackInbox } from '@/services/inbox';
 
 /** 帳戶名稱建議（匯入到既有帳戶） */
 function AccountNames() {
@@ -47,8 +45,6 @@ export default function ImportPage() {
   /** 對帳模式：不匯入，只拿帳單跟帳本核對（CSV 或帳單截圖） */
   const [mode, setMode] = useState<'import' | 'reconcile'>(reconOnly ? 'reconcile' : 'import');
   const [recon, setRecon] = useState<{ csv?: ParsedRow[]; ai?: StatementEntry[]; total?: number | null } | null>(null);
-  /** 從收件匣的 Email 帳單附件進來：對帳完成後把那則信從收件匣移除 */
-  const [fromInbox, setFromInbox] = useState<number | null>(null);
   const profiles = useSettings((s) => s.importProfiles);
   const { map: catMap } = useCategories();
   const header = rows[0] ?? [];
@@ -56,7 +52,7 @@ export default function ImportPage() {
   const parsed = useMemo(() => enriched.filter((r) => !(skipDups && r.dup)), [enriched, skipDups]);
   useEffect(() => { if (step === 2) void planImport(parsed).then(setPlan); }, [parsed, step]);
 
-  const onShot = async (files: FileList | File[] | null) => {
+  const onShot = async (files: FileList | null) => {
     const list = [...(files ?? [])].slice(0, 4);
     if (!list.length) return;
     setBusy(true);
@@ -76,18 +72,6 @@ export default function ImportPage() {
       useUI.getState().showSnack({ text: `讀到 ${uniq.length} 筆明細（${quota}）` });
     } catch (e) { useUI.getState().showSnack({ text: (e as Error).message }); } finally { setBusy(false); }
   };
-
-  // 收件匣的 Email 帳單附件（CSV 或截圖）：載入就直接開始對帳
-  useEffect(() => {
-    const p = usePendingStatement.getState();
-    if (!p.file) return;
-    const f = p.file;
-    usePendingStatement.setState({ file: null, inboxId: null });
-    setMode('reconcile');
-    setFromInbox(p.inboxId);
-    if (f.type.startsWith('image/')) void onShot([f]);
-    else void onFile(f);
-  }, []);
 
   const onFile = async (f: File) => {
     const buf = await f.arrayBuffer();
@@ -218,7 +202,7 @@ export default function ImportPage() {
       )}
 
       {step === 2 && mode === 'reconcile' && recon && (
-        <ReconcilePanel csvRows={recon.csv} aiEntries={recon.ai} printedTotal={recon.total} defaultAccountName={defAccount} onDone={() => { if (fromInbox) void ackInbox([fromInbox]).catch(() => undefined); navigate('/ledger'); }} />
+        <ReconcilePanel csvRows={recon.csv} aiEntries={recon.ai} printedTotal={recon.total} defaultAccountName={defAccount} onDone={() => navigate('/ledger')} />
       )}
 
       {step === 2 && mode === 'import' && plan && (

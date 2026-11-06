@@ -28,11 +28,7 @@ export interface InboxRaw {
   card: string;
   occurred: string;
   created_at: string;
-  /** Email 轉寄來的帳單附件（CSV、截圖、PDF）；內容用 fetchAttachmentFile 下載 */
-  attachments?: InboxAttachment[];
 }
-
-export interface InboxAttachment { id: number; filename: string; content_type: string; size: number }
 
 /** 這則可能和已有的帳目、或收件匣裡的另一則是同一次消費 */
 export interface InboxDup {
@@ -55,7 +51,7 @@ export interface InboxEntry {
   dup?: InboxDup;
 }
 
-export interface InboxToken { id: number; name: string; hint: string; created_at: string; last_used_at: string | null; allow_from?: string }
+export interface InboxToken { id: number; name: string; hint: string; created_at: string; last_used_at: string | null }
 
 export const SOURCE_LABEL: Record<InboxRaw['source'], { icon: string; label: string }> = {
   applepay: { icon: '💳', label: 'Apple Pay' },
@@ -157,41 +153,6 @@ export async function ensureLink(): Promise<{ id: number; code: string; created?
   return { ...link, created: r.item };
 }
 
-// ───────────── Email 轉寄收帳單（方案 A） ─────────────
-// 使用者在自己的信箱設定「銀行帳單信自動轉寄到專屬地址」，收信管道（例如 Cloudflare Email Worker）把整封信 POST 到 /api/hook/mail。
-// Aster 不碰信箱帳密；信件變成收件匣項目（本文）＋附件（CSV、截圖、PDF），帳單附件可一鍵帶進「對帳」。
-
-export const mailHookUrl = () => `${location.origin}/api/hook/mail`;
-export const MAIL_TOKEN_NAME = 'Email 轉寄';
-
-/** Email 轉寄專用的權杖（和捷徑權杖分開，可以各自撤銷）。原文只在建立時拿得到 */
-export const createMailToken = () => createToken(MAIL_TOKEN_NAME);
-export const setAllowFrom = (id: number, allow_from: string) => api<InboxToken>(`/inbox/tokens/${id}`, { method: 'PATCH', body: { allow_from } });
-
-/** 貼進 Cloudflare Email Worker 的程式碼：把整封信轉成 HTTP 呼叫（ASTER_TOKEN 要設成機密變數，不要寫死在程式裡） */
-export const CLOUDFLARE_WORKER_CODE = `export default {
-  async email(message, env) {
-    const raw = await new Response(message.raw).arrayBuffer();
-    const r = await fetch(env.ASTER_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'message/rfc822', 'X-Aster-Token': env.ASTER_TOKEN },
-      body: raw,
-    });
-    if (!r.ok) message.setReject('Aster 暫時收不下：' + r.status);
-  },
-};`;
-
-/** 下載附件成 File（App 登入中才有權限；下載後交給對帳流程） */
-export async function fetchAttachmentFile(a: InboxAttachment): Promise<File> {
-  const res = await fetch(`/api/inbox/attachments/${a.id}`, { credentials: 'same-origin', cache: 'no-store' });
-  if (!res.ok) throw new Error(res.status === 404 ? '附件已經處理過或過期了' : `下載失敗（${res.status}）`);
-  return new File([await res.blob()], a.filename || '附件', { type: a.content_type || 'application/octet-stream' });
-}
-
-/** 帳單類的信（有附件，或本文看起來是帳單）：不能把「應繳金額」當成一筆消費自動記帳，要走對帳或手動 */
-export const isStatementMail = (it: Pick<InboxRaw, 'source' | 'text' | 'attachments'>) =>
-  it.source === 'email' && (!!it.attachments?.length || /電子帳單|對帳單|帳單(?:已|通知)|應繳(?:總)?金額|繳款截止/.test(it.text));
-
 export const listTokens = () => api<InboxToken[]>('/inbox/tokens');
 export const createToken = (name: string) => api<{ token: string; item: InboxToken }>('/inbox/tokens', { method: 'POST', body: { name } });
 export const revokeToken = (id: number) => api(`/inbox/tokens/${id}`, { method: 'DELETE' });
@@ -245,7 +206,6 @@ export function cardAccount(card: string, ctx: Ctx, cardMap: Record<string, stri
 /** 把一則收件匣項目解析成帳目草稿 */
 export async function draftsFromItem(it: InboxRaw, ctx: Ctx, fallback: string): Promise<ResolvedDraft[]> {
   const { cardMap, defaultAccountId } = useSettings.getState().inbox;
-  if (isStatementMail(it)) return []; // 帳單信：「應繳金額」不是一筆消費，留在收件匣給你對帳
   const date = itemDate(it, ctx.today);
   const base = defaultAccountId && ctx.accounts.some((a) => a.id === defaultAccountId) ? defaultAccountId : fallback;
   const byCard = cardAccount(it.card, ctx, cardMap);

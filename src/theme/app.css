@@ -1781,7 +1781,7 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
 .calc-row-main { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; text-align: left; }
 .calc-row-expr { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 
-/* ───── v4.1.4 捷徑安裝精靈、Email 轉寄 ───── */
+/* ───── v4.1.4 捷徑安裝精靈 ───── */
 .wiz-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .wiz-bar { flex: 1; height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
 .wiz-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width 300ms var(--ease); }
