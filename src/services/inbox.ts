@@ -71,42 +71,30 @@ export const hookUrl = () => `${location.origin}/api/hook/inbox`;
 
 /** 預先做好、簽署過的捷徑（scripts/make-shortcuts.py 產生 public/shortcuts/aster-<key>.shortcut）；name＝匯入後的捷徑名稱 */
 export const SHORTCUTS = [
-  { key: 'applepay', name: 'Aster Apple Pay 記帳', icon: '💳', title: 'Apple Pay 付款後自動記帳', automation: '交易', hint: '最推薦：付款後自動送出金額、商家、卡片' },
-  { key: 'sms', name: 'Aster 簡訊記帳', icon: '💬', title: '銀行刷卡簡訊自動記帳', automation: '訊息', hint: '銀行刷卡簡訊、轉帳通知都能收' },
-  { key: 'siri', name: 'Aster 記一筆', icon: '🎙', title: '對 Siri 說一句話記帳', automation: null, hint: '「嘿 Siri，Aster 記一筆」，也可以綁在動作按鈕' },
-  { key: 'quick', name: 'Aster 快速記帳', icon: '⚡', title: '點一下、打一句話記帳', automation: null, hint: '放到主畫面或動作按鈕、背面輕點，跳出輸入框打「午餐 120」' },
-  { key: 'clipboard', name: 'Aster 貼上記帳', icon: '📋', title: '把剪貼簿的文字送去記帳', automation: null, hint: '在銀行 App、LINE 複製一段交易明細後執行' },
-  { key: 'share', name: 'Aster 分享記帳', icon: '📤', title: '從分享選單把文字送去記帳', automation: null, hint: '任何 App 的分享按鈕裡就會出現「Aster 分享記帳」' },
+  { key: 'applepay', name: 'Aster Apple Pay 記帳', icon: '💳', title: 'Apple Pay 付款後自動記帳', automation: '交易', icloud: '0dca1526e16548888206e466326dbe40', hint: '最推薦：付款後自動送出金額、商家、卡片' },
+  { key: 'sms', name: 'Aster 簡訊記帳', icon: '💬', title: '銀行刷卡簡訊自動記帳', automation: '訊息', icloud: '31059b2ef220416999d0a94ad7a77974', hint: '銀行刷卡簡訊、轉帳通知都能收' },
+  { key: 'siri', name: 'Aster 記一筆', icon: '🎙', title: '對 Siri 說一句話記帳', automation: null, icloud: '6f573f0a226441d7a044e7770ec05f6a', hint: '「嘿 Siri，Aster 記一筆」，也可以綁在動作按鈕' },
+  { key: 'quick', name: 'Aster 快速記帳', icon: '⚡', title: '點一下、打一句話記帳', automation: null, icloud: 'e3275089e3234121a22c65ee9cbf0cd1', hint: '放到主畫面或動作按鈕、背面輕點，跳出輸入框打「午餐 120」' },
+  { key: 'clipboard', name: 'Aster 貼上記帳', icon: '📋', title: '把剪貼簿的文字送去記帳', automation: null, icloud: 'a9125e621f50418faa6caab3dff26296', hint: '在銀行 App、LINE 複製一段交易明細後執行' },
+  { key: 'share', name: 'Aster 分享記帳', icon: '📤', title: '從分享選單把文字送去記帳', automation: null, icloud: '93e04d6cdf06495ca991bc18e65f0791', hint: '任何 App 的分享按鈕裡就會出現「Aster 分享記帳」' },
 ] as const;
 
 type ShortcutDef = (typeof SHORTCUTS)[number];
 export const shortcutFileUrl = (s: ShortcutDef) => `/shortcuts/aster-${s.key}.shortcut`;
 
 /**
- * 把捷徑檔交給「捷徑」App 匯入：下載簽署過的 .shortcut 檔，iOS 會直接開啟「捷徑」App 的匯入畫面（按「加入捷徑」就好）。
- * 注意：不能用 shortcuts://import-shortcut?url=… ——它只接受 iCloud 分享連結，自架網址一律顯示「提供的捷徑 URL 無效」；
- * 也不用分享選單（選單裡常找不到「捷徑」）。不要加 target=_blank、也不要把檔案類型指定成 application/vnd.apple.shortcut——
- * 那樣 iOS 會變成沒有關閉鍵的檔案預覽；同視窗下載＋一般檔案類型，iOS 下載完會直接交給「捷徑」App。
+ * 加入捷徑：切到「捷徑」App，直接跳出「加入捷徑」按鈕（沒有任何預覽或下載步驟，Aster 這一頁也不會被導走）。
+ * 做法：用 Apple 官方的 iCloud 分享連結——`shortcuts://import-shortcut?url=<iCloud 連結>`。
+ * 六個捷徑都是通用範本（不含你的連結碼或權杖；連結碼是匯入時才貼上的），所以全部使用者共用同一組 iCloud 連結。
+ * 注意：這個網址只接受 iCloud 連結，自架網址（例如 /shortcuts/*.shortcut）一律顯示「提供的捷徑 URL 無效」；
+ * 檔案版（`shortcutFileUrl`）只留作備用下載。捷徑內容更新時：用 scripts/make-shortcuts.py 重做 → 匯入 Mac「捷徑」App →
+ * 分享 →「拷貝 iCloud 連結」→ 換掉這裡的 `icloud` 識別碼。
  */
-export function openShortcutImport(s: ShortcutDef): void {
-  const a = document.createElement('a');
-  a.href = shortcutFileUrl(s);
-  a.download = `${s.name}.shortcut`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-}
+export const shortcutIcloudUrl = (s: ShortcutDef) => `https://www.icloud.com/shortcuts/${s.icloud}`;
+export const shortcutImportUrl = (s: ShortcutDef) => `shortcuts://import-shortcut?url=${encodeURIComponent(shortcutIcloudUrl(s))}`;
 
-/** 檢查伺服器真的有回傳捷徑檔；回傳有問題的捷徑名稱（多半是還沒更新到新版、或被登入保護擋住而回傳網頁） */
-export async function checkShortcutFiles(): Promise<string[]> {
-  const bad: string[] = [];
-  await Promise.all(SHORTCUTS.map(async (s) => {
-    try {
-      const r = await fetch(shortcutFileUrl(s), { method: 'HEAD', cache: 'no-cache' });
-      if (!r.ok || /text\/html/i.test(r.headers.get('content-type') ?? '')) bad.push(s.name);
-    } catch { bad.push(s.name); }
-  }));
-  return bad;
+export function openShortcutImport(s: ShortcutDef): void {
+  location.href = shortcutImportUrl(s);
 }
 
 /** 連結碼＝網址＋?t=權杖：捷徑匯入時只要貼上這一串。存在這台裝置（依使用者區分），之後加其他捷徑可重用 */
