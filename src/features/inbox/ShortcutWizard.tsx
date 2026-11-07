@@ -98,14 +98,26 @@ export function ShortcutWizard({ preparing, onAdd, hasLink }: { preparing: boole
       {needAuto.length > 0 && (
         <div className="wiz-auto" role="group" aria-label="還要做一步：建立自動化">
           <b>還差一步：建立自動化</b>
-          <p className="muted" style={{ margin: '2px 0 8px' }}>iPhone 不允許 App 代為建立自動化，要自己做一次（約 30 秒）：</p>
+          <p className="muted" style={{ margin: '2px 0 8px' }}>
+            iPhone 不允許 App 代為建立自動化，要自己做一次（約 1 分鐘）。畫面名稱以 iOS 26 為準；iOS 17～18 的「自動化」是「捷徑」App 下方的分頁，點「＋」後選「新增個人自動化」。
+          </p>
           {needAuto.map((s) => (
             <div key={s.key} className="wiz-auto-item">
-              <p style={{ margin: '0 0 6px', whiteSpace: 'normal' }}>
-                {s.icon} <b>{s.title}</b>：「捷徑」→ 下方「<b>自動化</b>」→「＋」→「<b>{s.automation}</b>」
-                {s.key === 'applepay' ? ' → 選卡片（可全選）' : ' →「寄件者」選銀行，或「訊息包含」填「消費」'}
-                → <b>立即執行</b> →「下一步」→ 選「<b>{s.name}</b>」。
-              </p>
+              <p className="wiz-auto-title">{s.icon} <b>{s.title}</b>（用「{s.name}」）</p>
+              <ol className="wiz-auto-steps">
+                <li>打開「<b>捷徑</b>」App → 「資料庫」頁點「<b>自動化</b>」，再點最下方的「<b>＋</b>」</li>
+                <li>點上方的「<b>自動化操作</b>」標籤，往下捲，{s.key === 'applepay'
+                  ? <>在「<b>App</b>」區點「<b>錢包</b>」（說明是「在我感應『錢包』卡片或票卡時」）。<b>沒有叫「交易」的選項</b>，就是這一個（iOS 17～18 才叫「交易」）</>
+                  : <>在「<b>通訊</b>」區點「<b>訊息</b>」（說明是「當我收到傳來的訊息時」）</>}
+                </li>
+                {s.key === 'applepay' ? (
+                  <li>畫面上會出現「感應 <b>任何卡片</b> 時」：不用改，就是每張卡刷了都記。只想記某張卡，點「任何卡片」選那張。「類別」「商家」也不用動</li>
+                ) : (
+                  <li>這個觸發<b>一定要填條件</b>才能啟用：「<b>寄件人</b> 是」點藍字選你的銀行（簡訊的號碼或聯絡人）；再點「<b>加入過濾條件</b>」，「<b>訊息</b> 包含」填「<b>消費</b>」，避免把驗證碼簡訊也記進來</li>
+                )}
+                <li>點最下方的搜尋框，輸入「<b>執行捷徑</b>」點它；動作裡的藍字「<b>捷徑</b>」點開，選「<b>{s.name}</b>」</li>
+                <li>點左上角「<b>＜</b>」就存好了。回到「自動化」清單，這一列的開關是<b>綠色</b>就代表啟用</li>
+              </ol>
               <button className="pill accent-pill" onClick={() => mark(s.key, 'auto', true)}>我做好了 ✓</button>
             </div>
           ))}

@@ -1434,6 +1434,8 @@ button.row:active, a.row:active { transform: scale(0.985); transition-duration: 
 .oneclick-item { padding: 8px 0; border-top: 0.5px solid var(--sep); }
 .oneclick-row { display: flex; align-items: center; gap: 10px; }
 .oneclick-row .pill { flex: none; height: 34px; padding: 0 16px; }
+.oneclick-row .row-title { display: block; white-space: normal; overflow: visible; font-weight: 600; }
+.oneclick-row .row-sub { display: block; white-space: normal; line-height: 1.45; }
 .oneclick-note { font-size: 0.78rem; margin: 6px 0 0 46px; line-height: 1.5; }
 .oneclick-fallback, .inbox-advanced { margin-top: 10px; }
 .oneclick-fallback summary, .inbox-advanced summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; font-size: 0.85rem; }
@@ -1790,4 +1792,7 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
 .wiz-check.on { background: var(--accent); border-color: var(--accent); }
 .oneclick-item.is-done .row-title { color: var(--text-2); }
 .wiz-auto { margin-top: 12px; padding: 12px; border-radius: var(--radius-s); background: var(--surface-2); border: 1px dashed var(--warning); }
+.wiz-auto-title { margin: 0 0 4px; white-space: normal; }
+.wiz-auto-steps { margin: 0 0 8px; padding-left: 20px; font-size: 0.88rem; line-height: 1.6; }
+.wiz-auto-steps li { margin-bottom: 4px; }
 .wiz-auto-item + .wiz-auto-item { margin-top: 10px; padding-top: 10px; border-top: 0.5px solid var(--sep); }
