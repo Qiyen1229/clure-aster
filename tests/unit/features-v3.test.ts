@@ -188,7 +188,7 @@ describe('背景推播排程', () => {
     const today = todayKey();
     const now = new Date(`${today}T08:00:00`).getTime();
     const before = await upcomingPushItems(14, now);
-    expect(before[0].id).toBe(`daily:${today}`);
+    expect(before.some((i) => i.id === `daily:${today}`)).toBe(true); // 不能假設排第一：週日當天「週報」的時間更早
     expect(before.every((i) => i.at > now && i.at <= now + 14 * 86400_000)).toBe(true);
     const acc = await addAccount({ name: '錢包', icon: '', color: '', type: 'cash', currency: 'TWD', initialBalanceMinor: 0, includeInNetWorth: true, isLiability: false });
     await addTransaction({ type: 'expense', accountId: acc.id, categoryId: 'exp-food', amountMinor: 100, currency: 'TWD', date: today, ts: now, note: '' });

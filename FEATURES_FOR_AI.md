@@ -134,6 +134,7 @@
 - 結果清單元件 `InsightsResults`（`features/insights/InsightsPage.tsx`）；首頁鈴鐺的「需要你看一下」只摘要，點了到 `/ai`。
 
 ### 3.3 AI 全面整合（`docs/AI.md`）
+- **串流回答（SSE）**：問 AI（`/api/ai/ask/stream`）與操作助手（`/api/ai/agent-plan/stream`）邊生成邊傳；`services/api.ts` 的 `apiSse()` 讀事件流，`aiAsk(…, onPartial)`／`aiAgentPlan(…, onPartial)` 回報文字，對話框泡泡以 `streaming: true` 顯示游標。後端 `AiService._sse` 是 `run_task` 的串流版：先預留額度、成功才扣、失敗或中斷還回去；用自己的資料庫連線（串流送完前請求的連線可能已收掉）。**已經輸出就不換供應商**。nginx 對這兩條路徑要 `proxy_buffering off`（`X-Accel-Buffering: no` 也有送）。其他 JSON 型功能（記帳解析、收據、預算建議…）因為要完整驗證才有意義，仍是一般版。
 - **預設關閉**，兩個隱私開關：`ai.enabled`、`ai.allowData`；管理員在 `.env` 設共用 Key（目前只用 **Gemini**）。
 - **後端**：供應商鏈 `gemini／openrouter／nvidia／custom`（OpenAI 相容），失敗自動換下一家、連續 3 次失敗冷卻 5 分鐘；額度（一般使用者／管理員分開，每日／週／月＋全站每日＋全站每分鐘；失敗不扣；收據與截圖辨識扣 2 點）。
 - **一個對話框走天下**（`features/home/AiChat.tsx` 的 `ChatPanel`／`AiChatSheet`，全站唯一，`App.tsx` 的 `ChatHost` 掛在最外層；打開過一次就保持掛載，空對話關閉也有完整退場動畫）：記帳、查帳、問 AI、整理帳本、📷 拍照記帳（**可批次**：一次選最多 8 張，逐張辨識、進度顯示在泡泡裡，全部放在同一張草稿卡、每筆可取消勾選再一次記帳；超過 2 張先確認額度；某張失敗不影響其他張；`sendImages`）、🎤 語音輸入（瀏覽器 SpeechRecognition，講完填進輸入框再送）、檢視卡。入口：首頁 AI 小圓球、靈動島（任何頁面上滑／非記帳頁長按）、搜尋頁「交給 AI」、預算頁「請 AI 規劃預算」、舊連結 `/ai?q=`／`?agent=`／`?tool=budget`（`aiChatStore.ask()` 開視窗並自動送出）。
@@ -230,7 +231,7 @@ JSON 完整備份／還原（含照片）、**加密備份**（PBKDF2-SHA256 310
 ---
 
 ## 6. 測試與品質
-- 前端 Vitest **587 項**（`tests/unit/`，fake-indexeddb；含 `agent-actions`、`agent-intent`、`calc-history`、`forecast`、`shortcut-import`）＋後端 pytest **179 項**（`server/tests/`）＝ **766 項**；`npm run check` = 型態檢查 + ESLint（0 警告）+ 測試；CI 於 main 與 feature 分支每次推送執行。
+- 前端 Vitest **592 項**（`tests/unit/`，fake-indexeddb；含 `agent-actions`、`agent-intent`、`calc-history`、`forecast`、`shortcut-import`）＋後端 pytest **186 項**（`server/tests/`）＝ **778 項**；`npm run check` = 型態檢查 + ESLint（0 警告）+ 測試；CI 於 main 與 feature 分支每次推送執行。
 - 純函式優先放 `src/domain/`（便於測試）；有副作用的放 `src/services/`；資料庫存取放 `src/db/repo/`。
 
 ## 7. 給修改者的注意事項（踩過的坑）

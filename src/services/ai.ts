@@ -14,7 +14,7 @@ import type { DraftEntry } from '@/domain/nlp';
 import { AUTH_ENABLED } from '@/stores/auth';
 import { useSettings } from '@/stores/settings';
 import { db } from '@/db/schema';
-import { api } from './api';
+import { api, apiSse, StreamUnsupported } from './api';
 import { recordAiSend } from './aiLog';
 import { parseContext } from './quickentry';
 
@@ -109,14 +109,29 @@ const HOUR = 3600_000;
 
 export interface AskValue { answer: string; followups: string[] }
 
-export async function aiAsk(question: string, screen?: string): Promise<Cached<AskValue>> {
+/**
+ * 問 AI。給 onPartial 就用串流版：回答一邊生成、一邊把「到目前為止的文字」交給 onPartial，使用者不用等整段寫完；
+ * 瀏覽器不支援串流時自動改用一般版。相同問題 6 小時內直接用快取（不串流、不扣額度）。
+ */
+export async function aiAsk(question: string, screen?: string, onPartial?: (text: string) => void): Promise<Cached<AskValue>> {
   const { loadFinanceSummary } = await import('./aisummary');
   const { summary: base } = await loadFinanceSummary();
   // 持股、除息與稅務的去識別化統計（整數元合計＋股票代號），讓「我今年股利會被扣二代健保嗎？」這類問題有資料可答；失敗就不附
   const investAndTax = await import('./taxplan').then((m) => m.investTaxSummary()).catch(() => null);
   const summary = investAndTax ? { ...base, investAndTax } : base;
   const q = `${screen ? `【目前畫面】${screen.slice(0, 160)}\n` : ''}${question.trim().slice(0, 300)}`;
-  return cached('ask', { q, summary }, 6 * HOUR, () => aiPost<AskValue & { quota: AiQuota }>('/ai/ask', { question: q, summary }));
+  const body = { question: q, summary };
+  return cached('ask', { q, summary }, 6 * HOUR, async () => {
+    if (!onPartial) return aiPost<AskValue & { quota: AiQuota }>('/ai/ask', body);
+    await recordAiSend('/ai/ask/stream', body);
+    try {
+      let text = '';
+      return await apiSse<AskValue & { quota: AiQuota }>('/ai/ask/stream', body, (name, d) => { if (name === 'delta' && typeof d?.t === 'string') { text += d.t; onPartial(text); } });
+    } catch (e) {
+      if (e instanceof StreamUnsupported) return aiPost<AskValue & { quota: AiQuota }>('/ai/ask', body);
+      throw e;
+    }
+  });
 }
 
 export interface InsightsValue { headline: string; points: string[]; suggestion: string }
@@ -217,7 +232,7 @@ export interface AgentPlanValue { summary: string; steps: { tool: string; args: 
  * 把一句話交給 AI 規劃成「工具＋參數」步驟（1 點額度；不快取，因為每次要依當下帳本重新模擬）。
  * 只送這一句話與分類／帳戶名稱，不送任何帳目；AI 不能執行任何事，結果在本機預覽並由使用者確認才會寫入。
  */
-export async function aiAgentPlan(text: string, screen?: string): Promise<{ plan: AgentPlanValue; quota: AiQuota }> {
+export async function aiAgentPlan(text: string, screen?: string, onPartial?: (summary: string) => void): Promise<{ plan: AgentPlanValue; quota: AiQuota }> {
   const [cats, accs, ctx, debts, people, goals, stocks] = await Promise.all([db.categories.toArray(), db.accounts.toArray(), parseContext(), db.debts.toArray(), db.people.toArray(), db.goals.toArray(), db.stocks.toArray()]);
   const uniq = (xs: string[]) => [...new Set(xs.map((x) => x.trim()).filter(Boolean))];
   const owing = new Set(debts.filter((d) => !d.deletedAt && !d.settled).map((d) => d.personId));
@@ -230,6 +245,17 @@ export async function aiAgentPlan(text: string, screen?: string): Promise<{ plan
     goals: uniq(goals.filter((g) => !g.deletedAt && g.status === 'active').map((g) => g.name)).slice(0, 40),
     stocks: uniq(stocks.filter((x) => !x.deletedAt).map((x) => x.symbol)).slice(0, 80),
   };
+  if (onPartial) {
+    // 串流版：規劃摘要（「我打算做什麼」）一邊生成一邊回報；步驟要等完整驗證後才在最後一次送出
+    await recordAiSend('/ai/agent-plan/stream', body);
+    try {
+      let summary = '';
+      const { quota, ...plan } = await apiSse<AgentPlanValue & { quota: AiQuota }>('/ai/agent-plan/stream', body, (name, d) => { if (name === 'delta' && typeof d?.t === 'string') { summary += d.t; onPartial(summary); } });
+      return { plan, quota };
+    } catch (e) {
+      if (!(e instanceof StreamUnsupported)) throw e;
+    }
+  }
   const { quota, ...plan } = await aiPost<AgentPlanValue & { quota: AiQuota }>('/ai/agent-plan', body);
   return { plan, quota };
 }

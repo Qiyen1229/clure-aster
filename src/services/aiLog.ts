@@ -20,7 +20,7 @@ const MAX_RECORDS = 25;
 const MAX_CHARS = 20_000;
 
 export const AI_FEATURE_LABEL: Record<string, string> = {
-  '/ai/parse-entry': '一句話記帳（規則看不懂時）', '/ai/ask': '問 AI', '/ai/budget-plan': '下月預算建議', '/ai/insights': '白話解讀', '/ai/categorize': '整理「其他」分類',
+  '/ai/parse-entry': '一句話記帳（規則看不懂時）', '/ai/ask': '問 AI', '/ai/ask/stream': '問 AI', '/ai/agent-plan/stream': '操作助手（整理帳本）', '/ai/budget-plan': '下月預算建議', '/ai/insights': '白話解讀', '/ai/categorize': '整理「其他」分類',
   '/ai/receipt': '拍照記帳', '/ai/search-plan': '用 AI 找', '/ai/explain': '專案／帳戶解說',
 };
 

@@ -32,7 +32,7 @@ import { nextSeq, useChat, type Msg, type Reply } from './aiChatStore';
 const HAS_AMOUNT_HINT = /\d|[一二兩三四五六七八九十百千萬]/;
 
 /** 規則優先 → 規則查帳 → AI 問答 → AI 解析記帳 → 說明怎麼開啟 */
-export async function respond(text: string, screen?: string): Promise<Reply> {
+export async function respond(text: string, screen?: string, onPartial?: (text: string) => void): Promise<Reply> {
   const t = text.trim();
   const asking = isQuestion(t) || looksLikeAiQuestion(t);
 
@@ -46,7 +46,7 @@ export async function respond(text: string, screen?: string): Promise<Reply> {
     // 直接在對話裡規劃並預覽：確認執行、一鍵還原都在這個泡泡完成（AI 只規劃；預覽與執行在本機）
     try {
       const [{ aiAgentPlan }, { previewPlan }] = await Promise.all([import('@/services/ai'), import('@/services/agent')]);
-      const r = await aiAgentPlan(t, screen);
+      const r = await aiAgentPlan(t, screen, onPartial ? (summary) => onPartial(`正在規劃：${summary}`) : undefined);
       return { role: 'ai', kind: 'agent', summary: r.plan.summary, steps: await previewPlan(r.plan.steps), raw: r.plan.steps, quota: quotaLabel(r.quota) };
     } catch (e) {
       return { role: 'ai', kind: 'text', text: (e as Error).message };
@@ -66,7 +66,7 @@ export async function respond(text: string, screen?: string): Promise<Reply> {
   // 只有「問句」才交給 AI 問答（會送統計、扣 1 點）；「你好」之類不是問句的不要白扣額度，非問句又有金額的才走 AI 口語記帳
   if (asking && aiDataEnabled()) {
     try {
-      const r = await aiAsk(t, screen);
+      const r = await aiAsk(t, screen, onPartial);
       return { role: 'ai', kind: 'text', text: r.value.answer, followups: r.value.followups, sub: `${r.cached ? '使用先前的回答（未扣額度）' : r.quota ? quotaLabel(r.quota) : ''}　AI 的回答僅供參考` };
     } catch (e) {
       return { role: 'ai', kind: 'text', text: (e as Error).message };
@@ -95,10 +95,12 @@ async function send(text: string, opts: { open?: boolean } = {}) {
   useChat.setState((s) => ({ ...(opts.open === false ? {} : { open: true }), busy: true, msgs: [...s.msgs.slice(-30), { id: nextSeq(), role: 'user', text: t }, { id: pending, role: 'ai', kind: 'pending' }] }));
   try {
     // 「📍 目前畫面」：使用者沒有按掉、而且這句話會送去 AI 時才附上（記帳與規則查帳是本機處理，用不到）
-    const r = await respond(t, st.attach && aiEnabledLocally() ? currentScreen() || undefined : undefined);
-    useChat.getState().patch(pending, r as Partial<Msg>);
+    // 問 AI 的回答是串流的：文字一生出來就顯示在這個泡泡裡（尾端有游標），寫完再換成完整結果（含建議追問與額度）
+    const onPartial = (partial: string) => useChat.getState().patch(pending, { role: 'ai', kind: 'text', text: partial, streaming: true } as Partial<Msg>);
+    const r = await respond(t, st.attach && aiEnabledLocally() ? currentScreen() || undefined : undefined, onPartial);
+    useChat.getState().patch(pending, { ...r, streaming: false } as Partial<Msg>);
   } catch (e) {
-    useChat.getState().patch(pending, { role: 'ai', kind: 'text', text: (e as Error).message } as Partial<Msg>);
+    useChat.getState().patch(pending, { role: 'ai', kind: 'text', text: (e as Error).message, streaming: false } as Partial<Msg>);
   } finally { useChat.setState({ busy: false }); }
 }
 
@@ -365,7 +367,7 @@ export function ChatPanel({ onLeave, autoFocus }: { onLeave?: () => void; autoFo
             {m.kind === 'pending' && <span className="muted">思考中…</span>}
             {m.kind === 'text' && (
               <>
-                <div style={{ whiteSpace: 'pre-wrap' }}>{m.text}</div>
+                <div style={{ whiteSpace: 'pre-wrap' }}>{m.text}{m.streaming && <span className="stream-caret" aria-hidden="true" />}</div>
                 {m.sub && <div className="row-sub" style={{ whiteSpace: 'normal' }}>{m.sub}</div>}
                 {m.link && <button className="btn small tinted" style={{ marginTop: 6 }} onClick={() => { onLeave?.(); navigate(m.link!.to); }}>{m.link.label}</button>}
                 {!!m.followups?.length && <div className="ask-examples" style={{ marginTop: 6 }}>{m.followups.map((f) => <button key={f} className="pill" disabled={busy} onClick={() => go(f)}>{f}</button>)}</div>}

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable, Iterator
 from datetime import date, datetime, timedelta, timezone
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
@@ -114,6 +115,72 @@ class AiService:
         msg = ai_tasks.dumps({"問題": body.question, "摘要": body.summary})
         r = ai_tasks.run_task(self.db, user, "ask", ai_tasks.ASK, msg, ai_tasks.v_ask, fail_message="AI 沒能回答這個問題，請換個說法")
         return AskResult(**r, quota=self._quota(user))  # type: ignore[arg-type]
+
+    def ask_sse(self, user_id: int, body: AskRequest) -> Iterator[str]:
+        """問 AI 的串流版（SSE）：回答一邊生成一邊傳給前端，不用等整段寫完。"""
+        msg = ai_tasks.dumps({"問題": body.question, "摘要": body.summary})
+        return self._sse(user_id, "ask", ai_tasks.ASK, msg, ai_tasks.v_ask, "answer", "AI 沒能回答這個問題，請換個說法")
+
+    def agent_plan_sse(self, user_id: int, body: AgentPlanRequest) -> Iterator[str]:
+        """操作助手的串流版：先把「規劃摘要」一邊生成一邊傳回（讓使用者知道它在做什麼），步驟要等完整驗證後才在 done 事件一次送出。"""
+        cats, accs = _clean_names(body.categories), _clean_names(body.accounts)
+        today = date.fromisoformat(body.today)
+        people, goals, stocks = _clean_names(body.people), _clean_names(body.goals), _clean_names(body.stocks)
+        payload: dict = {"今天": body.today, "需求": body.text, "可選分類": cats, "可選帳戶": accs}
+        for key, names in (("可選對象", people), ("可選目標", goals), ("可選標的代號", stocks)):
+            if names:
+                payload[key] = names
+        return self._sse(user_id, "agent_plan", ai_tasks.AGENT_PLAN, ai_tasks.dumps(payload),
+                         lambda d: ai_tasks.v_agent_plan(d, cats, accs, today, people=people, goals=goals, stocks=stocks), "summary",
+                         "AI 沒有對應的操作可以做這件事，請換個說法，或到各功能頁手動操作")
+
+    def _sse(self, user_id: int, kind: str, system: str, msg: str, validate: Callable[[object], dict], partial_key: str, fail_message: str) -> Iterator[str]:
+        """串流版的 run_task。事件：delta（{"t": 這次新增的文字}，只送 partial_key 這個欄位的內容）、done（和一般版相同的結果＋額度）、error（{"status", "detail"}）。
+        額度規則和一般版一致：先預留，成功才扣，失敗、中斷、使用者關掉都會還回去。
+        用自己的資料庫連線：串流回應送完之前，請求本身的連線可能已經收掉。"""
+        def ev(name: str, data: object) -> str:
+            return f"event: {name}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+        from app.db import session_scope  # 避免循環匯入
+        try:
+            for db in session_scope():
+                user = db.get(User, user_id)
+                if not user or not user.is_active:
+                    raise ServiceError(401, "請先登入")
+                if not any(p.configured for p in ai_providers.providers()):
+                    raise ServiceError(503, "伺服器尚未設定 AI 供應商")
+                ai_tasks._global_rpm_guard()  # noqa: SLF001
+                row = ai_quota.reserve(db, user.id, kind, ai_tasks.COST[kind], user.role)
+                confirmed = False
+                try:
+                    full, provider, model, sent, buf = "", "", "", "", ""
+                    for ev_kind, payload in ai_providers.stream_text(system, msg, max_tokens=ai_tasks.MAX_TOKENS[kind]):
+                        if ev_kind == "delta":
+                            buf += payload  # type: ignore[operator]
+                            shown = ai_providers.partial_json_string(ai_providers.visible_text(buf), partial_key)
+                            if len(shown) > len(sent) and shown.startswith(sent):
+                                yield ev("delta", {"t": shown[len(sent):]})
+                                sent = shown
+                        else:
+                            full, provider, model = payload  # type: ignore[misc]
+                    try:
+                        result = validate(ai_providers.extract_json(ai_providers.clean_content(full)))
+                    except (ValueError, TypeError, KeyError):
+                        raise ServiceError(422, fail_message) from None
+                    ai_quota.confirm(db, row, provider, model)
+                    confirmed = True
+                    log.info("AI %s(stream) user_id=%s provider=%s", kind, user.id, provider)
+                    yield ev("done", {**result, "quota": AiService(db)._quota(user).model_dump(mode="json")})  # noqa: SLF001
+                finally:
+                    if not confirmed:  # 失敗、中斷（含使用者關掉）：不扣額度
+                        ai_quota.release(db, row)
+        except ServiceError as e:
+            yield ev("error", {"status": e.status_code, "detail": e.message})
+        except ValueError:
+            yield ev("error", {"status": 502, "detail": "AI 回答到一半中斷了，沒有扣額度，請再試一次"})
+        except Exception:  # noqa: BLE001
+            log.exception("AI 串流失敗")
+            yield ev("error", {"status": 500, "detail": "AI 暫時無法使用，請稍後再試"})
 
     def budget_plan(self, user: User, body: BudgetPlanRequest) -> BudgetPlanResult:
         cats = _clean_names(body.categories)

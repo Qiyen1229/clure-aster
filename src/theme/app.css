@@ -1831,3 +1831,8 @@ button.accent, button.muted { min-height: 44px; }
 .pill, .btn.small { position: relative; }
 .pill::after, .btn.small::after { content: ''; position: absolute; inset: -5px -2px; }
 
+
+/* ───── 串流回答：文字尾端的游標 ───── */
+.stream-caret { display: inline-block; width: 2px; height: 1.05em; margin-left: 2px; vertical-align: text-bottom; background: var(--accent-text); animation: caret-blink 1s steps(2, start) infinite; }
+@keyframes caret-blink { to { visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) { .stream-caret { animation: none; } }

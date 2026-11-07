@@ -10,7 +10,7 @@ export const BUDGET_PROMPT = '依過去 3 個月的花費，幫我設定各分�
 
 export type Msg =
   | { id: number; role: 'user'; text: string }
-  | { id: number; role: 'ai'; kind: 'text'; text: string; sub?: string; link?: { label: string; to: string }; followups?: string[] }
+  | { id: number; role: 'ai'; kind: 'text'; text: string; /** 串流中：回答還在生成，文字尾端顯示游標 */ streaming?: boolean; sub?: string; link?: { label: string; to: string }; followups?: string[] }
   | { id: number; role: 'ai'; kind: 'entries'; drafts: ResolvedDraft[]; via: 'rule' | 'ai'; sub?: string; booked?: boolean }
   | { id: number; role: 'ai'; kind: 'agent'; summary: string; steps: ResolvedStep[]; /** AI 規劃的原始步驟：略過某幾步時用它在本機重新預覽，不必再問 AI */ raw: RawStep[]; quota: string; phase?: 'done' | 'undone' | 'cancelled'; opId?: string; note?: string }
   | { id: number; role: 'ai'; kind: 'view'; view: ViewSpec }

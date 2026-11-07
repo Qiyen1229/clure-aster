@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 import logging
 import re
 import threading
@@ -203,6 +204,112 @@ def complete_json(system: str, user: str, *, max_tokens: int = 800, images: list
             continue
         _record(p.name, True, latency_ms=int((time.monotonic() - t0) * 1000))
         return data, p.name, p.model
+    raise ServiceError(503, "AI 服務暫時無法使用，請稍後再試" if tried else "尚未設定可用的 AI 供應商")
+
+
+# ───────────── 串流（SSE）：邊生成邊傳，使用者不用等整段寫完 ─────────────
+
+def visible_text(buf: str) -> str:
+    """串流到一半的文字裡，去掉推理模型的 <think>…</think>；思考還沒結束的部分先不顯示。"""
+    t = re.sub(r"<think>.*?</think>", "", buf, flags=re.DOTALL | re.IGNORECASE)
+    i = t.lower().find("<think>")
+    return t[:i] if i != -1 else t
+
+
+_ESC = {"n": "\n", "t": "\t", "r": "\r", "b": "\b", "f": "\f", '"': '"', "\\": "\\", "/": "/"}
+
+
+def partial_json_string(buf: str, key: str = "answer") -> str:
+    """從「還沒寫完的 JSON」裡取出某個字串欄位目前已經到的內容（處理跳脫字元；停在一半的跳脫序列先不輸出）。"""
+    m = re.search(r'"%s"\s*:\s*"' % re.escape(key), buf)
+    if not m:
+        return ""
+    i, out = m.end(), []
+    n = len(buf)
+    while i < n:
+        c = buf[i]
+        if c == '"':
+            break
+        if c != "\\":
+            out.append(c)
+            i += 1
+            continue
+        if i + 1 >= n:
+            break
+        e = buf[i + 1]
+        if e == "u":
+            if i + 6 > n:
+                break
+            try:
+                code = int(buf[i + 2:i + 6], 16)
+            except ValueError:
+                break
+            i += 6
+            if 0xD800 <= code < 0xDC00:  # 代理對：後半段還沒到就先等
+                if i + 6 > n:
+                    i -= 6
+                    break
+                try:
+                    low = int(buf[i + 2:i + 6], 16) if buf[i:i + 2] == "\\u" else -1
+                except ValueError:
+                    low = -1
+                if 0xDC00 <= low < 0xE000:
+                    code = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00)
+                    i += 6
+            out.append(chr(code))
+        else:
+            out.append(_ESC.get(e, e))
+            i += 2
+    return "".join(out)
+
+
+def stream_text(system: str, user: str, *, max_tokens: int = 800, images: list[str] | None = None) -> Iterator[tuple[str, object]]:
+    """依序嘗試各供應商（失敗、限流、逾時才換下一家），邊收邊產出 ("delta", 文字片段)；全部收完產出 ("done", (全文, 供應商, 模型))。
+    已經開始輸出之後才中斷就不再換供應商（換了會讓使用者看到前後不連的兩段回答），改丟 ValueError 由呼叫端處理。"""
+    s = get_settings()
+    tried = 0
+    for p in providers(s):
+        if not p.configured or cooling_down(p.name):
+            continue
+        tried += 1
+        content: object = user if not images else [{"type": "text", "text": user}, *({"type": "image_url", "image_url": {"url": u}} for u in images)]
+        payload = {"model": p.model, "temperature": 0, "max_tokens": max_tokens, "stream": True,
+                   "messages": [{"role": "system", "content": system}, {"role": "user", "content": content}], **p.extra}
+        req = urllib.request.Request(
+            p.base_url.rstrip("/") + "/chat/completions", data=json.dumps(payload).encode(), method="POST",
+            headers={"Content-Type": "application/json", "Accept": "text/event-stream", "Authorization": f"Bearer {p.api_key}", "X-Title": "Aster"},
+        )
+        t0 = time.monotonic()
+        parts: list[str] = []
+        try:
+            with urllib.request.urlopen(req, timeout=s.ai_timeout_seconds) as r:  # noqa: S310 — 網址來自管理員設定的環境變數
+                for raw in r:
+                    line = raw.decode("utf-8", "replace").strip()
+                    if not line.startswith("data:"):
+                        continue
+                    data = line[5:].strip()
+                    if data == "[DONE]":
+                        break
+                    try:
+                        obj = json.loads(data)
+                    except ValueError:
+                        continue
+                    delta = ((obj.get("choices") or [{}])[0].get("delta") or {}).get("content")
+                    if isinstance(delta, str) and delta:
+                        parts.append(delta)
+                        yield ("delta", delta)
+            full = "".join(parts)
+            clean_content(full)  # 空白或思考沒收尾：視為失敗
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError, KeyError, IndexError, TypeError, AttributeError) as e:
+            reason = describe_error(e)
+            log.warning("AI 供應商 %s 串流失敗：%s", p.name, reason)
+            _record(p.name, False, error=reason)
+            if parts:
+                raise ValueError("stream interrupted") from e
+            continue
+        _record(p.name, True, latency_ms=int((time.monotonic() - t0) * 1000))
+        yield ("done", (full, p.name, p.model))
+        return
     raise ServiceError(503, "AI 服務暫時無法使用，請稍後再試" if tried else "尚未設定可用的 AI 供應商")
 
 

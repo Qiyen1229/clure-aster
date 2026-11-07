@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db, rate_limit
@@ -36,6 +37,20 @@ def parse_entry(body: ParseEntryRequest, user: User = Depends(get_current_user),
 def ask(body: AskRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> AskResult:
     rate_limit(ai_limiter, str(user.id))
     return AiService(db).ask(user, body)
+
+
+@router.post("/ask/stream", summary="問 AI（串流版）：回答一邊生成一邊傳回，事件流格式（SSE）")
+def ask_stream(body: AskRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> StreamingResponse:
+    rate_limit(ai_limiter, str(user.id))
+    return StreamingResponse(AiService(db).ask_sse(user.id, body), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})  # 關掉 nginx 的緩衝，片段才會即時送出
+
+
+@router.post("/agent-plan/stream", summary="操作助手（串流版）：規劃摘要先傳回，步驟驗證後在 done 事件一次送出")
+def agent_plan_stream(body: AgentPlanRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> StreamingResponse:
+    rate_limit(ai_limiter, str(user.id))
+    return StreamingResponse(AiService(db).agent_plan_sse(user.id, body), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
 
 @router.post("/budget-plan", response_model=BudgetPlanResult, summary="下個月預算建議")
