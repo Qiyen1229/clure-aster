@@ -118,10 +118,12 @@ server/
 |---|---|
 | 密碼 | Argon2id（argon2-cffi 預設參數：time_cost=3、memory=64MiB），自動 rehash；長度 8–128，需含英文與數字；不允許與帳號相同 |
 | 帳號列舉 | 登入失敗一律「帳號或密碼錯誤」；找不到帳號時仍執行一次假雜湊驗證，避免時間差 |
-| Access Token | JWT HS256，15 分鐘，含 `sub`、`role`、`ver`（token_version）、`type=access`；每次請求比對 DB 的 `is_active` 與 `token_version` |
+| Access Token | JWT HS256，15 分鐘，含 `sub`、`role`、`ver`（token_version）、`fam`（所屬裝置）、`type=access`；每次請求比對 DB 的 `is_active`、`token_version`，以及那台裝置的權杖鏈沒被撤銷（遠端登出立刻生效） |
 | Refresh Token | JWT＋DB 紀錄，14 天，每次刷新輪替；舊權杖再次使用＝遭竊 → 撤銷整條鏈並寫入審計 |
-| Cookie | `HttpOnly`、`SameSite=Lax`、`Secure`（自動：經 HTTPS 時開啟）；Access 路徑 `/api`，Refresh 路徑 `/api/auth` |
-| CSRF | Double-submit：伺服器發放非 HttpOnly 的 `csrf_token` Cookie，所有非 GET 請求須帶相同值的 `X-CSRF-Token` 標頭 |
+| Cookie | `HttpOnly`、`SameSite=Lax`、`Secure`（自動：經 HTTPS 時開啟）；Access 路徑 `/`、Refresh 路徑 `/api/auth`。HTTPS 時加瀏覽器強制的前綴：`__Host-clure_access`、`__Host-csrf_token`（Secure、Path=/、無 Domain，擋子網域 Cookie Tossing）、`__Secure-clure_refresh`（Path 限縮所以用 `__Secure-`） |
+| CSRF | 簽章版 double-submit：`csrf_token` Cookie（非 HttpOnly）的值是 `隨機值.HMAC(金鑰, 隨機值＋綁定對象)`，綁定目前登入的使用者（Access Token，過期則看 Refresh Token；沒登入是 anon）。所有非 GET 請求須帶相同值的 `X-CSRF-Token` 且簽章正確；簽章不符回 403 並發新 Token |
+| 雙因素驗證 | TOTP（RFC 6238，SHA-1、6 位、30 秒、±1 週期）；密鑰以 `secretbox`（AES-GCM）加密存放；同一週期不能重複使用；備援碼 8 組（SHA-256 雜湊、用掉即刪）；驗證碼錯誤同樣累計帳號鎖定；弄丟時 CLI `reset-2fa` |
+| 已登入的裝置 | `GET /api/auth/sessions`、`DELETE /api/auth/sessions/{family_id}`；撤銷整條 Refresh 鏈，因 Access Token 帶 `fam`，立即失效 |
 | 暴力破解 | 頻率限制（IP、IP＋帳號）＋ 帳號鎖定（DB 計數，重啟不失效） |
 | 權限 | 後端 `require_admin` 依賴；前端 `/admin/*` 路由守衛僅為 UX，不作為安全邊界 |
 | 日誌 | 標準 logging；不記錄密碼、權杖；Email 遮罩（`a***@example.com`） |

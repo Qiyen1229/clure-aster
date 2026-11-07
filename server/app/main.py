@@ -11,10 +11,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.api import admin, ai, auth, einvoice, health, inbox, notify, push, sync
-from app.api.cookies import CSRF_COOKIE, CSRF_HEADER, set_csrf_cookie
+from app.api.cookies import CSRF_HEADER, csrf_binding, csrf_name, csrf_valid, new_csrf_token, set_csrf_cookie
 from app.core.config import get_settings
 from app.core.logging import mask_email, setup_logging
-from app.core.security import hash_password, new_csrf_token, utcnow
+from app.core.security import hash_password, utcnow
 from app.db import session_scope
 from app.model import ROLE_ADMIN, User
 from app.repository.user_repository import UserRepository
@@ -128,24 +128,29 @@ async def lifespan(_: FastAPI):
 def create_app() -> FastAPI:
     s = get_settings()
     app = FastAPI(
-        title="Aster API", version="4.1.6", lifespan=lifespan,
+        title="Aster API", version="4.1.7", lifespan=lifespan,
         docs_url="/api/docs" if s.env != "production" else None, redoc_url=None, openapi_url="/api/openapi.json" if s.env != "production" else None,
     )
 
     @app.middleware("http")
     async def csrf_middleware(request: Request, call_next):  # noqa: ANN001, ANN202
-        """Double-submit CSRF：非 GET 的 /api 請求必須帶與 Cookie 相同的 X-CSRF-Token。"""
-        cookie = request.cookies.get(CSRF_COOKIE)
+        """簽章版 double-submit CSRF：非 GET 的 /api 請求必須帶與 Cookie 相同、而且簽章正確（綁定目前使用者）的 X-CSRF-Token。"""
+        cookie = request.cookies.get(csrf_name(request))
         # /api/hook/：iPhone 捷徑以權杖驗證、不使用 Cookie，沒有 CSRF 風險
         if request.url.path.startswith("/api/hook/"):
             return await call_next(request)
+        binding = csrf_binding(request)
+        valid = csrf_valid(cookie, binding)
         if request.url.path.startswith("/api/") and request.method not in SAFE_METHODS:
             header = request.headers.get(CSRF_HEADER)
-            if not cookie or not header or cookie != header:
-                return JSONResponse({"detail": "安全驗證失敗，請重新整理頁面後再試"}, status_code=403)
+            if not valid or not header or cookie != header:
+                response = JSONResponse({"detail": "安全驗證失敗，請重新整理頁面後再試"}, status_code=403)
+                set_csrf_cookie(response, request, new_csrf_token(binding))  # 順便發一個新的，前端重試就會過
+                return response
         response = await call_next(request)
-        if not cookie:
-            set_csrf_cookie(response, request, new_csrf_token())
+        # 沒有 Token、或是舊版／別人的 Token（簽章不符）：發一個綁定目前使用者的新 Token（登入、登出的回應已自己設定過就不覆蓋）
+        if not valid and csrf_name(request) + "=" not in "".join(response.headers.getlist("set-cookie")):
+            set_csrf_cookie(response, request, new_csrf_token(binding))
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         return response
 

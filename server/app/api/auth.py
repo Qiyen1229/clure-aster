@@ -5,22 +5,23 @@ from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import Response as PlainResponse
 from sqlalchemy.orm import Session
 
-from app.api.cookies import REFRESH_COOKIE, clear_auth_cookies, set_auth_cookies
+from app.api.cookies import clear_auth_cookies, read_refresh, set_auth_cookies
 from app.api.deps import get_client, get_current_user, get_db, get_optional_user, login_account_limiter, login_ip_limiter, rate_limit, register_limiter, reset_account_limiter, reset_ip_limiter
 from app.core.config import get_settings
 from app.core.mailer import mail_configured
 from app.core.request_info import ClientInfo
 from app.model import User
-from app.schema.auth import ChangePasswordRequest, ForgotPasswordRequest, LoginRequest, MessageResponse, RegisterRequest, ResetPasswordRequest, UserPublic
+from app.schema.auth import (ChangePasswordRequest, ForgotPasswordRequest, LoginRequest, MessageResponse, RegisterRequest, ResetPasswordRequest, SessionOut, TotpDisableRequest, TotpEnabled,
+                             TotpEnableRequest, TotpSetup, TotpStatus, UserPublic)
 from app.service.app_settings import registration_open
 from app.service.auth_service import AuthService, IssuedTokens
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
-def _respond(response: Response, request: Request, tokens: IssuedTokens) -> None:
+def _respond(response: Response, request: Request, tokens: IssuedTokens, user: User) -> None:
     set_auth_cookies(response, request, access=tokens.access_token, access_exp=tokens.access_expires,
-                     refresh=tokens.refresh_token, refresh_exp=tokens.refresh_expires)
+                     refresh=tokens.refresh_token, refresh_exp=tokens.refresh_expires, user_id=user.id)
     response.headers["Cache-Control"] = "no-store"
 
 
@@ -33,7 +34,7 @@ def registration(db: Session = Depends(get_db)) -> dict[str, bool]:
 def register(body: RegisterRequest, request: Request, response: Response, client: ClientInfo = Depends(get_client), db: Session = Depends(get_db)) -> User:
     rate_limit(register_limiter, client.ip)
     user, tokens = AuthService(db).register(body, client)
-    _respond(response, request, tokens)
+    _respond(response, request, tokens, user)
     return user
 
 
@@ -42,7 +43,7 @@ def login(body: LoginRequest, request: Request, response: Response, client: Clie
     rate_limit(login_ip_limiter, client.ip)
     rate_limit(login_account_limiter, f"{client.ip}:{body.identifier.lower()}")
     user, tokens = AuthService(db).login(body, client)
-    _respond(response, request, tokens)
+    _respond(response, request, tokens, user)
     return user
 
 
@@ -69,14 +70,14 @@ def reset_password(body: ResetPasswordRequest, client: ClientInfo = Depends(get_
 
 @router.post("/refresh", response_model=UserPublic, summary="刷新權杖（輪替）")
 def refresh(request: Request, response: Response, client: ClientInfo = Depends(get_client), db: Session = Depends(get_db)) -> User:
-    user, tokens = AuthService(db).refresh(request.cookies.get(REFRESH_COOKIE), client)
-    _respond(response, request, tokens)
+    user, tokens = AuthService(db).refresh(read_refresh(request), client)
+    _respond(response, request, tokens, user)
     return user
 
 
 @router.post("/logout", response_model=MessageResponse, summary="登出")
 def logout(request: Request, response: Response, client: ClientInfo = Depends(get_client), user: User | None = Depends(get_optional_user), db: Session = Depends(get_db)) -> MessageResponse:
-    AuthService(db).logout(request.cookies.get(REFRESH_COOKIE), user, client)
+    AuthService(db).logout(read_refresh(request), user, client)
     clear_auth_cookies(response, request)
     return MessageResponse(message="已登出")
 
@@ -91,7 +92,7 @@ def me(response: Response, user: User = Depends(get_current_user)) -> User:
 def change_password(body: ChangePasswordRequest, request: Request, response: Response, client: ClientInfo = Depends(get_client),
                     user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> User:
     tokens = AuthService(db).change_password(user, body, client)
-    _respond(response, request, tokens)
+    _respond(response, request, tokens, user)
     return user
 
 
@@ -101,3 +102,49 @@ def check(user: User | None = Depends(get_optional_user)) -> PlainResponse:
     if user or not get_settings().proxy_require_login:
         return PlainResponse(status_code=204)
     return PlainResponse(status_code=401)
+
+
+# ───── 雙因素驗證（TOTP） ─────
+
+@router.get("/2fa", response_model=TotpStatus, summary="雙因素驗證狀態")
+def totp_status(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict[str, object]:
+    return AuthService(db).totp_status(user)
+
+
+@router.post("/2fa/setup", response_model=TotpSetup, summary="開始設定雙因素驗證：產生密鑰")
+def totp_setup(client: ClientInfo = Depends(get_client), user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict[str, str]:
+    rate_limit(login_account_limiter, f"2fa:{user.id}")
+    return AuthService(db).totp_setup(user, client)
+
+
+@router.post("/2fa/enable", response_model=TotpEnabled, summary="輸入驗證 App 上的 6 位數，完成啟用（回傳一次性備援碼）")
+def totp_enable(body: TotpEnableRequest, client: ClientInfo = Depends(get_client), user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> TotpEnabled:
+    rate_limit(login_account_limiter, f"2fa:{user.id}")
+    return TotpEnabled(recovery_codes=AuthService(db).totp_enable(user, body.code, client))
+
+
+@router.post("/2fa/disable", response_model=MessageResponse, summary="關閉雙因素驗證（要密碼＋驗證碼）")
+def totp_disable(body: TotpDisableRequest, client: ClientInfo = Depends(get_client), user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> MessageResponse:
+    rate_limit(login_account_limiter, f"2fa:{user.id}")
+    AuthService(db).totp_disable(user, body.password, body.code, client)
+    return MessageResponse(message="已關閉雙因素驗證")
+
+
+# ───── 已登入的裝置 ─────
+
+def _current_family(request: Request) -> str | None:
+    """目前這台裝置的權杖鏈：看 Refresh Token（Path=/api/auth，這幾個端點都收得到）。"""
+    from app.core.security import decode_token
+    payload = decode_token(read_refresh(request) or "", "refresh")
+    return payload.get("fam") if payload else None
+
+
+@router.get("/sessions", response_model=list[SessionOut], summary="已登入的裝置")
+def sessions(request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[SessionOut]:
+    return AuthService(db).sessions(user, _current_family(request))
+
+
+@router.delete("/sessions/{family_id}", response_model=MessageResponse, summary="登出某一台裝置")
+def revoke_session(family_id: str, request: Request, client: ClientInfo = Depends(get_client), user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> MessageResponse:
+    AuthService(db).revoke_session(user, family_id, _current_family(request), client)
+    return MessageResponse(message="已登出該裝置")

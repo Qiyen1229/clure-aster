@@ -78,6 +78,7 @@ class LoginRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     identifier: str = Field(min_length=1, max_length=254, description="使用者名稱或 Email")
     password: str = Field(min_length=1, max_length=128)
+    totp: str | None = Field(default=None, max_length=20, description="雙因素驗證碼（6 位數）或備援碼；帳號沒開啟雙因素驗證時不用填")
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -117,6 +118,43 @@ class UserPublic(BaseModel):
     must_change_password: bool
     created_at: datetime
     last_login_at: datetime | None
+    totp_enabled: bool = False
+
+
+class TotpStatus(BaseModel):
+    enabled: bool
+    recovery_left: int = 0
+
+
+class TotpSetup(BaseModel):
+    """產生的密鑰只在這裡回傳一次；通過第一次驗證碼之後才會真的啟用。"""
+    secret: str
+    uri: str
+
+
+class TotpEnableRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    code: str = Field(min_length=6, max_length=20)
+
+
+class TotpEnabled(BaseModel):
+    recovery_codes: list[str]
+
+
+class TotpDisableRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    password: str = Field(min_length=1, max_length=128)
+    code: str = Field(min_length=6, max_length=20, description="6 位數驗證碼或備援碼")
+
+
+class SessionOut(BaseModel):
+    """已登入的裝置（一條 Refresh Token 鏈）。"""
+    id: str
+    created_at: datetime
+    last_active: datetime
+    ip: str
+    user_agent: str
+    current: bool
 
 
 class MessageResponse(BaseModel):

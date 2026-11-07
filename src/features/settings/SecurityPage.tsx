@@ -11,6 +11,9 @@ import { Switch } from '@/ui/controls';
 import { Icon } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
 import { PinPad } from '@/app/LockScreen';
+import { AUTH_ENABLED } from '@/stores/auth';
+import { SessionsSection, TwoFactorSection } from './AccountSecurity';
+import { WIPE_AT } from '@/services/lockGuard';
 
 export default function SecurityPage() {
   const navigate = useNavigate();
@@ -55,10 +58,18 @@ export default function SecurityPage() {
                 <option value={0}>立即</option><option value={30}>30 秒後</option><option value={60}>1 分鐘後</option><option value={300}>5 分鐘後</option><option value={900}>15 分鐘後</option>
               </select>
             </div>
+            <div className="field"><span className="label" style={{ flex: 1 }}>PIN 連錯 {WIPE_AT} 次清除本機資料</span>
+              <Switch checked={!!s.lock.wipeAfterFails} label="連錯清除" onChange={async (v) => {
+                if (v && !await ask(`連續輸錯 ${WIPE_AT} 次 PIN 時，自動登出並刪除這台裝置的本機資料。\n伺服器上有同步的資料不受影響，重新登入就回來；但還沒同步到伺服器的變更會遺失。要開啟嗎？`)) return;
+                s.set('lock', { ...s.lock, wipeAfterFails: v });
+              }} />
+            </div>
             <button className="row accent" onClick={() => useLock.getState().lock()}>立即鎖定</button>
           </>
         )}
       </div>
+      {AUTH_ENABLED && <TwoFactorSection />}
+      {AUTH_ENABLED && <SessionsSection />}
       <div className="section-title">畫面隱私</div>
       <div className="list">
         <div className="field"><span className="label" style={{ flex: 1 }}>切到背景時模糊畫面</span><Switch checked={s.blurOnHide} onChange={(v) => s.set('blurOnHide', v)} label="背景模糊" /></div>

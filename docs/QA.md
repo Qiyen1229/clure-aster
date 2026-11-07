@@ -101,7 +101,7 @@
 ## J. 帳號與資安後台
 - [ ] 未登入開任何網址都會導向 /login；登入後回到原本要去的頁面
 - [ ] 註冊：欄位驗證訊息皆為繁體中文；第一位註冊者為管理員（或使用環境變數建立的管理員）
-- [ ] 開發者工具 → Application → Cookies：`clure_access`、`clure_refresh` 為 HttpOnly；經 HTTPS 時有 Secure
+- [ ] 開發者工具 → Application → Cookies：`clure_access`、`clure_refresh` 為 HttpOnly；經 HTTPS 時名稱變成 `__Host-clure_access`／`__Secure-clure_refresh`／`__Host-csrf_token` 並有 Secure
 - [ ] 同一帳號連續輸錯 5 次密碼 → 顯示鎖定 15 分鐘；後台「鎖定中帳號」+1、可「解除登入鎖定」
 - [ ] 1 分鐘內超過 5 次嘗試 → 顯示「嘗試次數過多」
 - [ ] 後台凍結使用者 → 對方下一個操作即被登出且無法登入；啟用後恢復

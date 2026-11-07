@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String
+from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.security import utcnow
@@ -31,3 +31,8 @@ class User(Base):
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     password_changed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # 雙因素驗證（TOTP）：密鑰用 secretbox 加密後才存；totp_enabled 為 False 表示只是產生了密鑰、還沒通過第一次驗證
+    totp_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    totp_last_step: Mapped[int] = mapped_column(Integer, default=0)  # 最後一次通過的 30 秒週期：同一個碼不能用兩次
+    totp_recovery: Mapped[str] = mapped_column(Text, default="")  # 備援碼的 SHA-256（逗號分隔），用掉就刪

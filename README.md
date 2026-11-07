@@ -61,7 +61,7 @@
 | 3.7.0 | **統一發票自動對獎器**：每期開獎後拿你記過的發票自動對獎（特別獎～六獎、增開六獎），中了放煙火、一鍵記成「中獎」收入，領獎期間內有中獎會通知 |
 | 3.6.5 | **靈動島大修**：手指一按下透鏡就 Q 彈到該分頁（Apple 的做法）、彈簧軌跡交給合成器播放換頁不掉幀、切換分頁帶過衝的彈簧轉場；清零 ESLint 警告、移除未使用的 i18n 依賴 |
 
-**品質**：前端單元測試 **571 項**＋後端 pytest **165 項**＝**736 項**全數通過；ESLint 零警告；TypeScript 嚴格模式；CI 每次推送自動跑。
+**品質**：前端單元測試 **575 項**＋後端 pytest **174 項**＝**749 項**全數通過；ESLint 零警告；TypeScript 嚴格模式；CI 每次推送自動跑。
 
 ## v2.2：忘記密碼與帳號管理
 
@@ -170,7 +170,7 @@ cd server && .venv/bin/python -m pytest -q
 
 | 指令 | 說明 |
 |---|---|
-| `npm test` | 前端單元測試（571 項；另有後端 pytest 165 項：金額、計算機、期間、帳目與餘額一致性、預算、週期、分期、分帳、平均成本、FIFO、台股費稅、XIRR、市場時間、報表、CSV／Excel、Moze 與銀行對帳單匯入、PIN、「其他」子分類、應收應付、同步變更追蹤、兩台裝置同步、端對端加密、備份還原、自動分類、電子發票、財務自由、稅務、貸款、推播排程、一句話記帳、收件匣解析、現金流預測、週報、用問的查帳） |
+| `npm test` | 前端單元測試（575 項；另有後端 pytest 174 項：金額、計算機、期間、帳目與餘額一致性、預算、週期、分期、分帳、平均成本、FIFO、台股費稅、XIRR、市場時間、報表、CSV／Excel、Moze 與銀行對帳單匯入、PIN、「其他」子分類、應收應付、同步變更追蹤、兩台裝置同步、端對端加密、備份還原、自動分類、電子發票、財務自由、稅務、貸款、推播排程、一句話記帳、收件匣解析、現金流預測、週報、用問的查帳） |
 | `npm run build` | 型別檢查＋正式建置到 `dist/` |
 | `npm run preview` | 以正式建置在 http://localhost:9122 預覽（Service Worker 生效、含 `/proxy`） |
 | `npm run icons` | 由 `assets/icon.svg` 重新產生所有圖標與 iOS 啟動畫面 |
@@ -263,6 +263,7 @@ docker compose logs -f web-builder api
   - 建立／提升管理員：`docker compose exec api /opt/venv/bin/python -m app.cli create-admin --username admin --email you@example.com`（互動輸入密碼；或以環境變數 `CLURE_NEW_PASSWORD` 提供）
   - 刪除使用者：`docker compose exec api /opt/venv/bin/python -m app.cli delete-user --username olduser`（不能刪除最後一位管理員）
   - 列出使用者：`docker compose exec api /opt/venv/bin/python -m app.cli list-users`
+  - 使用者弄丟驗證 App 與備援碼：`docker compose exec api /opt/venv/bin/python -m app.cli reset-2fa --username olduser`（關閉他的雙因素驗證，他仍需要密碼）
 - 使用 PostgreSQL：`.env` 設定 `CLURE_DATABASE_URL=postgresql+psycopg://clure:密碼@postgres:5432/clure`，啟動時加 `--profile postgres`；資料存在 `CLURE_DATA_PATH/postgres`。
 - 資料備份：備份 `CLURE_DATA_PATH` 整個資料夾即可（SQLite 資料庫含所有帳號與同步的帳目）。
 - 若有設定 `PROXY_ACCESS_TOKEN`，到 App「設定 → 股票資料源與 API Key → 代理權杖」填入同樣的值。

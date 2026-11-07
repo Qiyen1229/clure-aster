@@ -12,7 +12,7 @@ import { useSettings } from './stores/settings';
 import { useUI, type AddMode } from './stores/ui';
 import { SkeletonRows } from './ui/controls';
 import { LockScreen } from './app/LockScreen';
-import { installAutoLock } from './services/lock';
+import { installAutoLock, useLock } from './services/lock';
 import { useVoice } from './services/voice';
 import { useChat } from './features/home/aiChatStore';
 import { ScreenContextHost } from './app/ScreenContextHost';
@@ -144,6 +144,7 @@ function useShortcuts() {
   const navigate = useNavigate();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (useLock.getState().locked) return; // 鎖定時數字鍵是在輸入 PIN，不能同時操作底下的畫面
       const el = e.target as HTMLElement;
       const typing = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable;
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); navigate('/search'); return; }
@@ -240,6 +241,7 @@ export default function App() {
   const onboarded = useSettings((s) => s.onboarded);
   const location = useLocation();
   useShortcuts();
+  const locked = useLock((s) => s.locked);
   const isOnboarding = location.pathname === '/onboarding';
   const fullscreen = FULLSCREEN.some((r) => r.test(location.pathname));
   const nav = useNavDirection(location.pathname);
@@ -260,6 +262,8 @@ export default function App() {
 
   return (
     <div className="app" data-nav={nav.dir} data-dock={nav.dock ? '1' : undefined}>
+      {/* 鎖定時整個主畫面（頁面、導覽列、各種面板與提示）都不渲染：DOM 裡沒有任何餘額或帳目，Tab 鍵也移不進去 */}
+      {!locked && (<>
       <RouteErrorBoundary>
         <Suspense fallback={<main className="page"><SkeletonRows n={5} /></main>}>
           <Routes>
@@ -317,6 +321,7 @@ export default function App() {
       <ActionSheetHost />
       <SnackbarHost />
       <UpdatePrompt />
+      </>)}
       <PrivacyShield />
       <LockScreen />
     </div>

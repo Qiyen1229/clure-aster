@@ -52,6 +52,8 @@ export interface LockSettings {
   iterations: number;
   webauthn: { credId: string; publicKey: string; alg: number } | null;
   autoLockSec: number;
+  /** PIN 連續輸錯 10 次：登出並清除這台裝置的本機資料（資料在伺服器有同步，重新登入就回來）。預設關閉 */
+  wipeAfterFails?: boolean;
 }
 
 export interface NotifySettings {
@@ -200,7 +202,7 @@ export const DEFAULT_SETTINGS: Settings = {
     costMethod: 'avg', syncToLedger: true, feeRateDec: '0.001425', discountDec: '1', minFee: 20, oddLotMinFee: 1,
     taxStockDec: '0.003', taxEtfDec: '0.001', taxBondEtfDec: '0', defaultBrokerageId: '',
   },
-  lock: { enabled: false, pinHash: '', salt: '', iterations: 210000, webauthn: null, autoLockSec: 60 },
+  lock: { enabled: false, pinHash: '', salt: '', iterations: 210000, webauthn: null, autoLockSec: 60, wipeAfterFails: false },
   notify: {
     enabled: false, daily: true, dailyTime: '21:00', cardDue: true, cardDueDays: 3, budget: true, subscription: true,
     priceAlert: true, backup: true, backupDays: 14, weekly: true, monthly: true, push: false,

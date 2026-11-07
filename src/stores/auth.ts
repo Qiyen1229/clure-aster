@@ -19,6 +19,7 @@ export interface AuthUser {
   must_change_password: boolean;
   created_at: string;
   last_login_at: string | null;
+  totp_enabled?: boolean;
 }
 
 type Status = 'loading' | 'authed' | 'offline' | 'anon' | 'unreachable';
@@ -45,7 +46,7 @@ interface AuthState {
   status: Status;
   user: AuthUser | null;
   init: () => Promise<void>;
-  login: (identifier: string, password: string) => Promise<AuthUser>;
+  login: (identifier: string, password: string, totp?: string) => Promise<AuthUser>;
   register: (username: string, email: string, password: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
   changePassword: (current: string, next: string) => Promise<void>;
@@ -79,8 +80,8 @@ export const useAuth = create<AuthState>((set, get) => ({
     }
   },
 
-  login: async (identifier, password) => {
-    const user = await api<AuthUser>('/auth/login', { method: 'POST', body: { identifier, password } });
+  login: async (identifier, password, totp) => {
+    const user = await api<AuthUser>('/auth/login', { method: 'POST', body: { identifier, password, ...(totp ? { totp } : {}) } });
     const prev = cachedSession();
     saveSession(user);
     // 換人登入：重新載入以確保切換到新使用者的資料庫與設定

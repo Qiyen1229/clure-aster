@@ -89,6 +89,7 @@ def test_refresh_rotation_and_reuse_detection(api: Api) -> None:
         s.commit()
     thief = Api("10.9.9.9")
     thief.c.cookies.set("clure_refresh", old_refresh, path="/api/auth")
+    thief.get("/api/auth/me")  # 換上偷來的 Cookie 後（refresh 只送到 /api/auth），伺服器會發一個綁定那位使用者的新 CSRF Token
     assert thief.post("/api/auth/refresh").status_code == 401
     # 合法使用者的新權杖也一併失效
     assert api.post("/api/auth/refresh").status_code == 401
@@ -101,6 +102,7 @@ def test_logout_revokes_refresh(api: Api) -> None:
     assert api.get("/api/auth/me").status_code == 401
     replay = Api("10.3.0.1")
     replay.c.cookies.set("clure_refresh", refresh, path="/api/auth")
+    replay.get("/api/auth/me")
     assert replay.post("/api/auth/refresh").status_code == 401
 
 

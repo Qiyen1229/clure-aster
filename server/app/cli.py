@@ -112,6 +112,23 @@ def delete_user(username: str) -> int:
     return 0
 
 
+def reset_2fa(username: str) -> int:
+    """使用者同時弄丟驗證 App 與備援碼時，由管理員在伺服器上關掉他的雙因素驗證（他仍需要密碼才能登入）。"""
+    for db in session_scope():
+        user = UserRepository(db).get_by_username(username)
+        if not user:
+            log.error("找不到使用者 %s", username)
+            return 1
+        user.totp_enabled = False
+        user.totp_secret = None
+        user.totp_recovery = ""
+        user.totp_last_step = 0
+        AuditService(db).record("admin.cli_reset_2fa", CLI_CLIENT, user_id=user.id, detail={"username": username})
+        db.commit()
+        log.info("已關閉 %s 的雙因素驗證", username)
+    return 0
+
+
 def list_users() -> int:
     from sqlalchemy import select
     for db in session_scope():
@@ -211,6 +228,8 @@ def main() -> int:
     c.add_argument("--email", required=True)
     d = sub.add_parser("delete-user", help="刪除使用者（不可刪除最後一位管理員）")
     d.add_argument("--username", required=True)
+    t = sub.add_parser("reset-2fa", help="關閉某位使用者的雙因素驗證（他弄丟驗證 App 與備援碼時用）")
+    t.add_argument("--username", required=True)
     sub.add_parser("list-users", help="列出使用者")
     a = sub.add_parser("ai-test", help="測試 AI 供應商連線與 Key")
     a.add_argument("--provider", help="只測這一家（openrouter／nvidia／custom）；不指定則全部")
@@ -233,6 +252,8 @@ def main() -> int:
         return create_admin(args.username, args.email)
     if args.cmd == "delete-user":
         return delete_user(args.username)
+    if args.cmd == "reset-2fa":
+        return reset_2fa(args.username)
     if args.cmd == "list-users":
         return list_users()
     if args.cmd == "ai-test":

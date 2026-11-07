@@ -1,5 +1,19 @@
 # 變更紀錄
 
+## 4.1.7（2026-11-07）— 資安加強：鎖定畫面隔離、雙因素驗證、已登入裝置、PIN 連錯清除、Cookie 前綴與簽章 CSRF
+
+### 安全
+- **鎖定畫面真的鎖住**：App 被 PIN 鎖住時，全域快捷鍵（`1`～`5`、`n`、`/`、`l`）不再作用（原本在電腦上輸入 PIN 的數字鍵會同時切換背後的頁面、`n` 還會打開記帳面板）；而且鎖定時**整個主畫面不渲染**（頁面、導覽列、記帳面板、對話視窗、提示），DOM 裡只剩鎖定畫面——Tab 鍵移不進去、開發者工具也看不到任何餘額或帳目。實測：鎖定時 `.app` 只有 `.lockscreen`，按鍵不改變路徑，解鎖後回到原本的頁面。
+- **雙因素驗證（TOTP，RFC 6238）**：設定 → 隱私與安全 → 雙因素驗證。相容 Google Authenticator、iPhone「密碼」App、1Password、Authy。後端只用標準函式庫（`hmac`／`hashlib`／`base64`），密鑰用 `secretbox`（AES-GCM）加密後才存。流程：「開始設定」→ 在驗證 App 加入（iPhone 可直接按「在驗證 App／『密碼』App 開啟」）→ 輸入 6 位數確認 → 顯示 **8 組一次性備援碼**（只顯示一次）。通過第一次驗證才會啟用，輸錯不會把自己鎖在外面。啟用後登入頁在密碼之後多一步驗證碼（或備援碼）；**同一個 30 秒週期的碼不能用兩次**；驗證碼連續錯誤也算入帳號鎖定（不能繞過去猜 6 位數）；關閉要密碼＋驗證碼。使用者弄丟驗證 App 又沒備援碼：管理員在伺服器執行 `python -m app.cli reset-2fa --username <名稱>`。
+- **已登入的裝置**：設定 → 隱私與安全 → 已登入的裝置，列出每一台登入中的裝置（系統、瀏覽器、最近使用、登入時間、IP，標示「目前這台」），可單獨「登出」。Access Token 現在也記下所屬裝置（`fam`），每次請求確認那一台沒被撤銷——**踢掉的裝置立刻失效**，不用等 15 分鐘到期。
+- **PIN 連錯 10 次自動清除（選用）**：設定 → 隱私與安全 → 「PIN 連錯 10 次清除本機資料」（預設關閉，開啟前會說明）。連錯 10 次：登出並刪除這台裝置的本機資料庫，伺服器上的同步資料不受影響、重新登入就回來（尚未同步的變更會遺失）。失敗次數改成**同時寫在 localStorage 與 IndexedDB**，讀取取較大的次數與較晚的等待時間——只清掉 `clure.lock.fails` 重置不了。連錯 7 次起鎖定畫面會提醒還剩幾次。
+- **`__Host-` Cookie 前綴（HTTPS）**：經 HTTPS 時 Access Token 與 CSRF Token 改名 `__Host-clure_access`、`__Host-csrf_token`（瀏覽器強制 Secure、Path=/、不得有 Domain，同網域下被攻陷的子網域無法寫入同名 Cookie）；Refresh Token 因為 Path 限縮在 `/api/auth`，用 `__Secure-clure_refresh`。HTTP（本機開發）維持原名。升級前登入的人，Refresh Token 還在舊名稱的 Cookie：刷新與登出時暫時接受、換發後自動改用新名稱，不會被登出。
+- **簽章 CSRF（Signed Double-Submit）**：CSRF Token 變成 `隨機值.HMAC(伺服器金鑰, 隨機值 + 綁定對象)`，綁定目前登入的使用者（沒登入是 anon）。攻擊者就算能寫入 Cookie（Cookie Tossing）也造不出有效簽章；拿自己帳號合法簽發的 Token 塞給受害者，綁的是另一位使用者，一樣過不了。簽章不符時回 403 並順便發一個新的，前端自動重試。登入、登出時 CSRF Token 隨之換成對應的綁定。
+
+### 後端
+- 遷移 `0013_totp`（`users.totp_secret／totp_enabled／totp_last_step／totp_recovery`）。新端點：`GET /api/auth/2fa`、`POST /api/auth/2fa/setup|enable|disable`、`GET /api/auth/sessions`、`DELETE /api/auth/sessions/{id}`；`POST /api/auth/login` 多一個選填的 `totp`，需要驗證碼時回 401＋標頭 `X-Totp-Required: 1`。CLI 新增 `reset-2fa`。
+- 測試：後端 +9 項（含 RFC 6238 官方測試向量、備援碼單次使用、驗證碼重送、鎖定、遠端登出立刻失效、簽章 CSRF 的兩種偽造、HTTPS 前綴、舊 Cookie 名稱的平滑升級）、前端 +4 項。
+
 ## 4.1.6（2026-11-07）— 已連結裝置顯示型號與傳送次數、AI 建議膠囊精簡、捷徑文案整理
 
 ### 新增

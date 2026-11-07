@@ -6,7 +6,7 @@ from collections.abc import Iterator
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from app.api.cookies import ACCESS_COOKIE
+from app.api.cookies import read_access
 from app.core.config import get_settings
 from app.core.rate_limit import RateLimiter
 from app.core.request_info import ClientInfo, client_info
@@ -37,7 +37,7 @@ def rate_limit(limiter: RateLimiter, key: str) -> None:
 
 
 def get_optional_user(request: Request, db: Session = Depends(get_db)) -> User | None:
-    return AuthService(db).authenticate_access(request.cookies.get(ACCESS_COOKIE))
+    return AuthService(db).authenticate_access(read_access(request))
 
 
 def get_current_user(user: User | None = Depends(get_optional_user)) -> User:

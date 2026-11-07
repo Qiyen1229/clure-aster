@@ -75,6 +75,16 @@ def decode_token(token: str, expected_type: TokenType) -> dict[str, Any] | None:
     return payload
 
 
+def token_subject(token: str, expected_type: TokenType) -> str | None:
+    """簽章正確就回傳 sub，**不檢查到期**（CSRF 綁定用：Access Token 剛過期的那一次請求也要能對上使用者，才會回 401 讓前端去刷新）。"""
+    s = get_settings()
+    try:
+        payload = jwt.decode(token, s.resolved_jwt_secret(), algorithms=[s.jwt_algorithm], options={"verify_exp": False, "require": ["sub", "type"]})
+    except jwt.PyJWTError:
+        return None
+    return str(payload["sub"]) if payload.get("type") == expected_type else None
+
+
 def generate_temporary_password(length: int = 14) -> str:
     """管理員重設密碼用：含大小寫英文與數字，排除易混淆字元。"""
     alphabet = "".join(c for c in string.ascii_letters + string.digits if c not in "Il1O0o")

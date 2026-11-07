@@ -13,13 +13,14 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.logging import mask_email
 from app.core.request_info import ClientInfo
+from app.core import secretbox, totp
 from app.core.security import create_token, decode_token, hash_password, needs_rehash, utcnow, verify_password
 from app.core.mailer import MailError, mail_configured, send_mail
 from app.model import ROLE_ADMIN, ROLE_USER, PasswordReset, RefreshToken, User
 from sqlalchemy import select
 from app.repository.token_repository import TokenRepository
 from app.repository.user_repository import UserRepository
-from app.schema.auth import ChangePasswordRequest, LoginRequest, RegisterRequest, ResetPasswordRequest, check_email_domain
+from app.schema.auth import ChangePasswordRequest, LoginRequest, RegisterRequest, ResetPasswordRequest, SessionOut, check_email_domain
 from app.service import app_settings
 from app.service.audit_service import AuditService
 from app.service.errors import ServiceError
@@ -47,8 +48,9 @@ class AuthService:
 
     # ───── 權杖 ─────
     def issue_tokens(self, user: User, client: ClientInfo, family_id: str | None = None) -> IssuedTokens:
-        access, _, access_exp = create_token(user_id=user.id, role=user.role, token_version=user.token_version, token_type="access")
         family = family_id or uuid.uuid4().hex
+        # Access Token 也記下它屬於哪一台裝置（family）：遠端登出那台裝置時，它的 Access Token 立刻失效，不用等到期
+        access, _, access_exp = create_token(user_id=user.id, role=user.role, token_version=user.token_version, token_type="access", family_id=family)
         refresh, jti, refresh_exp = create_token(user_id=user.id, role=user.role, token_version=user.token_version, token_type="refresh", family_id=family)
         self.tokens.add(RefreshToken(id=jti, user_id=user.id, family_id=family, expires_at=refresh_exp, ip=client.ip, user_agent=client.user_agent))
         return IssuedTokens(access, access_exp, refresh, refresh_exp)
@@ -66,6 +68,9 @@ class AuthService:
             return None
         if not user or not user.is_active or payload.get("ver") != user.token_version:
             return None
+        fam = payload.get("fam")
+        if fam and not self.tokens.family_active(fam, utcnow()):
+            return None  # 這台裝置已被登出（自己登出、被別台踢掉、重用偵測）
         return user
 
     # ───── 註冊 ─────
@@ -122,6 +127,22 @@ class AuthService:
             self.db.commit()
             raise ServiceError(403, "此帳號已被停用，請聯絡管理員")
 
+        if user.totp_enabled:
+            if not req.totp:
+                # 密碼對了、但還要驗證碼：不算失敗、不加鎖定次數（前端會跳出輸入驗證碼的畫面）
+                self.audit.record("auth.login_totp_required", client, user_id=user.id)
+                self.db.commit()
+                raise ServiceError(401, "請輸入雙因素驗證碼", headers={"X-Totp-Required": "1"})
+            if not self._check_second_factor(user, req.totp):
+                user.failed_login_count += 1
+                detail2: dict[str, object] = {"reason": "bad_totp"}
+                if user.failed_login_count >= self.settings.lockout_threshold:
+                    user.locked_until = now + timedelta(minutes=self.settings.lockout_minutes)
+                    user.failed_login_count = 0
+                    detail2["locked"] = True
+                self.audit.record("auth.login", client, success=False, user_id=user.id, detail=detail2)
+                self.db.commit()
+                raise ServiceError(401, "驗證碼錯誤或已使用過", headers={"X-Totp-Required": "1"})
         user.failed_login_count = 0
         user.locked_until = None
         user.last_login_at = now
@@ -132,6 +153,94 @@ class AuthService:
         self.audit.record("auth.login", client, user_id=user.id)
         self.db.commit()
         return user, tokens
+
+    # ───── 雙因素驗證（TOTP） ─────
+    def _secret(self, user: User) -> str | None:
+        try:
+            return secretbox.open_(user.totp_secret)["s"] if user.totp_secret else None
+        except (ValueError, KeyError):
+            return None
+
+    def _check_second_factor(self, user: User, code: str) -> bool:
+        """6 位數驗證碼（同一個 30 秒週期不能用兩次），或一次性備援碼（用掉就作廢）。"""
+        secret = self._secret(user)
+        if secret and len(code.strip().replace(" ", "")) == totp.DIGITS and code.strip().replace(" ", "").isdigit():
+            step = totp.verify(secret, code, last_step=user.totp_last_step)
+            if step is not None:
+                user.totp_last_step = step
+                return True
+            return False
+        norm = totp.normalize_recovery(code)
+        hashes = [h for h in (user.totp_recovery or "").split(",") if h]
+        if norm and totp.hash_recovery(norm) in hashes:
+            hashes.remove(totp.hash_recovery(norm))
+            user.totp_recovery = ",".join(hashes)
+            return True
+        return False
+
+    def totp_status(self, user: User) -> dict[str, object]:
+        left = len([h for h in (user.totp_recovery or "").split(",") if h])
+        return {"enabled": bool(user.totp_enabled), "recovery_left": left if user.totp_enabled else 0}
+
+    def totp_setup(self, user: User, client: ClientInfo) -> dict[str, str]:
+        if user.totp_enabled:
+            raise ServiceError(409, "已經開啟雙因素驗證；要重新設定請先關閉")
+        secret = totp.new_secret()
+        user.totp_secret = secretbox.seal({"s": secret})
+        user.totp_last_step = 0
+        self.audit.record("auth.totp_setup", client, user_id=user.id)
+        self.db.commit()
+        return {"secret": secret, "uri": totp.otpauth_uri(secret, user.email)}
+
+    def totp_enable(self, user: User, code: str, client: ClientInfo) -> list[str]:
+        secret = self._secret(user)
+        if user.totp_enabled or not secret:
+            raise ServiceError(409, "請先按「開始設定」取得密鑰")
+        step = totp.verify(secret, code, last_step=0)
+        if step is None:
+            self.audit.record("auth.totp_enable", client, success=False, user_id=user.id)
+            self.db.commit()
+            raise ServiceError(400, "驗證碼不正確：請確認手機時間正確，輸入驗證 App 上目前顯示的 6 位數")
+        codes = totp.new_recovery_codes()
+        user.totp_enabled = True
+        user.totp_last_step = step
+        user.totp_recovery = ",".join(totp.hash_recovery(c) for c in codes)
+        self.audit.record("auth.totp_enable", client, user_id=user.id)
+        self.db.commit()
+        return codes
+
+    def totp_disable(self, user: User, password: str, code: str, client: ClientInfo) -> None:
+        if not user.totp_enabled:
+            return
+        if not verify_password(password, user.password_hash) or not self._check_second_factor(user, code):
+            self.audit.record("auth.totp_disable", client, success=False, user_id=user.id)
+            self.db.commit()
+            raise ServiceError(400, "密碼或驗證碼不正確")
+        user.totp_enabled = False
+        user.totp_secret = None
+        user.totp_recovery = ""
+        user.totp_last_step = 0
+        self.audit.record("auth.totp_disable", client, user_id=user.id)
+        self.db.commit()
+
+    # ───── 已登入的裝置 ─────
+    def sessions(self, user: User, current_family: str | None) -> list[SessionOut]:
+        now = utcnow()
+        out: list[SessionOut] = []
+        for row in self.tokens.active_for_user(user.id, now):
+            out.append(SessionOut(id=row.family_id, created_at=self.tokens.family_started(row.family_id) or row.created_at, last_active=row.created_at,
+                                  ip=row.ip, user_agent=row.user_agent, current=row.family_id == current_family))
+        out.sort(key=lambda s: (not s.current, -s.last_active.timestamp()))
+        return out
+
+    def revoke_session(self, user: User, family_id: str, current_family: str | None, client: ClientInfo) -> None:
+        if family_id == current_family:
+            raise ServiceError(400, "這是目前使用的裝置，請用「登出」")
+        if not self.tokens.family_owned_by(family_id, user.id):
+            raise ServiceError(404, "找不到這個裝置（可能已經登出）")
+        self.tokens.revoke_family(family_id, utcnow())
+        self.audit.record("auth.session_revoke", client, user_id=user.id, detail={"family": family_id[:8]})
+        self.db.commit()
 
     # ───── 刷新（輪替＋重用偵測） ─────
     def refresh(self, refresh_token: str | None, client: ClientInfo) -> tuple[User, IssuedTokens]:

@@ -5,7 +5,7 @@
  * - 401 時自動呼叫 /auth/refresh 一次（多個請求同時 401 只刷新一次），失敗則通知登出
  */
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(public status: number, message: string, /** 伺服器要求雙因素驗證碼（登入時密碼對了、但還要驗證碼） */ public totpRequired = false) {
     super(message);
   }
 }
@@ -19,8 +19,9 @@ export function setUnauthorizedHandler(fn: () => void) {
   onUnauthorized = fn;
 }
 
+/** HTTPS 時 Cookie 名稱帶 `__Host-` 前綴（防子網域 Cookie Tossing），HTTP 沒有 */
 function csrfToken(): string {
-  const m = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+  const m = document.cookie.match(/(?:^|;\s*)(?:__Host-)?csrf_token=([^;]+)/);
   return m ? decodeURIComponent(m[1]) : '';
 }
 
@@ -80,10 +81,11 @@ export async function api<T>(path: string, opts: RequestOptions = {}, retry = tr
     // CSRF Cookie 遺失（例如被清除）：重新取得後再試一次
     if (res.status === 403 && retry && typeof data?.detail === 'string' && data.detail.includes('安全驗證')) {
       document.cookie = 'csrf_token=; Max-Age=0; path=/';
+      document.cookie = '__Host-csrf_token=; Max-Age=0; path=/; Secure';
       await ensureCsrf();
       return api<T>(path, opts, false);
     }
-    throw new ApiError(res.status, typeof data?.detail === 'string' ? data.detail : `伺服器錯誤（${res.status}）`);
+    throw new ApiError(res.status, typeof data?.detail === 'string' ? data.detail : `伺服器錯誤（${res.status}）`, res.headers.get('X-Totp-Required') === '1');
   }
   return data as T;
 }

@@ -67,33 +67,53 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState(params.get('expired') ? '登入已過期，請重新登入' : '');
   const [busy, setBusy] = useState(false);
+  /** 密碼對了、帳號有開雙因素驗證：多出一個輸入驗證碼的步驟 */
+  const [needTotp, setNeedTotp] = useState(false);
+  const [totp, setTotp] = useState('');
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setError('');
     try {
-      await login(identifier.trim(), password);
+      await login(identifier.trim(), password, needTotp ? totp.trim() : undefined);
       const next = (location.state as { from?: string } | null)?.from;
       navigate(next && next.startsWith('/') && !next.startsWith('/login') ? next : '/', { replace: true });
     } catch (err) {
-      setError(errorText(err));
-      setPassword('');
+      if (err instanceof ApiError && err.totpRequired) {
+        // 第一次要求驗證碼不是錯誤；已經輸入過還是不對才顯示錯誤（密碼留著，不用重打）
+        if (needTotp) setError(err.message);
+        setNeedTotp(true);
+        setTotp('');
+      } else {
+        setError(errorText(err));
+        setPassword('');
+        setNeedTotp(false);
+        setTotp('');
+      }
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <AuthShell title="登入 Aster" subtitle="歡迎回來" footer={registrationOpen ? <>還沒有帳號？<Link to="/register" className="accent">註冊</Link></> : undefined}>
+    <AuthShell title="登入 Aster" subtitle={needTotp ? '雙因素驗證' : '歡迎回來'} footer={registrationOpen ? <>還沒有帳號？<Link to="/register" className="accent">註冊</Link></> : undefined}>
       <form onSubmit={submit} className="auth-form" noValidate>
         <label htmlFor="login-id">使用者名稱或 Email</label>
         <input id="login-id" className="input" value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoComplete="username"
           autoCapitalize="none" autoCorrect="off" spellCheck={false} required maxLength={254} autoFocus />
         <label htmlFor="login-pw">密碼</label>
         <PasswordInput id="login-pw" value={password} onChange={setPassword} autoComplete="current-password" />
+        {needTotp && (
+          <>
+            <label htmlFor="login-totp">驗證碼</label>
+            <input id="login-totp" className="input num" value={totp} onChange={(e) => setTotp(e.target.value)} autoComplete="one-time-code" inputMode="numeric"
+              autoCapitalize="none" autoCorrect="off" spellCheck={false} maxLength={20} placeholder="驗證 App 上的 6 位數" autoFocus required />
+            <p className="muted" style={{ margin: 0, fontSize: '0.82rem' }}>打開手機的驗證 App（或 iPhone「密碼」App）輸入目前的 6 位數。手機不在身邊時，可以改輸入一組備援碼（xxxx-xxxx，用過就作廢）。</p>
+          </>
+        )}
         {error && <p className="auth-error" role="alert">{error}</p>}
-        <button className="btn" type="submit" disabled={busy || !identifier || !password}>{busy ? '登入中…' : '登入'}</button>
+        <button className="btn" type="submit" disabled={busy || !identifier || !password || (needTotp && !totp)}>{busy ? '登入中…' : needTotp ? '驗證並登入' : '登入'}</button>
         <Link to="/forgot-password" className="accent" style={{ textAlign: 'center', fontSize: '0.9rem' }}>忘記密碼？</Link>
       </form>
     </AuthShell>

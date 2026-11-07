@@ -2,7 +2,7 @@
 
 > 目的：讓接手的 AI（或新開發者）**不用逐檔翻程式碼**就知道「這個 App 能做什麼、每個功能怎麼運作、規則是什麼、程式在哪」。
 > 與 [PROJECT_OVERVIEW_FOR_AI.md](PROJECT_OVERVIEW_FOR_AI.md)（技術棧、架構、部署、檔案地圖）互補：那份偏「怎麼建」，這份偏「做了什麼」。
-> 版本：**4.1.6**（2026-11-07）。分支 `feature/v1.2`。逐版細節見 [CHANGELOG.md](CHANGELOG.md)；設計文件見 `docs/`。
+> 版本：**4.1.7**（2026-11-07）。分支 `feature/v1.2`。逐版細節見 [CHANGELOG.md](CHANGELOG.md)；設計文件見 `docs/`。
 > 慣例：金額內部一律用**整數最小單位**（TWD 的 1 元 = 100），不要用浮點數；使用者可見文字一律**繁體中文（台灣用語）**。
 
 ---
@@ -209,6 +209,7 @@ Dexie（IndexedDB）每個帳號獨立資料庫；schema 版本到 v6。主要�
 
 ### 4.3 帳號與安全（`server/`、`SECURITY.md`、`docs/AUTH_DESIGN.md`）
 註冊／登入、Argon2id、JWT（HttpOnly Cookie）、Refresh 輪替與重用偵測、CSRF、頻率限制、帳號鎖定、忘記密碼寄信；**管理員後台** `/admin`（總覽、使用者、審計日誌、**AI 主控台**、資料庫備份卡片）。AI 主控台（`features/admin/AiConsole.tsx`）：供應商狀態與測試、用量（今日／本週／本月三欄、近 7 天長條、依身分與各使用者的對齊表格）、額度設定（一般使用者／管理員／全站三組，各三個輸入欄）。安全標頭與 CSP。
+**v4.1.7 資安加強**：①鎖定時 `App.tsx` 不渲染主畫面（`locked` 為真只剩 `LockScreen`），`useShortcuts` 在鎖定時直接 return；②**雙因素驗證（TOTP）**：`server/app/core/totp.py`（只用標準函式庫）、`users.totp_*`（遷移 `0013_totp`）、登入需要時回 401＋`X-Totp-Required: 1`、備援碼 8 組、CLI `reset-2fa`；前端 `features/settings/AccountSecurity.tsx`；③**已登入裝置**：`/api/auth/sessions`，Access Token 帶 `fam`、每次請求檢查該權杖鏈沒被撤銷（遠端登出立刻生效）；④**PIN 連錯 10 次清除（選用）**：`services/lockGuard.ts`，次數同時寫 localStorage＋IndexedDB；⑤HTTPS 時 Cookie 加 `__Host-`／`__Secure-` 前綴，CSRF 改**簽章版**（綁定使用者）。**踩過的坑**：Refresh Token 的 Path 是 `/api/auth`，不會送到其他 `/api/*`，所以 CSRF 的綁定對象要看 Access Token（簽章對即可，不看到期，否則剛過期的那次請求會 403 而不是 401、前端就不會去刷新）；`httpx` 測試客戶端換 Cookie 要沿用原本的 domain，否則會有兩個同名 Cookie。
 
 ### 4.4 備份與可靠性
 JSON 完整備份／還原（含照片）、**加密備份**（PBKDF2-SHA256 310,000 次 + AES-256-GCM）、CSV／Excel 匯出；伺服器 **SQLite 每日自動備份**、CLI `app.cli backup / verify-backup / restore`、`GET /api/health/ready`；資料健康檢查與修復（`/settings/health`）。
@@ -227,7 +228,7 @@ JSON 完整備份／還原（含照片）、**加密備份**（PBKDF2-SHA256 310
 ---
 
 ## 6. 測試與品質
-- 前端 Vitest **571 項**（`tests/unit/`，fake-indexeddb；含 `agent-actions`、`agent-intent`、`calc-history`、`forecast`、`shortcut-import`）＋後端 pytest **165 項**（`server/tests/`）＝ **736 項**；`npm run check` = 型態檢查 + ESLint（0 警告）+ 測試；CI 於 main 與 feature 分支每次推送執行。
+- 前端 Vitest **575 項**（`tests/unit/`，fake-indexeddb；含 `agent-actions`、`agent-intent`、`calc-history`、`forecast`、`shortcut-import`）＋後端 pytest **174 項**（`server/tests/`）＝ **749 項**；`npm run check` = 型態檢查 + ESLint（0 警告）+ 測試；CI 於 main 與 feature 分支每次推送執行。
 - 純函式優先放 `src/domain/`（便於測試）；有副作用的放 `src/services/`；資料庫存取放 `src/db/repo/`。
 
 ## 7. 給修改者的注意事項（踩過的坑）
