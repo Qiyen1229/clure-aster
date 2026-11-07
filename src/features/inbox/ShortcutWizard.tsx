@@ -73,7 +73,7 @@ export function ShortcutWizard({ preparing, onAdd, hasLink }: { preparing: boole
       </ol>
       {next && (
         <button className="btn" style={{ margin: '4px 0 10px' }} disabled={preparing} onClick={() => void add(next)}>
-          {preparing ? '準備中…' : `依序加入：${next.icon} ${next.title}`}
+          {preparing ? '準備中…' : `依序加入：${next.title}`}
         </button>
       )}
       {SHORTCUTS.map((s) => {
@@ -84,39 +84,33 @@ export function ShortcutWizard({ preparing, onAdd, hasLink }: { preparing: boole
               <button className={`wiz-check${added ? ' on' : ''}`} aria-pressed={added} aria-label={`${s.title}：${added ? '已加入（點一下取消標記）' : '尚未加入'}`}
                 onClick={() => mark(s.key, 'added', !added)}>{added ? '✓' : ''}</button>
               <span className="row-main">
-                <span className="row-title">{s.icon} {s.title}</span>
+                <span className="row-title">{s.title}</span>
                 <span className="row-sub" style={{ whiteSpace: 'normal' }}>{s.hint}</span>
               </span>
               <button className={`pill${added ? '' : ' accent-pill'}`} disabled={preparing} onClick={() => void add(s)}>{added ? '重新加入' : '加入'}</button>
             </div>
-            {s.key === 'siri' && added && <p className="muted oneclick-note">說「嘿 Siri，<b>{s.name}</b>」，再說「午餐 120」。名稱改成「記一筆」就說「嘿 Siri，記一筆」。</p>}
             {s.key === 'quick' && added && <p className="muted oneclick-note">設定 → 動作按鈕（或「輔助使用 → 觸控 → 背面輕點」）選「捷徑」→「<b>{s.name}</b>」，之後一按就跳出輸入框。</p>}
             {s.key === 'share' && added && <p className="muted oneclick-note">在任何 App 按分享 → 往下找「<b>{s.name}</b>」（第一次要到「編輯動作」把它加進常用）。</p>}
           </div>
         );
       })}
       {needAuto.length > 0 && (
-        <div className="wiz-auto" role="group" aria-label="還要做一步：建立自動化">
+        <div className="wiz-auto" role="group" aria-label="還差一步：建立自動化">
           <b>還差一步：建立自動化</b>
-          <p className="muted" style={{ margin: '2px 0 8px' }}>
-            iPhone 不允許 App 代為建立自動化，要自己做一次（約 1 分鐘）。畫面名稱以 iOS 26 為準；iOS 17～18 的「自動化」是「捷徑」App 下方的分頁，點「＋」後選「新增個人自動化」。
-          </p>
           {needAuto.map((s) => (
             <div key={s.key} className="wiz-auto-item">
-              <p className="wiz-auto-title">{s.icon} <b>{s.title}</b>（用「{s.name}」）</p>
+              <p className="wiz-auto-title"><b>{s.title}</b></p>
               <ol className="wiz-auto-steps">
-                <li>打開「<b>捷徑</b>」App → 「資料庫」頁點「<b>自動化</b>」，再點最下方的「<b>＋</b>」</li>
-                <li>點上方的「<b>自動化操作</b>」標籤，往下捲，{s.key === 'applepay'
-                  ? <>在「<b>App</b>」區點「<b>錢包</b>」（說明是「在我感應『錢包』卡片或票卡時」）。<b>沒有叫「交易」的選項</b>，就是這一個（iOS 17～18 才叫「交易」）</>
-                  : <>在「<b>通訊</b>」區點「<b>訊息</b>」（說明是「當我收到傳來的訊息時」）</>}
-                </li>
+                <li>打開「捷徑」App → 「自動化」，再點最下方的「＋」</li>
                 {s.key === 'applepay' ? (
-                  <li>畫面上會出現「感應 <b>任何卡片</b> 時」：不用改，就是每張卡刷了都記。只想記某張卡，點「任何卡片」選那張。「類別」「商家」也不用動</li>
+                  <li>點「自動化操作」標籤，找到「錢包」點它，再進入搜尋框，搜尋「執行捷徑」點它，「捷徑」選「{s.name}」</li>
                 ) : (
-                  <li>這個觸發<b>一定要填條件</b>才能啟用：「<b>寄件人</b> 是」點藍字選你的銀行（簡訊的號碼或聯絡人）；再點「<b>加入過濾條件</b>」，「<b>訊息</b> 包含」填「<b>消費</b>」，避免把驗證碼簡訊也記進來</li>
+                  <>
+                    <li>點上方「自動化操作」標籤找到「訊息」（說明是「當我收到傳來的訊息時」）</li>
+                    <li>這個觸發一定要填條件才能啟用：「寄件人 是」點藍字選你的銀行（簡訊的號碼或聯絡人）；再點「加入過濾條件」，訊息可依銀行曾寄送的訊息自行填寫，避免把驗證碼簡訊也記進來</li>
+                    <li>再點搜尋框，搜尋「執行捷徑」，「捷徑」選「{s.name}」</li>
+                  </>
                 )}
-                <li>點最下方的搜尋框，輸入「<b>執行捷徑</b>」點它；動作裡的藍字「<b>捷徑</b>」點開，選「<b>{s.name}</b>」</li>
-                <li>點左上角「<b>＜</b>」就存好了。回到「自動化」清單，這一列的開關是<b>綠色</b>就代表啟用</li>
               </ol>
               <button className="pill accent-pill" onClick={() => mark(s.key, 'auto', true)}>我做好了 ✓</button>
             </div>

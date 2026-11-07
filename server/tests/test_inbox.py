@@ -35,6 +35,8 @@ def test_hook_receive_list_and_ack(api: Api) -> None:
     assert _hook(token, {"source": "簡訊", "text": "您的玉山卡消費 NT$560"}, header="x").status_code == 200
     assert _hook(token, {"amount": 99, "extra_field": "ignored"}, header="query").status_code == 200
     assert _hook(token, {"source": "siri"}).status_code == 422  # 沒有內容
+    tok = api.get("/api/inbox/tokens").json()[0]
+    assert tok["use_count"] == 3 and tok["last_used_at"]  # 成功送進來三次（第四次 422 不算）
     items = api.get("/api/inbox/items").json()
     assert [i["source"] for i in items] == ["other", "sms", "applepay"]
     assert items[2]["amount"] == "NT$1,234.00" and items[2]["card"] == "玉山 Pi 卡" and items[0]["amount"] == "99"

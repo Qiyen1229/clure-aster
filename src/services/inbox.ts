@@ -51,7 +51,7 @@ export interface InboxEntry {
   dup?: InboxDup;
 }
 
-export interface InboxToken { id: number; name: string; hint: string; created_at: string; last_used_at: string | null }
+export interface InboxToken { id: number; name: string; hint: string; created_at: string; last_used_at: string | null; use_count?: number }
 
 export const SOURCE_LABEL: Record<InboxRaw['source'], { icon: string; label: string }> = {
   applepay: { icon: '💳', label: 'Apple Pay' },
@@ -73,7 +73,7 @@ export const hookUrl = () => `${location.origin}/api/hook/inbox`;
 export const SHORTCUTS = [
   { key: 'applepay', name: 'Aster Apple Pay 記帳', icon: '💳', title: 'Apple Pay 付款後自動記帳', automation: '交易', icloud: '0dca1526e16548888206e466326dbe40', hint: '最推薦：付款後自動送出金額、商家、卡片' },
   { key: 'sms', name: 'Aster 簡訊記帳', icon: '💬', title: '銀行刷卡簡訊自動記帳', automation: '訊息', icloud: '31059b2ef220416999d0a94ad7a77974', hint: '銀行刷卡簡訊、轉帳通知都能收' },
-  { key: 'siri', name: 'Aster 記一筆', icon: '🎙', title: '對 Siri 說一句話記帳', automation: null, icloud: '6f573f0a226441d7a044e7770ec05f6a', hint: '「嘿 Siri，Aster 記一筆」，也可以綁在動作按鈕' },
+  { key: 'siri', name: 'Aster 記一筆', icon: '🎙', title: '對 Siri 說一句話記帳', automation: null, icloud: '6f573f0a226441d7a044e7770ec05f6a', hint: '「嘿 Siri，Aster 記一筆」，再說「午餐 120」。' },
   { key: 'quick', name: 'Aster 快速記帳', icon: '⚡', title: '點一下、打一句話記帳', automation: null, icloud: 'e3275089e3234121a22c65ee9cbf0cd1', hint: '放到主畫面或動作按鈕、背面輕點，跳出輸入框打「午餐 120」' },
   { key: 'clipboard', name: 'Aster 貼上記帳', icon: '📋', title: '把剪貼簿的文字送去記帳', automation: null, icloud: 'a9125e621f50418faa6caab3dff26296', hint: '在銀行 App、LINE 複製一段交易明細後執行' },
   { key: 'share', name: 'Aster 分享記帳', icon: '📤', title: '從分享選單把文字送去記帳', automation: null, icloud: '93e04d6cdf06495ca991bc18e65f0791', hint: '任何 App 的分享按鈕裡就會出現「Aster 分享記帳」' },
@@ -110,11 +110,31 @@ export function forgetLink() {
   try { localStorage.removeItem(linkKey()); } catch { /* 私密瀏覽 */ }
 }
 
-/** 取得這台裝置的連結碼；沒有就建立一組名為「iPhone 捷徑」的權杖 */
+/**
+ * 這台裝置的名稱（已連結的裝置清單用）。網頁拿不到 iPhone 的確切型號（iOS 不提供），所以用螢幕尺寸推算：
+ * 「iPhone 6.9 吋」「iPad」「Android（SM-S918B）」「Mac」。
+ */
+export function deviceLabel(nav: Pick<Navigator, 'userAgent'> = navigator, scr: { width: number; height: number } = screen): string {
+  const ua = nav.userAgent;
+  if (/iPhone/.test(ua)) {
+    const w = Math.min(scr.width, scr.height), h = Math.max(scr.width, scr.height);
+    const inch: Record<string, string> = { '440x956': '6.9', '430x932': '6.7', '428x926': '6.7', '414x896': '6.1／6.5', '412x915': '6.7', '402x874': '6.3', '393x852': '6.1', '390x844': '6.1', '375x812': '5.4／5.8', '375x667': '4.7', '320x568': '4' };
+    const s = inch[`${w}x${h}`];
+    return s ? `iPhone ${s} 吋` : 'iPhone';
+  }
+  if (/iPad/.test(ua) || (/Macintosh/.test(ua) && (navigator.maxTouchPoints ?? 0) > 1)) return 'iPad';
+  const android = ua.match(/Android[^;]*;\s*([^;)]+?)(?:\s+Build|\)|;)/);
+  if (android) return `Android（${android[1].trim()}）`;
+  if (/Macintosh/.test(ua)) return 'Mac';
+  if (/Windows/.test(ua)) return 'Windows';
+  return '這台裝置';
+}
+
+/** 取得這台裝置的連結碼；沒有就建立一組以裝置名稱命名的權杖 */
 export async function ensureLink(): Promise<{ id: number; code: string; created?: InboxToken }> {
   const saved = savedLink();
   if (saved) return saved;
-  const r = await createToken('iPhone 捷徑');
+  const r = await createToken(deviceLabel());
   const link = { id: r.item.id, code: linkCode(r.token) };
   try { localStorage.setItem(linkKey(), JSON.stringify(link)); } catch { /* 私密瀏覽：這次仍可用 */ }
   return { ...link, created: r.item };

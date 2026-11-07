@@ -23,6 +23,8 @@ class InboxToken(Base):
     hint: Mapped[str] = mapped_column(String(8), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # 這組權杖一共送進來幾次（App 顯示「已傳送 N 次資料」）
+    use_count: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class InboxItem(Base):

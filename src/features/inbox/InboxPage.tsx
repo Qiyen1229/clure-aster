@@ -14,7 +14,7 @@ import { todayKey } from '@/domain/period';
 import { deleteTransactions, deleteTransfers } from '@/db/repo/ledger';
 import {
   ackInbox, bookInboxEntries, mergeDuplicate, createToken, ensureLink, forgetLink, hookUrl, listTokens, loadInbox, revokeToken, savedLink,
-  openShortcutImport, shortcutFileUrl, SHORTCUTS, SOURCE_LABEL, useInboxCount,
+  deviceLabel, openShortcutImport, shortcutFileUrl, SHORTCUTS, SOURCE_LABEL, useInboxCount,
   type InboxEntry, type InboxToken,
 } from '@/services/inbox';
 import { aiEnabledLocally, aiParseText } from '@/services/ai';
@@ -358,7 +358,7 @@ export default function InboxPage() {
         <details className="oneclick-fallback">
           <summary className="muted">沒有跳到「捷徑」App？</summary>
           <p className="muted">「加入」會直接切到「捷徑」App；匯入完按左上角「◀ Aster」回來。如果沒有跳轉，可以改成下載捷徑檔，再到「檔案」App 的「下載項目」點開：</p>
-          <p>{SHORTCUTS.map((s) => <a key={s.key} className="pill" href={shortcutFileUrl(s)} download={`${s.name}.shortcut`}>{s.icon} {s.name}</a>)}</p>
+          <p>{SHORTCUTS.map((s) => <a key={s.key} className="pill" href={shortcutFileUrl(s)} download={`${s.name}.shortcut`}>{s.name}</a>)}</p>
           <p className="muted">如果「設定捷徑」畫面卡住，可以先按「略過設定」加入，再打開捷徑、把第一個「文字」動作的內容換成連結碼。NAS 外層有登入保護（例如 Cloudflare Access）時，需要放行 <code>/shortcuts/</code> 與 <code>/api/hook/</code>。</p>
         </details>
       </div>
@@ -369,8 +369,8 @@ export default function InboxPage() {
         {tokens?.map((t) => (
           <div key={t.id} className="row">
             <span className="row-main">
-              <span className="row-title">{t.name} <span className="faint num">••••{t.hint}</span></span>
-              <span className="row-sub">{t.last_used_at ? `上次送出：${new Date(`${t.last_used_at}Z`).toLocaleString('zh-TW')}` : '還沒有送過資料'}</span>
+              <span className="row-title">{link?.id === t.id && t.name === 'iPhone 捷徑' ? deviceLabel() : t.name} <span className="faint num">••••{t.hint}</span></span>
+              <span className="row-sub">{t.last_used_at ? `已傳送 ${t.use_count || 1} 次資料，上次：${new Date(`${t.last_used_at}Z`).toLocaleString('zh-TW')}` : '還沒有送過資料'}</span>
             </span>
             <button className="pill" style={{ color: 'var(--danger)' }} onClick={async () => {
               if (!await ask(`撤銷「${t.name}」？使用這組權杖的捷徑將無法再送出。`)) return;

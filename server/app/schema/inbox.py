@@ -79,6 +79,7 @@ class TokenOut(BaseModel):
     hint: str
     created_at: datetime
     last_used_at: datetime | None
+    use_count: int = 0
 
 
 class TokenCreated(BaseModel):

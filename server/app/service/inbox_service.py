@@ -73,6 +73,7 @@ class InboxService:
                          merchant=body.merchant, card=body.card, occurred=body.date)
         self.db.add(item)
         token.last_used_at = utcnow()
+        token.use_count = (token.use_count or 0) + 1
         self.db.flush()
         return item
 

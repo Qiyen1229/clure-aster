@@ -260,16 +260,15 @@ function EntriesBubble({ m }: { m: Extract<Msg, { kind: 'entries' }> }) {
   );
 }
 
+/** 空白畫面最多顯示 8 個建議膠囊：畫面專屬（最多 3）＋檢視卡（3）＋範例句（補滿到 8，至少 2） */
+const MAX_CHIPS = 8;
 const CHAT_EXAMPLES = [
   '昨天午餐 150',
-  '上個月吃飯花多少',
   '這個月哪裡花太多？',
   '把上個月 Uber 歸到交通，並設交通每月預算 3000',
+  '我今天領年終 20 萬進台新，拿 5 萬還信貸，再給我看財務自由',
   '以後只要出現 Uber 就自動歸到交通',
   '我今年股利會被扣二代健保嗎？',
-  '把「其他」分類的帳目重新分類',
-  '依過去 3 個月的花費，幫我設定各分類的每月預算',
-  '我今天領年終 20 萬進台新，拿 5 萬還信貸，再給我看財務自由',
 ];
 
 /** 不用 AI、點了直接在對話裡出檢視卡 */
@@ -354,9 +353,9 @@ export function ChatPanel({ onLeave, autoFocus }: { onLeave?: () => void; autoFo
         {!msgs.length && (
           <div style={{ margin: 8 }}>
             <p className="muted" style={{ margin: '0 0 8px' }}>說一句話就好：記帳、查帳、問問題，或叫我跨帳戶、貸款、股票、欠款一次做完（先預覽、確認才執行、可整包還原）。{aiOn ? '' : '（整理帳本與問 AI 需要先在設定開啟 AI）'}</p>
-            {chips.length > 0 && <div className="ask-examples" style={{ marginBottom: 6 }}>{chips.map((c) => <button key={c.label} className="pill ctx-chip" disabled={busy} onClick={() => pickChip(c)}>{c.label}</button>)}</div>}
-            <div className="ask-examples">{VIEW_CHIPS.map((x) => <button key={x} className="pill view-chip" disabled={busy} onClick={() => go(x)}>📊 {x}</button>)}</div>
-            <div className="ask-examples" style={{ marginTop: 6 }}>{CHAT_EXAMPLES.map((x) => <button key={x} className="pill" disabled={busy} onClick={() => go(x)}>{x}</button>)}</div>
+            {chips.length > 0 && <div className="ask-examples" style={{ marginBottom: 6 }}>{chips.slice(0, 3).map((c) => <button key={c.label} className="pill ctx-chip" disabled={busy} onClick={() => pickChip(c)}>{c.label}</button>)}</div>}
+            <div className="ask-examples">{VIEW_CHIPS.slice(0, 3).map((x) => <button key={x} className="pill view-chip" disabled={busy} onClick={() => go(x)}>📊 {x}</button>)}</div>
+            <div className="ask-examples" style={{ marginTop: 6 }}>{CHAT_EXAMPLES.slice(0, Math.max(2, MAX_CHIPS - Math.min(chips.length, 3) - 3)).map((x) => <button key={x} className="pill" disabled={busy} onClick={() => go(x)}>{x}</button>)}</div>
           </div>
         )}
         {msgs.map((m) => m.role === 'user' ? (
