@@ -10,6 +10,9 @@
 - **`__Host-` Cookie 前綴（HTTPS）**：經 HTTPS 時 Access Token 與 CSRF Token 改名 `__Host-clure_access`、`__Host-csrf_token`（瀏覽器強制 Secure、Path=/、不得有 Domain，同網域下被攻陷的子網域無法寫入同名 Cookie）；Refresh Token 因為 Path 限縮在 `/api/auth`，用 `__Secure-clure_refresh`。HTTP（本機開發）維持原名。升級前登入的人，Refresh Token 還在舊名稱的 Cookie：刷新與登出時暫時接受、換發後自動改用新名稱，不會被登出。
 - **簽章 CSRF（Signed Double-Submit）**：CSRF Token 變成 `隨機值.HMAC(伺服器金鑰, 隨機值 + 綁定對象)`，綁定目前登入的使用者（沒登入是 anon）。攻擊者就算能寫入 Cookie（Cookie Tossing）也造不出有效簽章；拿自己帳號合法簽發的 Token 塞給受害者，綁的是另一位使用者，一樣過不了。簽章不符時回 403 並順便發一個新的，前端自動重試。登入、登出時 CSRF Token 隨之換成對應的綁定。
 
+### 修正（4.1.7 發佈後）
+- **瀏覽器裡殘留舊的登入 Cookie（被踢掉、已過期）時登不回去，一直顯示「安全驗證失敗」**：簽章 CSRF 的綁定原本也參考 Refresh Token，但它的 Path 是 `/api/auth`、只有部分請求帶得到，結果同一個瀏覽器在 `/api/health`（拿到 anon Token）與 `/api/auth/login`（綁成殘留的使用者）算出不同的綁定，登入永遠過不了、前端重試也一樣。現在發 Token 只看 Access Token（Path=/）；`/api/auth/*` 另外容許 anon 與「這個瀏覽器的 Refresh Token 所屬使用者」兩種綁定（登入頁拿到的 Token、Access 過期後的刷新請求）。新增兩項後端測試（殘留 Refresh Cookie 仍可登入、Access 過期後刷新仍可用）。
+
 ### 後端
 - 遷移 `0013_totp`（`users.totp_secret／totp_enabled／totp_last_step／totp_recovery`）。新端點：`GET /api/auth/2fa`、`POST /api/auth/2fa/setup|enable|disable`、`GET /api/auth/sessions`、`DELETE /api/auth/sessions/{id}`；`POST /api/auth/login` 多一個選填的 `totp`，需要驗證碼時回 401＋標頭 `X-Totp-Required: 1`。CLI 新增 `reset-2fa`。
 - 測試：後端 +9 項（含 RFC 6238 官方測試向量、備援碼單次使用、驗證碼重送、鎖定、遠端登出立刻失效、簽章 CSRF 的兩種偽造、HTTPS 前綴、舊 Cookie 名稱的平滑升級）、前端 +4 項。

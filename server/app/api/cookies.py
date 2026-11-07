@@ -112,10 +112,26 @@ def csrf_valid(value: str | None, binding: str) -> bool:
 
 
 def csrf_binding(request: Request) -> str:
-    """目前請求綁定的對象：Access Token（Path=/，每個請求都會帶）的使用者；
-    Access Token 過期被瀏覽器丟掉時（刷新請求）改看 Refresh Token；都沒有是 anon。到期與否不重要，只要簽章是真的。"""
-    sub = token_subject(read_access(request) or "", "access") or token_subject(read_refresh(request) or "", "refresh")
+    """發給目前請求的 CSRF Token 綁定誰：Access Token（Path=/，每個請求都會帶）的使用者；沒有就是 anon。
+    只看 Access Token——Refresh Token 的 Path 是 /api/auth，只有部分請求帶得到，拿它綁定會讓同一個瀏覽器在不同網址拿到不同綁定。"""
+    sub = token_subject(read_access(request) or "", "access")
     return f"u:{sub}" if sub else "anon"
+
+
+def csrf_accepts(value: str | None, request: Request) -> bool:
+    """這個 Token 對這個請求有效嗎。除了目前綁定，登入／刷新／登出（/api/auth/）還容許兩種「還沒（或不再）登入」的情況，
+    否則瀏覽器裡殘留舊的 Refresh Token（被踢掉、已過期）的人會永遠過不了登入的 CSRF 檢查：
+    - anon：登入頁拿到的 Token
+    - 這個瀏覽器的 Refresh Token 所屬使用者：Access Token 過期被瀏覽器丟掉時，刷新請求仍帶著登入時發的 Token
+    """
+    if csrf_valid(value, csrf_binding(request)):
+        return True
+    if request.url.path.startswith("/api/auth/"):
+        if csrf_valid(value, "anon"):
+            return True
+        sub = token_subject(read_refresh(request) or "", "refresh")
+        return bool(sub) and csrf_valid(value, f"u:{sub}")
+    return False
 
 
 def set_csrf_cookie(response: Response, request: Request, value: str) -> None:

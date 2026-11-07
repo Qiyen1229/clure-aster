@@ -11,7 +11,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.api import admin, ai, auth, einvoice, health, inbox, notify, push, sync
-from app.api.cookies import CSRF_HEADER, csrf_binding, csrf_name, csrf_valid, new_csrf_token, set_csrf_cookie
+from app.api.cookies import CSRF_HEADER, csrf_accepts, csrf_binding, csrf_name, new_csrf_token, set_csrf_cookie
 from app.core.config import get_settings
 from app.core.logging import mask_email, setup_logging
 from app.core.security import hash_password, utcnow
@@ -140,7 +140,7 @@ def create_app() -> FastAPI:
         if request.url.path.startswith("/api/hook/"):
             return await call_next(request)
         binding = csrf_binding(request)
-        valid = csrf_valid(cookie, binding)
+        valid = csrf_accepts(cookie, request)
         if request.url.path.startswith("/api/") and request.method not in SAFE_METHODS:
             header = request.headers.get(CSRF_HEADER)
             if not valid or not header or cookie != header:

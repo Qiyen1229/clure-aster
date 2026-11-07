@@ -195,3 +195,25 @@ def test_legacy_cookie_names_still_refresh_once_then_migrate() -> None:
     assert r.status_code == 200
     assert any(h.startswith("__Secure-clure_refresh=") and "Max-Age=0" not in h for h in r.headers.get_list("set-cookie"))
     assert c.get("/api/auth/me").status_code == 200
+
+
+def test_login_works_with_a_stale_refresh_cookie_left_in_the_browser() -> None:
+    """被踢掉／登出的瀏覽器還留著舊的 Refresh Cookie：/api/health 發的是 anon Token、/api/auth/* 卻帶著舊 Refresh——登入不能卡在 CSRF。"""
+    a = Api("10.60.0.1")
+    a.register("kim")
+    stale = a.c.cookies.get("clure_refresh", path="/api/auth")
+    b = Api("10.60.0.2")  # 乾淨的瀏覽器：先逛過登入頁（/api/health 拿 anon Token）
+    b.c.cookies.set("clure_refresh", stale, path="/api/auth")  # 只剩殘留的 Refresh（Access 已經過期被丟掉）
+    assert b.login("kim").status_code == 200
+    # 登入後 Token 換成綁定該使用者的，之後的請求都正常
+    assert b.get("/api/auth/me").status_code == 200
+    assert b.post("/api/auth/change-password", {"current_password": "x", "new_password": "NewPassw0rd"}).status_code == 400
+
+
+def test_refresh_still_works_after_access_cookie_expired() -> None:
+    a = Api("10.61.0.1")
+    a.register("lena")
+    a.c.cookies.delete("clure_access")  # Access Token 到期，瀏覽器丟掉了 Cookie
+    assert a.get("/api/auth/me").status_code == 401
+    assert a.post("/api/auth/refresh").status_code == 200  # 刷新帶的是登入時發的 Token，仍然過得了
+    assert a.get("/api/auth/me").status_code == 200
