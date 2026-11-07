@@ -16,7 +16,7 @@ export function SmartAlerts() {
     <section style={{ minWidth: 0, padding: '0 4px' }}>
       <Hint id="ai.smartAlerts" title="🔔 智慧提醒"
         hint="找出沒登記的訂閱、漲價、重複扣款、異常大額、分類暴增。全在這台裝置用規則運算，不計入 AI 額度" />
-      <div className="plain-fields" style={{ marginTop: 8 }}>
+      <div className="list" style={{ marginTop: 8 }}>
         <div className="field"><span className="label" style={{ flex: 1 }}>異常與訂閱偵測</span>
           <Switch checked={insights.anomaly} label="異常與訂閱偵測" onChange={(v) => set('insights', { ...insights, anomaly: v })} /></div>
         <div className="field"><span className="label" style={{ flex: 1 }}>預算預警</span>
