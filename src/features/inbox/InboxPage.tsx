@@ -175,7 +175,7 @@ export default function InboxPage() {
       } catch (e) { snack((e as Error).message); return; } finally { setPreparing(false); }
     }
     snack(copied
-      ? '已複製連結碼：點預覽下方的「在「捷徑」中打開」，再按「設定捷徑」，長按輸入框 →「貼上」，最後按「加入捷徑」'
+      ? '已複製連結碼：下載完成後「捷徑」App 會打開，按「設定捷徑」，長按輸入框 →「貼上」，最後按「加入捷徑」'
       : '請先複製下方的連結碼，再到「捷徑」App 貼上', 9000);
   };
 
@@ -364,9 +364,9 @@ export default function InboxPage() {
           {link && <button className="btn secondary small" onClick={() => void resetLink()}>重新產生連結碼</button>}
         </div>
         <details className="oneclick-fallback">
-          <summary className="muted">預覽關不掉，或沒有「在「捷徑」中打開」？</summary>
-          <p className="muted">「加入」會跳出捷徑檔的預覽，點下方「在「捷徑」中打開」就會進「捷徑」App，匯入完按左上角「◀ Aster」回來。預覽沒有關閉鍵：從螢幕底部往上滑回主畫面、再打開 Aster 即可。也可以改成下載檔案，再從「檔案」App 的「下載項目」點開：</p>
-          <p>{SHORTCUTS.map((s) => <a key={s.key} className="pill" href={shortcutFileUrl(s)} download={`${s.name}.shortcut`} target="_blank" rel="noreferrer">{s.icon} {s.name}</a>)}</p>
+          <summary className="muted">沒有自動打開「捷徑」App？</summary>
+          <p className="muted">「加入」會下載捷徑檔（問要不要下載時按「下載」），下載完 iPhone 會自動打開「捷徑」App；匯入完按左上角「◀ Aster」回來。沒有自動打開的話，到「檔案」App 的「下載項目」點開檔案。也可以直接下載：</p>
+          <p>{SHORTCUTS.map((s) => <a key={s.key} className="pill" href={shortcutFileUrl(s)} download={`${s.name}.shortcut`}>{s.icon} {s.name}</a>)}</p>
           <p className="muted">如果「設定捷徑」畫面卡住，可以先按「略過設定」加入，再打開捷徑、把第一個「文字」動作的內容換成連結碼。NAS 外層有登入保護（例如 Cloudflare Access）時，需要放行 <code>/shortcuts/</code> 與 <code>/api/hook/</code>。</p>
         </details>
       </div>

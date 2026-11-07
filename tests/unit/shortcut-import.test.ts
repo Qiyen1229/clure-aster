@@ -10,14 +10,15 @@ describe('捷徑匯入（不能用 shortcuts://import-shortcut?url=，自架網�
     vi.stubGlobal('fetch', vi.fn(async () => new Response('x', { headers: { 'content-type': 'application/vnd.apple.shortcut' } })));
     expect(await checkShortcutFiles()).toEqual([]);
   });
-  it('「加入」＝下載捷徑檔（target=_blank、檔名帶中文名稱），不使用 shortcuts:// 網址', () => {
+  it('「加入」＝下載捷徑檔（同視窗、不加 target=_blank，檔名帶中文名稱），不使用 shortcuts:// 網址', () => {
     const a: Record<string, unknown> = { click: vi.fn(), remove: vi.fn() };
     vi.stubGlobal('document', { createElement: () => a, body: { appendChild: vi.fn() } });
     openShortcutImport(SHORTCUTS[0]);
     expect(a.click).toHaveBeenCalledOnce();
+    expect(a.target).toBeUndefined();
     expect(a.href).toBe(shortcutFileUrl(SHORTCUTS[0]));
     expect(a.download).toBe(`${SHORTCUTS[0].name}.shortcut`);
-    expect(a.target).toBe('_blank');
+    
     expect(String(a.href)).not.toContain('shortcuts://');
   });
 });

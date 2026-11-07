@@ -85,14 +85,13 @@ export const shortcutFileUrl = (s: ShortcutDef) => `/shortcuts/aster-${s.key}.sh
 /**
  * 把捷徑檔交給「捷徑」App 匯入：下載簽署過的 .shortcut 檔，iOS 會直接開啟「捷徑」App 的匯入畫面（按「加入捷徑」就好）。
  * 注意：不能用 shortcuts://import-shortcut?url=… ——它只接受 iCloud 分享連結，自架網址一律顯示「提供的捷徑 URL 無效」；
- * 也不用分享選單（選單裡常找不到「捷徑」）。檔案用 target=_blank 開，主畫面版 Aster 的視窗不會被導到下載頁。
+ * 也不用分享選單（選單裡常找不到「捷徑」）。不要加 target=_blank、也不要把檔案類型指定成 application/vnd.apple.shortcut——
+ * 那樣 iOS 會變成沒有關閉鍵的檔案預覽；同視窗下載＋一般檔案類型，iOS 下載完會直接交給「捷徑」App。
  */
 export function openShortcutImport(s: ShortcutDef): void {
   const a = document.createElement('a');
   a.href = shortcutFileUrl(s);
   a.download = `${s.name}.shortcut`;
-  a.target = '_blank';
-  a.rel = 'noopener';
   document.body.appendChild(a);
   a.click();
   a.remove();
