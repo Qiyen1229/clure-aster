@@ -6,7 +6,7 @@
 - **移除 Email 轉寄收帳單（4.1.4 新增的整套功能）**：`/api/hook/mail`、附件下載與寄件人白名單端點、`mail_service`、`InboxAttachment` 模型、收件匣的「✉️ Email 轉寄收帳單」設定與附件「對帳」按鈕、`pendingStatement`、帳單信不自動記帳的判斷、Cloudflare Worker 範例都已刪除。新遷移 `0011_drop_mail_inbox` 會把 `0010` 建的 `inbox_attachments` 表與權杖的 `allow_from` 欄位拿掉（`0010` 保留，已套用過的資料庫才接得上；沒套用過也不會報錯）。收件匣仍保留 `email` 這個來源（簡訊／Email 通知文字的解析不變）、六個捷徑、批次收據、預計扣款。
 
 ### 修正
-- **收件匣「加入 iPhone 捷徑」全部顯示「提供的捷徑 URL 無效」、以及下載版會跳出關不掉的預覽**：`shortcuts://import-shortcut?url=…` 只接受 iCloud 分享連結（自架網址一律「URL 無效」），下載檔案又會在主畫面版 Aster 變成沒有關閉鍵的預覽。改成官方做法：六個捷徑（都是通用範本，不含連結碼或權杖）上傳成 **iCloud 分享連結**，按「加入」直接切到「捷徑」App、跳出「加入捷徑」，Aster 這一頁完全不動。`.shortcut` 檔留作備用下載連結（收件匣頁折疊區）。捷徑內容有改時：`scripts/make-shortcuts.py` 重做 → 匯入 Mac「捷徑」App → 分享 →「拷貝 iCloud 連結」→ 更新 `src/services/inbox.ts` 的 `icloud` 識別碼。
+- **收件匣「加入 iPhone 捷徑」全部顯示「提供的捷徑 URL 無效」、以及下載版會跳出關不掉的預覽**：`shortcuts://import-shortcut?url=…` 只接受 iCloud 分享連結（自架網址一律「URL 無效」），下載檔案又會在主畫面版 Aster 變成沒有關閉鍵的預覽。改成官方做法：六個捷徑（都是通用範本，不含連結碼或權杖）上傳成 **iCloud 分享連結**，按「加入」開 iCloud 連結，iOS 直接交給「捷徑」App 跳出「加入捷徑」。`.shortcut` 檔留作備用下載連結（收件匣頁折疊區）。捷徑內容有改時：`scripts/make-shortcuts.py` 重做 → 匯入 Mac「捷徑」App → 分享 →「拷貝 iCloud 連結」→ 更新 `src/services/inbox.ts` 的 `icloud` 識別碼。
 - **通知（提醒中心）窗格寬度超出頁面**：`.rem-stack` 是 grid 但沒限制欄寬，「AI 上週重點」收合時是單行不換行的文字，會把整張卡撐到比螢幕寬（實測 375px 螢幕上卡片撐到 1310px）；改成 `minmax(0, 1fr)` 並讓子項 `min-width: 0`。
 
 ## 4.1.4（2026-11-07）— 收據批次辨識、一鍵安裝六個捷徑

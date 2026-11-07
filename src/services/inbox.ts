@@ -83,18 +83,16 @@ type ShortcutDef = (typeof SHORTCUTS)[number];
 export const shortcutFileUrl = (s: ShortcutDef) => `/shortcuts/aster-${s.key}.shortcut`;
 
 /**
- * 加入捷徑：切到「捷徑」App，直接跳出「加入捷徑」按鈕（沒有任何預覽或下載步驟，Aster 這一頁也不會被導走）。
- * 做法：用 Apple 官方的 iCloud 分享連結——`shortcuts://import-shortcut?url=<iCloud 連結>`。
+ * 加入捷徑：直接開 iCloud 分享連結（https://www.icloud.com/shortcuts/<id>），iOS 會用通用連結交給「捷徑」App，跳出「加入捷徑」。
  * 六個捷徑都是通用範本（不含你的連結碼或權杖；連結碼是匯入時才貼上的），所以全部使用者共用同一組 iCloud 連結。
- * 注意：這個網址只接受 iCloud 連結，自架網址（例如 /shortcuts/*.shortcut）一律顯示「提供的捷徑 URL 無效」；
- * 檔案版（`shortcutFileUrl`）只留作備用下載。捷徑內容更新時：用 scripts/make-shortcuts.py 重做 → 匯入 Mac「捷徑」App →
- * 分享 →「拷貝 iCloud 連結」→ 換掉這裡的 `icloud` 識別碼。
+ * 不要用 `shortcuts://import-shortcut?url=<iCloud 連結>`：那個網址要的是「.shortcut 檔案網址」，給 iCloud 網頁連結會顯示「檔案的格式不正確」；
+ * 給自架的檔案網址則是「提供的捷徑 URL 無效」。檔案版（`shortcutFileUrl`）只留作備用下載。
+ * 捷徑內容更新時：用 scripts/make-shortcuts.py 重做 → 匯入 Mac「捷徑」App → 分享 →「拷貝 iCloud 連結」→ 換掉這裡的 `icloud` 識別碼。
  */
 export const shortcutIcloudUrl = (s: ShortcutDef) => `https://www.icloud.com/shortcuts/${s.icloud}`;
-export const shortcutImportUrl = (s: ShortcutDef) => `shortcuts://import-shortcut?url=${encodeURIComponent(shortcutIcloudUrl(s))}`;
 
 export function openShortcutImport(s: ShortcutDef): void {
-  location.href = shortcutImportUrl(s);
+  location.href = shortcutIcloudUrl(s);
 }
 
 /** 連結碼＝網址＋?t=權杖：捷徑匯入時只要貼上這一串。存在這台裝置（依使用者區分），之後加其他捷徑可重用 */
