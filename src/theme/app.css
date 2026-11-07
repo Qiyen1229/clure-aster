@@ -1382,8 +1382,6 @@ button.row:active, a.row:active { transform: scale(0.985); transition-duration: 
 /* ---------- 一句話記帳（記帳面板最上方） ---------- */
 .note-sugs { margin: -2px 0 6px; }
 .note-sugs .pill { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
-.note-sugs .pin-pill { flex: none; background: var(--accent-soft, var(--surface-2)); color: var(--accent-text, var(--accent)); font-weight: 600; }
-.note-sugs .pin-pill.on { background: var(--surface-2); color: var(--text-2); }
 .note-sugs .pill { max-width: 70vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .quick-bar {
   display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; margin: 2px 0 8px; padding: 0 12px;
@@ -1803,3 +1801,8 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
 /* ───── v4.1.8 釘選常用 ───── */
 .pinned-row .row-title, .pinned-row .row-sub { display: block; }
 .pinned-row .row-main { background: transparent; border: 0; padding: 0; color: inherit; font: inherit; }
+
+.pin-btn { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; color: var(--text-3); transition: color 160ms var(--ease), transform 160ms var(--ease); }
+.pin-btn.on { color: var(--accent); }
+.pin-btn.on svg { fill: currentColor; fill-opacity: 0.25; }
+.pin-btn:active { transform: scale(0.9); }

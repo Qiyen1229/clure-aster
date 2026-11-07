@@ -440,14 +440,19 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
 
   // ── 釘選：把這一筆存成常用，之後在建議最前面一點就套用 ──
   const pinType = mode === 'expense' || mode === 'income' ? mode : null;
-  const curPin = pinType ? findPinned(pins, { type: pinType, note, currency: txCurrency }) : undefined;
-  const canPin = !!pinType && !editing && !!note.trim() && amountMinor > 0 && !!categoryId && !!accountId;
+  // 沒寫備註也能釘選：用分類名稱當名稱（例如「晚餐」），套用時備註就會帶入這個名稱
+  const pinName = note.trim() || catMap.get(categoryId)?.name || '';
+  const curPin = pinType ? findPinned(pins, { type: pinType, note: pinName, currency: txCurrency }) : undefined;
+  const canPin = !!pinType && !editing && !!pinName && amountMinor > 0 && !!categoryId && !!accountId;
   const pinChanged = !!curPin && (curPin.payload.amountMinor !== amountMinor || curPin.payload.categoryId !== categoryId || curPin.payload.accountId !== accountId);
+  /** 右上角的釘選鈕：還沒釘→釘選；釘過但內容改了→更新；釘過且沒改→取消釘選。缺金額時說明原因，不是靜默沒反應 */
   const doPin = async () => {
-    if (!pinType || !canPin) return;
+    if (!pinType) return;
+    if (!canPin) { useUI.getState().showSnack({ text: amountMinor > 0 ? '先選好分類與帳戶，再釘選' : '先輸入金額，再釘選這一筆' }); return; }
+    if (curPin && !pinChanged) { await unpin(curPin.id); useUI.getState().showSnack({ text: `已取消釘選「${pinName}」` }); return; }
     try {
-      const r = await pinTransaction({ type: pinType, note, amountMinor, currency: txCurrency, categoryId, accountId, tagIds, projectId: projectId || undefined });
-      useUI.getState().showSnack({ text: r.created ? `已釘選「${note.trim()}」：之後在記帳面板的最前面一點就能套用` : '已更新釘選的內容' });
+      const r = await pinTransaction({ type: pinType, note: pinName, amountMinor, currency: txCurrency, categoryId, accountId, tagIds, projectId: projectId || undefined });
+      useUI.getState().showSnack({ text: r.created ? `已釘選「${pinName}」：之後在記帳面板的最前面一點就能套用` : `已更新「${pinName}」的釘選內容` });
       navigator.vibrate?.(8);
     } catch (e) { useUI.getState().showSnack({ text: (e as Error).message }); }
   };
@@ -528,9 +533,17 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
 
   const title = editing ? '編輯' : '記一筆';
   const right = !editing && mode !== 'adjust' ? (
-    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.75rem' }} className="muted">
-      再記一筆<Switch checked={settings.continuousAdd} onChange={(v) => settings.set('continuousAdd', v)} label="再記一筆模式" />
-    </label>
+    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      {pinType && (
+        <button className={`pin-btn${curPin && !pinChanged ? ' on' : ''}`} onClick={() => void doPin()}
+          aria-pressed={!!curPin && !pinChanged} aria-label={curPin ? (pinChanged ? '更新釘選的內容' : '取消釘選這一筆') : '釘選這一筆（之後一點就能套用）'}>
+          <Icon name="pin" size={20} />
+        </button>
+      )}
+      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.75rem' }} className="muted">
+        再記一筆<Switch checked={settings.continuousAdd} onChange={(v) => settings.set('continuousAdd', v)} label="再記一筆模式" />
+      </label>
+    </span>
   ) : undefined;
 
   return (
@@ -801,7 +814,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
           {(() => {
             // 已經選好、且金額也填了的那筆就不必再列出
             const list = noteSugs.filter((x) => !(expr && x.note.toLowerCase() === note.trim().toLowerCase()));
-            if ((mode !== 'expense' && mode !== 'income') || editing || (!list.length && !canPin)) return null;
+            if ((mode !== 'expense' && mode !== 'income') || editing || !list.length) return null;
             return (
               <div className="sub-row note-sugs" aria-label={note.trim() ? '相似的過去備註' : '最近常記與釘選'}>
                 {list.map((x) => {
@@ -813,9 +826,6 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
                     </SugChip>
                   );
                 })}
-                {canPin && !curPin && <button className="pill pin-pill" onClick={() => void doPin()}>📌 釘選這筆</button>}
-                {canPin && curPin && pinChanged && <button className="pill pin-pill" onClick={() => void doPin()}>📌 更新釘選</button>}
-                {canPin && curPin && !pinChanged && <button className="pill pin-pill on" onClick={() => void unpin(curPin.id).then(() => useUI.getState().showSnack({ text: '已取消釘選' }))}>📌 已釘選・取消</button>}
               </div>
             );
           })()}

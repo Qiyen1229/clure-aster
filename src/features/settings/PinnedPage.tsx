@@ -1,6 +1,6 @@
 /**
  * 常用項目（釘選）：管理在記帳面板最前面的「肯德基 晚餐 $160」這類一點就能套用的項目。
- * 新增釘選：記帳面板輸入備註與金額後按「📌 釘選這筆」、長按建議膠囊、或在帳目列表長按一筆選「釘選為常用」。
+ * 新增釘選：記帳面板輸入金額後按右上角的 📌、長按建議膠囊、或在帳目列表長按一筆選「釘選為常用」。
  */
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -42,7 +42,7 @@ export default function PinnedPage() {
         偶爾才記、不是固定週期的消費（例如「肯德基 晚餐 $160」）可以釘選起來：記帳時會排在建議的最前面，一點就帶入金額、分類、帳戶與標籤，不受「近 90 天」限制。最多 {MAX_PINNED} 個，用得越多排越前面。
       </p>
       {!list ? null : list.length === 0 ? (
-        <EmptyState emoji="📌" title="還沒有釘選" text="在記帳面板輸入備註與金額後按「📌 釘選這筆」；或在帳目列表長按一筆，選「釘選為常用」。" />
+        <EmptyState emoji="📌" title="還沒有釘選" text="在記帳面板輸入金額後，按右上角的 📌；或在帳目列表長按一筆，選「釘選為常用」。" />
       ) : (
         <div className="list">
           {list.map((t) => {
