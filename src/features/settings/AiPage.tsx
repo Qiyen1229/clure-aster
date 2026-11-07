@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { getAiStatus, type AiQuotaWindow, type AiStatus } from '@/services/ai';
 import { useSettings } from '@/stores/settings';
 import { SwitchField } from '@/ui/form';
-import { AiMark, Icon } from '@/ui/Icon';
+import { Icon } from '@/ui/Icon';
 
 const resetText = (iso: string) => new Date(iso + 'Z').toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 
@@ -53,20 +53,6 @@ export default function AiPage() {
         <SwitchField label="首頁自動顯示「上週重點」" checked={!!ai?.enabled && !!ai?.allowData && !!ai?.auto} onChange={(v) => set('ai', { ...ai, enabled: true, allowData: true, auto: v })}
           sub="每週最多自動用 1 點額度；沒開的話只在你按下按鈕時才用 AI" />
       </div>
-      <Intro id="aipage.1">
-        <b>一句話記帳／拍照記帳／帳單截圖對帳</b>：送出你輸入的那一句話（拍照與截圖是縮小後的圖片），以及你的分類與帳戶「名稱」。<b>操作助手</b>（用說的整理帳本）只送你的需求與分類、帳戶名稱，由它規劃、你在本機預覽確認後才執行。
-        一句話記帳只有規則解析找不到金額時才會用到，輸入過程中的即時預覽不會用到額度。
-        <b>新支出的市價檢查</b>（設定 → 智慧提醒，可關閉）：規則判斷不了的新支出（比平常高很多、又沒有行情資料），會送出<b>那一筆</b>的分類名稱、備註、金額與你這個分類平常一筆約多少，請 AI 查市價；每筆只問一次、<b>不計額度</b>，送出的原文可在「查看送出過什麼」檢查。
-        <b>收件匣</b>的「<AiMark /> AI 解析」會送出那則簡訊／通知的文字（已先去掉網址、身分證、卡號與 10 碼以上的數字），只有你按下按鈕才會送。
-      </Intro>
-      <Intro id="aipage.2">
-        <b>收支統計</b>（需另外允許）：近約 6 個月每月收支與各分類合計、每月固定支出、預算上限與已花、存錢目標進度與淨資產，全是整數統計。「問 AI」另附<b>投資與稅務統計</b>（持股市值與未實現損益合計、即將除息的股票<b>代號</b>與預計配息、二代健保、海外所得），同樣是整數元，沒有股數與成本。
-        <b>不會送出</b>：單筆帳目、備註、商家、日期明細、帳戶名稱、標籤。
-      </Intro>
-      <Intro id="aipage.3">
-        內容會經過你的伺服器與第三方 AI 供應商，不在端對端加密範圍內。免費方案的供應商可能把內容用於改進產品（例如 Google Gemini 免費層），請不要輸入敏感資料。
-        相同內容的結果會暫存在這台裝置，重複查詢不會再扣額度。
-      </Intro>
       <div className="list">
         <button className="row" onClick={() => navigate('/settings/ai/sent')}>
           <span className="row-main"><span className="row-title">🔍 查看送出過什麼</span><span className="row-sub" style={{ display: 'block' }}>每一次送去 AI 的原文都記在這台裝置，隨時檢查</span></span>

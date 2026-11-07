@@ -93,7 +93,7 @@ export default function NotificationsPage() {
             </div>
             {n.push && pst && (
               <div className="row"><span className="row-main row-sub" style={{ whiteSpace: 'normal' }}>
-                {pst.subscribed ? '✓ 這台裝置已訂閱' : '✗ 這台裝置尚未訂閱（按下「傳送測試推播」會自動補訂閱）'}　已排程 {pst.scheduled} 則　伺服器共 {pst.devices} 台裝置
+                {pst.subscribed ? '✓ 這台裝置已訂閱' : '✗ 這台裝置尚未訂閱（按下「傳送測試推播」會自動補訂閱）'}
                 {pst.last_error && <span style={{ display: 'block', color: 'var(--danger)' }}>最近一次發送失敗：{pst.last_error}</span>}
               </span></div>
             )}
