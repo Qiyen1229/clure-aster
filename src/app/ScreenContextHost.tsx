@@ -25,7 +25,7 @@ export function ScreenContextHost() {
       if (localStorage.getItem(TIP_KEY)) return;
       localStorage.setItem(TIP_KEY, '1');
     } catch { return; }
-    const t = window.setTimeout(() => useUI.getState().showSnack({ text: '💡 中央圓球往上滑（或長按）就能問 AI，它看得到你正在看的畫面', duration: 6000 }), 1200);
+    const t = window.setTimeout(() => useUI.getState().showSnack({ text: '💡 把中央按鈕往上滑（或長按）就能問 AI，它看得到你正在看的畫面', duration: 6000 }), 1200);
     return () => window.clearTimeout(t);
   }, [pathname, aiOn, onboarded]);
   return null;

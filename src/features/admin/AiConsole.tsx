@@ -134,7 +134,7 @@ export default function AiConsole() {
           );
         })}
       </div>
-      <p className="set-note">「測試連線」會送 1 次極小的請求（用掉供應商 1 次免費額度，不扣使用者額度），成功會解除冷卻。Key 只存在伺服器的 .env，這裡只顯示最後 4 碼。</p>
+      <p className="set-note">「測試連線」會送 1 次極小的請求（用掉供應商 1 次額度，不扣使用者額度），成功會解除冷卻。Key 只存在伺服器的 .env，這裡只顯示最後 4 碼。</p>
 
       <div className="section-title">用量（次）</div>
       <div className="admin-grid three">
@@ -194,7 +194,7 @@ export default function AiConsole() {
           </div>
         ))}
       </div>
-      <p className="set-note">不記錄使用者輸入的內容，只記次數、供應商與模型。失敗的呼叫不會出現在這裡（看供應商卡片的「最近錯誤」或 docker compose logs api）。</p>
+      <p className="set-note">不記錄使用者輸入的內容，只記次數、供應商與模型。失敗的呼叫不在這裡（看供應商卡片的「最近錯誤」或 docker compose logs api）。</p>
 
       <div className="section-title">開關與額度</div>
       <div className="list" style={{ marginBottom: 10 }}>

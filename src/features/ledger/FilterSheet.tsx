@@ -10,7 +10,7 @@ import { buildTree } from '@/db/repo/categories';
 import { fromMinor, toMinor } from '@/domain/money';
 import { useAccounts, useCategories, useProjects, useTags } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
-import { useUI } from '@/stores/ui';
+import { askInput, useUI } from '@/stores/ui';
 import { Sheet } from '@/ui/Sheet';
 import { Segmented } from '@/ui/controls';
 import { Icon } from '@/ui/Icon';
@@ -96,7 +96,7 @@ export function FilterSheet({ open, onClose, value, onChange }: { open: boolean;
           onChange={(e) => set({ maxMinor: e.target.value ? toMinor(e.target.value.replace(/[^0-9.]/g, '') || '0', base) : undefined })} />
       </div>
       <button className="btn tinted" style={{ marginTop: 16 }} disabled={!filterCount(f)} onClick={async () => {
-        const name = window.prompt('篩選名稱', '我的篩選');
+        const name = await askInput({ title: '篩選名稱', defaultValue: '我的篩選', required: true, maxLength: 30, confirmText: '儲存' });
         if (!name) return;
         await saveFilter(name, f);
         useUI.getState().showSnack({ text: `已儲存「${name}」` });

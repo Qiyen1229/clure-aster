@@ -128,7 +128,7 @@ export default function NotificationsPage() {
       }}>傳送測試通知</button>
       <button className="btn secondary" style={{ marginTop: 8 }} onClick={() => void runReminderChecks().then(() => useUI.getState().showSnack({ text: '已檢查所有提醒' }))}>立即檢查提醒</button>
       <p className="muted" style={{ fontSize: '0.78rem', margin: 8 }}>
-        沒開背景推播時，提醒只會在「開啟 App」與「App 在前景」時檢查並發出。背景推播由 App 每次開啟時預先排好接下來 14 天的提醒；預算與到價提醒需要即時資料，仍在 App 開啟時檢查。
+        沒開背景推播時，只有開啟 App 或 App 在前景時才會檢查提醒。背景推播會在每次開啟 App 時預排接下來 14 天；預算與到價提醒需要即時資料，仍在 App 開啟時檢查。
       </p>
     </main>
   );

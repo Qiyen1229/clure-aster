@@ -76,7 +76,7 @@ export default function SecurityPage() {
         <div className="field"><span className="label" style={{ flex: 1 }}>隱藏所有金額</span><Switch checked={s.hideAmounts} onChange={(v) => s.set('hideAmounts', v)} label="隱藏金額" /></div>
       </div>
       <p className="muted" style={{ fontSize: '0.8rem', margin: '8px' }}>
-        🔒 App 鎖 PIN 只存在這台裝置（不會同步），每台裝置可各自設定。App 鎖保護的是畫面；若裝置本身未上鎖，具備技術能力者仍可能讀取瀏覽器資料。忘記 PIN 時只能清除網站資料（請先備份）。
+        🔒 PIN 只存在這台裝置，不會同步，每台裝置可各自設定。App 鎖保護的是畫面；裝置本身沒上鎖時，懂技術的人仍可能讀到瀏覽器資料。忘記 PIN，可以在鎖定畫面用登入密碼清除。
       </p>
       <Sheet open={!!pinStep} onClose={() => setPinStep(null)} title={pinStep === 'confirm' ? '再輸入一次' : '設定 6 位數 PIN'}>
         {pinStep && <PinPad key={pinStep} onComplete={(p) => void onPin(p)} />}

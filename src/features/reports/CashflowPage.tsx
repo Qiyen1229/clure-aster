@@ -102,7 +102,7 @@ export default function CashflowPage() {
           )}
           {!data.hasIncome && (
             <div className="card" style={{ fontSize: '0.85rem' }}>
-              💡 還沒有設定薪水等固定收入，曲線只會往下走。到「專案 → 週期」把薪水設成每月的週期收入，預測會準很多。
+              💡 還沒設定薪水等固定收入，曲線只會往下走。到「專案 → 週期」把薪水設成每月收入，預測會準很多。
               <button className="btn tinted small" style={{ marginTop: 8 }} onClick={() => navigate('/plan?tab=recurring')}>前往設定</button>
             </div>
           )}
@@ -125,9 +125,9 @@ export default function CashflowPage() {
               })}
             </div>
           )}
-          {assumed && <p className="muted" style={{ fontSize: '0.78rem', margin: '6px 8px' }}>標示「假設」的卡費或貸款沒有設定扣款帳戶，先假設從餘額最多的帳戶扣。信用卡可在「編輯帳戶 → 扣繳帳戶」指定；貸款在貸款帳戶頁的「扣款帳戶」選擇。</p>}
+          {assumed && <p className="muted" style={{ fontSize: '0.78rem', margin: '6px 8px' }}>標示「假設」的卡費或貸款還沒指定扣款帳戶，先假設從餘額最多的帳戶扣。信用卡到「編輯帳戶 → 扣繳帳戶」指定；貸款到貸款帳戶頁的「扣款帳戶」。</p>}
           <p className="muted" style={{ fontSize: '0.78rem', margin: '6px 8px' }}>
-            可動用的錢＝現金、銀行、電子支付、儲值帳戶。信用卡的消費會在繳款日從扣款帳戶扣掉；外幣帳戶以目前匯率換算。
+            可動用的錢＝現金、銀行、電子支付、儲值帳戶。信用卡消費在繳款日從扣款帳戶扣；外幣以目前匯率換算。
           </p>
         </>
       )}

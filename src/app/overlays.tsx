@@ -87,6 +87,47 @@ export function ActionSheetHost() {
   );
 }
 
+/** 輸入視窗（自製，取代 window.prompt）：和確認視窗同樣式；Enter 送出、Esc／點背景取消 */
+export function InputHost() {
+  const r = useUI((s) => s.input);
+  const close = useUI((s) => s.closeInput);
+  const [value, setValue] = useState('');
+  const prevFocus = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!r) return;
+    setValue(r.defaultValue ?? '');
+    prevFocus.current = document.activeElement as HTMLElement | null;
+    return () => { const el = prevFocus.current; prevFocus.current = null; setTimeout(() => el?.isConnected && el.focus?.({ preventScroll: true }), 0); };
+  }, [r?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!r) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); close(null); } };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [r, close]);
+  if (!r) return null;
+  const text = value.trim();
+  const ok = !r.required || !!text;
+  return (
+    <div className="dlg-wrap" key={r.id}>
+      <div className="dlg-backdrop" onClick={() => close(null)} aria-hidden="true" />
+      <form className="dlg" role="dialog" aria-modal="true" aria-labelledby={`dlg-t-${r.id}`} onSubmit={(e) => { e.preventDefault(); if (ok) close(text); }}>
+        <div className="dlg-body">
+          <h2 id={`dlg-t-${r.id}`}>{r.title}</h2>
+          {r.message && <p>{r.message}</p>}
+          <input className="dlg-input" value={value} onChange={(e) => setValue(e.target.value)} placeholder={r.placeholder} autoFocus maxLength={r.maxLength ?? 200}
+            type={r.secret ? 'password' : 'text'} inputMode={r.inputMode} autoComplete={r.secret ? 'current-password' : 'off'} autoCapitalize="none" autoCorrect="off" spellCheck={false}
+            onFocus={(e) => e.target.select()} aria-label={r.title} />
+        </div>
+        <div className="dlg-actions">
+          <button type="button" onClick={() => close(null)}>取消</button>
+          <button type="submit" className={r.danger ? 'danger' : 'primary'} disabled={!ok}>{r.confirmText ?? '確定'}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 /** Service Worker 更新提示：「有新版本，點擊更新」 */
 export function UpdatePrompt() {
   const [update, setUpdate] = useState<null | ((reload?: boolean) => Promise<void>)>(null);

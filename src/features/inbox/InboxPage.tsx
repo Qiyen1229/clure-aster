@@ -20,7 +20,7 @@ import {
 import { aiEnabledLocally, aiParseText } from '@/services/ai';
 import { fallbackAccount, resolveDraft } from '@/services/quickentry';
 import { useSettings } from '@/stores/settings';
-import { snackUndo, useUI, ask } from '@/stores/ui';
+import { snackUndo, useUI, ask, askInput } from '@/stores/ui';
 import { AccountField, SwitchField } from '@/ui/form';
 import { EmptyState, SkeletonRows } from '@/ui/controls';
 import { AiMark, Icon } from '@/ui/Icon';
@@ -135,10 +135,10 @@ export default function InboxPage() {
   };
 
   const newToken = async () => {
-    const name = window.prompt('幫這組權杖取個名字（例如：我的 iPhone）', '我的 iPhone');
-    if (!name?.trim()) return;
+    const name = await askInput({ title: '幫這組權杖取個名字', placeholder: '例如：我的 iPhone', defaultValue: '我的 iPhone', required: true, maxLength: 40, confirmText: '建立' });
+    if (!name) return;
     try {
-      const r = await createToken(name.trim());
+      const r = await createToken(name);
       setFresh({ token: r.token, name: r.item.name });
       setTokens((t) => [...(t ?? []), r.item]);
     } catch (e) { snack((e as Error).message); }
@@ -211,15 +211,14 @@ export default function InboxPage() {
 
       <details className="card inbox-intro" open={firstTime}>
         <summary><b>📥 收件匣是什麼？</b></summary>
-        <p className="muted">把它想成「記帳專用的信箱」。iPhone 的「捷徑」App 會在你付款或收到通知時，自動把內容寄到這裡，你打開 Aster 確認一下就記好帳了。</p>
+        <p className="muted">像一個記帳專用的信箱：付款或收到通知時，iPhone 的「捷徑」會自動把內容寄到這裡，你打開 Aster 確認就記好了。</p>
         <ol className="inbox-steps">
-          <li><span>💳</span><div><b>你照常付款</b><br />用 Apple Pay 刷卡、收到銀行刷卡簡訊，或對 Siri 說「記一筆，午餐 120」</div></li>
-          <li><span>📨</span><div><b>捷徑自動寄出</b><br />iPhone 捷徑把金額、商家、卡片送到你自己的伺服器（不經過其他公司）</div></li>
-          <li><span>✅</span><div><b>打開 App 確認</b><br />自動判斷分類與帳戶，一鍵記帳；確定都正確後也可以改成自動入帳</div></li>
+          <li><span>💳</span><div><b>照常付款</b><br />Apple Pay 刷卡、銀行刷卡簡訊，或對 Siri 說「記一筆，午餐 120」</div></li>
+          <li><span>📨</span><div><b>捷徑自動寄出</b><br />把金額、商家、卡片送到你自己的伺服器</div></li>
+          <li><span>✅</span><div><b>打開 App 確認</b><br />自動判斷分類與帳戶，一鍵記帳（熟了可改成自動入帳）</div></li>
         </ol>
         <p className="muted" style={{ fontSize: '0.8rem', marginBottom: 0 }}>
-          🔒 Aster 不會讀取你的簡訊、銀行或 Apple 錢包；只有你自己設定的捷徑會送資料進來，而且捷徑用的「權杖」只能寄信、不能看帳。
-          收件匣的內容處理完就刪除，30 天沒處理也會自動清除。
+          🔒 Aster 不會讀你的簡訊、銀行或 Apple 錢包；捷徑的權杖只能寄送、不能看帳。內容處理後即刪除，30 天沒處理也會自動清除。
         </p>
       </details>
 
@@ -273,7 +272,7 @@ export default function InboxPage() {
       )}
 
       <div className="section-title">待確認{entries?.length ? `（${entries.length}）` : ''}</div>
-      {error && <div className="card"><p style={{ margin: 0 }}>無法取得收件匣：{error}</p></div>}
+      {error && <div className="card"><p style={{ margin: 0 }}>收件匣暫時讀不到：{error}</p></div>}
       {entries === null ? <SkeletonRows n={2} /> : entries.length === 0 ? (
         <EmptyState emoji="📭" title="收件匣是空的" text={tokens?.length ? '用 Apple Pay 付款或對 Siri 說一句話，這裡就會出現待記帳的項目。' : '先在下方設定捷徑，之後付款就會自動出現在這裡。'} />
       ) : (
@@ -357,9 +356,9 @@ export default function InboxPage() {
         </div>
         <details className="oneclick-fallback">
           <summary className="muted">沒有跳到「捷徑」App？</summary>
-          <p className="muted">「加入」會直接切到「捷徑」App；匯入完按左上角「◀ Aster」回來。如果沒有跳轉，可以改成下載捷徑檔，再到「檔案」App 的「下載項目」點開：</p>
+          <p className="muted">「加入」會切到「捷徑」App，匯入完按左上角「◀ Aster」回來。沒有跳轉的話，改下載捷徑檔，再到「檔案」App 的「下載項目」點開：</p>
           <p>{SHORTCUTS.map((s) => <a key={s.key} className="pill" href={shortcutFileUrl(s)} download={`${s.name}.shortcut`}>{s.name}</a>)}</p>
-          <p className="muted">如果「設定捷徑」畫面卡住，可以先按「略過設定」加入，再打開捷徑、把第一個「文字」動作的內容換成連結碼。NAS 外層有登入保護（例如 Cloudflare Access）時，需要放行 <code>/shortcuts/</code> 與 <code>/api/hook/</code>。</p>
+          <p className="muted">「設定捷徑」畫面卡住時，先按「略過設定」加入，再把捷徑第一個「文字」動作換成連結碼。外層有登入保護（如 Cloudflare Access）時，要放行 <code>/shortcuts/</code> 與 <code>/api/hook/</code>。</p>
         </details>
       </div>
 
@@ -405,9 +404,9 @@ export default function InboxPage() {
 
       <div className="section-title">記帳方式</div>
       <div className="list">
-        <SwitchField label="看得懂的直接記帳" sub="開啟 App 時自動記下有金額的項目，不用一筆筆確認。Apple Pay 偶爾會送來空白或被拒絕的交易，建議先手動確認一陣子再開啟"
+        <SwitchField label="看得懂的直接記帳" sub="開啟 App 時自動記下有金額的項目。Apple Pay 偶爾會送來空白或被拒絕的交易，建議先手動確認一陣子再開啟"
           checked={cfg.autoBook} onChange={(v) => update({ autoBook: v })} />
-        <SwitchField label="預計扣款提醒" sub="從記帳紀錄推算固定扣款（訂閱、房租、保費…），預計日到了就放進收件匣，一鍵記帳。只在本機推算，不連網、不用 AI"
+        <SwitchField label="預計扣款提醒" sub="依記帳紀錄推算固定扣款（訂閱、房租、保費…），預計日到了放進收件匣一鍵記帳。只在本機推算，不連網、不用 AI"
           checked={cfg.forecast !== false} onChange={(v) => { update({ forecast: v }); window.setTimeout(() => void loadFc(), 0); }} />
         <AccountField label="判斷不出帳戶時" value={cfg.defaultAccountId} onChange={(v) => update({ defaultAccountId: v })} accounts={accounts}
           allowEmpty emptyLabel="上次記帳的帳戶" filter={(a) => a.type !== 'loan' && a.type !== 'brokerage'} />
@@ -475,7 +474,7 @@ function ShortcutGuides() {
           <tr><td><code>source</code></td><td>sms</td></tr>
           <tr><td><code>text</code></td><td>「捷徑輸入」→「<b>內容</b>」（整則簡訊）</td></tr>
         </tbody></table>
-        <p className="muted">Aster 會從簡訊找出「NT$」後面的金額、「商店」後面的店名，以及卡片對應的帳戶。很多銀行已改成 App 推播，iPhone 無法自動讀取推播。</p>
+        <p className="muted">Aster 會從簡訊找出「NT$」後的金額、「商店」後的店名與對應帳戶。很多銀行已改用 App 推播，iPhone 無法自動讀取。</p>
       </details>
       <details className="card">
         <summary><b>🎙 對 Siri 說一句話記帳</b></summary>

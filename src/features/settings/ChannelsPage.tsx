@@ -60,7 +60,7 @@ export default function ChannelsPage() {
       ) : !list ? <SkeletonRows n={3} /> : (
         <>
           <p className="muted" style={{ fontSize: '0.85rem', margin: '4px 4px 12px' }}>
-            異常大額、預算超支、週報月報、發票中獎…直接推到你的 Discord、Telegram、LINE 或任何 Webhook。由伺服器發送，App 沒開也收得到週報與繳款提醒。
+            異常大額、預算超支、週報月報、發票中獎…直接推到 Discord、Telegram、LINE 或 Webhook。由伺服器發送，App 沒開也收得到週報與繳款提醒。
           </p>
           {err && <p className="muted" style={{ color: 'var(--danger)' }}>{err}</p>}
           {list.length === 0 && !err ? (
@@ -72,10 +72,10 @@ export default function ChannelsPage() {
 
           <div className="section-title">隱私</div>
           <div className="list">
-            <SwitchField label="訊息包含金額與名稱" sub={e2ee ? '你啟用了端對端加密：關閉時只送「預算提醒」這類通用標題，不送金額與商家，避免內容經過聊天軟體' : '關閉時只送通用標題，不送金額與商家'} checked={detail} onChange={(v) => set('outgoingDetail', v)} />
+            <SwitchField label="訊息包含金額與名稱" sub={e2ee ? '你啟用了端對端加密：關閉時只送「預算提醒」這類通用標題，不送金額與商家' : '關閉時只送通用標題，不送金額與商家'} checked={detail} onChange={(v) => set('outgoingDetail', v)} />
           </div>
           <p className="muted" style={{ fontSize: '0.78rem', margin: '8px 4px' }}>
-            通道的網址與權杖以 AES-256-GCM 加密後存在你的伺服器。訊息會經過 Discord、Telegram、LINE 的伺服器，請不要把含有敏感資訊的訊息送到不信任的頻道；排程的週報、月報本來就只有標題，不含金額。
+            網址與權杖以 AES-256-GCM 加密存在你的伺服器。訊息會經過 Discord、Telegram、LINE，敏感內容請勿送到不信任的頻道；週報、月報只有標題，不含金額。
           </p>
         </>
       )}

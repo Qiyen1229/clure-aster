@@ -19,7 +19,8 @@ function AuthShell({ title, subtitle, children, footer }: { title: string; subti
         {children}
       </div>
       {footer && <div className="auth-footer">{footer}</div>}
-      <p className="disclaimer">🔒 帳號與帳目都存放在你自己架設的伺服器，登入任何裝置都能看到同一份資料。</p>
+      <p className="disclaimer">🔒 帳號與帳目存放在你自己的伺服器，任何裝置登入都是同一份資料。</p>
+      <p className="auth-legal">繼續使用即表示同意<Link to="/terms" className="accent">服務條款</Link>與<Link to="/privacy" className="accent">隱私權政策</Link></p>
     </main>
   );
 }

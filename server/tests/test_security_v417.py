@@ -217,3 +217,42 @@ def test_refresh_still_works_after_access_cookie_expired() -> None:
     assert a.get("/api/auth/me").status_code == 401
     assert a.post("/api/auth/refresh").status_code == 200  # 刷新帶的是登入時發的 Token，仍然過得了
     assert a.get("/api/auth/me").status_code == 200
+
+
+# ── v4.1.9：刪除帳號、再確認身分 ──
+
+def test_delete_account_removes_everything_and_needs_password(api: Api) -> None:
+    api.register("boss")  # 第一位＝管理員
+    u = Api("10.70.0.1")
+    u.register("nina")
+    u.post("/api/inbox/tokens", {"name": "iPhone"})
+    assert u.c.request("DELETE", "/api/auth/account", json={"password": "wrong-pass"}, headers=u._h()).status_code == 400
+    assert u.get("/api/auth/me").status_code == 200  # 密碼錯不會刪
+    r = u.c.request("DELETE", "/api/auth/account", json={"password": PASSWORD}, headers=u._h())
+    assert r.status_code == 200
+    assert u.get("/api/auth/me").status_code == 401
+    assert Api("10.70.0.2").login("nina").status_code == 401  # 帳號已不存在
+    from app.model import InboxToken, RefreshToken
+    for s in dbmod.session_scope():
+        assert s.scalar(select(User).where(User.username == "nina")) is None
+        assert s.scalar(select(InboxToken).limit(1)) is None and s.scalar(select(RefreshToken).where(RefreshToken.user_id == 2)) is None
+
+
+def test_last_admin_cannot_delete_account_and_2fa_is_required(api: Api) -> None:
+    api.register("root")
+    r = api.c.request("DELETE", "/api/auth/account", json={"password": PASSWORD}, headers=api._h())
+    assert r.status_code == 400 and "管理員" in r.json()["detail"]
+    other = Api("10.71.0.1")
+    other.register("owen")
+    secret, _ = _setup_totp(other)
+    r = other.c.request("DELETE", "/api/auth/account", json={"password": PASSWORD}, headers=other._h())
+    assert r.status_code == 401 and r.headers.get("x-totp-required") == "1"  # 有開雙因素驗證：還要驗證碼
+    r = other.c.request("DELETE", "/api/auth/account", json={"password": PASSWORD, "totp": totp.code_at(secret, totp.current_step() + 1)}, headers=other._h())
+    assert r.status_code == 200
+
+
+def test_verify_password_for_forgotten_pin(api: Api) -> None:
+    api.register("pia")
+    assert api.post("/api/auth/verify-password", {"password": "nope-nope"}).status_code == 400
+    assert api.post("/api/auth/verify-password", {"password": PASSWORD}).status_code == 200
+    assert Api().post("/api/auth/verify-password", {"password": PASSWORD}).status_code == 401  # 沒登入不行

@@ -83,7 +83,7 @@ export interface Settings {
   /** 只屬於這台裝置（不同步）：手機與電腦常需要不同大小 */
   fontSize: FontSizePref;
   accent: AccentKey;
-  /** 'red'：紅漲綠跌（台股習慣，收入／獲利為紅）；'green'：綠漲紅跌 */
+  /** 'green'（預設）：收入／獲利綠、支出／虧損紅（一般記帳習慣）；'red'：收入／獲利紅、支出／虧損綠（台股習慣） */
   upColor: 'red' | 'green';
   monthStartDay: number;
   weekStart: 0 | 1;
@@ -175,7 +175,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
   fontSize: 'system',
   accent: 'cyan',
-  upColor: 'red',
+  upColor: 'green',
   monthStartDay: 1,
   weekStart: 0,
   decimals: 'auto',

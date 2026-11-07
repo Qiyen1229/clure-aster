@@ -30,8 +30,8 @@ export default function WidgetsPage() {
       </header>
       <div className="list" style={{ marginBottom: 12 }}>
         <div className="row">
-          <span className="row-main"><span className="row-title">AI 小圓球</span><span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>首頁右上角（搜尋左邊）的圓球：點開後說「昨天午餐 150」記帳、問「這個月花多少」，開啟 AI 後還能問更多</span></span>
-          <Switch checked={homeAiChat} label="顯示 AI 小圓球" onChange={(v) => set('homeAiChat', v)} />
+          <span className="row-main"><span className="row-title">AI 按鈕</span><span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>首頁右上角的 AI 按鈕：點開說「昨天午餐 150」就能記帳，也能問「這個月花多少」</span></span>
+          <Switch checked={homeAiChat} label="顯示 AI 按鈕" onChange={(v) => set('homeAiChat', v)} />
         </div>
       </div>
       <div className="section-title">顯示中（依序排列在首頁最下方）</div>

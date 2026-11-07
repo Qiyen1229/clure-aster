@@ -97,7 +97,7 @@ export default function SearchPage() {
           <div className="ask-examples">
             {TIPS.map((x) => <button key={x} className="pill" onClick={() => setQ(x)}>🔎 {x}</button>)}
           </div>
-          <p className="set-note">可搜尋備註、商家、分類、帳戶、標籤、專案、發票號碼，金額（5000、1000-5000、&gt;=3000、5000以上），日期（10/25、2026-10、10月、上週…），類型（支出、收入、轉帳）。轉帳也搜得到。</p>
+          <p className="set-note">可搜尋備註、商家、分類、帳戶、標籤、專案、發票號碼；金額（5000、1000-5000、&gt;=3000）、日期（10/25、2026-10、上週…）、類型（支出、收入、轉帳）也行。</p>
           <div className="section-title">試試看用問的</div>
           <div className="ask-examples">
             {EXAMPLES.map((x) => <button key={x} className="pill" onClick={() => setQ(x)}>💬 {x}</button>)}

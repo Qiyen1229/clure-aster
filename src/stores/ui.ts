@@ -64,6 +64,10 @@ interface UIState {
   confirm: ConfirmRequest | null;
   closeConfirm: (ok: boolean) => void;
 
+  /** 自製輸入視窗（取代 window.prompt）：用 askInput() 取得使用者輸入的文字，取消回傳 null */
+  input: InputRequest | null;
+  closeInput: (value: string | null) => void;
+
   actions: { title?: string; items: ActionItem[] } | null;
   showActions: (title: string | undefined, items: ActionItem[]) => void;
   closeActions: () => void;
@@ -79,8 +83,25 @@ export interface ConfirmOptions {
 }
 export interface ConfirmRequest extends ConfirmOptions { id: number; resolve: (ok: boolean) => void }
 
+export interface InputOptions {
+  title: string;
+  message?: string;
+  placeholder?: string;
+  defaultValue?: string;
+  confirmText?: string;
+  /** 密碼：隱藏輸入、不自動大寫與校正 */
+  secret?: boolean;
+  /** 一定要填（確認鍵在空白時不能按） */
+  required?: boolean;
+  danger?: boolean;
+  inputMode?: 'text' | 'numeric' | 'decimal';
+  maxLength?: number;
+}
+export interface InputRequest extends InputOptions { id: number; resolve: (value: string | null) => void }
+
 let snackSeq = 0;
 let confirmSeq = 0;
+let inputSeq = 0;
 
 export const useUI = create<UIState>((set) => ({
   selectedDate: todayKey(),
@@ -100,6 +121,9 @@ export const useUI = create<UIState>((set) => ({
   confirm: null,
   closeConfirm: (ok) => set((s) => { s.confirm?.resolve(ok); return { confirm: null }; }),
 
+  input: null,
+  closeInput: (value) => set((s) => { s.input?.resolve(value); return { input: null }; }),
+
   actions: null,
   showActions: (title, items) => set({ actions: { title, items } }),
   closeActions: () => set({ actions: null }),
@@ -115,6 +139,14 @@ export function askConfirm(opts: ConfirmOptions): Promise<boolean> {
   return new Promise((resolve) => {
     useUI.getState().confirm?.resolve(false);
     useUI.setState({ confirm: { ...opts, id: ++confirmSeq, resolve } });
+  });
+}
+
+/** 輸入視窗：回傳使用者輸入的文字（前後空白已去掉），按取消回傳 null。同時只會顯示一個。 */
+export function askInput(opts: InputOptions): Promise<string | null> {
+  return new Promise((resolve) => {
+    useUI.getState().input?.resolve(null);
+    useUI.setState({ input: { ...opts, id: ++inputSeq, resolve } });
   });
 }
 

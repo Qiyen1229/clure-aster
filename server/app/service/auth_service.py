@@ -223,6 +223,32 @@ class AuthService:
         self.audit.record("auth.totp_disable", client, user_id=user.id)
         self.db.commit()
 
+    # ───── 再確認身分／刪除帳號 ─────
+    def confirm_identity(self, user: User, password: str, totp_code: str | None, client: ClientInfo, action: str) -> None:
+        """密碼（有開雙因素驗證時再加驗證碼）都對才放行；錯誤不計入登入鎖定，但有頻率限制（在 API 層）。"""
+        if not verify_password(password, user.password_hash):
+            self.audit.record(action, client, success=False, user_id=user.id, detail={"reason": "bad_password"})
+            self.db.commit()
+            raise ServiceError(400, "密碼不正確")
+        if user.totp_enabled:
+            if not totp_code:
+                raise ServiceError(401, "請輸入雙因素驗證碼", headers={"X-Totp-Required": "1"})
+            if not self._check_second_factor(user, totp_code):
+                self.audit.record(action, client, success=False, user_id=user.id, detail={"reason": "bad_totp"})
+                self.db.commit()
+                raise ServiceError(401, "驗證碼錯誤或已使用過", headers={"X-Totp-Required": "1"})
+
+    def delete_account(self, user: User, password: str, totp_code: str | None, client: ClientInfo) -> None:
+        """刪除帳號與伺服器上的全部資料（帳目同步資料、收件匣、推播、外部通知、AI 用量、登入紀錄）。審計日誌只留不含個資的紀錄。"""
+        self.confirm_identity(user, password, totp_code, client, "auth.account_delete")
+        if user.role == ROLE_ADMIN and self.users.count_admins() <= 1:
+            raise ServiceError(400, "你是唯一的管理員，請先建立另一位管理員，再刪除這個帳號")
+        uid = user.id
+        self.users.delete(user)  # 其他資料表以外鍵 ON DELETE CASCADE 一併刪除
+        self.audit.record("auth.account_delete", client, user_id=uid)
+        self.db.commit()
+        log.info("使用者自行刪除帳號 id=%s", uid)
+
     # ───── 已登入的裝置 ─────
     def sessions(self, user: User, current_family: str | None) -> list[SessionOut]:
         now = utcnow()

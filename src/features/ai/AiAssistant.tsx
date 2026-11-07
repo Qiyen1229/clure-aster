@@ -53,7 +53,7 @@ export default function AiAssistant() {
     <main className="page">
       {header}
       {st && <p className="row-sub" style={{ margin: '0 4px 8px', whiteSpace: 'normal' }}>{st.available ? '' : '⚠️ '}{st.message}　今日剩 {st.quota.daily.remaining ?? '不限'} 次、本週 {st.quota.weekly.remaining ?? '不限'} 次、本月 {st.quota.monthly.remaining ?? '不限'} 次</p>}
-      <p className="row-sub" style={{ margin: '0 4px 10px', whiteSpace: 'normal' }}>要對話：在任何頁面把中央圓球往上滑（非記帳頁也可長按），或點首頁右上角的小圓球。</p>
+      <p className="row-sub" style={{ margin: '0 4px 10px', whiteSpace: 'normal' }}>要對話：在任何頁面把中央按鈕往上滑（非記帳頁也可長按），或點首頁右上角的小圓球。</p>
       <div style={{ display: 'grid', gap: 12 }}>
         {!dataOn && (
           <section className="card">

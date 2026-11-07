@@ -352,7 +352,7 @@ export function ChatPanel({ onLeave, autoFocus }: { onLeave?: () => void; autoFo
       <div className="chat-list" role="log" aria-live="polite">
         {!msgs.length && (
           <div style={{ margin: 8 }}>
-            <p className="muted" style={{ margin: '0 0 8px' }}>說一句話就好：記帳、查帳、問問題，或叫我跨帳戶、貸款、股票、欠款一次做完（先預覽、確認才執行、可整包還原）。{aiOn ? '' : '（整理帳本與問 AI 需要先在設定開啟 AI）'}</p>
+            <p className="muted" style={{ margin: '0 0 8px' }}>說一句話就好：記帳、查帳、問問題，或跨帳戶、貸款、股票、欠款一次做完（先預覽、確認才執行、可整包還原）。{aiOn ? '' : '（整理帳本與問 AI 需要先在設定開啟 AI）'}</p>
             {chips.length > 0 && <div className="ask-examples" style={{ marginBottom: 6 }}>{chips.slice(0, 3).map((c) => <button key={c.label} className="pill ctx-chip" disabled={busy} onClick={() => pickChip(c)}>{c.label}</button>)}</div>}
             <div className="ask-examples">{VIEW_CHIPS.slice(0, 3).map((x) => <button key={x} className="pill view-chip" disabled={busy} onClick={() => go(x)}>📊 {x}</button>)}</div>
             <div className="ask-examples" style={{ marginTop: 6 }}>{CHAT_EXAMPLES.slice(0, Math.max(2, MAX_CHIPS - Math.min(chips.length, 3) - 3)).map((x) => <button key={x} className="pill" disabled={busy} onClick={() => go(x)}>{x}</button>)}</div>

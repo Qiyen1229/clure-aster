@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import AuthGate from './app/AuthGate';
-import { ConfirmHost } from './app/overlays';
+import { ConfirmHost, InputHost } from './app/overlays';
 import './theme/app.css';
 import { applyTheme } from './stores/settings';
 import { DEFAULT_SETTINGS } from './db/repo/settings';
@@ -36,6 +36,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <AuthGate />
       {/* 確認視窗放在最外層：登入前的畫面（例如刪除舊資料）也要能跳出 */}
       <ConfirmHost />
+      <InputHost />
     </BrowserRouter>
   </React.StrictMode>,
 );

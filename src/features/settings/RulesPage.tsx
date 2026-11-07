@@ -49,7 +49,7 @@ export default function RulesPage() {
         <button className="icon-btn" aria-label="新增規則" onClick={() => setDraft(blank())}><Icon name="plus" /></button>
       </header>
       <p className="muted" style={{ margin: '0 8px 12px', fontSize: '0.85rem' }}>
-        記帳時輸入的備註、匯入帳單與電子發票的商家名稱符合規則，就自動帶入分類；規則也可以指定帳戶，電子發票會記到該帳戶。沒有規則時，會參考你過去同樣文字最常用的分類與帳戶。
+        備註、帳單與電子發票的商家名稱符合規則，就自動帶入分類；規則也可以指定帳戶（電子發票會記到該帳戶）。沒有規則時，參考你過去同樣文字最常用的分類與帳戶。
       </p>
 
       {rules.length === 0 ? (

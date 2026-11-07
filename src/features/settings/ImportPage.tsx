@@ -11,7 +11,7 @@ import { uid } from '@/db/schema';
 import { categoryLabel, useAccounts, useCategories } from '@/app/hooks';
 import { SwitchField } from '@/ui/form';
 import { useSettings } from '@/stores/settings';
-import { useUI } from '@/stores/ui';
+import { askInput, useUI } from '@/stores/ui';
 import { Icon } from '@/ui/Icon';
 import { NewMark } from '@/ui/NewMark';
 import { Intro } from '@/ui/Hint';
@@ -111,8 +111,8 @@ export default function ImportPage() {
     } finally { setBusy(false); }
   };
 
-  const saveProfile = () => {
-    const name = profileName.trim() || window.prompt('格式名稱（例如：玉山信用卡）', fileName.replace(/\.csv$/i, ''))?.trim();
+  const saveProfile = async () => {
+    const name = profileName.trim() || await askInput({ title: '格式名稱', placeholder: '例如：玉山信用卡', defaultValue: fileName.replace(/\.csv$/i, ''), required: true, maxLength: 40, confirmText: '儲存' });
     if (!name) return;
     const sig = headerSignature(header);
     const rest = profiles.filter((p) => p.header !== sig);
@@ -138,7 +138,7 @@ export default function ImportPage() {
           <div className="card">
             <p style={{ marginTop: 0 }}><b>支援格式</b></p>
             <ul className="muted" style={{ paddingLeft: 20, fontSize: '0.9rem', lineHeight: 1.7 }}>
-              <li><b>銀行／信用卡對帳單</b>：網銀下載的 CSV；支出與存入分兩欄、民國年日期都支援，疑似重複的帳目會自動略過，沒有分類時依「自動分類規則」帶入</li>
+              <li><b>銀行／信用卡對帳單</b>：網銀下載的 CSV。支援支出／存入分兩欄與民國年日期；疑似重複會略過，沒有分類時依「自動分類規則」帶入</li>
               <li><b>電子發票</b>：請改用「設定 → 電子發票匯入」</li>
               <li><b>Moze</b>：Moze →「設定 → 匯出資料 → CSV」，自動辨識所有欄位，轉出／轉入會自動配對成轉帳</li>
               <li>其他記帳 App 或 Excel 匯出的 CSV（UTF-8 或 Big5），下一步可手動對應欄位</li>
@@ -165,7 +165,7 @@ export default function ImportPage() {
                 <input type="file" accept="image/*" multiple className="sr-only" disabled={busy} onChange={(e) => { const f = e.target.files; void onShot(f).finally(() => { e.target.value = ''; }); }} />
               </label>
             ) : <p className="row-sub" style={{ marginBottom: 0, whiteSpace: 'normal' }}>開啟 AI 後也能直接拍帳單截圖對帳（設定 → AI 助理）。</p>}
-            <Intro id="import.recon">日期容差 ±3 天，金額與商家名稱一起比對，比對與補帳都在你的手機上完成，補齊後可復原。截圖只送圖片給 AI 讀取明細（縮小後送出、不保存），讀到的金額加總會和帳單合計驗證；一次最多 4 張。</Intro>
+            <Intro id="import.recon">日期容差 ±3 天，金額與商家一起比對，全程在你的手機完成，補齊後可復原。截圖只送圖片給 AI 讀取（縮小後送出、不保存），讀到的加總會和帳單合計驗證；一次最多 4 張。</Intro>
           </div>
         </>
       )}
@@ -195,7 +195,7 @@ export default function ImportPage() {
             )}
           </div>
           <AccountNames />
-          <p className="muted" style={{ fontSize: '0.8rem', margin: '0 8px 12px' }}>沒有「類型」欄位時：負數金額視為支出、正數視為收入（可用上方開關反轉）。帳戶名稱與現有帳戶相同時直接記入，否則會建立新帳戶。</p>
+          <p className="muted" style={{ fontSize: '0.8rem', margin: '0 8px 12px' }}>沒有「類型」欄位時，負數視為支出、正數視為收入（可用上方開關反轉）。帳戶名稱和現有帳戶相同就記入，否則建立新帳戶。</p>
           {!isMoze && <button className="btn tinted" style={{ marginBottom: 8 }} onClick={saveProfile}>{profileName ? `更新格式「${profileName}」` : '把這個欄位對應存成格式'}</button>}
           <button className="btn" disabled={busy} onClick={() => void preview()}>{busy ? '檢查中…' : '下一步：預覽'}</button>
         </>

@@ -11,7 +11,7 @@ import { CURRENCIES } from '@/domain/money';
 import { checkForUpdate } from '@/services/appUpdate';
 import { refreshRates } from '@/services/fx';
 import { useSettings } from '@/stores/settings';
-import { useUI, ask } from '@/stores/ui';
+import { useUI, ask, askInput } from '@/stores/ui';
 import type { AccentKey } from '@/db/repo/settings';
 import { Segmented, Switch } from '@/ui/controls';
 import { Icon, type IconName } from '@/ui/Icon';
@@ -22,6 +22,9 @@ import { AUTH_ENABLED, useAuth } from '@/stores/auth';
 import { ChangePasswordForm } from '../auth/AuthPages';
 import { setEncryption, syncNow, unlockEncryption, useSync } from '@/services/sync';
 import { FONT_SIZES } from '@/app/viewport';
+import { api } from '@/services/api';
+import { confirmIdentity } from '@/services/identity';
+import { wipeLocalData } from '@/services/lockGuard';
 
 const SYNC_TEXT = { off: '未啟用', idle: '已同步', syncing: '同步中…', offline: '離線，恢復連線後自動同步', error: '同步失敗', locked: '需要輸入加密密碼' } as const;
 
@@ -41,8 +44,8 @@ function EncryptionSheet({ open, onClose }: { open: boolean; onClose: () => void
   return (
     <Sheet open={open} onClose={onClose} title="端對端加密">
       <div className="card" style={{ fontSize: '0.88rem' }}>
-        <p style={{ marginTop: 0 }}>{e2ee?.enabled ? '🔒 已啟用：帳目在這台裝置加密後才上傳，伺服器與管理員都無法讀取內容。' : '啟用後，帳目會在裝置上以你設定的「加密密碼」加密後才上傳，伺服器（含 NAS 管理員）只看得到加密後的資料。'}</p>
-        <p className="muted" style={{ marginBottom: 0 }}>加密密碼與登入密碼分開，只存在你的腦中與已解鎖的裝置。<b>忘記加密密碼將無法在新裝置取回資料</b>（已登入的裝置仍保有完整資料，可停用後重新上傳）。推播通知的文字不會加密，啟用後推播內容會隱藏金額。</p>
+        <p style={{ marginTop: 0 }}>{e2ee?.enabled ? '🔒 已啟用：帳目在這台裝置加密後才上傳，伺服器與管理員都讀不到。' : '啟用後，帳目會用你的「加密密碼」在裝置上加密才上傳，伺服器（含管理員）只看得到密文。'}</p>
+        <p className="muted" style={{ marginBottom: 0 }}>加密密碼與登入密碼分開。<b>忘記加密密碼，新裝置就取不回資料</b>（已登入的裝置仍有完整資料，可停用後重新上傳）。啟用後，推播內容會隱藏金額。</p>
       </div>
       {locked ? (
         <>
@@ -174,10 +177,10 @@ function AppearanceSheet({ open, onClose }: { open: boolean; onClose: () => void
             <span>午餐・便當</span><span className="num">$120</span>
           </div>
         </div>
-        <Row label="收支／漲跌顏色" sub={s.upColor === 'red' ? '紅漲綠跌（台股習慣）' : '綠漲紅跌'}>
+        <Row label="收支／漲跌顏色" sub={s.upColor === 'green' ? '支出／虧損紅，收入／獲利綠' : '支出／虧損綠，收入／獲利紅（台股習慣）'}>
           <div style={{ width: 128, flex: 'none' }}>
             <Segmented value={s.upColor} onChange={(v) => s.set('upColor', v)} ariaLabel="收支顏色"
-              options={[{ value: 'red', label: <span style={{ color: 'var(--up-red)' }}>紅漲</span> }, { value: 'green', label: <span style={{ color: 'var(--down-green)' }}>綠漲</span> }]} />
+              options={[{ value: 'green', label: <span style={{ color: 'var(--up-red)' }}>支紅</span> }, { value: 'red', label: <span style={{ color: 'var(--down-green)' }}>支綠</span> }]} />
           </div>
         </Row>
       </div>
@@ -248,6 +251,12 @@ export default function SettingsPage() {
     try { await fn(); } catch (e) { snack(`失敗：${(e as Error).message}`); } finally { setBusy(''); }
   };
   const account = AUTH_ENABLED && auth.user;
+  /** 刪除帳號：伺服器上的帳號與全部同步資料永久刪除，這台裝置的本機資料一併清除 */
+  const deleteAccount = async () => {
+    if (!await ask('刪除帳號？伺服器上的帳號與所有同步的資料會永久刪除，這台裝置的資料也會清除，無法復原。', { confirmText: '繼續' })) return;
+    const ok = await confirmIdentity((body) => api('/auth/account', { method: 'DELETE', body }), { title: '輸入密碼，確認刪除帳號', confirmText: '刪除帳號', danger: true });
+    if (ok) await wipeLocalData();
+  };
 
   return (
     <main className="page settings-page">
@@ -279,32 +288,32 @@ export default function SettingsPage() {
       )}
 
       <Group id="ai" title="AI 與自動化">
-        <Row icon="ai" tint="#17181c" label="AI 助理" sub="一句話跨帳戶、貸款、股票做完；靈動島上滑隨時問" onClick={() => navigate('/ai')} newSince="4.1.0" />
-        {AUTH_ENABLED && <Row icon="sliders" tint="#8E8E93" label="AI 設定與額度" sub="開關、會送出哪些內容、每日／週／月額度" onClick={() => navigate('/settings/ai')} />}
-        <Row icon="ai" tint="#5E5CE6" label="首頁 AI 小圓球" sub="首頁右上角（搜尋左邊），點開就能對話記帳">
-          <Switch checked={s.homeAiChat} label="顯示 AI 小圓球" onChange={(v) => s.set('homeAiChat', v)} />
+        <Row icon="ai" tint="#17181c" label="AI 助理" sub="一句話記帳、查帳、跨帳戶操作" onClick={() => navigate('/ai')} newSince="4.1.0" />
+        {AUTH_ENABLED && <Row icon="sliders" tint="#8E8E93" label="AI 設定與額度" sub="開關、送出內容、額度" onClick={() => navigate('/settings/ai')} />}
+        <Row icon="ai" tint="#5E5CE6" label="首頁 AI 按鈕" sub="首頁右上角，點開就能對話記帳">
+          <Switch checked={s.homeAiChat} label="顯示 AI 按鈕" onChange={(v) => s.set('homeAiChat', v)} />
         </Row>
-        {AUTH_ENABLED && <Row icon="download" tint="#30D158" label="自動記帳收件匣" sub="Apple Pay、簡訊、Siri 等六個捷徑一鍵安裝" onClick={() => navigate('/inbox')} newSince="4.1.4" />}
-        <Row icon="note" tint="#0A84FF" label="電子發票" sub="手機條碼載具、掃描 QR Code、匯入明細、自動對獎" onClick={() => navigate('/settings/invoice')} />
-        <Row icon="check" tint="#FF9F0A" label="帳單對帳" sub="用信用卡或銀行帳單（CSV／截圖）核對帳本，一鍵補齊漏記" onClick={() => navigate('/settings/import?mode=reconcile')} newSince="4.0.0" />
+        {AUTH_ENABLED && <Row icon="download" tint="#30D158" label="自動記帳收件匣" sub="Apple Pay、簡訊、Siri 自動記帳" onClick={() => navigate('/inbox')} newSince="4.1.4" />}
+        <Row icon="note" tint="#0A84FF" label="電子發票" sub="載具、掃描發票、自動對獎" onClick={() => navigate('/settings/invoice')} />
+        <Row icon="check" tint="#FF9F0A" label="帳單對帳" sub="用帳單核對帳本，補齊漏記" onClick={() => navigate('/settings/import?mode=reconcile')} newSince="4.0.0" />
       </Group>
 
       <Group id="cats" title="分類與規則">
         <Row icon="pie" tint="#FF375F" label="支出／收入分類" sub="名稱、圖示、顏色、排序、封存" onClick={() => navigate('/settings/categories')} />
         <Row icon="tag" tint="#BF5AF2" label="標籤" onClick={() => navigate('/settings/tags')} />
-        <Row icon="template" tint="#FF9F0A" label="常用項目（釘選）" sub="偶爾才記的消費存起來，記帳時一點就套用" onClick={() => navigate('/settings/pinned')} newSince="4.1.8" />
+        <Row icon="template" tint="#FF9F0A" label="常用項目（釘選）" sub="偶爾才記的消費，一點就套用" onClick={() => navigate('/settings/pinned')} newSince="4.1.8" />
         <Row icon="filter" tint="#30B0C7" label="自動分類規則" sub="依備註、商家帶入分類與標籤" onClick={() => navigate('/settings/rules')} />
       </Group>
 
       <Group id="auto" title="通知與整合">
-        <Row icon="bell" tint="#FF3B30" label="通知與提醒" sub="記帳、繳款、預算、訂閱、到價、週報月報；也能推到 Discord、Telegram、LINE、Webhook" onClick={() => navigate('/settings/notifications')} />
-        <Row icon="trend" tint="#5E5CE6" label="股票資料源與 API Key" sub="代理網址、資料源順序、手續費、成本法" onClick={() => navigate('/settings/invest')} />
+        <Row icon="bell" tint="#FF3B30" label="通知與提醒" sub="記帳、繳款、預算、到價提醒" onClick={() => navigate('/settings/notifications')} />
+        <Row icon="trend" tint="#5E5CE6" label="股票資料源與 API Key" sub="資料源、手續費、成本法" onClick={() => navigate('/settings/invest')} />
       </Group>
 
       <Group id="look" title="顯示與格式">
         <Row icon="eye" tint="#0A84FF" label="外觀與顯示" sub={`${s.theme === 'system' ? '跟隨系統' : s.theme === 'dark' ? '深色' : '淺色'}・${ACCENTS.find((a) => a.key === s.accent)?.name ?? ''}・${s.upColor === 'red' ? '紅漲綠跌' : '綠漲紅跌'}`} onClick={() => setLookOpen(true)} />
         <Row icon="sliders" tint="#8E8E93" label="記帳格式與起算日" sub={`${s.baseCurrency}・每月 ${s.monthStartDay === 31 ? '最後一天' : `${s.monthStartDay} 日`}起算・一週從${s.weekStart === 0 ? '週日' : '週一'}`} onClick={() => setPrefsOpen(true)} />
-        <Row icon="grip" tint="#FF9F0A" label="首頁快覽" sub="今日可用、預算、淨資產…（可增減、排序）" onClick={() => navigate('/settings/widgets')} />
+        <Row icon="grip" tint="#FF9F0A" label="首頁快覽" sub="增減與排序首頁的快覽" onClick={() => navigate('/settings/widgets')} />
         <Row icon="globe" tint="#0A84FF" label="幣別與匯率" onClick={() => navigate('/settings/fx')}
           sub={fxAt ? `上次更新 ${new Date(fxAt).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : '尚未更新'} />
       </Group>
@@ -312,8 +321,8 @@ export default function SettingsPage() {
       <PrefsSheet open={prefsOpen} onClose={() => setPrefsOpen(false)} />
 
       <Group id="data" title="資料">
-        <Row icon="folder" tint="#0A84FF" label="備份、匯入與匯出" sub="JSON 備份／還原、CSV、Excel、PDF、Moze 匯入" onClick={() => navigate('/settings/backup')} />
-        <Row icon="check" tint="#30D158" label="資料健康檢查" sub="餘額、換算金額、遺失關聯、多餘照片" onClick={() => navigate('/settings/health')} />
+        <Row icon="folder" tint="#0A84FF" label="備份、匯入與匯出" sub="備份還原、CSV、Excel、PDF" onClick={() => navigate('/settings/backup')} />
+        <Row icon="check" tint="#30D158" label="資料健康檢查" sub="檢查餘額與資料是否一致" onClick={() => navigate('/settings/health')} />
         {sample ? (
           <Row icon="template" tint="#8E8E93" label="清除範例資料" sub="只刪除範例帳戶與帳目">
             <button className="btn small danger" disabled={busy === 'sample'} onClick={() => run('sample', async () => {
@@ -331,7 +340,7 @@ export default function SettingsPage() {
         )}
       </Group>
 
-      <Group id="about" title="關於" desc="版本與更新、首次引導、隱私說明">
+      <Group id="about" title="關於" desc="版本與更新、政策與條款">
         <Row icon="info" tint="#8E8E93" label="版本" sub={`v${__APP_VERSION__} · 建置於 ${__BUILD_TIME__.slice(0, 10)}`}>
           <button className="pill" disabled={checking} onClick={async () => {
             setChecking(true);
@@ -344,9 +353,11 @@ export default function SettingsPage() {
           }}>{checking ? '檢查中…' : '檢查更新'}</button>
         </Row>
         <Row icon="info" tint="#FF9F0A" label="重新執行首次引導" onClick={() => { s.set('onboarded', false); navigate('/onboarding'); }} />
+        <Row icon="lock" tint="#30B0C7" label="隱私權政策" onClick={() => navigate('/privacy')} />
+        <Row icon="note" tint="#8E8E93" label="服務條款" onClick={() => navigate('/terms')} />
         <details className="set-details">
           <summary>資料隱私說明</summary>
-          <p>記帳資料存在本機（IndexedDB，每個帳號獨立），並同步到你自己架設的伺服器，讓同一帳號的所有裝置看到相同資料；未啟用端對端加密時，伺服器上的資料為明文。收據照片只留在拍照的裝置。App 鎖 PIN、通知設定不會同步。匯率與股價查詢只會送出幣別／股票代號。</p>
+          <p>記帳資料存在本機，並同步到你的伺服器，各裝置看到同一份；未啟用端對端加密時，伺服器上是明文。收據照片只留在拍照的裝置，App 鎖 PIN 與通知設定不同步。匯率與股價查詢只送出幣別或股票代號。</p>
         </details>
       </Group>
 
@@ -354,14 +365,15 @@ export default function SettingsPage() {
         {account && (
           <Row danger label="登出" onClick={async () => { if (await ask('確定登出？帳目已同步到伺服器，在任何裝置重新登入即可繼續使用。')) void auth.logout(); }} />
         )}
+        {account && <Row danger label="刪除帳號" sub="刪除伺服器上的帳號與全部資料" onClick={() => void deleteAccount()} />}
         <Row danger label="清除所有資料" sub="刪除此裝置上的全部資料，無法復原" onClick={async () => {
           if (!await ask('確定要刪除所有資料？此動作無法復原。')) return;
-          if (window.prompt('請輸入「刪除」以確認') !== '刪除') return;
+          if (await askInput({ title: '輸入「刪除」確認', placeholder: '刪除', confirmText: '清除', danger: true }) !== '刪除') return;
           await db.delete();
           location.replace('/');
         }} />
       </Group>
-      <p className="disclaimer">Aster 記帳 · Qiyen 著 · 115.02.03</p>
+      <p className="disclaimer">2026.02.03 · Qiyen 著</p>
     </main>
   );
 }

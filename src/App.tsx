@@ -59,6 +59,8 @@ const SettingsPage = lazy(() => import('./features/settings/SettingsPage'));
 const CategoriesPage = lazy(() => import('./features/settings/CategoriesPage'));
 const TagsPage = lazy(() => import('./features/settings/TagsPage'));
 const PinnedPage = lazy(() => import('./features/settings/PinnedPage'));
+const PrivacyPage = lazy(() => import('./features/legal/LegalPages').then((m) => ({ default: m.PrivacyPage })));
+const TermsPage = lazy(() => import('./features/legal/LegalPages').then((m) => ({ default: m.TermsPage })));
 const SearchPage = lazy(() => import('./features/search/SearchPage'));
 const Onboarding = lazy(() => import('./features/onboarding/Onboarding'));
 const ProjectDetailPage = lazy(() => import('./features/plan/projects').then((m) => ({ default: m.ProjectDetailPage })));
@@ -279,6 +281,8 @@ export default function App() {
             <Route path="/settings/categories" element={<CategoriesPage />} />
             <Route path="/settings/tags" element={<TagsPage />} />
             <Route path="/settings/pinned" element={<PinnedPage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/terms" element={<TermsPage />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/plan/projects/:id" element={<ProjectDetailPage />} />

@@ -39,7 +39,7 @@ export default function PinnedPage() {
         <div style={{ width: 44 }} />
       </header>
       <p className="muted" style={{ margin: '0 4px 10px' }}>
-        偶爾才記、不是固定週期的消費（例如「肯德基 晚餐 $160」）可以釘選起來：記帳時會排在建議的最前面，一點就帶入金額、分類、帳戶與標籤，不受「近 90 天」限制。最多 {MAX_PINNED} 個，用得越多排越前面。
+        偶爾才記的消費（例如「肯德基 晚餐 $160」）可以釘選：記帳時排在建議最前面，一點就帶入金額、分類、帳戶與標籤。最多 {MAX_PINNED} 個，用得越多排越前面。
       </p>
       {!list ? null : list.length === 0 ? (
         <EmptyState emoji="📌" title="還沒有釘選" text="在記帳面板輸入金額後，按右上角的 📌；或在帳目列表長按一筆，選「釘選為常用」。" />

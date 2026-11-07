@@ -12,7 +12,7 @@ from app.core.mailer import mail_configured
 from app.core.request_info import ClientInfo
 from app.model import User
 from app.schema.auth import (ChangePasswordRequest, ForgotPasswordRequest, LoginRequest, MessageResponse, RegisterRequest, ResetPasswordRequest, SessionOut, TotpDisableRequest, TotpEnabled,
-                             TotpEnableRequest, TotpSetup, TotpStatus, UserPublic)
+                             PasswordCheckRequest, TotpEnableRequest, TotpSetup, TotpStatus, UserPublic)
 from app.service.app_settings import registration_open
 from app.service.auth_service import AuthService, IssuedTokens
 
@@ -148,3 +148,21 @@ def sessions(request: Request, user: User = Depends(get_current_user), db: Sessi
 def revoke_session(family_id: str, request: Request, client: ClientInfo = Depends(get_client), user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> MessageResponse:
     AuthService(db).revoke_session(user, family_id, _current_family(request), client)
     return MessageResponse(message="已登出該裝置")
+
+
+# ───── 再確認身分、刪除帳號 ─────
+
+@router.post("/verify-password", response_model=MessageResponse, summary="再確認身分（忘記 App 鎖 PIN 時，用帳號密碼解除這台裝置的 PIN）")
+def verify_password_endpoint(body: PasswordCheckRequest, client: ClientInfo = Depends(get_client), user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> MessageResponse:
+    rate_limit(login_account_limiter, f"verify:{user.id}")
+    AuthService(db).confirm_identity(user, body.password, body.totp, client, "auth.verify_password")
+    return MessageResponse(message="已確認")
+
+
+@router.delete("/account", response_model=MessageResponse, summary="刪除帳號與伺服器上的全部資料（不可復原）")
+def delete_account(body: PasswordCheckRequest, request: Request, response: Response, client: ClientInfo = Depends(get_client),
+                   user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> MessageResponse:
+    rate_limit(login_account_limiter, f"delete:{user.id}")
+    AuthService(db).delete_account(user, body.password, body.totp, client)
+    clear_auth_cookies(response, request)
+    return MessageResponse(message="帳號已刪除")

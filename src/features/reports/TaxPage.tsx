@@ -99,7 +99,7 @@ export default function TaxPage() {
               </div>
             </>
           )}
-          <p className="disclaimer">以 App 內的股利與交易紀錄估算，級距、免稅額採 113 年度（114 年 5 月申報）標準；實際以財政部公告與綜所稅申報系統為準。</p>
+          <p className="disclaimer">依 App 內的股利與交易紀錄估算，級距與免稅額採 113 年度（114 年 5 月申報）標準，實際以財政部公告為準。</p>
         </>
       )}
     </main>

@@ -63,7 +63,7 @@ export function TaxPlanCards() {
       <div className="section-title"><NewMark since="4.0.0" /> 📅 除息前預警（未來 4 個月）</div>
       {!plan.netIncomeSet && <p className="row-sub" style={{ margin: '0 8px 8px', whiteSpace: 'normal' }}>你還沒填下面的「綜合所得淨額」，目前以 0 估算（邊際稅率 5%）；填了之後建議會更準。</p>}
       {plan.events.length === 0 ? (
-        <section className="card"><p style={{ margin: 0, whiteSpace: 'normal' }}>近期沒有持股要除息。公告或有去年的配息紀錄時，這裡會提早告訴你會不會被扣二代健保，以及要不要參與除息。</p></section>
+        <section className="card"><p style={{ margin: 0, whiteSpace: 'normal' }}>近期沒有持股要除息。有公告或去年的配息紀錄時，這裡會提早告訴你會不會被扣二代健保、要不要參與除息。</p></section>
       ) : plan.events.map((a) => <EventCard key={`${a.event.stockId}:${a.event.exDate ?? a.event.payDate}`} a={a} />)}
       {ow && oadv && (
         <>
@@ -81,7 +81,7 @@ export function TaxPlanCards() {
           </section>
         </>
       )}
-      <p className="disclaimer">除息與棄息試算依你的持股、股利紀錄、報價與費稅設定估算，不含價格波動與稅法變動，僅供參考，不構成投資或稅務建議；實際以財政部公告與申報系統為準。</p>
+      <p className="disclaimer">除息與棄息試算依你的持股、股利紀錄、報價與費稅設定估算，不含價格波動與稅法變動，僅供參考，不構成投資或稅務建議；以財政部公告為準。</p>
     </>
   );
 }

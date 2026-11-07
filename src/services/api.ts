@@ -85,7 +85,7 @@ export async function api<T>(path: string, opts: RequestOptions = {}, retry = tr
       await ensureCsrf();
       return api<T>(path, opts, false);
     }
-    throw new ApiError(res.status, typeof data?.detail === 'string' ? data.detail : `伺服器錯誤（${res.status}）`, res.headers.get('X-Totp-Required') === '1');
+    throw new ApiError(res.status, typeof data?.detail === 'string' ? data.detail : res.status >= 500 ? `伺服器暫時沒有回應（${res.status}），請稍後再試` : res.status === 404 ? '找不到這筆資料' : `發生錯誤（${res.status}），請稍後再試`, res.headers.get('X-Totp-Required') === '1');
   }
   return data as T;
 }

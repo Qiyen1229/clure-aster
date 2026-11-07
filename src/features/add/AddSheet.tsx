@@ -597,6 +597,26 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
             </div>
           </div>
 
+          {/* 常用與釘選：放在金額下面、分類上面（不用捲動就看得到，一點就帶入金額、分類、帳戶） */}
+          {(() => {
+            // 已經選好、且金額也填了的那筆就不必再列出
+            const list = noteSugs.filter((x) => !(expr && x.note.toLowerCase() === note.trim().toLowerCase()));
+            if ((mode !== 'expense' && mode !== 'income') || editing || !list.length) return null;
+            return (
+              <div className="sub-row note-sugs" aria-label={note.trim() ? '相似的過去備註' : '最近常記與釘選'}>
+                {list.map((x) => {
+                  const c = catMap.get(x.categoryId);
+                  return (
+                    <SugChip key={`${x.pinnedId ?? 'r'}:${x.note}`} onLongPress={() => sugActions(x)} onPick={() => applyNoteSuggestion(x)}
+                      label={`${x.pinnedId ? '釘選的 ' : ''}${x.note}，${formatMoney(x.amountMinor, x.currency)}，${c?.name ?? ''}`}>
+                      <span aria-hidden="true">{x.pinnedId ? '📌' : c?.icon ?? '🕘'}</span> {x.note} <span className="faint num">{formatMoney(x.amountMinor, x.currency)}</span>
+                    </SugChip>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
           {adjustDiff !== null && (
             <p className="muted" style={{ margin: '-6px 4px 8px', fontSize: '0.8rem', textAlign: 'right' }}>
               {editTxId ? '調整前餘額' : '目前餘額'} {formatMoney(adjustBaseline(account!), account!.currency)} → 差額{' '}
@@ -811,24 +831,6 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
                 }}>🪄 自動分類 ✕</button>
             )}
           </div>
-          {(() => {
-            // 已經選好、且金額也填了的那筆就不必再列出
-            const list = noteSugs.filter((x) => !(expr && x.note.toLowerCase() === note.trim().toLowerCase()));
-            if ((mode !== 'expense' && mode !== 'income') || editing || !list.length) return null;
-            return (
-              <div className="sub-row note-sugs" aria-label={note.trim() ? '相似的過去備註' : '最近常記與釘選'}>
-                {list.map((x) => {
-                  const c = catMap.get(x.categoryId);
-                  return (
-                    <SugChip key={`${x.pinnedId ?? 'r'}:${x.note}`} onLongPress={() => sugActions(x)} onPick={() => applyNoteSuggestion(x)}
-                      label={`${x.pinnedId ? '釘選的 ' : ''}${x.note}，${formatMoney(x.amountMinor, x.currency)}，${c?.name ?? ''}`}>
-                      <span aria-hidden="true">{x.pinnedId ? '📌' : c?.icon ?? '🕘'}</span> {x.note} <span className="faint num">{formatMoney(x.amountMinor, x.currency)}</span>
-                    </SugChip>
-                  );
-                })}
-              </div>
-            );
-          })()}
           {atts.length > 0 && (
             <div className="thumbs">
               {atts.map((a) => (

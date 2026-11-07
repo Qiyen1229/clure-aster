@@ -147,6 +147,13 @@ class TotpDisableRequest(BaseModel):
     code: str = Field(min_length=6, max_length=20, description="6 位數驗證碼或備援碼")
 
 
+class PasswordCheckRequest(BaseModel):
+    """再確認一次身分（刪除帳號、忘記 App 鎖 PIN）：密碼，有開雙因素驗證時再加驗證碼。"""
+    model_config = ConfigDict(extra="forbid")
+    password: str = Field(min_length=1, max_length=128)
+    totp: str | None = Field(default=None, max_length=20)
+
+
 class SessionOut(BaseModel):
     """已登入的裝置（一條 Refresh Token 鏈）。"""
     id: str

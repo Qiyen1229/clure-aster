@@ -116,7 +116,7 @@ export default function InvoicePrizePage() {
                       </div>
                     ))}
                   </div>
-                  <p className="muted prize-note">請持中獎發票在領獎期間內，到郵局或指定銀行兌領；「記入中獎收入」只是在帳本記一筆，不會替你領獎。</p>
+                  <p className="muted prize-note">請在領獎期間內持中獎發票到郵局或指定銀行兌領；「記入中獎收入」只是在帳本記一筆，不會替你領獎。</p>
                 </>
               )}
 
@@ -149,7 +149,7 @@ export default function InvoicePrizePage() {
                   <div className="row"><span className="row-main">{manualHit ? `🎉 中了${manualHit.name}　$${manualHit.amount.toLocaleString()}` : '沒有中獎'}</span></div>
                 )}
               </div>
-              <p className="muted prize-note">雲端發票專屬獎由財政部另外通知載具使用者，這裡不含。號碼來源：財政部統一發票中獎號碼公告，結果僅供參考，以財政部公告為準。</p>
+              <p className="muted prize-note">雲端發票專屬獎由財政部另外通知載具使用者，這裡不含。號碼來源為財政部公告，結果僅供參考。</p>
             </>
           )}
         </>

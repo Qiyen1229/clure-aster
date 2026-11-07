@@ -15,7 +15,7 @@ export function SmartAlerts() {
   return (
     <section className="card" style={{ minWidth: 0 }}>
       <Hint id="ai.smartAlerts" title="🔔 智慧提醒"
-        hint="異常與訂閱偵測：找出沒登記的訂閱、漲價、重複扣款、異常大額、分類暴增。全部在這台裝置用規則運算，不計入 AI 額度" />
+        hint="找出沒登記的訂閱、漲價、重複扣款、異常大額、分類暴增。全在這台裝置用規則運算，不計入 AI 額度" />
       <div className="list" style={{ marginTop: 8 }}>
         <div className="field"><span className="label" style={{ flex: 1 }}>異常與訂閱偵測</span>
           <Switch checked={insights.anomaly} label="異常與訂閱偵測" onChange={(v) => set('insights', { ...insights, anomaly: v })} /></div>
@@ -23,7 +23,7 @@ export function SmartAlerts() {
           <Switch checked={insights.budgetWarn} label="預算預警" onChange={(v) => set('insights', { ...insights, budgetWarn: v })} /></div>
         {AUTH_ENABLED && insights.anomaly && (
           <div className="field"><LabelHint id="ai.sa.price" label="規則判斷不了時，請 AI 查市價"
-            hint={ai?.enabled ? '只在新支出比平常高很多、又查不到行情時才問，每筆只問一次，不計額度；送出的內容可在「AI 設定 → 查看送出過什麼」檢查' : '需要先開啟 AI 功能；沒開時只在金額離譜到極端才提醒'} />
+            hint={ai?.enabled ? '只在新支出比平常高很多、又查不到行情時才問，每筆最多一次、不計額度；送出內容可在「AI 設定 → 送出紀錄」查看' : '需要先開啟 AI 功能；沒開時只在金額離譜到極端才提醒'} />
             <Switch checked={insights.aiPrice && !!ai?.enabled} label="請 AI 查市價" onChange={(v) => { if (ai?.enabled) set('insights', { ...insights, aiPrice: v }); }} /></div>
         )}
       </div>

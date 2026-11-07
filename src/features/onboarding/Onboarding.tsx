@@ -55,7 +55,7 @@ export default function Onboarding() {
         <>
           <img src={ICON_192} alt="" width={72} height={72} style={{ borderRadius: 16, marginTop: 8 }} />
           <h1>歡迎使用 Aster 記帳</h1>
-          <p style={{ marginBottom: 8 }}>🔒 你的資料存在你自己的伺服器，帳目會自動同步到你登入的每台裝置。先選主要使用的幣別（報表與淨資產會換算成它，之後可在設定更改）。</p>
+          <p style={{ marginBottom: 8 }}>🔒 資料存在你自己的伺服器，登入的每台裝置都會同步。先選主要幣別（報表與淨資產會換算成它，之後可在設定更改）。</p>
           <div className="list" style={{ maxHeight: '44dvh', overflowY: 'auto' }}>
             {Object.values(CURRENCIES).map((c) => (
               <button key={c.code} className="row" onClick={() => s.set('baseCurrency', c.code)} aria-pressed={s.baseCurrency === c.code}>
@@ -84,7 +84,7 @@ export default function Onboarding() {
           </div>
           <p style={{ marginTop: 16 }}>收支顏色</p>
           <Segmented value={s.upColor} onChange={(v) => s.set('upColor', v)}
-            options={[{ value: 'red', label: '紅漲綠跌（台股）' }, { value: 'green', label: '綠漲紅跌' }]} />
+            options={[{ value: 'green', label: '支出紅・收入綠' }, { value: 'red', label: '支出綠・收入紅' }]} />
           <div className="grow" />
           <button className="btn" onClick={next}>下一步</button>
         </>
@@ -116,7 +116,7 @@ export default function Onboarding() {
       {step === 3 && (
         <>
           <h1>要先看看範例嗎？</h1>
-          <p>載入 90 天的示範帳目，快速體驗月曆、列表與報表。範例資料可在「設定 → 資料」一鍵清除，不影響你自己的帳。</p>
+          <p>載入 90 天示範帳目，體驗月曆、列表與報表。可在「設定 → 資料」一鍵清除，不影響你自己的帳。</p>
           <div className="grow" />
           <button className="btn" disabled={busy} onClick={() => void finish(true)}>{busy ? '準備中…' : '載入範例資料'}</button>
           <button className="btn secondary" style={{ marginTop: 8 }} disabled={busy} onClick={() => void finish(false)}>從空白開始</button>

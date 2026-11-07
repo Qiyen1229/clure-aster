@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '@/services/api';
 import { useAuth } from '@/stores/auth';
-import { useUI, ask } from '@/stores/ui';
+import { useUI, ask, askInput } from '@/stores/ui';
 import { EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { SwitchField } from '@/ui/form';
 import { Icon } from '@/ui/Icon';
@@ -345,8 +345,8 @@ function Users() {
             {sel.id === me?.id && <p className="muted" style={{ fontSize: '0.8rem' }}>這是你自己的帳號，無法凍結。</p>}
             <div style={{ display: 'grid', gap: 10 }}>
               {sel.is_active ? (
-                <button className="btn danger" disabled={busy || sel.id === me?.id} onClick={() => {
-                  const reason = window.prompt(`凍結「${sel.username}」？對方會立即被登出且無法登入。\n原因（選填）：`, '');
+                <button className="btn danger" disabled={busy || sel.id === me?.id} onClick={async () => {
+                  const reason = await askInput({ title: `凍結「${sel.username}」？`, message: '對方會立即被登出且無法登入。原因可以留白。', placeholder: '原因（選填）', confirmText: '凍結', danger: true });
                   if (reason === null) return;
                   void act(() => api(`/admin/users/${sel.id}/status`, { method: 'PATCH', body: { is_active: false, reason } }), '已凍結帳號');
                 }}>凍結帳號</button>

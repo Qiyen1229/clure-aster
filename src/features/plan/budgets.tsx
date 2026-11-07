@@ -54,7 +54,7 @@ export default function BudgetSection() {
         </button>
       )}
       {!views ? <SkeletonRows /> : views.length === 0 ? (
-        <EmptyState emoji="🎯" title="還沒有預算" text="先設定一個「每月總預算」，再為容易超支的分類（飲食、購物）各設一個。有過去幾個月的帳目，可以直接依實際花費建立。"
+        <EmptyState emoji="🎯" title="還沒有預算" text="先設一個「每月總預算」，再為容易超支的分類（飲食、購物）各設一個。已有幾個月的帳目，可以直接依實際花費建立。"
           action={(
             <span style={{ display: 'inline-flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
               <button className="btn small" onClick={() => void suggestAll()}>依過去花費建立</button>

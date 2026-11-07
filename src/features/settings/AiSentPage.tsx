@@ -22,7 +22,7 @@ export default function AiSentPage() {
         <div style={{ width: 44 }} />
       </header>
       <p className="muted" style={{ fontSize: '0.85rem', margin: '0 4px 12px' }}>
-        這裡是這台裝置上，每一次真的送去 AI 的內容（原文）。只存在這台裝置、不會同步或上傳，最多保留最近 25 筆。
+        這台裝置每一次送去 AI 的原文。只存在這裡、不會同步，最多保留最近 25 筆。
         命中快取（沒有真的送出）的查詢不會出現；照片只顯示大小，不留存影像。
       </p>
       {!log ? null : log.length === 0 ? (

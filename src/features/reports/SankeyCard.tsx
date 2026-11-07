@@ -88,7 +88,7 @@ export function SankeyCard({ txs, cats, accounts, base, onOpenCategory }: {
               : <div className="stat"><div className="k">淨儲蓄</div><div className="v num">{money(model.saving)}</div></div>}
           </div>
           <p className="muted" style={{ fontSize: '0.72rem', margin: '8px 0 0' }}>
-            點分類看明細。淨儲蓄依各帳戶本期的淨流入分配；轉帳不是收支，不在圖裡；分帳只算你的份額。支出多於收入時，差額標示為「動用存款」。
+            點分類看明細。轉帳不是收支，不在圖裡；分帳只算你的份額；支出多於收入時，差額標為「動用存款」。
           </p>
         </>
       )}
@@ -97,7 +97,7 @@ export function SankeyCard({ txs, cats, accounts, base, onOpenCategory }: {
         left={<button className="accent" style={{ minHeight: 44 }} onClick={() => set('sankeyEssential', null)}>還原預設</button>}
         right={<button className="accent" style={{ minHeight: 44, fontWeight: 600 }} onClick={() => setAdjust(false)}>完成</button>}>
         <div style={{ padding: '0 16px 24px' }}>
-          <p className="muted" style={{ fontSize: '0.85rem', marginTop: 0 }}>點選的主分類算「必要支出」（例如房租、交通、醫療），其餘算「非必要支出」。每個人的標準不同，依自己的生活調整。</p>
+          <p className="muted" style={{ fontSize: '0.85rem', marginTop: 0 }}>點選的主分類算「必要支出」（如房租、交通、醫療），其餘算「非必要」。標準因人而異，請依自己的生活調整。</p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {mains.map((c) => (
               <button key={c.id} className="pill" aria-pressed={essential.has(c.id)}

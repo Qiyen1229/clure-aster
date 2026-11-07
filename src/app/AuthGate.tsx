@@ -10,6 +10,7 @@
 import { ICON_192 } from '@/ui/assets';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { PrivacyPage, TermsPage } from '../features/legal/LegalPages';
 import App from '../App';
 import { adoptLegacyData, db, discardLegacyData, legacyDataCount, openUserDatabase } from '@/db/schema';
 import { bootstrap } from '@/db/bootstrap';
@@ -123,6 +124,8 @@ export default function AuthGate() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="*" element={<Navigate to="/login" replace state={{ from: location.pathname + location.search }} />} />

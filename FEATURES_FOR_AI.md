@@ -2,7 +2,7 @@
 
 > 目的：讓接手的 AI（或新開發者）**不用逐檔翻程式碼**就知道「這個 App 能做什麼、每個功能怎麼運作、規則是什麼、程式在哪」。
 > 與 [PROJECT_OVERVIEW_FOR_AI.md](PROJECT_OVERVIEW_FOR_AI.md)（技術棧、架構、部署、檔案地圖）互補：那份偏「怎麼建」，這份偏「做了什麼」。
-> 版本：**4.1.8**（2026-11-07）。分支 `feature/v1.2`。逐版細節見 [CHANGELOG.md](CHANGELOG.md)；設計文件見 `docs/`。
+> 版本：**4.1.9**（2026-11-07）。分支 `feature/v1.2`。逐版細節見 [CHANGELOG.md](CHANGELOG.md)；設計文件見 `docs/`。
 > 慣例：金額內部一律用**整數最小單位**（TWD 的 1 元 = 100），不要用浮點數；使用者可見文字一律**繁體中文（台灣用語）**。
 
 ---
@@ -93,7 +93,7 @@
 5. **顯示與格式**：**外觀與顯示**（深淺色、主題色、文字大小、紅漲綠跌——點開才出現的面板）、**記帳格式與起算日**（主幣別、月起算、一週起始、小數位數、千分位）、**首頁快覽**、幣別與匯率。
 6. **資料**：備份／匯入／匯出、資料健康檢查、範例資料。
 7. **關於**、帳號與資料管理（登出、清除所有資料）。
-- 說明文字用 ⓘ（`Hint`／`Intro`）折疊；署名「Aster 記帳 · Qiyen 著 · 115.02.03」。
+- 說明文字用 ⓘ（`Hint`／`Intro`）折疊；署名「2026.02.03 · Qiyen 著」。
 
 ### 1.11 首頁計算機（v4.1.3，`features/home/CalculatorSheet.tsx`、`services/calcHistory.ts`）
 - 入口：首頁右上角（搜尋左邊），底部升起的視窗（`Sheet variant="rise"`），第一次打開才載入（`HomePage` 的 `calcUsed`）。
@@ -211,6 +211,7 @@ Dexie（IndexedDB）每個帳號獨立資料庫；schema 版本到 v6。主要�
 ### 4.3 帳號與安全（`server/`、`SECURITY.md`、`docs/AUTH_DESIGN.md`）
 註冊／登入、Argon2id、JWT（HttpOnly Cookie）、Refresh 輪替與重用偵測、CSRF、頻率限制、帳號鎖定、忘記密碼寄信；**管理員後台** `/admin`（總覽、使用者、審計日誌、**AI 主控台**、資料庫備份卡片）。AI 主控台（`features/admin/AiConsole.tsx`）：供應商狀態與測試、用量（今日／本週／本月三欄、近 7 天長條、依身分與各使用者的對齊表格）、額度設定（一般使用者／管理員／全站三組，各三個輸入欄）。安全標頭與 CSP。
 **v4.1.7 資安加強**：①鎖定時 `App.tsx` 不渲染主畫面（`locked` 為真只剩 `LockScreen`），`useShortcuts` 在鎖定時直接 return；②**雙因素驗證（TOTP）**：`server/app/core/totp.py`（只用標準函式庫）、`users.totp_*`（遷移 `0013_totp`）、登入需要時回 401＋`X-Totp-Required: 1`、備援碼 8 組、CLI `reset-2fa`；前端 `features/settings/AccountSecurity.tsx`；③**已登入裝置**：`/api/auth/sessions`，Access Token 帶 `fam`、每次請求檢查該權杖鏈沒被撤銷（遠端登出立刻生效）；④**PIN 連錯 10 次清除（選用）**：`services/lockGuard.ts`，次數同時寫 localStorage＋IndexedDB；⑤HTTPS 時 Cookie 加 `__Host-`／`__Secure-` 前綴，CSRF 改**簽章版**（綁定使用者）。**踩過的坑**：Refresh Token 的 Path 是 `/api/auth`，不會送到其他 `/api/*`，所以**發 Token 的綁定只能看 Access Token**（Path=/）；`/api/auth/*` 另外容許 anon 與 Refresh 所屬使用者（否則瀏覽器殘留舊 Refresh Cookie 的人 `/api/health` 與 `/api/auth/login` 算出不同綁定，永遠登入不了）；Access Token 驗簽但不看到期，否則剛過期的那次請求會 403 而不是 401、前端就不會去刷新；`httpx` 測試客戶端換 Cookie 要沿用原本的 domain，否則會有兩個同名 Cookie。
+**v4.1.9 上架前整理**：刪除帳號（`DELETE /api/auth/account`，外鍵 CASCADE 一併刪除）、再確認身分（`POST /api/auth/verify-password`，供「忘記 PIN」用）、`services/identity.ts`（密碼＋雙因素驗證碼的共用流程）、自製輸入視窗 `askInput`（`stores/ui.ts`＋`app/overlays.tsx` 的 `InputHost`，**不要再用 `window.prompt`**）、公開頁 `/privacy`／`/terms`（`features/legal/LegalPages.tsx`，登入前也能看）。**預設收支顏色是支出紅、收入綠**（`upColor` 預設 `green`，同時決定獲利／虧損色）。UI 用詞不要寫「靈動島」「小圓球」（用「底部導覽」「中央按鈕」「AI 按鈕」）。小型控制項用 `::after` 透明延伸補到 44×44 點擊區（見 app.css 末段），不要為了點擊區改視覺大小。
 
 ### 4.4 備份與可靠性
 JSON 完整備份／還原（含照片）、**加密備份**（PBKDF2-SHA256 310,000 次 + AES-256-GCM）、CSV／Excel 匯出；伺服器 **SQLite 每日自動備份**、CLI `app.cli backup / verify-backup / restore`、`GET /api/health/ready`；資料健康檢查與修復（`/settings/health`）。
@@ -229,7 +230,7 @@ JSON 完整備份／還原（含照片）、**加密備份**（PBKDF2-SHA256 310
 ---
 
 ## 6. 測試與品質
-- 前端 Vitest **582 項**（`tests/unit/`，fake-indexeddb；含 `agent-actions`、`agent-intent`、`calc-history`、`forecast`、`shortcut-import`）＋後端 pytest **176 項**（`server/tests/`）＝ **758 項**；`npm run check` = 型態檢查 + ESLint（0 警告）+ 測試；CI 於 main 與 feature 分支每次推送執行。
+- 前端 Vitest **587 項**（`tests/unit/`，fake-indexeddb；含 `agent-actions`、`agent-intent`、`calc-history`、`forecast`、`shortcut-import`）＋後端 pytest **179 項**（`server/tests/`）＝ **766 項**；`npm run check` = 型態檢查 + ESLint（0 警告）+ 測試；CI 於 main 與 feature 分支每次推送執行。
 - 純函式優先放 `src/domain/`（便於測試）；有副作用的放 `src/services/`；資料庫存取放 `src/db/repo/`。
 
 ## 7. 給修改者的注意事項（踩過的坑）

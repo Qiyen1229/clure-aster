@@ -145,7 +145,7 @@ export default function InvoicePage() {
         <div className="card" style={{ fontSize: '0.85rem' }}>
           <p style={{ marginTop: 0 }}><b>目前無法自動抓取載具發票</b></p>
           <p className="muted">自動抓取要透過財政部「電子發票應用 API」，需要在伺服器設定財政部核發的 AppID（.env 的 <code>CLURE_EINVOICE_APP_ID</code>）。財政部自 112 年 3 月起只受理通過 ISO 27001 等資安認證的企業或組織申請，個人通常無法取得。</p>
-          <p className="muted" style={{ marginBottom: 0 }}>載具資料會先保存好；請先用下方的「掃描紙本發票」或「匯入消費明細 CSV」，記帳時同樣會套用預設帳戶與自動分類。</p>
+          <p className="muted" style={{ marginBottom: 0 }}>載具資料已保存。可以先用下方的「掃描紙本發票」或「匯入消費明細 CSV」記帳，同樣會套用預設帳戶與自動分類。</p>
         </div>
       )}
 
@@ -155,7 +155,7 @@ export default function InvoicePage() {
           filter={(a) => a.type !== 'loan' && a.type !== 'brokerage'} />
         <button className="row" onClick={() => navigate('/settings/rules')}>
           <span className="row-main"><span className="row-title">依商家指定帳戶</span>
-            <span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>先看自動分類規則有沒有指定帳戶（例如「全聯」→ 全支付），再看你過去在同一商家最常用的帳戶；都判斷不出來才記到預設帳戶</span></span>
+            <span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>先看自動分類規則有沒有指定帳戶（例如「全聯」→ 全支付），再看你在同一商家最常用的帳戶，都沒有才記到預設帳戶</span></span>
           <Icon name="chevronR" className="row-chev" />
         </button>
       </div>
@@ -179,7 +179,7 @@ export default function InvoicePage() {
             onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void onCsv(f); }} />
         </label>
         <div className="row"><span className="row-main row-sub" style={{ whiteSpace: 'normal' }}>
-          到財政部電子發票整合服務平台，以手機條碼登入 →「消費明細查詢」→ 匯出 CSV。已記過的發票號碼、作廢發票會略過；手動記過的同一筆會補上發票號碼而不重複記帳。
+          到財政部電子發票整合服務平台，用手機條碼登入 →「消費明細查詢」→ 匯出 CSV。已記過與作廢的發票會略過；手動記過的同一筆只補發票號碼，不重複記帳。
         </span></div>
       </div>
 

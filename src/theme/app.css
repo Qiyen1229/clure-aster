@@ -24,7 +24,7 @@
   --success: #248a3d;
   /* 漲跌（台股：紅漲綠跌）— 淺色用較深色階以符合 WCAG AA */
   --up-red: #d70015;
-  --down-green: #248a3d;
+  --down-green: #1d7a35;
 
   --radius-s: 10px;
   --radius: 16px;
@@ -63,14 +63,14 @@
 }
 
 /* 8 組主題色：--accent 用於圖示與框線；--accent-text 用於文字（淺色模式較深以達對比） */
-:root[data-accent='cyan']   { --accent: #0fb5d4; --accent-text: #007a91; }
+:root[data-accent='cyan']   { --accent: #0fb5d4; --accent-text: #006d83; }
 :root[data-accent='blue']   { --accent: #0a84ff; --accent-text: #0062cc; }
 :root[data-accent='indigo'] { --accent: #5e5ce6; --accent-text: #4b49c7; }
 :root[data-accent='purple'] { --accent: #bf5af2; --accent-text: #8e3bb8; }
 :root[data-accent='pink']   { --accent: #ff375f; --accent-text: #c4163d; }
 :root[data-accent='orange'] { --accent: #ff9f0a; --accent-text: #a35c00; }
 :root[data-accent='green']  { --accent: #30d158; --accent-text: #1c7a35; }
-:root[data-accent='gold']   { --accent: #e6b800; --accent-text: #8a6d00; }
+:root[data-accent='gold']   { --accent: #e6b800; --accent-text: #7d6200; }
 :root[data-theme='dark'][data-accent='cyan']   { --accent: #3ad1ec; --accent-text: #5fdcf2; }
 :root[data-theme='dark'][data-accent='blue']   { --accent-text: #5aa9ff; }
 :root[data-theme='dark'][data-accent='indigo'] { --accent-text: #8e8cf5; }
@@ -317,7 +317,7 @@ button img, a img, .cat-icon, .tab svg { -webkit-user-drag: none; }
   transition: transform 460ms var(--spring-linear, var(--spring)), color 200ms ease;
 }
 .tab .tab-label {
-  font-size: 0.64rem;
+  font-size: 0.7rem;
   font-weight: 500;
   line-height: 1;
   letter-spacing: -0.01em;
@@ -597,7 +597,7 @@ a { color: inherit; text-decoration: none; }
   display: flex; align-items: center; gap: 6px;
 }
 .chip-today-btn {
-  font-size: 0.78rem; font-weight: 600; color: var(--accent);
+  font-size: 0.78rem; font-weight: 600; color: var(--accent-text);
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
   padding: 4px 10px; border-radius: 14px; cursor: pointer;
@@ -662,7 +662,7 @@ a { color: inherit; text-decoration: none; }
 }
 .cal-pill:active { transform: scale(0.95); }
 .cal-pill-day {
-  font-size: 0.68rem;
+  font-size: 0.74rem;
   font-weight: 500;
   color: var(--text-3);
   line-height: 1.2;
@@ -681,7 +681,7 @@ a { color: inherit; text-decoration: none; }
   border-color: color-mix(in srgb, var(--accent) 45%, transparent);
 }
 .cal-pill.today:not(.selected) .cal-pill-num {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .cal-pill.selected {
   background: var(--accent);
@@ -793,7 +793,7 @@ a { color: inherit; text-decoration: none; }
   border-color: var(--accent);
 }
 .cal-grid-cell.today:not(.selected) .cal-grid-num {
-  color: var(--accent);
+  color: var(--accent-text);
   font-weight: 700;
 }
 .cal-grid-cell.selected {
@@ -1135,7 +1135,7 @@ button.stat.clickable:active {
    ========================================================================== */
 
 /* 通知徽章 */
-.badge { position: absolute; top: 4px; right: 4px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: var(--danger); color: #fff; font-size: 0.65rem; font-weight: 700; display: grid; place-items: center; }
+.badge { position: absolute; top: 4px; right: 4px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: var(--danger); color: #fff; font-size: 0.7rem; font-weight: 700; display: grid; place-items: center; }
 
 /* 旋轉（重新整理） */
 .spin { animation: spin 0.9s linear infinite; }
@@ -1607,7 +1607,7 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
 .guide-q[open] summary::before { content: '－'; }
 .guide-q p { margin: 0 0 10px; color: var(--text-2); font-size: 0.84rem; }
 .guide-links { margin: 0; padding-left: 18px; font-size: 0.84rem; }
-.guide-links a { color: var(--accent); }
+.guide-links a { color: var(--accent-text); }
 
 /* 操作助手（執行預覽卡） */
 .agent-diff { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
@@ -1629,7 +1629,7 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
 .mini-select { max-width: 124px; min-height: 34px; padding: 0 8px; border: 0; border-radius: 10px; background: var(--surface-2); color: var(--text); font-size: 0.85rem; text-overflow: ellipsis; }
 
 /* 自製確認視窗：置中圓角卡片，彈簧縮放進場；層級高於彈窗（.sheet 約 60～70） */
-.dlg-wrap { position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; padding: 24px; }
+.dlg-wrap { position: fixed; inset: 0; z-index: 310; display: grid; place-items: center; padding: 24px; }
 .dlg-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.42); animation: dlg-fade 200ms ease both; }
 .dlg {
   position: relative; width: min(100%, 320px); border-radius: 22px; overflow: hidden; text-align: center;
@@ -1701,7 +1701,7 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
 .admin-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
 .admin-stat.compact { padding: 10px 12px; }
 .admin-stat.compact .v { font-size: 1.4rem; margin-top: 2px; }
-.admin-stat.compact .k:last-child { font-size: 0.68rem; color: var(--text-3); min-height: 1em; }
+.admin-stat.compact .k:last-child { font-size: 0.72rem; color: var(--text-3); min-height: 1em; }
 .usage-chart { margin: 0 0 12px; padding: 12px 10px 8px; }
 .usage-bars { display: flex; align-items: flex-end; gap: 6px; }
 .usage-bar { flex: 1; min-width: 0; text-align: center; font-size: 0.7rem; display: flex; flex-direction: column; justify-content: flex-end; gap: 2px; }
@@ -1803,6 +1803,30 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
 .pinned-row .row-main { background: transparent; border: 0; padding: 0; color: inherit; font: inherit; }
 
 .pin-btn { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; color: var(--text-3); transition: color 160ms var(--ease), transform 160ms var(--ease); }
-.pin-btn.on { color: var(--accent); }
+.pin-btn.on { color: var(--accent-text); }
 .pin-btn.on svg { fill: currentColor; fill-opacity: 0.25; }
 .pin-btn:active { transform: scale(0.9); }
+
+.dlg-input { display: block; width: 100%; margin-top: 12px; min-height: 44px; padding: 0 12px; border-radius: var(--radius-s); border: 0.5px solid var(--sep); background: var(--surface-2); color: var(--text); font-size: 1rem; }
+.dlg-actions button:disabled { opacity: 0.4; }
+.lock-forgot { margin-top: 14px; min-height: 44px; padding: 0 16px; color: var(--accent-text); font-size: 0.95rem; }
+
+/* ───── v4.1.9 隱私權政策／服務條款 ───── */
+.legal p, .legal li { font-size: 0.95rem; line-height: 1.65; color: var(--text-2); }
+.legal ul { padding-left: 20px; margin: 4px 0 8px; }
+.legal b { color: var(--text); font-weight: 600; }
+.legal-h { margin: 20px 4px 6px; font-size: 1.05rem; font-weight: 700; color: var(--text); }
+.legal > p, .legal > ul { margin-left: 4px; margin-right: 4px; }
+.auth-legal { margin-top: 14px; font-size: 0.8rem; text-align: center; color: var(--text-3); }
+
+/* ───── v4.1.9 觸控區：視覺大小不變，用透明延伸補到 44×44（Apple 建議的最小點擊範圍） ───── */
+.hint-btn, .cal-nav-arrow-btn, .cal-toggle-btn, .day-head-all, .intro-toggle, .wiz-check, .agent-toggle, .autocat-chip, button.accent, button.muted { position: relative; }
+.hint-btn::after, .cal-nav-arrow-btn::after, .wiz-check::after { content: ''; position: absolute; inset: -9px; }
+.cal-toggle-btn::after, .day-head-all::after, .intro-toggle::after, .agent-toggle::after, .autocat-chip::after { content: ''; position: absolute; inset: -8px -4px; }
+button.accent, button.muted { min-height: 44px; }
+.row button.accent, .row button.muted, .attn-row button { min-height: 44px; }
+
+/* 分段控制、膠囊、小按鈕：視覺不變，點擊範圍補到 44（相鄰的元件各自負責一半，不會互相蓋住） */
+.segmented button::after { content: ''; position: absolute; inset: -4px 0; }
+.pill, .btn.small { position: relative; }
+.pill::after, .btn.small::after { content: ''; position: absolute; inset: -5px -2px; }

@@ -9,6 +9,11 @@ import { useLock, verifyBiometric, verifyPin } from '@/services/lock';
 import { readFails, readFailsSync, WIPE_AT, wipeLocalData, writeFails } from '@/services/lockGuard';
 import { useSettings } from '@/stores/settings';
 import { Icon } from '@/ui/Icon';
+import { api } from '@/services/api';
+import { confirmIdentity } from '@/services/identity';
+import { disableLock } from '@/services/lock';
+import { AUTH_ENABLED } from '@/stores/auth';
+import { ask, useUI } from '@/stores/ui';
 
 export function PinPad({ onComplete, error, disabled }: { onComplete: (pin: string) => void; error?: boolean; disabled?: boolean }) {
   const [pin, setPin] = useState('');
@@ -70,6 +75,20 @@ export function LockScreen() {
   };
   useEffect(() => { if (locked && lock.webauthn) void bio(); }, [locked]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** 忘記 PIN：用登入密碼確認是本人，就清除這台裝置的 PIN 並解鎖（之後可以到設定重新設定）。沒有帳號系統時只能清除本機資料。 */
+  const forgot = async () => {
+    if (!AUTH_ENABLED) {
+      if (await ask('清除這台裝置的資料？沒有登入帳號時，忘記 PIN 只能清除本機資料重新開始，無法復原。', { confirmText: '清除' })) await wipeLocalData();
+      return;
+    }
+    const ok = await confirmIdentity((body) => api('/auth/verify-password', { method: 'POST', body }), { title: '輸入登入密碼，清除 PIN', message: '確認是你本人後，會清除這台裝置的 PIN 並解鎖。', confirmText: '清除 PIN' });
+    if (!ok) return;
+    disableLock();
+    setFails(0);
+    unlock();
+    useUI.getState().showSnack({ text: '已清除 PIN。要繼續保護畫面，請到「設定 → 隱私與安全」重新設定' });
+  };
+
   if (!locked) return null;
   const waiting = waitUntil > now;
   return (
@@ -88,6 +107,7 @@ export function LockScreen() {
         setTimeout(() => setError(false), 600);
       }} />
       {lock.webauthn && <button className="btn tinted small" style={{ marginTop: 12 }} onClick={() => void bio()}>使用 Face ID／Touch ID</button>}
+      <button className="lock-forgot" onClick={() => void forgot()}>忘記 PIN？</button>
     </div>
   );
 }
