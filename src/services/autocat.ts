@@ -5,7 +5,8 @@
 import { db, uid } from '@/db/schema';
 import type { CategoryKind, CategoryRule } from '@/db/types';
 import { addDays, todayKey } from '@/domain/period';
-import { rankNoteSuggestions, type NoteSuggestion } from '@/domain/notesuggest';
+import { mergeSuggestions, pinnedSuggestions, rankNoteSuggestions, type NoteSuggestion } from '@/domain/notesuggest';
+import { listPinned, pinNote } from '@/db/repo/pinned';
 import { buildMemory, matchRule, recallCategory, type MemoryIndex } from '@/domain/rules';
 
 export interface CategorySuggestion {
@@ -105,8 +106,15 @@ export async function ruleCandidates(limit = 8): Promise<{ text: string; categor
   return out.sort((a, b) => b.count - a.count).slice(0, limit);
 }
 
-/** 記帳面板的「最近常記」：讀最近 800 筆帳目（IndexedDB 本機讀取，很快） */
+/**
+ * 記帳面板的建議：釘選的常用項目排最前面（不受 90 天、800 筆限制），後面接「最近常記」——
+ * 讀最近 800 筆帳目（IndexedDB 本機讀取，很快）依常記與最近排序。
+ */
 export async function recentNoteSuggestions(query: string, type: 'expense' | 'income', currency: string): Promise<NoteSuggestion[]> {
-  const txs = await db.transactions.orderBy('ts').reverse().limit(800).toArray();
-  return rankNoteSuggestions(txs, query, { type, currency });
+  const [txs, pins] = await Promise.all([db.transactions.orderBy('ts').reverse().limit(800).toArray(), listPinned()]);
+  const pinned = pinnedSuggestions(pins.map((t) => ({
+    id: t.id, note: pinNote(t), type: t.payload.type ?? 'expense', currency: t.payload.currency ?? '', amountMinor: t.payload.amountMinor ?? 0,
+    categoryId: t.payload.categoryId ?? '', accountId: t.payload.accountId ?? '', tagIds: t.payload.tagIds ?? [], useCount: t.useCount, updatedAt: t.updatedAt,
+  })), query, { type, currency });
+  return mergeSuggestions(pinned, rankNoteSuggestions(txs, query, { type, currency, limit: 12 }));
 }

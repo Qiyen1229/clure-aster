@@ -2,7 +2,7 @@
 
 > 目的：讓接手的 AI（或新開發者）**不用逐檔翻程式碼**就知道「這個 App 能做什麼、每個功能怎麼運作、規則是什麼、程式在哪」。
 > 與 [PROJECT_OVERVIEW_FOR_AI.md](PROJECT_OVERVIEW_FOR_AI.md)（技術棧、架構、部署、檔案地圖）互補：那份偏「怎麼建」，這份偏「做了什麼」。
-> 版本：**4.1.7**（2026-11-07）。分支 `feature/v1.2`。逐版細節見 [CHANGELOG.md](CHANGELOG.md)；設計文件見 `docs/`。
+> 版本：**4.1.8**（2026-11-07）。分支 `feature/v1.2`。逐版細節見 [CHANGELOG.md](CHANGELOG.md)；設計文件見 `docs/`。
 > 慣例：金額內部一律用**整數最小單位**（TWD 的 1 元 = 100），不要用浮點數；使用者可見文字一律**繁體中文（台灣用語）**。
 
 ---
@@ -39,6 +39,7 @@
 - **深層連結** `/add?type=&amount=&category=&account=&note=&date=&tags=&project=&text=`，給 iOS 捷徑用。
 - **數字欄位點進去自動全選**（v4.0.6，`main.tsx` 全站共用，任何 `type=number`／`inputMode=decimal|numeric` 的欄位）；清空不會跳成 0（用字串狀態，不要為數字欄位另存 number 狀態）。
 
+- **釘選常用（v4.1.8）**：記帳面板的建議列＝釘選（📌，最多 8 個，最前面）＋自動推薦（`domain/notesuggest.ts`，近 90 天／最近 800 筆、依次數與近期排序，最多 4 個）。釘選存在 `templates` 表（`db/repo/pinned.ts`，會同步與備份，舊範本自動變成釘選），存的是釘選當時的金額、分類、帳戶、標籤。入口：記帳面板「📌 釘選這筆」、長按建議膠囊（`SugChip`）、帳目列表長按「釘選為常用」；管理頁 `/settings/pinned`。
 ### 1.2 一句話／語音記帳（`domain/nlp*.ts`、`services/voice.ts`、`features/home/VoiceSheet.tsx`）
 - **純規則解析，不經任何 AI**：金額（「兩千三」「5萬2」「1,200」）、日期（「昨天」「上週五」「10/25」）、帳戶、分類、一次多筆；電話、連續 9 碼以上數字、網址不會被當成金額。
 - 長按導覽列中間按鈕：Android／桌機「按住說話、放開入帳」；**iPhone 因 iOS 限制**改為放開後彈窗、點麥克風才開始說話。
@@ -228,7 +229,7 @@ JSON 完整備份／還原（含照片）、**加密備份**（PBKDF2-SHA256 310
 ---
 
 ## 6. 測試與品質
-- 前端 Vitest **575 項**（`tests/unit/`，fake-indexeddb；含 `agent-actions`、`agent-intent`、`calc-history`、`forecast`、`shortcut-import`）＋後端 pytest **176 項**（`server/tests/`）＝ **751 項**；`npm run check` = 型態檢查 + ESLint（0 警告）+ 測試；CI 於 main 與 feature 分支每次推送執行。
+- 前端 Vitest **582 項**（`tests/unit/`，fake-indexeddb；含 `agent-actions`、`agent-intent`、`calc-history`、`forecast`、`shortcut-import`）＋後端 pytest **176 項**（`server/tests/`）＝ **758 項**；`npm run check` = 型態檢查 + ESLint（0 警告）+ 測試；CI 於 main 與 feature 分支每次推送執行。
 - 純函式優先放 `src/domain/`（便於測試）；有副作用的放 `src/services/`；資料庫存取放 `src/db/repo/`。
 
 ## 7. 給修改者的注意事項（踩過的坑）

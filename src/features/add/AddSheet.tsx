@@ -35,6 +35,7 @@ import { LifeSpanSheet } from '../plan/LifeSpanSheet';
 import { addDebts, addLoan, findOrCreatePerson, removeLoan } from '@/db/repo/plan';
 import { addDurable, durableOfTx, syncTxDurable } from '@/db/repo/durables';
 import { countRuleHit, recentNoteSuggestions, suggestCategory, type CategorySuggestion } from '@/services/autocat';
+import { findPinned, listPinned, pinTransaction, touchPinned, unpin } from '@/db/repo/pinned';
 import type { NoteSuggestion } from '@/domain/notesuggest';
 import type { ResolvedDraft } from '@/services/quickentry';
 import { QuickEntry } from './QuickEntry';
@@ -413,6 +414,8 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
 
   // ── 最近常記：備註欄下方列出過去同名的備註，點一下帶入金額、分類、帳戶、標籤 ──
   const [noteSugs, setNoteSugs] = useState<NoteSuggestion[]>([]);
+  // 釘選的常用項目（v4.1.8）：排在建議最前面，不受「近 90 天」「最近 800 筆」限制；釘選有變動就重新整理建議
+  const pins = useLiveQuery(() => listPinned(), []) ?? [];
   useEffect(() => {
     if (editing || (mode !== 'expense' && mode !== 'income')) { setNoteSugs([]); return; }
     let alive = true;
@@ -420,7 +423,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
       void recentNoteSuggestions(note, mode, txCurrency).then((r) => { if (alive) setNoteSugs(r); }).catch(() => undefined);
     }, 150);
     return () => { alive = false; clearTimeout(t); };
-  }, [note, mode, txCurrency, editing]);  
+  }, [note, mode, txCurrency, editing, pins]);  
   const applyNoteSuggestion = (sg: NoteSuggestion) => {
     catTouched.current = true;
     setAutoCat(null);
@@ -430,9 +433,28 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
     if (acc && !acc.archived && acc.currency === txCurrency) setAccountId(acc.id);
     if (!expr) setExpr(fromMinor(sg.amountMinor, sg.currency).toString());
     setNote(sg.note);
+    if (sg.pinnedId) void touchPinned(sg.pinnedId);
     if (sg.tagIds.length) setTagIds((ids) => [...new Set([...ids, ...sg.tagIds.filter((x) => tagMap.has(x))])]);
     navigator.vibrate?.(8);
   };
+
+  // ── 釘選：把這一筆存成常用，之後在建議最前面一點就套用 ──
+  const pinType = mode === 'expense' || mode === 'income' ? mode : null;
+  const curPin = pinType ? findPinned(pins, { type: pinType, note, currency: txCurrency }) : undefined;
+  const canPin = !!pinType && !editing && !!note.trim() && amountMinor > 0 && !!categoryId && !!accountId;
+  const pinChanged = !!curPin && (curPin.payload.amountMinor !== amountMinor || curPin.payload.categoryId !== categoryId || curPin.payload.accountId !== accountId);
+  const doPin = async () => {
+    if (!pinType || !canPin) return;
+    try {
+      const r = await pinTransaction({ type: pinType, note, amountMinor, currency: txCurrency, categoryId, accountId, tagIds, projectId: projectId || undefined });
+      useUI.getState().showSnack({ text: r.created ? `已釘選「${note.trim()}」：之後在記帳面板的最前面一點就能套用` : '已更新釘選的內容' });
+      navigator.vibrate?.(8);
+    } catch (e) { useUI.getState().showSnack({ text: (e as Error).message }); }
+  };
+  const sugActions = (x: NoteSuggestion) => useUI.getState().showActions(x.note, x.pinnedId
+    ? [{ label: '取消釘選', icon: '📌', onSelect: () => void unpin(x.pinnedId!).then(() => useUI.getState().showSnack({ text: `已取消釘選「${x.note}」` })) }]
+    : [{ label: '釘選這個常用項目', icon: '📌', onSelect: () => void pinTransaction({ type: pinType ?? 'expense', note: x.note, amountMinor: x.amountMinor, currency: x.currency, categoryId: x.categoryId, accountId: x.accountId, tagIds: x.tagIds })
+        .then(() => useUI.getState().showSnack({ text: `已釘選「${x.note}」` }), (e: Error) => useUI.getState().showSnack({ text: e.message })) }]);
 
   // ── 複製上一筆 ──
   const copyLast = async () => {
@@ -779,18 +801,21 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
           {(() => {
             // 已經選好、且金額也填了的那筆就不必再列出
             const list = noteSugs.filter((x) => !(expr && x.note.toLowerCase() === note.trim().toLowerCase()));
-            if (!list.length || (mode !== 'expense' && mode !== 'income') || editing) return null;
+            if ((mode !== 'expense' && mode !== 'income') || editing || (!list.length && !canPin)) return null;
             return (
-              <div className="sub-row note-sugs" aria-label={note.trim() ? '相似的過去備註' : '最近常記'}>
+              <div className="sub-row note-sugs" aria-label={note.trim() ? '相似的過去備註' : '最近常記與釘選'}>
                 {list.map((x) => {
                   const c = catMap.get(x.categoryId);
                   return (
-                    <button key={x.note} className="pill" onClick={() => applyNoteSuggestion(x)}
-                      aria-label={`${x.note}，${formatMoney(x.amountMinor, x.currency)}，${c?.name ?? ''}`}>
-                      <span aria-hidden="true">{c?.icon ?? '🕘'}</span> {x.note} <span className="faint num">{formatMoney(x.amountMinor, x.currency)}</span>
-                    </button>
+                    <SugChip key={`${x.pinnedId ?? 'r'}:${x.note}`} onLongPress={() => sugActions(x)} onPick={() => applyNoteSuggestion(x)}
+                      label={`${x.pinnedId ? '釘選的 ' : ''}${x.note}，${formatMoney(x.amountMinor, x.currency)}，${c?.name ?? ''}`}>
+                      <span aria-hidden="true">{x.pinnedId ? '📌' : c?.icon ?? '🕘'}</span> {x.note} <span className="faint num">{formatMoney(x.amountMinor, x.currency)}</span>
+                    </SugChip>
                   );
                 })}
+                {canPin && !curPin && <button className="pill pin-pill" onClick={() => void doPin()}>📌 釘選這筆</button>}
+                {canPin && curPin && pinChanged && <button className="pill pin-pill" onClick={() => void doPin()}>📌 更新釘選</button>}
+                {canPin && curPin && !pinChanged && <button className="pill pin-pill on" onClick={() => void unpin(curPin.id).then(() => useUI.getState().showSnack({ text: '已取消釘選' }))}>📌 已釘選・取消</button>}
               </div>
             );
           })()}
@@ -827,5 +852,32 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
         {viewer && <img src={viewer} alt="收據照片" style={{ width: '100%', borderRadius: 12 }} />}
       </Sheet>
     </>
+  );
+}
+
+
+/**
+ * 建議膠囊：點一下套用；長按（約 0.45 秒）跳出「釘選／取消釘選」。
+ * 長按成立後放開不會再當成「點一下」，手指移動超過 8px 視為在捲動、取消長按。
+ */
+function SugChip({ children, label, onPick, onLongPress }: { children: React.ReactNode; label: string; onPick: () => void; onLongPress: () => void }) {
+  const timer = useRef<number | undefined>(undefined);
+  const fired = useRef(false);
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const clear = () => { window.clearTimeout(timer.current); timer.current = undefined; };
+  return (
+    <button className="pill sug-chip" aria-label={label}
+      onPointerDown={(e) => {
+        fired.current = false;
+        start.current = { x: e.clientX, y: e.clientY };
+        clear();
+        timer.current = window.setTimeout(() => { fired.current = true; navigator.vibrate?.(12); onLongPress(); }, 450);
+      }}
+      onPointerMove={(e) => { if (start.current && Math.hypot(e.clientX - start.current.x, e.clientY - start.current.y) > 8) clear(); }}
+      onPointerUp={clear} onPointerLeave={clear} onPointerCancel={clear}
+      onContextMenu={(e) => e.preventDefault()}
+      onClick={() => { if (fired.current) { fired.current = false; return; } onPick(); }}>
+      {children}
+    </button>
   );
 }

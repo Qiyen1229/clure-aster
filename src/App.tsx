@@ -58,6 +58,7 @@ const ReportsPage = lazy(() => import('./features/reports/ReportsPage'));
 const SettingsPage = lazy(() => import('./features/settings/SettingsPage'));
 const CategoriesPage = lazy(() => import('./features/settings/CategoriesPage'));
 const TagsPage = lazy(() => import('./features/settings/TagsPage'));
+const PinnedPage = lazy(() => import('./features/settings/PinnedPage'));
 const SearchPage = lazy(() => import('./features/search/SearchPage'));
 const Onboarding = lazy(() => import('./features/onboarding/Onboarding'));
 const ProjectDetailPage = lazy(() => import('./features/plan/projects').then((m) => ({ default: m.ProjectDetailPage })));
@@ -277,6 +278,7 @@ export default function App() {
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/settings/categories" element={<CategoriesPage />} />
             <Route path="/settings/tags" element={<TagsPage />} />
+            <Route path="/settings/pinned" element={<PinnedPage />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/plan/projects/:id" element={<ProjectDetailPage />} />

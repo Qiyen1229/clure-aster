@@ -2,6 +2,7 @@
  * 帳目列（月曆頁與帳目列表共用）：分類圖示、名稱、帳戶／備註、金額、標籤。
  * 左滑刪除（附復原）、右滑編輯、長按快捷選單。
  */
+import { pinTransaction } from '@/db/repo/pinned';
 import { memo } from 'react';
 import type { Account, Category, Tag } from '@/db/types';
 import type { LedgerItem } from '@/db/repo/ledger';
@@ -82,6 +83,13 @@ function LedgerRowImpl({ item, cats, accounts, tags, showDate, selectMode, selec
         mode: item.tx.type, categoryId: item.tx.categoryId, accountId: item.tx.accountId,
         amount: fromMinor(item.tx.amountMinor, item.tx.currency).toString(), note: item.tx.note, tagIds: item.tx.tagIds,
       }),
+    }] : []),
+    ...(item.kind === 'tx' && (item.tx.type === 'expense' || item.tx.type === 'income') && item.tx.note.trim() && !item.tx.transferId && !item.tx.installmentId && !item.tx.stockTradeId ? [{
+      label: '釘選為常用', icon: '📌', onSelect: () => {
+        const t = item.tx;
+        void pinTransaction({ type: t.type as 'expense' | 'income', note: t.note, amountMinor: t.amountMinor, currency: t.currency, categoryId: t.categoryId, accountId: t.accountId, tagIds: t.tagIds, projectId: t.projectId })
+          .then((r) => useUI.getState().showSnack({ text: r.created ? `已釘選「${t.note.trim()}」：記帳時在最前面一點就能套用` : '已更新釘選的內容' }), (e: Error) => useUI.getState().showSnack({ text: e.message }));
+      },
     }] : []),
     { label: '刪除', icon: '🗑️', danger: true, onSelect: () => deleteItem(item) },
   ]);

@@ -292,6 +292,7 @@ export default function SettingsPage() {
       <Group id="cats" title="分類與規則">
         <Row icon="pie" tint="#FF375F" label="支出／收入分類" sub="名稱、圖示、顏色、排序、封存" onClick={() => navigate('/settings/categories')} />
         <Row icon="tag" tint="#BF5AF2" label="標籤" onClick={() => navigate('/settings/tags')} />
+        <Row icon="template" tint="#FF9F0A" label="常用項目（釘選）" sub="偶爾才記的消費存起來，記帳時一點就套用" onClick={() => navigate('/settings/pinned')} newSince="4.1.8" />
         <Row icon="filter" tint="#30B0C7" label="自動分類規則" sub="依備註、商家帶入分類與標籤" onClick={() => navigate('/settings/rules')} />
       </Group>
 
