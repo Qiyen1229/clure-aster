@@ -1830,3 +1830,6 @@ button.accent, button.muted { min-height: 44px; }
 .segmented button::after { content: ''; position: absolute; inset: -4px 0; }
 .pill, .btn.small { position: relative; }
 .pill::after, .btn.small::after { content: ''; position: absolute; inset: -5px -2px; }
+
+/* 沒有外框的開關列（智慧提醒）：不放進卡片，列本身也不要底色 */
+.plain-fields .field { background: transparent; padding-left: 4px; padding-right: 4px; }
