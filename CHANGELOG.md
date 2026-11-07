@@ -6,7 +6,7 @@
 - **移除 Email 轉寄收帳單（4.1.4 新增的整套功能）**：`/api/hook/mail`、附件下載與寄件人白名單端點、`mail_service`、`InboxAttachment` 模型、收件匣的「✉️ Email 轉寄收帳單」設定與附件「對帳」按鈕、`pendingStatement`、帳單信不自動記帳的判斷、Cloudflare Worker 範例都已刪除。新遷移 `0011_drop_mail_inbox` 會把 `0010` 建的 `inbox_attachments` 表與權杖的 `allow_from` 欄位拿掉（`0010` 保留，已套用過的資料庫才接得上；沒套用過也不會報錯）。收件匣仍保留 `email` 這個來源（簡訊／Email 通知文字的解析不變）、六個捷徑、批次收據、預計扣款。
 
 ### 修正
-- **收件匣「加入 iPhone 捷徑」全部顯示「提供的捷徑 URL 無效」**：原因是 `shortcuts://import-shortcut?url=…` 只接受 iCloud 分享連結，自架網址一律被拒。改成直接**下載簽署過的 .shortcut 檔**（`target=_blank`，主畫面版 Aster 不會被導到下載頁），iPhone 會自動打開「捷徑」App 的匯入畫面，按「加入捷徑」即可（試過分享選單，但選單裡常找不到「捷徑」，已放棄）。nginx 新增 `/shortcuts/` 區段，以 `application/vnd.apple.shortcut` 回傳。下載要在點擊的同一個手勢內啟動，所以先啟動複製與下載、再等第一次的連結碼建立。伺服器沒回傳捷徑檔（NAS 還沒更新前端、或外層登入保護擋住 `/shortcuts/`）時，頁面會直接顯示警告與原因。
+- **收件匣「加入 iPhone 捷徑」全部顯示「提供的捷徑 URL 無效」**：「加入」維持直接切到「捷徑」App、跳出「加入捷徑」（`shortcuts://import-shortcut?url=…`），但「URL 無效」的真正原因是**「捷徑」App 抓不到檔案**——它不帶 Safari 的登入狀態，外層登入保護（Cloudflare Access 等）會把它導去登入頁。頁面載入時會用「不帶 Cookie、不跟轉址」的方式檢查六個檔案，被擋住就在最上面顯示警告與解法（為 `/shortcuts/` 加 Bypass 規則）；NAS 前端還沒更新、檔案不存在時也會提示。試過下載檔案與分享選單兩種做法，都不會自動跳進「捷徑」（前者跳出沒有關閉鍵的預覽、後者選單裡找不到「捷徑」），已放棄；HTTP 本機測試與「沒有跳轉」時仍有下載檔案的備用連結。nginx 新增 `/shortcuts/` 區段（不快取、找不到回 404）。
 - **通知（提醒中心）窗格寬度超出頁面**：`.rem-stack` 是 grid 但沒限制欄寬，「AI 上週重點」收合時是單行不換行的文字，會把整張卡撐到比螢幕寬（實測 375px 螢幕上卡片撐到 1310px）；改成 `minmax(0, 1fr)` 並讓子項 `min-width: 0`。
 
 ## 4.1.4（2026-11-07）— 收據批次辨識、一鍵安裝六個捷徑

@@ -145,10 +145,10 @@ export default function InboxPage() {
   };
 
   /**
-   * 一鍵加入：準備連結碼並複製 → 下載捷徑檔，iOS 會直接開啟「捷徑」App 的匯入畫面。
-   * 下載一定要在點擊的同一個手勢內啟動（iOS 規定），所以先啟動複製與下載，再等權杖建好。
+   * 一鍵加入：準備連結碼並複製 → 直接切到「捷徑」App，跳出「加入捷徑」按鈕。
+   * 切換 App 一定要在點擊的同一個手勢內啟動（iOS 規定），所以先啟動複製與切換，再等權杖建好。
    */
-  const [fileProblem, setFileProblem] = useState<string[]>([]);
+  const [fileProblem, setFileProblem] = useState<{ names: string[]; reason: 'blocked' | 'missing' | null }>({ names: [], reason: null });
   useEffect(() => { void checkShortcutFiles().then(setFileProblem); }, []);
   const addShortcut = async (sc: (typeof SHORTCUTS)[number]) => {
     let l = link;
@@ -175,7 +175,7 @@ export default function InboxPage() {
       } catch (e) { snack((e as Error).message); return; } finally { setPreparing(false); }
     }
     snack(copied
-      ? '已複製連結碼：下載捷徑後會跳到「捷徑」App，按「設定捷徑」，長按輸入框 →「貼上」，再按「加入捷徑」'
+      ? '已複製連結碼：在「捷徑」App 按「設定捷徑」，長按輸入框 →「貼上」，再按「加入捷徑」'
       : '請先複製下方的連結碼，再到「捷徑」App 貼上', 9000);
   };
 
@@ -345,10 +345,14 @@ export default function InboxPage() {
       )}
 
       <div className="section-title">加入 iPhone 捷徑</div>
-      {fileProblem.length > 0 && (
+      {fileProblem.reason && (
         <div className="card" role="alert">
-          <b>⚠️ 伺服器沒有回傳捷徑檔</b>
-          <p className="muted" style={{ margin: '4px 0 0' }}>{fileProblem.join('、')}：多半是 NAS 還沒更新到新版（要把前端重新建置），或外層登入保護（例如 Cloudflare Access）擋住了 <code>/shortcuts/</code>。</p>
+          <b>⚠️ 「捷徑」App 會抓不到捷徑檔</b>
+          <p className="muted" style={{ margin: '4px 0 0' }}>
+            {fileProblem.reason === 'blocked'
+              ? <>網址 <code>/shortcuts/</code> 被外層的登入保護擋住了（Cloudflare Access 等）。「捷徑」App 不帶登入狀態，所以會顯示「提供的捷徑 URL 無效」。請在 Cloudflare Zero Trust 為 <code>/shortcuts/</code> 加一條「Bypass」規則（Everyone），再重新整理這一頁。</>
+              : <>{fileProblem.names.join('、')}：伺服器沒有回傳捷徑檔，多半是 NAS 還沒更新到新版（前端要重新建置）。</>}
+          </p>
         </div>
       )}
       <ShortcutWizard preparing={preparing} hasLink={!!link} onAdd={addShortcut} />
@@ -364,10 +368,10 @@ export default function InboxPage() {
           {link && <button className="btn secondary small" onClick={() => void resetLink()}>重新產生連結碼</button>}
         </div>
         <details className="oneclick-fallback">
-          <summary className="muted">沒有跳到「捷徑」App，或匯入失敗？</summary>
-          <p className="muted">「加入」會下載捷徑檔（問要不要下載時按「下載」），iPhone 會自動打開「捷徑」App；匯入完按左上角「◀ Aster」回來。沒有自動打開的話，到「檔案」App 的「下載項目」點開檔案。也可以直接下載：</p>
+          <summary className="muted">沒有跳到「捷徑」App，或顯示「提供的捷徑 URL 無效」？</summary>
+          <p className="muted">「加入」會直接切到「捷徑」App；匯入完按左上角「◀ Aster」回來。顯示「URL 無效」代表「捷徑」App 抓不到檔案（它不帶登入狀態，外層登入保護要放行 <code>/shortcuts/</code>，上方會有提示）。也可以改成下載檔案再從「檔案」App 的「下載項目」點開：</p>
           <p>{SHORTCUTS.map((s) => <a key={s.key} className="pill" href={shortcutFileUrl(s)} download={`${s.name}.shortcut`} target="_blank" rel="noreferrer">{s.icon} {s.name}</a>)}</p>
-          <p className="muted">如果「設定捷徑」畫面卡住，可以先按「略過設定」加入，再打開捷徑、把第一個「文字」動作的內容換成連結碼。NAS 外層有登入保護（例如 Cloudflare Access）時，需要放行 <code>/shortcuts/</code> 與 <code>/api/hook/</code>。</p>
+          <p className="muted">如果「設定捷徑」畫面卡住，可以先按「略過設定」加入，再打開捷徑、把第一個「文字」動作的內容換成連結碼。NAS 外層有登入保護（例如 Cloudflare Access）時，需要放行 <code>/shortcuts/</code> 與 <code>/api/hook/</code>（兩者都是 iPhone 的「捷徑」App 直接連，不帶登入狀態）。</p>
         </details>
       </div>
 

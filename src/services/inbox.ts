@@ -82,12 +82,15 @@ export const SHORTCUTS = [
 type ShortcutDef = (typeof SHORTCUTS)[number];
 export const shortcutFileUrl = (s: ShortcutDef) => `/shortcuts/aster-${s.key}.shortcut`;
 
-/**
- * 把捷徑檔交給「捷徑」App 匯入：下載簽署過的 .shortcut 檔，iOS 會直接開啟「捷徑」App 的匯入畫面（按「加入捷徑」就好）。
- * 注意：不能用 shortcuts://import-shortcut?url=… ——它只接受 iCloud 分享連結，自架網址一律顯示「提供的捷徑 URL 無效」；
- * 也不用分享選單（選單裡常找不到「捷徑」）。檔案用 target=_blank 開，主畫面版 Aster 的視窗不會被導到下載頁。
- */
-export function openShortcutImport(s: ShortcutDef): void {
+/** 「捷徑」App 的匯入網址：按「加入」會直接切到「捷徑」App，跳出「加入捷徑」按鈕（匯入完按左上角「◀ Aster」回來） */
+export const shortcutImportUrl = (s: ShortcutDef) =>
+  `shortcuts://import-shortcut?url=${encodeURIComponent(location.origin + shortcutFileUrl(s))}&name=${encodeURIComponent(s.name)}`;
+
+/** HTTP（本機測試）時「捷徑」App 不接受網址匯入，改成下載檔案 */
+export const canImportByUrl = () => location.protocol === 'https:';
+
+/** 下載捷徑檔（備用）：到「檔案」App 的「下載項目」點開。用 target=_blank，主畫面版 Aster 不會被導到下載頁 */
+export function downloadShortcut(s: ShortcutDef) {
   const a = document.createElement('a');
   a.href = shortcutFileUrl(s);
   a.download = `${s.name}.shortcut`;
@@ -98,16 +101,32 @@ export function openShortcutImport(s: ShortcutDef): void {
   a.remove();
 }
 
-/** 檢查伺服器真的有回傳捷徑檔；回傳有問題的捷徑名稱（多半是還沒更新到新版、或被登入保護擋住而回傳網頁） */
-export async function checkShortcutFiles(): Promise<string[]> {
+/**
+ * 把捷徑交給「捷徑」App：切過去，由它自己下載這個網址、跳出「加入捷徑」。
+ * 「提供的捷徑 URL 無效」＝「捷徑」App 抓不到檔案——它不帶 Safari 的登入狀態，所以外層登入保護
+ * （Cloudflare Access 等）一定要放行 /shortcuts/；用 checkShortcutFiles() 可以事先檢查。
+ */
+export function openShortcutImport(s: ShortcutDef): void {
+  if (canImportByUrl()) location.href = shortcutImportUrl(s);
+  else downloadShortcut(s);
+}
+
+/**
+ * 模擬「捷徑」App 抓檔案（不帶 Cookie、不跟著轉址）；回傳有問題的捷徑名稱與原因。
+ * 轉址到登入頁、401／403、或回傳網頁，都代表「捷徑」App 會顯示「提供的捷徑 URL 無效」。
+ */
+export async function checkShortcutFiles(): Promise<{ names: string[]; reason: 'blocked' | 'missing' | null }> {
   const bad: string[] = [];
+  let blocked = false;
   await Promise.all(SHORTCUTS.map(async (s) => {
     try {
-      const r = await fetch(shortcutFileUrl(s), { method: 'HEAD', cache: 'no-cache' });
-      if (!r.ok || /text\/html/i.test(r.headers.get('content-type') ?? '')) bad.push(s.name);
-    } catch { bad.push(s.name); }
+      const r = await fetch(shortcutFileUrl(s), { method: 'GET', cache: 'no-store', credentials: 'omit', redirect: 'manual' });
+      const html = /text\/html/i.test(r.headers.get('content-type') ?? '');
+      if (r.type === 'opaqueredirect' || r.status === 401 || r.status === 403 || (r.status >= 300 && r.status < 400)) { bad.push(s.name); blocked = true; }
+      else if (!r.ok || html) bad.push(s.name);
+    } catch { bad.push(s.name); blocked = true; }
   }));
-  return bad;
+  return { names: bad, reason: bad.length ? (blocked ? 'blocked' : 'missing') : null };
 }
 
 /** 連結碼＝網址＋?t=權杖：捷徑匯入時只要貼上這一串。存在這台裝置（依使用者區分），之後加其他捷徑可重用 */

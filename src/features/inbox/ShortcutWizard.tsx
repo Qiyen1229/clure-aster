@@ -67,7 +67,7 @@ export function ShortcutWizard({ preparing, onAdd, hasLink }: { preparing: boole
         <p className="wiz-next" role="status">✅ 「{SHORTCUTS.find((s) => s.key === justAdded)?.name}」已標記為加入。下一個：<b>{next.title}</b></p>
       )}
       <ol className="oneclick-steps">
-        <li>按「<b>加入</b>」：自動複製你的<b>連結碼</b>並下載捷徑（問要不要下載時按「<b>下載</b>」），會自動跳到「捷徑」App</li>
+        <li>按「<b>加入</b>」：自動複製你的<b>連結碼</b>並切換到「捷徑」App，跳出「加入捷徑」</li>
         <li>按「<b>設定捷徑</b>」，長按輸入框 →「<b>貼上</b>」，再按「<b>加入捷徑</b>」</li>
         <li>回到 Aster（左上角「◀ Aster」），這裡會自動打勾，接著加下一個</li>
       </ol>

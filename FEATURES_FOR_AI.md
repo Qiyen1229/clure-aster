@@ -168,7 +168,7 @@
 
 ### 3.4 自動記帳與分類
 - **自動記帳收件匣**（`features/inbox/`、`/api/hook/inbox`、`docs/INBOX.md`）：iPhone 捷徑把 Apple Pay 交易、銀行簡訊、Siri 內容送進來，規則解析成草稿，確認才入帳；含來源去重。**六個做好、簽署過的捷徑**（Apple Pay、簡訊、Siri、**快速記帳、貼上記帳、分享記帳**，`public/shortcuts/`、`scripts/make-shortcuts.py --only …`）由**安裝精靈**（`ShortcutWizard.tsx`）帶著一個一個加入：從「捷徑」App 回來自動打勾並提示下一個，Apple Pay／簡訊加入後用清單帶做完「建立自動化」（iPhone 不允許 App 代設；勾選狀態只存本機 localStorage，只是備忘不是偵測）。
-- **加入捷徑的方式（v4.1.5 修正）**：**不要用 `shortcuts://import-shortcut?url=…`**——它只接受 iCloud 連結，自架網址會顯示「提供的捷徑 URL 無效」；**也不要用分享選單**（選單裡常找不到「捷徑」）。`services/inbox.ts` 的 `openShortcutImport()` 直接下載 `.shortcut`（`<a download target=_blank>`，要在點擊的同一手勢內呼叫），iOS 會自動開啟「捷徑」匯入畫面；`checkShortcutFiles()` 檢查伺服器有沒有回傳檔案。nginx `/shortcuts/` 以 `application/vnd.apple.shortcut` 回傳。
+- **加入捷徑的方式（v4.1.5）**：`openShortcutImport()` 用 `shortcuts://import-shortcut?url=…`（HTTPS；HTTP 才下載檔案），按「加入」就切到「捷徑」App。**「提供的捷徑 URL 無效」＝「捷徑」App 抓不到檔案**（它不帶登入狀態；Cloudflare Access 要為 `/shortcuts/` 與 `/api/hook/` 加 Bypass）。`checkShortcutFiles()` 用不帶 Cookie、不跟轉址的 fetch 模擬並回報 `blocked`／`missing`。**不要改成下載檔案**（Quick Look 預覽沒有關閉鍵）**或分享選單**（找不到「捷徑」）。
 - **預計扣款（本機推算，無伺服器）**：收件匣最上面的「預計扣款」區。`domain/forecast.ts` 把異常偵測（`detectInsights`）的「看起來是固定扣款、未登記」結果推算下一次扣款日（每月同一天、每年同月同日、每週 +7；寬限 週3／月10／年14 天），`services/forecast.ts` 組合週期帳目的 `pendingDates` 與預測項目；動作＝記帳（日期用預計日）、編輯、登記成週期（`createSubscriptionFrom`）、略過這一次（本機 meta `forecast.skipped`，≤100）。數字放在 `useInboxCount.extra`（只算預測，週期待確認已有鈴鐺通知），顯示用 `useInboxTotal()`。設定 `inbox.forecast`（預設開）。
 - **自動分類規則＋商家記憶**（`domain/rules.ts`、`services/autocat.ts`）。
 - **銀行／信用卡對帳單 CSV 匯入**（民國年、正數為支出、疑似重複偵測、可儲存格式），自動辨識 Moze。
