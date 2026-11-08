@@ -157,3 +157,8 @@ export async function markAllRead() {
 export async function clearAllReminders() {
   await db.reminders.toCollection().modify({ done: 1, cleared: 1 });
 }
+
+/** 刪除單則通知：從提醒中心隱藏（保留資料列避免同一天重複通知） */
+export async function clearReminder(id: string) {
+  await db.reminders.update(id, { done: 1, cleared: 1 });
+}

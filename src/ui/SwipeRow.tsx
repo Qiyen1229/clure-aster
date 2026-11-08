@@ -16,9 +16,11 @@ interface Props {
   onDelete?: () => void;
   onLongPress?: () => void;
   disabled?: boolean;
+  /** 放在 .list 裡面：不要自己的圓角與下方間距 */
+  flat?: boolean;
 }
 
-export function SwipeRow({ children, onTap, onEdit, onDelete, onLongPress, disabled }: Props) {
+export function SwipeRow({ children, onTap, onEdit, onDelete, onLongPress, disabled, flat }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const st = useRef<{ x0: number; y0: number; dx: number; mode: 'idle' | 'h' | 'v'; timer?: number; long: boolean } | null>(null);
@@ -88,7 +90,7 @@ export function SwipeRow({ children, onTap, onEdit, onDelete, onLongPress, disab
   };
 
   return (
-    <div className="swipe" ref={wrap}>
+    <div className={flat ? 'swipe flat' : 'swipe'} ref={wrap}>
       {onEdit && <div className="swipe-action left" aria-hidden="true"><Icon name="edit" />編輯</div>}
       {onDelete && <div className="swipe-action right" aria-hidden="true">刪除<Icon name="trash" /></div>}
       <div ref={ref} className="swipe-content" onPointerDown={down} onPointerMove={move} onPointerUp={up}

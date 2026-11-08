@@ -6,9 +6,10 @@ import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
 import { AttentionCard } from './AttentionCard';
-import { clearAllReminders, markAllRead, notificationSupport, runReminderChecks } from '@/services/notifications';
+import { clearAllReminders, clearReminder, markAllRead, notificationSupport, runReminderChecks } from '@/services/notifications';
 import { Sheet } from '@/ui/Sheet';
 import { EmptyState } from '@/ui/controls';
+import { SwipeRow } from '@/ui/SwipeRow';
 
 const ICON: Record<string, string> = { daily_log: '✍️', card_due: '💳', budget: '🎯', subscription: '🔁', price_alert: '📈', backup: '💾', sync: '☁️', insight: '💡' };
 
@@ -38,15 +39,18 @@ export function RemindersSheet({ open, onClose }: { open: boolean; onClose: () =
       <AttentionCard onGo={onClose} />
       {list.length === 0 ? <EmptyState emoji="🔕" title="目前沒有提醒" text="帳單到期、預算警示、訂閱續約、到價提醒都會出現在這裡。" /> : (
         <div className="list">
-          {list.map((r) => (
-            <button key={r.id} className="row" onClick={() => { void db.reminders.update(r.id, { done: 1 }); onClose(); if (r.refId.startsWith('/')) navigate(r.refId); }}>
-              <span aria-hidden="true" style={{ fontSize: 22 }}>{ICON[r.kind] ?? '🔔'}</span>
-              <div className="row-main">
-                <div className="row-title" style={{ fontWeight: r.done ? 400 : 600 }}>{r.title}</div>
-                <div className="row-sub" style={{ whiteSpace: 'normal' }}>{r.body}</div>
+          {list.map((r, i) => (
+            <SwipeRow key={r.id} flat onDelete={() => void clearReminder(r.id)}
+              onTap={() => { void db.reminders.update(r.id, { done: 1 }); onClose(); if (r.refId.startsWith('/')) navigate(r.refId); }}>
+              <div className={i ? 'row row-sep' : 'row'}>
+                <span aria-hidden="true" style={{ fontSize: 22 }}>{ICON[r.kind] ?? '🔔'}</span>
+                <div className="row-main">
+                  <div className="row-title" style={{ fontWeight: r.done ? 400 : 600 }}>{r.title}</div>
+                  <div className="row-sub" style={{ whiteSpace: 'normal' }}>{r.body}</div>
+                </div>
+                <span className="row-sub">{new Date(r.dueAt).toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' })}</span>
               </div>
-              <span className="row-sub">{new Date(r.dueAt).toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' })}</span>
-            </button>
+            </SwipeRow>
           ))}
         </div>
       )}
