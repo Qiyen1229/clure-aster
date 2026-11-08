@@ -166,3 +166,30 @@ def test_agent_plan_stream_rejects_empty_plan_without_cost(api: Api, monkeypatch
     with api.c.stream("POST", "/api/ai/agent-plan/stream", json=AGENT_BODY, headers=api._h()) as r:
         events = read_events(r)
     assert events[-1][0] == "error" and events[-1][1]["status"] == 422 and usage_rows() == []
+
+
+def test_chat_stream_is_free_and_works_when_quota_is_used_up(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    """閒聊不附帳務資料、不扣額度：額度用完了也能聊；每小時有次數上限。"""
+    from app.service import ai_service
+    api.register("alice")
+    stub_stream(monkeypatch, ['{"answer":"你好！我是 Aster 小助手。","followups":["這個月花多少？"]}'])
+    for i in range(5):  # 每日額度是 3，聊 5 次都不受影響
+        with api.c.stream("POST", "/api/ai/chat/stream", json={"question": "你好"}, headers=api._h()) as r:
+            events = read_events(r)
+        name, done = events[-1]
+        assert name == "done" and done["answer"].startswith("你好") and done["quota"]["daily"]["used"] == 0, i
+    assert all(u.cost == 0 and u.kind == "chat" for u in usage_rows()) and len(usage_rows()) == 5
+    monkeypatch.setattr(ai_service, "CHAT_PER_HOUR", 5)
+    with api.c.stream("POST", "/api/ai/chat/stream", json={"question": "再聊"}, headers=api._h()) as r:
+        ev = read_events(r)
+    assert ev[-1][0] == "error" and ev[-1][1]["status"] == 429 and "閒聊太頻繁" in ev[-1][1]["detail"]
+    r2 = api.c.post("/api/ai/chat", json={"question": "再聊"}, headers=api._h())
+    assert r2.status_code == 429
+
+
+def test_chat_rejects_summary_free_junk_and_requires_login(api: Api) -> None:
+    from fastapi.testclient import TestClient
+    from app.main import app
+    assert TestClient(app).post("/api/ai/chat", json={"question": "x"}).status_code in (401, 403)
+    api.register("alice")
+    assert api.c.post("/api/ai/chat", json={"question": ""}, headers=api._h()).status_code == 422

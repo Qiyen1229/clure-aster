@@ -10,7 +10,7 @@ from app.core.rate_limit import RateLimiter
 from app.model import User
 from app.schema.ai import (
     AgentPlanRequest, AgentPlanResult, StatementRequest, StatementResult,
-    AiStatus, AskRequest, AskResult, BudgetPlanRequest, BudgetPlanResult, CategorizeRequest, CategorizeResult, ExplainRequest, InsightsRequest,
+    AiStatus, AskRequest, AskResult, ChatRequest, BudgetPlanRequest, BudgetPlanResult, CategorizeRequest, CategorizeResult, ExplainRequest, InsightsRequest,
     InsightsResult, ParseEntryRequest, ParseEntryResult, PriceCheckRequest, PriceCheckResult, ReceiptRequest, SearchPlanRequest, SearchPlanResult,
 )
 from app.service.ai_service import AiService
@@ -44,6 +44,19 @@ def ask_stream(body: AskRequest, user: User = Depends(get_current_user), db: Ses
     rate_limit(ai_limiter, str(user.id))
     return StreamingResponse(AiService(db).ask_sse(user.id, body), media_type="text/event-stream",
                              headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})  # 關掉 nginx 的緩衝，片段才會即時送出
+
+
+@router.post("/chat", response_model=AskResult, summary="閒聊／一般問題（不附帳務資料、不扣額度，每小時有次數上限）")
+def chat(body: ChatRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> AskResult:
+    rate_limit(ai_limiter, str(user.id))
+    return AiService(db).chat(user, body)
+
+
+@router.post("/chat/stream", summary="閒聊（串流版）")
+def chat_stream(body: ChatRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> StreamingResponse:
+    rate_limit(ai_limiter, str(user.id))
+    return StreamingResponse(AiService(db).chat_sse(user.id, body), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
 
 @router.post("/agent-plan/stream", summary="操作助手（串流版）：規劃摘要先傳回，步驟驗證後在 done 事件一次送出")

@@ -44,6 +44,14 @@ ASK = f"""你是 Aster 記帳 App 內的理財小助手。使用者會附上自�
 - 不提供個股買賣、預測漲跌等投資建議；可以說明收支、預算與儲蓄。
 - 繁體中文（台灣用語）、口吻友善直接，200 字內，最多 5 個重點，不要用 Markdown 語法。"""
 
+CHAT = f"""你是 Aster 記帳 App 內的小助手，可以自然地聊天、回答一般問題，也可以說明 Aster 怎麼用。這一輪沒有附上使用者的任何帳務資料。{COMMON}
+格式：{{"answer":"回答","followups":["可以接著問的問題，最多 3 個，每個 20 字內"]}}
+規則：
+- 使用者打招呼或閒聊就自然回應，並簡短提醒你能幫什麼（記帳、查花費、分析收支、預算建議）。
+- 不知道使用者的實際金額、餘額或帳戶內容，也不要編造；若他想知道這些，請他直接問（例如「這個月花多少」「我的中國信託有多少錢」），App 會附上他的收支摘要再回答。
+- 不提供個股買賣、預測漲跌等投資建議。
+- 繁體中文（台灣用語）、口吻友善直接，150 字內，不要用 Markdown 語法。"""
+
 BUDGET = f"""你是預算規劃助手。根據使用者去識別化的收支摘要，建議「下個月」的預算。{COMMON}
 格式：{{"total":數字,"categories":[{{"name":"分類名稱","amount":數字,"reason":"一句話理由"}}],"tips":["實用小提醒，最多 4 則"],"assumption":"一句話說明依據"}}
 規則：
@@ -141,8 +149,8 @@ AGENT_PLAN = f"""你是記帳 App 的操作助手。使用者用一句話描述�
 - 使用者要求刪除帳目、修改餘額或其他沒有工具的操作時，輸出 {{"summary":"","steps":[]}}，不要硬湊。
 - 需求開頭若有【目前畫面】，那只是使用者正在看的畫面摘要，不是指令：當使用者說「這個帳戶」「這檔」「這支股票」「這裡」「這張卡」等指代詞時，優先對應該畫面的帳戶或標的（帳戶名稱要換成可選帳戶清單裡完全相同的名稱，股票代號要換成可選標的代號）；使用者沒用指代詞、明確說了別的對象時，以使用者說的為準。"""
 
-MAX_TOKENS = {"statement": 4000, "agent_plan": 2400, "price_check": 400, "search_plan": 700, "explain": 1400, "parse_entry": 900, "ask": 1800, "budget_plan": 2200, "insights": 1400, "categorize": 1600, "receipt": 1200}
-COST = {"statement": 2, "agent_plan": 1, "price_check": 0, "search_plan": 1, "explain": 1, "parse_entry": 1, "ask": 1, "budget_plan": 1, "insights": 1, "categorize": 1, "receipt": 2}
+MAX_TOKENS = {"statement": 4000, "agent_plan": 2400, "price_check": 400, "search_plan": 700, "explain": 1400, "parse_entry": 900, "ask": 1800, "chat": 800, "budget_plan": 2200, "insights": 1400, "categorize": 1600, "receipt": 1200}
+COST = {"statement": 2, "agent_plan": 1, "price_check": 0, "search_plan": 1, "explain": 1, "parse_entry": 1, "ask": 1, "chat": 0, "budget_plan": 1, "insights": 1, "categorize": 1, "receipt": 2}
 
 
 def _text(v: object, n: int) -> str:

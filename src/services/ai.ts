@@ -134,6 +134,20 @@ export async function aiAsk(question: string, screen?: string, onPartial?: (text
   });
 }
 
+/** 閒聊／一般問題：只送這一句話（不附任何帳務資料），不扣額度（伺服器端每人每小時有次數上限） */
+export async function aiChatTalk(question: string, onPartial?: (text: string) => void): Promise<AskValue & { quota?: AiQuota }> {
+  const body = { question: question.trim().slice(0, 300) };
+  if (!onPartial) return aiPost<AskValue & { quota: AiQuota }>('/ai/chat', body);
+  await recordAiSend('/ai/chat/stream', body);
+  try {
+    let text = '';
+    return await apiSse<AskValue & { quota: AiQuota }>('/ai/chat/stream', body, (name, d) => { if (name === 'delta' && typeof d?.t === 'string') { text += d.t; onPartial(text); } });
+  } catch (e) {
+    if (e instanceof StreamUnsupported) return aiPost<AskValue & { quota: AiQuota }>('/ai/chat', body);
+    throw e;
+  }
+}
+
 export interface InsightsValue { headline: string; points: string[]; suggestion: string }
 
 /** 週報／月報的白話洞察：data 是 domain/aisummary.periodToAi 的輸出 */

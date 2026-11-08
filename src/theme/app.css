@@ -1143,6 +1143,17 @@ button.stat.clickable:active {
 .spin { animation: spin 0.9s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* 通知「重新檢查」：按下→轉圈→打勾（圖示彈一下），並有按壓縮放 */
+.recheck { display: inline-flex; align-items: center; gap: 5px; transition: transform 120ms var(--ease), opacity 200ms; }
+.recheck:active { transform: scale(0.94); }
+.recheck:disabled { opacity: 0.75; }
+.recheck svg { width: 16px; height: 16px; }
+.recheck.done { animation: recheck-pop 360ms var(--ease); }
+.recheck-ok { animation: recheck-tick 360ms var(--ease) both; }
+@keyframes recheck-pop { 0% { transform: scale(0.9); } 55% { transform: scale(1.08); } 100% { transform: scale(1); } }
+@keyframes recheck-tick { from { transform: scale(0.2) rotate(-40deg); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .recheck.done, .recheck-ok { animation: none; } .recheck:active { transform: none; } }
+
 /* 下拉重新整理 */
 .ptr { display: flex; align-items: center; justify-content: center; gap: 8px; overflow: hidden; transition: height 200ms var(--ease); }
 .ptr-spinner { width: 20px; height: 20px; border-radius: 50%; border: 2.5px solid var(--surface-3); border-top-color: var(--accent); }

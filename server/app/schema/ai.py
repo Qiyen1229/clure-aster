@@ -71,6 +71,11 @@ class AskRequest(BaseModel):
     _v = field_validator("summary")(_check_summary)
 
 
+class ChatRequest(BaseModel):
+    """一般閒聊／不需要帳本資料的問題：只送這一句話，不附任何收支摘要。"""
+    question: str = Field(min_length=1, max_length=500)
+
+
 class AskResult(BaseModel):
     answer: str
     followups: list[str] = []

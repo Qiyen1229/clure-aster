@@ -9,13 +9,14 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAccounts, useCategories } from '@/app/hooks';
 import { deleteTransactions, deleteTransfers } from '@/db/repo/ledger';
+import { db } from '@/db/schema';
 import { isQuestion, looksLikeAiQuestion } from '@/domain/nlquery';
 import { isAggregationQuestion } from '@/domain/search';
 import { formatMoney } from '@/domain/money';
 import { localView, looksLikeOperation } from '@/domain/agent/intent';
 import { currentScreen, useScreen } from '@/stores/screenContext';
 import { ViewBubble } from '../ai/views/ViewBubble';
-import { aiDataEnabled, aiAsk, aiEnabledLocally, aiReceipt, quotaLabel } from '@/services/ai';
+import { aiDataEnabled, aiAsk, aiChatTalk, aiEnabledLocally, aiReceipt, quotaLabel } from '@/services/ai';
 import { ask } from '@/services/nlquery';
 import { bookDrafts, draftsFromText, draftsSmart, fallbackAccount, resolveDraft, type ResolvedDraft } from '@/services/quickentry';
 import { useSettings } from '@/stores/settings';
@@ -30,6 +31,9 @@ import { Switch } from '@/ui/controls';
 import { nextSeq, useChat, type Msg, type Reply } from './aiChatStore';
 
 const HAS_AMOUNT_HINT = /\d|[一二兩三四五六七八九十百千萬]/;
+/** 在問「我的錢」（要看收支摘要才答得出來）：這類走「問 AI」（扣 1 點）；其餘一般對話走閒聊（不扣額度） */
+const WANTS_DATA = /錢包|帳戶|餘額|資產|負債|淨值|存款|多少錢|有多少|花費|花了|開銷|支出|收入|預算|儲蓄|存錢|薪水|信用卡|銀行|現金|分析|檢討|財務|理財/;
+const isDataTalk = (t: string, accountNames: string[]) => WANTS_DATA.test(t) || accountNames.some((n) => n && t.includes(n));
 
 /** 規則優先 → 規則查帳 → AI 問答 → AI 解析記帳 → 說明怎麼開啟 */
 export async function respond(text: string, screen?: string, onPartial?: (text: string) => void): Promise<Reply> {
@@ -63,8 +67,10 @@ export async function respond(text: string, screen?: string, onPartial?: (text: 
     // 規則查到 0 筆、而且 AI 可以回答時，交給 AI（例如「這個月哪裡花太多？」會被規則誤認成關鍵字「太多」）
     if (a && (a.items.length > 0 || !aiDataEnabled())) return { role: 'ai', kind: 'text', text: a.answer, sub: a.detail, link: a.items.length ? { label: `查看符合的 ${a.items.length} 筆帳目`, to: `/search?q=${encodeURIComponent(t)}` } : undefined };
   }
-  // 只有「問句」才交給 AI 問答（會送統計、扣 1 點）；「你好」之類不是問句的不要白扣額度，非問句又有金額的才走 AI 口語記帳
-  if (asking && aiDataEnabled()) {
+  // 問到自己的錢（問句、分析、帳戶餘額…）→ 問 AI（會送去識別化的統計、扣 1 點）；打招呼、閒聊、一般問題 → 閒聊（不送帳務資料、不扣額度）
+  const accountNames = asking || !HAS_AMOUNT_HINT.test(t) ? (await db.accounts.toArray().catch(() => [])).map((a) => a.name) : [];
+  const dataTalk = asking || isDataTalk(t, accountNames);
+  if (dataTalk && aiDataEnabled()) {
     try {
       const r = await aiAsk(t, screen, onPartial);
       return { role: 'ai', kind: 'text', text: r.value.answer, followups: r.value.followups, sub: `${r.cached ? '使用先前的回答（未扣額度）' : r.quota ? quotaLabel(r.quota) : ''}　AI 的回答僅供參考` };
@@ -72,18 +78,26 @@ export async function respond(text: string, screen?: string, onPartial?: (text: 
       return { role: 'ai', kind: 'text', text: (e as Error).message };
     }
   }
-  if (!asking && aiEnabledLocally() && HAS_AMOUNT_HINT.test(t)) {
+  if (!dataTalk && aiEnabledLocally() && HAS_AMOUNT_HINT.test(t)) {
     const r = await draftsSmart(t);
     if (r.list.length) return { role: 'ai', kind: 'entries', drafts: r.list, via: r.usedAi ? 'ai' : 'rule', sub: r.quotaText };
     if (r.aiNote) return { role: 'ai', kind: 'text', text: `我看不懂這句話。${r.aiNote}` };
   }
+  if (!dataTalk && aiEnabledLocally()) {
+    try {
+      const r = await aiChatTalk(t, onPartial);
+      return { role: 'ai', kind: 'text', text: r.answer, followups: r.followups, sub: '一般對話不扣額度　AI 的回答僅供參考' };
+    } catch (e) {
+      return { role: 'ai', kind: 'text', text: (e as Error).message };
+    }
+  }
   const ai = useSettings.getState().ai;
   return {
     role: 'ai', kind: 'text',
-    text: asking
+    text: asking || dataTalk
       ? '這個問題我用規則回答不了。到「設定 → AI 助理」開啟 AI 並允許分析收支統計，就可以問更複雜的問題。'
       : '我沒有聽出金額。可以試試「午餐 120」「昨天計程車兩百三」，或問「上個月吃飯花多少」。' + (ai?.enabled ? '' : '開啟 AI 後也能請 AI 解析更口語的說法。'),
-    link: asking ? { label: '前往 AI 設定', to: '/settings/ai' } : undefined,
+    link: asking || dataTalk ? { label: '前往 AI 設定', to: '/settings/ai' } : undefined,
   };
 }
 

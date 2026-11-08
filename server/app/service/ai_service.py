@@ -20,7 +20,7 @@ from app.core.security import utcnow
 from app.core.request_info import ClientInfo
 from app.model import AiUsage, AppSetting, User
 from app.schema.ai import (
-    AgentPlanRequest, AgentPlanResult, StatementEntry, StatementRequest, StatementResult, AiAdminOut, AiAdminUpdate, AiConsole, AiProviderInfo, AiStatus, AskRequest, AskResult, BudgetPlanRequest, BudgetPlanResult, CategorizeItem,
+    AgentPlanRequest, AgentPlanResult, StatementEntry, StatementRequest, StatementResult, AiAdminOut, AiAdminUpdate, AiConsole, AiProviderInfo, AiStatus, AskRequest, AskResult, ChatRequest, BudgetPlanRequest, BudgetPlanResult, CategorizeItem,
     CategorizeRequest, CategorizeResult, ConsoleProvider, DayCount, InsightsRequest, InsightsResult, ParsedEntry, ParseEntryRequest,
     ParseEntryResult, PriceCheckRequest, PriceCheckResult, ReceiptRequest, RecentCall, SearchPlanRequest, SearchPlanResult, ExplainRequest, TestResult, UsageTotals, UserUsage,
 )
@@ -28,6 +28,7 @@ from app.service import ai_providers, ai_quota, ai_tasks
 from app.service.audit_service import AuditService
 from app.service.errors import ServiceError
 
+CHAT_PER_HOUR = 40
 log = logging.getLogger("aster.ai")
 
 MAX_ENTRIES = 8
@@ -115,6 +116,26 @@ class AiService:
         msg = ai_tasks.dumps({"問題": body.question, "摘要": body.summary})
         r = ai_tasks.run_task(self.db, user, "ask", ai_tasks.ASK, msg, ai_tasks.v_ask, fail_message="AI 沒能回答這個問題，請換個說法")
         return AskResult(**r, quota=self._quota(user))  # type: ignore[arg-type]
+
+    def _chat_guard(self, user_id: int) -> None:
+        """閒聊不扣額度，所以另外限制每人每小時的次數，避免被當成免費的萬用聊天機器人。"""
+        since = utcnow() - timedelta(hours=1)
+        n = self.db.scalar(select(func.count()).select_from(AiUsage).where(AiUsage.user_id == user_id, AiUsage.kind == "chat", AiUsage.created_at >= since)) or 0
+        if n >= CHAT_PER_HOUR:
+            raise ServiceError(429, f"閒聊太頻繁了（每小時 {CHAT_PER_HOUR} 次），請稍後再試；記帳與查帳不受影響")
+
+    def chat(self, user: User, body: ChatRequest) -> AskResult:
+        self._chat_guard(user.id)
+        r = ai_tasks.run_task(self.db, user, "chat", ai_tasks.CHAT, ai_tasks.dumps({"使用者說": body.question}), ai_tasks.v_ask, fail_message="AI 沒能回答，請換個說法")
+        return AskResult(**r, quota=self._quota(user))  # type: ignore[arg-type]
+
+    def chat_sse(self, user_id: int, body: ChatRequest) -> Iterator[str]:
+        """閒聊的串流版：不扣額度（cost 0），但有每小時次數上限。"""
+        try:
+            self._chat_guard(user_id)
+        except ServiceError as e:
+            return iter([f"event: error\ndata: {json.dumps({'status': e.status_code, 'detail': e.message}, ensure_ascii=False)}\n\n"])
+        return self._sse(user_id, "chat", ai_tasks.CHAT, ai_tasks.dumps({"使用者說": body.question}), ai_tasks.v_ask, "answer", "AI 沒能回答，請換個說法")
 
     def ask_sse(self, user_id: int, body: AskRequest) -> Iterator[str]:
         """問 AI 的串流版（SSE）：回答一邊生成一邊傳給前端，不用等整段寫完。"""

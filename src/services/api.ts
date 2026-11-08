@@ -98,7 +98,7 @@ export class StreamUnsupported extends Error {}
  * 回傳 `done` 事件的資料；收到 `error` 事件、或串流沒有以 done 結束，會丟出 ApiError。
  * 開始串流之前的錯誤（沒登入、額度用完、格式錯誤）是一般的 JSON 錯誤回應，處理方式和 api() 一樣（含自動刷新登入）。
  */
-export async function apiSse<T>(path: string, body: unknown, onEvent: (name: string, data: any) => void, retry = true): Promise<T> {  // eslint-disable-line @typescript-eslint/no-explicit-any
+export async function apiSse<T>(path: string, body: unknown, onEvent: (name: string, data: any) => void, retry = true): Promise<T> {
   await ensureCsrf();
   let res: Response;
   try {

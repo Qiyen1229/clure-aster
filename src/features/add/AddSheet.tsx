@@ -415,7 +415,8 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
   // ── 最近常記：備註欄下方列出過去同名的備註，點一下帶入金額、分類、帳戶、標籤 ──
   const [noteSugs, setNoteSugs] = useState<NoteSuggestion[]>([]);
   // 釘選的常用項目（v4.1.8）：排在建議最前面，不受「近 90 天」「最近 800 筆」限制；釘選有變動就重新整理建議
-  const pins = useLiveQuery(() => listPinned(), []) ?? [];
+  const pinsLive = useLiveQuery(() => listPinned(), []);
+  const pins = useMemo(() => pinsLive ?? [], [pinsLive]);
   useEffect(() => {
     if (editing || (mode !== 'expense' && mode !== 'income')) { setNoteSugs([]); return; }
     let alive = true;
