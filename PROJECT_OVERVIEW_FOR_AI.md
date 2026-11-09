@@ -2,15 +2,13 @@
 
 > 這份檔案把整個專案（功能、技術、架構、資料模型、API、安全、部署、檔案地圖、慣例）整合在一處，讓 AI 不用逐一翻檔案就能理解全貌。
 > 功能面的詳細說明（基礎功能、特別功能、規則與程式位置）見 [FEATURES_FOR_AI.md](FEATURES_FOR_AI.md)。
-> 內容整理自 README、CHANGELOG、docs/*、原始碼與設定檔。版本：**4.1.14**（2026-11-09；**本檔內文多處仍停在 4.0.x，功能與規則以 FEATURES_FOR_AI.md 與 CHANGELOG.md 為準**）。分支：`feature/v1.2`（主分支 `main`）。2.0.0 新增 AI 全面整合，見下方「AI 功能」一節與 `docs/AI.md`。3.0.0 首頁全面重構為原創 Bento 儀表板與膠囊週曆。3.1.0 全面更換 3D 星軌花體 A 品牌圖標與 iOS 18 水漾高透光靈動島懸浮導覽列。3.2.0 報表支援點擊支出／收入即時彈出全明細流，移除導覽列藍點殘留，修復 iOS 主畫面圖標快取與根目錄回退。3.5～3.6 異常與訂閱漲價偵測（習慣→市價→AI 三層判斷）、加密備份、資料庫每日自動備份、首頁簡化、原創 AI 圖示。3.6.5 靈動島大修（按下即彈、合成器彈簧、Q 彈轉場）。測試：前端 547＋後端 163＝710 項。3.7.0 統一發票自動對獎器（`domain/invoice-prize.ts`、`services/invoicePrize.ts`、`/settings/invoice/prize`）；3.8.0 資金流向桑基圖（`domain/sankey.ts`、`features/reports/SankeyCard.tsx`）；3.9.0 耐用品每日持有成本（新資料表 `durables`，`domain/durable.ts`、`db/repo/durables.ts`、`features/plan/durables.tsx`）；3.10.0 外部通知 Discord／Telegram／LINE／Webhook（後端 `core/outgoing.py`、`core/secretbox.py`、`service/notify_service.py`、`api/notify.py`、表 `notify_channels`；前端 `services/outgoing.ts`、`features/settings/ChannelsPage.tsx`；文件 `docs/NOTIFY.md`）。下一個 Alembic 遷移是 `0010_…`。
-> 
-> ### 版本號命名與發佈規範（嚴格遵守）
-> 格式：`x.y.z`
-> - **x（Major）**：加入 3 個以上新功能的大更新。
-> - **y（Minor）**：加入 1 到 3 個新功能的小更新。
-> - **z（Patch）**：修復功能與 Bug 修補。
-> 每次版本更新均須同步更新 `package.json`、`server/app/main.py`、`CHANGELOG.md`、`PROJECT_OVERVIEW_FOR_AI.md` 並執行 `scripts/pack-nas.sh` 產出最新部署包。
-> 想看細節時，請依第 13 節「檔案地圖」直接讀對應檔案；各檔案開頭都有繁體中文說明註解。
+> 內容整理自 README、CHANGELOG、docs/*、原始碼與設定檔。**版本：4.1.14（2026-11-09）**。分支：`feature/v1.2`（主分支 `main`，每次完成都 fast-forward 合併）。測試：前端 **681** ＋ 後端 **191** ＝ **872** 項。Alembic 目前到 `0013_totp`，**下一個遷移是 `0014_…`**。
+> 逐版細節看 [CHANGELOG.md](CHANGELOG.md)；本檔是「整個專案長什麼樣子」的地圖，隨版本維護（每次發佈要順手更新本檔開頭的版本與測試數）。
+>
+> ### 版本號與發佈規範
+> - 格式 `x.y.z`。原本的命名原則（x＝3 個以上新功能、y＝1～3 個、z＝修復）僅供參考；**實務上版本號由使用者指定**（4.1.x 系列就是使用者逐版指定的，功能與修正都用 z 遞增）。
+> - 每次發佈都要同步：`package.json`／`package-lock.json`、`server/app/main.py`、`CHANGELOG.md`、`FEATURES_FOR_AI.md`、`src/release.json`、`README.md` 的測試數、**本檔開頭的版本與測試數**；**並檢查功能介紹與更新說明**：`src/features/onboarding/showcase.ts`（首次引導的 6 個最強功能，依分數自動取前 6，`release.json` 的 `showcaseReviewed` 要等於版本號）、`src/features/whatsnew/releaseNotes.ts`（更新後彈窗的每版功能說明，當版一定要有一筆）；兩者都有測試把關。最後 `sh scripts/pack-nas.sh` 產出 `aster-nas.zip`。
+> - 想看細節時，請依第 13 節「檔案地圖」直接讀對應檔案；各檔案開頭都有繁體中文說明註解。功能面的詳細說明見 [FEATURES_FOR_AI.md](FEATURES_FOR_AI.md)。
 
 ---
 
@@ -19,7 +17,7 @@
 **Aster 記帳**（原名 **Clure**，1.3.1 更名）是**自架**的個人記帳＋股票投資組合 **PWA**：帳目存在每台裝置的瀏覽器 IndexedDB（離線可用），並同步到使用者自己的伺服器（NAS Docker），同一帳號在手機／平板／電腦間自動同步。參考 Moze 4.0 的操作邏輯，iOS 原生質感，可加入 iPhone 主畫面。介面僅繁體中文（zh-TW）。
 
 - 目標使用者：自己與家人，內網 NAS 自架；也可部署到公網（需先處理安全設定，見第 10 節）。
-- 規模：約 **26,000 行**程式碼（`src/` TypeScript/TSX、`server/app` Python、前後端測試）。
+- 規模：約 **5 萬行**（`src/`、`server/app`、前後端測試與樣式，2026-11 統計）。
 - 命名遺留：為了不影響已部署資料，`.env` 的 `CLURE_*` 變數、Cookie 名、本機 IndexedDB 名（`clure`、`clure-u{userId}`）、docker 專案／資料卷（`clure_*`）、PostgreSQL 帳號、`x-clure-token` 標頭等**都沿用舊名 Clure**。新程式碼請維持這個相容性，不要重新命名這些識別字。
 
 ---
@@ -42,9 +40,9 @@
 | QR | jsqr | 掃電子發票左側 QR Code |
 | 多語系 | （無） | 只提供繁體中文；3.6.5 已移除未使用的 i18next 依賴 |
 | PWA | vite-plugin-pwa（Workbox **injectManifest**）+ 自訂 `src/sw.ts` | 預快取、離線、更新提示（不自動 skipWaiting）、Web Push |
-| 測試 | Vitest 2 + fake-indexeddb + jsdom | `tests/unit/*.test.ts`（547 項） |
+| 測試 | Vitest 2 + fake-indexeddb + jsdom | `tests/unit/*.test.ts`（**681 項**） |
 | 圖示 | sharp（`npm run icons`） | `assets/icon.svg` → 全尺寸圖標＋iOS 啟動畫面 |
-| 手勢／動效 | 自寫 Pointer Events hook + CSS transform；`theme/app.css`（約 61KB 單一樣式檔） | 尊重 `prefers-reduced-motion` |
+| 手勢／動效 | 自寫 Pointer Events hook + CSS transform；`theme/app.css`（單一大型樣式檔） | 尊重 `prefers-reduced-motion` |
 
 `vite.config.ts` 重點：`@` 別名指向 `src`；dev/preview 固定 **9122** 埠（`strictPort`）；`/api` 代理到 `http://127.0.0.1:8000`（可用 `CLURE_API_URL` 改）；內建 `asterProxy()` plugin，把 `/proxy/*` 直接交給 `proxy/src/core.ts`；`manualChunks` 拆出 `vendor-react`、`vendor-data` 讓更新時不必重新下載；`__APP_VERSION__`、`__BUILD_TIME__` 以 `define` 注入。環境變數 `VITE_AUTH_MODE=off` 可在建置時關閉帳號系統（回到純本機模式）。
 
@@ -52,10 +50,10 @@
 | 類別 | 技術 |
 |---|---|
 | 框架 | **FastAPI** ≥0.115 + uvicorn[standard]，Python ≥3.10（容器用 3.12） |
-| ORM／遷移 | SQLAlchemy 2.0、**Alembic**（遷移 0001～0009，啟動時自動套用） |
+| ORM／遷移 | SQLAlchemy 2.0、**Alembic**（遷移 0001～0013，啟動時自動套用） |
 | 設定 | pydantic 2 + pydantic-settings（環境變數前綴 `CLURE_`） |
 | 資料庫 | 預設 **SQLite**（WAL＋外鍵）；可選 **PostgreSQL 16**（psycopg 3） |
-| 安全 | argon2-cffi（Argon2id）、PyJWT（HS256）、cryptography（Web Push 的 VAPID／aes128gcm、ECDH） |
+| 安全 | argon2-cffi（Argon2id）、PyJWT（HS256）、cryptography（Web Push 的 VAPID／aes128gcm、ECDH、AES-GCM secretbox）；TOTP（RFC 6238）只用標準庫 |
 | 其他 | email-validator |
 | 測試 | pytest 8 + httpx（`server/tests/`） |
 
@@ -124,8 +122,20 @@ PWA（離線、更新提示、主畫面、啟動畫面）；深淺色＋8 主題
 ### v1.4
 1.4.0 語音記帳彈窗（波浪動畫、即時顯示「將會記成」）。1.4.1 **長按導覽列中間按鈕語音記帳**（按住說話、放開入帳）、科技感多層絲帶波浪。1.4.2～1.4.4 為 **iPhone 長按語音**的連續修正：iOS 只認「真正的點擊」為使用者手勢，長按計時器內啟動語音辨識會假裝開始卻收不到聲音 → 現在 iPhone 長按放開後彈窗顯示「點一下下方麥克風開始說話」，Android／桌機維持按住說話、放開入帳；長按期間整頁禁止選取與長按選單。語音引擎在 `services/voice.ts`（全域），UI 在 `features/home/VoiceSheet.tsx`。
 
-### v2.0 ～ v4.0.0（目前）
-2.x：AI 全面整合（Gemini／OpenAI 等可插拔、限流、送出紀錄）、搜尋與首頁對話框、忘記密碼。3.0 Bento 首頁；3.1 Liquid Glass 靈動島；3.5 異常與訂閱漲價偵測、加密備份、SQLite 每日自動備份、就緒檢查、CI；3.6 異常判斷改「習慣→分類市價→AI」並每筆自動檢查、首頁簡化、原創 AI 圖示、彈窗空白處下滑關閉；3.6.5 靈動島大修：按下即切換（透鏡 Q 彈）、彈簧軌跡交給 WAAPI 在合成器播放、頁面轉場帶過衝的彈簧。完整紀錄見 `CHANGELOG.md`。
+### v2.0 ～ v3.x
+- **2.x**：AI 全面整合（可插拔供應商、額度、限流、送出紀錄）、搜尋重寫與首頁對話框、忘記密碼、AI 解說卡、一般使用者與管理員額度分開、背景推播修復。
+- **3.0～3.6**：Bento 首頁、Liquid Glass 靈動島（按下即切換、彈簧轉場）、異常與訂閱漲價偵測（習慣→分類市價→AI 三層）、加密備份、SQLite 每日自動備份、就緒檢查、CI、原創 AI 圖示。
+- **3.7**：統一發票自動對獎器；**3.8**：資金流向桑基圖；**3.9**：耐用品每日持有成本（`durables` 表）；**3.10**：外部通知 Discord／Telegram／LINE／Webhook（`notify_channels`，`docs/NOTIFY.md`）。
+
+### v4.0 ～ v4.1.14（目前）
+- **4.0**：操作助手（一句話批次整理帳本，預覽→確認→可還原）、帳單對帳、稅務規劃、整體效能優化。
+- **4.1.0 Agent-First**：靈動島任何頁面上滑叫出全域 AI 對話；一句話跨模組（記帳、轉帳還款、結清欠款、存入目標、買賣台股）；對話即介面（財務自由／現金流／稅務／花費檢視卡）。4.1.1～4.1.3：首頁快覽回來、賣出股票、畫面專屬晶片與「目前畫面」、語音輸入、首頁計算機。
+- **4.1.4～4.1.6**：預計扣款（從記帳紀錄推算固定扣款，到日變成收件匣待確認項目）、收據批次辨識（一次 8 張）、一鍵安裝六個 iPhone 捷徑（iCloud 分享連結）。曾做過 Email 收件對接，4.1.4 又整個移除（遷移 0010／0011）。
+- **4.1.7 資安**：簽章 double-submit CSRF、Cookie 前綴（`__Host-`／`__Secure-`）、TOTP 雙因素＋備用碼（0013）、已登入裝置管理與遠端登出（token family，0012）、PIN 連錯清除、鎖定畫面不渲染任何帳務 DOM。
+- **4.1.8**：釘選常用記帳（重用 `templates` 表，會同步）。**4.1.9**：刪除帳號、隱私權政策與服務條款、忘記 PIN 出路、收支顏色預設支出紅收入綠、點擊區與文案精簡、自製輸入視窗 `askInput`。
+- **4.1.10**：AI 回答串流（SSE）。**4.1.11**：閒聊（cost 0，每人每小時 40 次）、提醒中心通知左滑刪除、「重新檢查」動畫。
+- **4.1.12**：單次排程記帳（可選到時自動記）、AI 對話上下文（最近 8 句）、查帳追問與比較、改與刪帳目（操作助手 15 個工具）、預算與帳戶餘額本機問答、「再來一杯」、盡量回答任何問題。
+- **4.1.13**：首次引導加入「功能介紹」（6 招，名單依分數自動取前 6）。**4.1.14**：更新後主動跳出新功能說明視窗（舊版到新版中途所有功能）、「需要你看一下」可左滑隱藏。完整紀錄見 `CHANGELOG.md`。
 
 ---
 
@@ -135,8 +145,8 @@ PWA（離線、更新提示、主畫面、啟動畫面）；深淺色＋8 主題
 ```
 main.tsx / App.tsx        入口、路由、全域 Provider
 sw.ts                     Service Worker（Workbox injectManifest）
-app/                      AuthGate、LockScreen、TabBar、hooks（liveQuery 資料 hooks）、overlays（Snackbar/動作選單/更新提示/隱私模糊）、viewport（iOS 視窗處理）
-ui/                       設計系統元件：Icon（內建線條圖示）、Sheet（底部抽屜、堆疊 z-index）、SwipeRow、PullToRefresh、controls（分段/開關/金額文字）、form（iOS 設定風格表單列）
+app/                      AuthGate、LockScreen、TabBar（靈動島：上滑叫 AI、長按語音）、hooks（liveQuery 資料 hooks）、overlays（Snackbar／動作選單／確認與輸入視窗／更新橫幅／隱私模糊）、viewport（iOS 視窗處理）
+ui/                       設計系統元件：Icon（內建線條圖示）、Sheet（底部抽屜、堆疊 z-index）、SwipeRow（左滑刪除／隱藏，可 collapse 縮起、可 flat）、PullToRefresh、controls（分段/開關/金額文字）、form、NewMark、Hint
 theme/app.css             單一大型樣式檔（design tokens、主題色、深淺色、動畫）
 stores/                   Zustand：auth、settings、ui
 db/                       Dexie schema、types、bootstrap、sync-tracking、repo/*、seed/*
@@ -148,18 +158,19 @@ features/                 各頁面（見下表）
 ### 路由（`src/App.tsx`）
 | 路由 | 頁面 | 備註 |
 |---|---|---|
-| `/` | HomePage（記帳月曆＋小工具） | 底部導覽中間按鈕：在 `/`、`/ledger` 顯示＋（長按＝語音記帳），其他頁顯示 Logo（回首頁） |
+| `/` | HomePage（記帳月曆＋小工具） | 底部導覽中間按鈕：在 `/`、`/ledger` 顯示＋（長按＝語音記帳），其他頁顯示 Logo（回首頁）；**任何頁面往上滑＝叫出 AI 對話** |
 | `/add` | AddDeepLink → 開啟 AddSheet | 參數：`type amount category account note date tags project text` |
 | `/ledger` | LedgerPage | 虛擬捲動、篩選、批次 |
 | `/accounts`、`/accounts/:id` | AccountsPage（錢包｜投資分頁 `?tab=invest`）、帳戶詳情 | 信用卡帳單、貸款攤還 |
 | `/plan`、`/plan/projects/:id` | PlanPage（預算／專案／週期與分期／應收應付／目標（含心願冷靜期）／耐用品；舊網址 ?tab=installment、?tab=wish 自動轉址）、專案詳情 | 分頁在 `features/plan/*.tsx` |
 | `/reports` | ReportsPage | 另有 `/reports/review/:year`（年度回顧）、`/reports/print`、`/reports/fire`、`/reports/tax`、`/reports/cashflow`、`/reports/summary`（週報／月報） |
 | `/invest/stock/:id`、`/invest/watchlist`、`/invest/dividends` | 個股、觀察清單、股利 | `/invest` 轉址到 `/accounts?tab=invest` |
-| `/settings` + 子頁 | `categories tags fx invest security notifications backup import health widgets rules invoice` | 七組：帳號、外觀、記帳偏好、分類與規則、自動化與整合、資料、關於 |
+| `/settings` + 子頁 | `categories tags pinned fx invest security notifications channels backup import health widgets rules invoice invoice/prize ai ai/sent` | 帳號、外觀、記帳偏好、分類與規則、自動化與整合、資料、關於；另有公開頁 `/privacy`、`/terms`、`/login`／註冊／忘記密碼 |
 | `/inbox` | InboxPage（自動記帳收件匣） | |
 | `/search` | SearchPage（含用問的查帳） | 桌機 `⌘K`／`/` |
-| `/onboarding` | 首次引導 | |
-| `/admin/*` | AdminPage（總覽／使用者／審計日誌） | 前端守衛僅 UX，真正權限在後端 `require_admin` |
+| `/onboarding` | 首次引導（5 步：歡迎與幣別 → **功能介紹** → 外觀 → 帳戶 → 範例資料） | 設定 →「重新執行首次引導」可再看 |
+| `/ai` | AiAssistant（智慧提醒與 AI 額度；對話已移到全域對話框） | `/insights` 轉址到這裡 |
+| `/admin/*` | AdminPage（總覽／使用者／審計日誌／AI 主控台） | 前端守衛僅 UX，真正權限在後端 `require_admin` |
 
 桌機快速鍵：`N` 記一筆、`⌘K`／`Ctrl+K`／`/` 搜尋、`1`–`5` 切 Tab、`L` 帳目列表。
 
@@ -169,7 +180,7 @@ features/                 各頁面（見下表）
 
 ### 6.1 本機 IndexedDB（Dexie，`src/db/schema.ts`、`types.ts`）
 - 資料庫名：`clure`（舊、未登入）／`clure-u{userId}`（登入後每人一個）。
-- 版本：v1 建立全部表；**v2** `wishes`（心願）；**v3** `sync_outbox`（同步佇列）；**v4** `rules`（自動分類規則）＋ `transactions` 新增 `invoiceNo` 索引；**v5** 股票／觀察清單／標籤／人的唯一索引改為普通索引（同步後由 `db/dedupe.ts` 決定性合併）；**v6** `durables`（耐用品）。**規則：不得修改已發布的版本，要變更索引就新增 `db.version(n)`**。
+- 版本：v1 建立全部表；**v2** `wishes`（心願）；**v3** `sync_outbox`（同步佇列）；**v4** `rules`（自動分類規則）＋ `transactions` 新增 `invoiceNo` 索引；**v5** 股票／觀察清單／標籤／人的唯一索引改為普通索引（同步後由 `db/dedupe.ts` 決定性合併）；**v6** `durables`（耐用品）。**規則：不得修改已發布的版本，要變更索引就新增 `db.version(n)`**。目前最高版本仍是 v6；釘選常用重用 `templates` 表、單次排程重用 `recurring_rules`（可選欄位 `at`），都沒有新增版本。
 - 主鍵一律 `id: string`（UUID）；每列有 `createdAt`/`updatedAt`（epoch ms）；`deletedAt?` 軟刪除。
 - 金額欄位 `*Minor: number`＝整數最小單位（TWD/USD 2 位、JPY 0 位）；decimal 欄位 `*Dec: string`（股價、股數、匯率、費率）。
 - 日期：`date: 'YYYY-MM-DD'`（本地日）＋ `ts`（實際時間）。
@@ -184,8 +195,8 @@ features/                 各頁面（見下表）
 - 「其他」子分類：`ensureOtherSubcategories()` 於啟動時補齊（id `{主分類}-other`）。
 - 預設分類只在資料庫完全空白時建立（`bootstrap.ts`），之後只補系統分類；被使用者刪除的預設分類不會回來。
 
-### 6.2 後端資料表（SQLAlchemy，`server/app/model/`；Alembic 0001～0009）
-`users`（role user/admin、`is_active`、`failed_login_count`、`locked_until`、`token_version`、`must_change_password`…）、`refresh_tokens`（`jti`、`family_id`、`replaced_by`）、`audit_logs`、`rate_limits`（頻率限制存 DB）、`sync_records`（`user_id, table_name, record_key, updated_at, deleted, payload JSON, seq, device_id`，三欄唯一）、`sync_states`（`last_seq`、`purged_seq`）、`sync_keys`（E2EE 鹽、次數、驗證密文、版本）、`push_subscriptions`、`push_schedules`（排程以使用者為單位整批取代）、`inbox_tokens`（只存 SHA-256）、`inbox_items`、`app_settings`（管理後台改的系統設定，優先於 .env）、`ai_usage`（AI 額度用量）、`password_resets`（忘記密碼權杖）、`notify_channels`（外部通知通道，機密加密存放）。
+### 6.2 後端資料表（SQLAlchemy，`server/app/model/`；Alembic 0001～0013）
+`users`（role user/admin、`is_active`、`failed_login_count`、`locked_until`、`token_version`、`must_change_password`…）、`refresh_tokens`（`jti`、`family_id`、`replaced_by`）、`audit_logs`、`rate_limits`（頻率限制存 DB）、`sync_records`（`user_id, table_name, record_key, updated_at, deleted, payload JSON, seq, device_id`，三欄唯一）、`sync_states`（`last_seq`、`purged_seq`）、`sync_keys`（E2EE 鹽、次數、驗證密文、版本）、`push_subscriptions`、`push_schedules`（排程以使用者為單位整批取代）、`inbox_tokens`（只存 SHA-256）、`inbox_items`、`app_settings`（管理後台改的系統設定，優先於 .env）、`ai_usage`（AI 額度用量）、`password_resets`（忘記密碼權杖）、`notify_channels`（外部通知通道，機密加密存放）。0012 `refresh_tokens.use_count`／token family 欄位（已登入裝置、遠端登出）；0013 `users` 的 TOTP 欄位（密文金鑰、備用碼雜湊、`totp_last_step` 防重放）。
 
 ---
 
@@ -211,7 +222,14 @@ features/                 各頁面（見下表）
 | `rules.ts` | 自動分類（使用者規則＋商家記憶） |
 | `dedupe.ts` | 自動記帳來源去重（Apple Pay／簡訊／發票／手動） |
 | `nlp.ts`（約 27KB，最大的 domain 檔） | 中文一句話解析：金額（中文數字）、日期、帳戶、分類、備註、多筆 |
-| `nlquery.ts` | 「用問的查帳」查詢解析 |
+| `nlquery.ts` | 「用問的查帳」查詢解析；v4.1.12 `parseFollowUp` 追問與比較（「那上個月呢」「只看信用卡」「跟上個月比」） |
+| `nlp-date.ts` | 日期（昨天…、後天、N 天／週後、下個月 N 號、月底）與 `extractClock`（15:30、下午三點半；只認明確說法） |
+| `forecast.ts` | 預計扣款（由異常偵測的固定扣款推算下一次日期與寬限天數） |
+| `anomaly.ts`／`anomaly-stats.ts`／`pricing.ts`／`budgetwarn.ts` | 智慧提醒（異常、訂閱漲價、重複扣款、預算預警；全部本機、不用 AI） |
+| `aisummary.ts`／`aiparse.ts` | 給 AI 的去識別化收支摘要；AI 輸出驗證與 `sanitizeForAi` |
+| `agent/plan.ts` | 操作助手：15 個白名單工具的驗證、在記憶體副本上模擬預覽（含 `edit_transaction`／`delete_transaction`，一次最多刪 20 筆） |
+| `agent/intent.ts` | `looksLikeOperation`、`localView`（短句→檢視卡）、`localEditPlan`（「刪掉／改剛剛那筆」本機直接產生步驟） |
+| `search.ts`／`sankey.ts`／`durable.ts`／`invoice-prize.ts`／`reconcile.ts`／`taxplan.ts` | 搜尋、資金流向、耐用品、發票對獎、對帳、稅務規劃 |
 | `notesuggest.ts` | 備註「最近常記」建議排序 |
 | `dividend-calendar.ts` | 股利行事曆（已領／預估） |
 | `invest/position.ts` | 持倉：加權平均／FIFO、已實現／未實現、配股調整 |
@@ -243,6 +261,14 @@ features/                 各頁面（見下表）
 | `health.ts` | 資料健康檢查與修復（先檢查列出問題，確認後才修） |
 | `attachments.ts` | 收據照片壓縮與縮圖 |
 | `appUpdate.ts` | 手動檢查新版本 |
+| `ai.ts`／`aiLog.ts`／`aisummary.ts` | AI 呼叫（`aiAsk`、`aiChatTalk`、`aiAgentPlan`、收據…；本機快取、串流 `apiSse`、對話 `history`、送出前 `sanitizeForAi`、送出紀錄） |
+| `agent.ts` | 操作助手執行層：單一 Dexie 交易寫入、整包還原（含改／刪帳目的還原） |
+| `localTalk.ts` | 帳戶餘額與預算的本機問答（不用 AI） |
+| `nlquery.ts` | 查帳執行、`followUp`、`compareAnswer` |
+| `forecast.ts`／`insights.ts` | 預計扣款（收件匣待確認）、智慧提醒資料 |
+| `notifications.ts`／`push.ts` | 提醒與通知；單次排程的到點通知（`once:<rule>:<date>`）與伺服器推播排程 |
+| `lockGuard.ts`／`identity.ts`／`devices.ts` | PIN 連錯清除、重新驗證身分（刪帳號等）、已登入裝置 |
+| `calcHistory.ts`／`outgoing.ts`／`invoicePrize.ts`／`taxplan.ts`／`reconcile.ts` | 計算機記錄、外部通知通道、發票對獎、稅務規劃、對帳 |
 
 ---
 
@@ -278,13 +304,17 @@ features/                 各頁面（見下表）
 | `/api/push/{status, subscribe, unsubscribe, schedule, test}` | Web Push |
 | `/api/einvoice/{status, carrier}` | 財政部電子發票（需 `CLURE_EINVOICE_APP_ID`／`API_KEY`；個人通常申請不到，退回 QR／CSV） |
 | `/api/inbox/{tokens(GET/POST/DELETE), items, items/ack}` | 收件匣管理（需登入） |
+| `/api/auth/{verify-password, totp/*, devices, account(DELETE)}` | 重新驗證身分、雙因素、已登入裝置、刪除帳號 |
+| `/api/ai/{status, parse-entry, ask, ask/stream, chat, chat/stream, agent-plan, agent-plan/stream, budget-plan, insights, categorize, receipt, search-plan, explain, price-check}`、`/api/admin/ai{,/console,/test}` | AI（見下方 AI 一節） |
+| `/api/notify/*` | 外部通知通道（Discord／Telegram／LINE／Webhook） |
 | `POST /api/hook/inbox` | iPhone 捷徑寫入（`Authorization: Bearer clr_…`／`X-Aster-Token`／舊 `X-Clure-Token`／`?t=`）；不使用 Cookie 故免 CSRF；每權杖 30 則/分、每 IP 60 次/分 |
 
 ### 資安設計
 - 密碼：Argon2id，長度 8–128、需英數、不可與帳號相同；登入失敗一律同訊息，找不到帳號仍跑假雜湊防時間差。
 - Access Token：JWT HS256 15 分鐘（含 `ver`＝`token_version`，每次請求比對 DB 的 `is_active` 與版本；遞增即全部失效）；Refresh Token：JWT＋DB 14 天、每次輪替、**重用偵測→撤銷整條鏈並寫審計**。
-- Cookie：`HttpOnly`、`SameSite=Lax`、`Secure`（`CLURE_COOKIE_SECURE=auto` 經 HTTPS 時開啟）；Access Cookie 路徑為整個網站（1.2.2 起，否則 `/proxy/` 收不到）。
-- CSRF：double-submit（`csrf_token` Cookie ＋ `X-CSRF-Token`），所有非 GET 需帶（`/api/hook/` 例外）。
+- Cookie：`HttpOnly`、`SameSite=Lax`、`Secure`（`CLURE_COOKIE_SECURE=auto` 經 HTTPS 時開啟）；HTTPS 時加前綴 `__Host-clure_access`、`__Host-csrf_token`、`__Secure-clure_refresh`；Access Cookie 路徑為整個網站（否則 `/proxy/` 收不到）。
+- CSRF（v4.1.7 起簽章版）：double-submit，token 形如 `nonce.HMAC(key, nonce.binding)`，binding 取 Access token 的 sub（沒有則匿名）；`/api/auth/*` 也接受匿名與 refresh 主體；所有非 GET 需帶（`/api/hook/` 例外）。
+- 雙因素：TOTP（RFC 6238，標準庫實作）、金鑰以 secretbox（AES-GCM）加密存放、8 組備用碼（sha256）、`totp_last_step` 防重放；Access token 帶 `fam`（token family），可遠端登出某台裝置。
 - 暴力破解：頻率限制（IP、IP＋帳號，**存 DB**）＋帳號鎖定（連續 5 次失敗鎖 15 分鐘）。
 - 審計日誌：`auth.*`、`admin.*` 動作；`detail` 絕不含密碼／權杖；Email 遮罩。
 - JWT 金鑰：`CLURE_JWT_SECRET`，未設定則自動產生存在資料目錄；Web Push 的 VAPID 私鑰存 `data/api/vapid_private.pem`（刪除會讓所有裝置重新開啟推播）。
@@ -298,7 +328,7 @@ features/                 各頁面（見下表）
 
 ## 11. 環境變數（`.env.example`）
 
-`CLURE_PORT`(9122)、`TZ`(Asia/Taipei)、`CLURE_DATA_PATH`(./data；資料庫與金鑰所在，覆蓋更新時務必保留)、`PUID`/`PGID`、`CLURE_POLL_MS`/`CLURE_SETTLE_MS`/`CLURE_RUN_TESTS`（前端建置器）、`CLURE_JWT_SECRET`、`CLURE_ADMIN_USERNAME/EMAIL/PASSWORD`、`CLURE_ALLOW_REGISTRATION`、`CLURE_FIRST_USER_ADMIN`、`CLURE_COOKIE_SECURE`、`CLURE_DATABASE_URL`（空＝SQLite）、`POSTGRES_PASSWORD`、`CLURE_LOG_LEVEL`、`CLURE_EINVOICE_APP_ID/API_KEY`、`CLURE_PROXY_REQUIRE_LOGIN`、`PROXY_ACCESS_TOKEN`。後端另有 `access_token_minutes`、`refresh_token_days`、`login_rate_limit_per_minute`、`lockout_threshold`、`lockout_minutes`、`trust_proxy_headers` 等（`server/app/core/config.py`）。前端建置期：`VITE_AUTH_MODE=off`。
+`CLURE_PORT`(9122)、`TZ`(Asia/Taipei)、`CLURE_DATA_PATH`(./data；資料庫與金鑰所在，覆蓋更新時務必保留)、`PUID`/`PGID`、`CLURE_POLL_MS`/`CLURE_SETTLE_MS`/`CLURE_RUN_TESTS`（前端建置器）、`CLURE_JWT_SECRET`、`CLURE_ADMIN_USERNAME/EMAIL/PASSWORD`、`CLURE_ALLOW_REGISTRATION`、`CLURE_FIRST_USER_ADMIN`、`CLURE_COOKIE_SECURE`、`CLURE_DATABASE_URL`（空＝SQLite）、`POSTGRES_PASSWORD`、`CLURE_LOG_LEVEL`、`CLURE_EINVOICE_APP_ID/API_KEY`、`CLURE_PROXY_REQUIRE_LOGIN`、`PROXY_ACCESS_TOKEN`。AI：`CLURE_AI_PROVIDERS`（預設 nvidia,gemini,openrouter,custom）、`CLURE_AI_{GEMINI,OPENROUTER,NVIDIA,CUSTOM}_{API_KEY,MODEL,EXTRA_BODY}`、`CLURE_AI_CUSTOM_BASE_URL`、額度 `CLURE_AI_USER_{DAILY,WEEKLY,MONTHLY}`、`CLURE_AI_ADMIN_*`、`CLURE_AI_GLOBAL_DAILY`、`CLURE_AI_GLOBAL_PER_MINUTE`（管理後台可覆蓋）。備份 `CLURE_BACKUP_DAILY/KEEP/HOUR`、`CLURE_VAPID_SUBJECT`。後端另有 `access_token_minutes`、`refresh_token_days`、`login_rate_limit_per_minute`、`lockout_threshold`、`lockout_minutes`、`trust_proxy_headers` 等（`server/app/core/config.py`）。前端建置期：`VITE_AUTH_MODE=off`。
 
 ---
 
@@ -315,15 +345,17 @@ npm install && npm run dev
 ```
 | 指令 | 說明 |
 |---|---|
-| `npm test` / `test:watch` | Vitest 單元測試（547 項，涵蓋金額、計算機、期間、帳目一致性、預算、週期、分期、分帳、FIFO、台股費稅、XIRR、市場時間、報表、CSV/Excel、匯入、PIN、同步、E2EE、備份、自動分類、發票、財務自由、稅務、貸款、推播排程、一句話記帳、收件匣解析、現金流、週報、問答查帳…） |
+| `npm test` / `test:watch` | Vitest 單元測試（681 項，涵蓋金額、計算機、期間、帳目一致性、預算、週期、分期、分帳、FIFO、台股費稅、XIRR、市場時間、報表、CSV/Excel、匯入、PIN、同步、E2EE、備份、自動分類、發票、財務自由、稅務、貸款、推播排程、一句話記帳、收件匣解析、現金流、週報、問答查帳、AI 分流、操作助手、排程、功能介紹與更新說明把關…） |
 | `npm run typecheck` / `build` / `preview` | 型別檢查／建置／預覽（9122，SW 生效） |
 | `npm run icons` | 由 `assets/icon.svg` 重產圖標與 iOS 啟動畫面 |
 | `npm run pack:nas` | 產生 `aster-nas.zip`（不含 `.env`、`data/`） |
-| `cd server && .venv/bin/python -m pytest -q` | 後端測試（auth、admin、cli、einvoice、inbox、push/e2ee、sync） |
+| `npm run check` | tsc＋eslint（零警告）＋vitest |
+| `cd server && .venv/bin/python -m pytest -q` | 後端測試（191 項：auth、admin、cli、einvoice、inbox、push/e2ee、sync、ai、ai_stream、限流、資安、備份、通知…） |
 
 ### NAS Docker（熱更新版，`docker-compose.yml`）
 服務：`web-builder`（node:20-alpine，`docker/web-watch.mjs` 監看原始碼 → `vite build` → 成功才原子切換，失敗保留舊版）、`web`（nginx，對外 9122，`nginx-watch.sh` 設定熱載入）、`api`（python:3.12-slim，`docker/api-entrypoint.sh` 安裝套件、修正權限、`uvicorn --reload`，輪詢偵測檔案變更）、`quote-proxy`（Node 報價代理，`node --watch`）、選用 `postgres`（`--profile postgres`）。資料卷：`clure-node-modules`、`clure-www`、`clure-pyenv`。資料在 `${CLURE_DATA_PATH}/api/`（`clure.db`、`jwt_secret`、`vapid_private.pem`）。
 **更新方式**：電腦 `npm run pack:nas` → 解壓覆蓋到 NAS 同一資料夾（不要先刪除）→ 依覆蓋的檔案自動重建／重載（`src/` 30–90 秒；`package*.json` 數分鐘；`server/app`、`alembic` 熱重載＋自動遷移；`requirements.txt` 自動重裝；`proxy/` 自動重啟；只有 `docker-compose.yml`／`.env` 變動才需 `docker compose up -d`）。
+**實際部署（使用者的 Synology）**：Compose 專案名是 `aster`，要用 `sudo docker compose -p aster up -d`；動到後端或 nginx 設定時要重建 API／nginx 容器。詳見 `docs/OPERATIONS.md`。
 管理員 CLI（api 容器內）：`python -m app.cli create-admin | delete-user | list-users`。
 其他部署：Cloudflare Pages（`public/_redirects` 處理 SPA）＋ Cloudflare Worker 報價代理（`proxy/wrangler.toml`）。
 
@@ -340,8 +372,10 @@ npm install && npm run dev
 
 ```
 Aster/
-├─ README.md / CHANGELOG.md          功能總覽、部署、變更紀錄（由新到舊，目前 4.0.0）
+├─ README.md / CHANGELOG.md          功能總覽、部署、變更紀錄（由新到舊，目前 4.1.14）
+├─ FEATURES_FOR_AI.md                功能說明書（最完整的功能與規則）
 ├─ PROJECT_OVERVIEW_FOR_AI.md        本檔案
+├─ SECURITY.md
 ├─ package.json / vite.config.ts / tsconfig.json / index.html
 ├─ .env.example / .github/workflows/ci.yml / .dockerignore / .gitignore
 ├─ docker-compose.yml / docker-compose.build.yml
@@ -352,6 +386,7 @@ Aster/
 │  ├─ SYNC.md                        同步與 E2EE 設計
 │  ├─ INBOX.md                       自動記帳收件匣（iPhone 捷徑）
 │  ├─ KNOWN_LIMITS.md                已知限制（iOS 平台、資料與安全、報價資料源、計算、電子發票、帳號系統）
+│  ├─ AI.md / NOTIFY.md / OPERATIONS.md / ICONS.md / ARCHITECTURE.md
 │  └─ QA.md                          QA 檢查清單
 ├─ proxy/                            src/core.ts（共用核心）、worker.ts、node-server.ts、wrangler.toml、README.md
 ├─ scripts/                          gen-icons.mjs、make-shortcuts.py、pack-nas.sh
@@ -360,21 +395,24 @@ Aster/
 ├─ server/
 │  ├─ app/main.py                    建立 app、中介層（CSRF、請求日誌）、例外處理、lifespan（建立預設管理員）
 │  ├─ app/{db.py, cli.py}
-│  ├─ app/core/                      config、security、rate_limit、request_info、logging、webpush
-│  ├─ app/model/                     users、refresh_token、audit_log、rate_limit、sync_record、e2ee_push、inbox、app_setting
-│  ├─ app/schema/                    auth、admin、audit、sync、push、inbox、einvoice
+│  ├─ app/core/                      config、security、totp、secretbox、rate_limit、request_info、logging、webpush、outgoing、mailer
+│  ├─ app/model/                     users、refresh_token、audit_log、rate_limit、sync_record、e2ee_push、inbox、app_setting、ai_usage、notify_channel、password_reset
+│  ├─ app/schema/                    auth、admin、audit、sync、push、inbox、einvoice、ai
 │  ├─ app/repository/                user、token、audit、sync、stats
-│  ├─ app/service/                   auth、admin、audit、stats、sync、push、inbox、einvoice、app_settings、errors
-│  ├─ app/api/                       deps、auth、admin、sync、push、inbox、einvoice、health、cookies
-│  ├─ alembic/versions/              0001_initial … 0006_app_settings
-│  └─ tests/                         conftest + test_{admin,auth,cli,einvoice,inbox,push_e2ee,sync}.py
+│  ├─ app/service/                   auth、admin、audit、stats、sync、push、inbox、einvoice、app_settings、notify、**ai_service／ai_tasks／ai_providers／ai_quota**、errors
+│  ├─ app/api/                       deps、auth、admin、sync、push、inbox、einvoice、health、cookies、ai、notify
+│  ├─ alembic/versions/              0001_initial … 0013_totp
+│  └─ tests/                         conftest + test_*.py（auth、admin、ai、ai_stream、ai_v4112、rate_limit、security_v417、sync、notify、backup…）
 ├─ src/                              見第 5、7、8 節
 │  └─ features/
-│     ├─ home/        HomePage、Calendar、Widgets、RemindersSheet、VoiceSheet
+│     ├─ home/        HomePage、Calendar、Widgets、**AiChat（全站唯一的 AI 對話框與 respond() 分流）**、aiChatStore、AiOrb、RemindersSheet、AttentionCard（需要你看一下）、CalculatorSheet、VoiceSheet
 │     ├─ add/         AddSheet（最大單檔，約 47KB）、Keypad、QuickEntry、SplitSheet、pickers
 │     ├─ ledger/      LedgerPage、LedgerRow、FilterSheet
 │     ├─ accounts/    AccountsPage（含帳戶詳情）、AccountSheet
-│     ├─ plan/        PlanPage、budgets、projects、recurring、installments、debts、goals、wishlist
+│     ├─ plan/        PlanPage、budgets、projects、recurring、installments、debts、goals、wishlist、durables
+│     ├─ ai/          AiAssistant（/ai）、PlanPreview（操作助手預覽）、AiExplain、SmartAlerts、views/（對話內檢視卡）
+│     ├─ whatsnew/    WhatsNew（更新後彈窗）、releaseNotes（每版功能說明資料）
+│     ├─ legal/       隱私權政策與服務條款
 │     ├─ reports/     ReportsPage、SummaryPage、CashflowPage、FirePage、TaxPage、YearReview、PrintReport、EChart、chart-theme
 │     ├─ invest/      InvestTab、StockDetailPage、TradeSheet、StockSearch、WatchlistPage、DividendsPage
 │     ├─ settings/    SettingsPage + Backup/Categories/Fx/Health/Import/InvestSettings/Invoice/Notifications/Rules/Security/Tags/Widgets 各頁
@@ -382,37 +420,42 @@ Aster/
 │     ├─ search/      SearchPage
 │     ├─ auth/        AuthPages（登入／註冊／改密碼）
 │     ├─ admin/       AdminPage
-│     └─ onboarding/  Onboarding（4 步）
+│     └─ onboarding/  Onboarding（5 步）、ShowcaseCarousel、showcase（功能介紹名單與分數）
 └─ tests/unit/                       *.test.ts（Vitest；sync-engine.test.ts 以模擬伺服器測兩台裝置同步）
 ```
 
 ---
 
-## AI 功能（v1.5.0～2.0.0，詳見 `docs/AI.md`）
+## AI 功能（詳見 `docs/AI.md` 與 `FEATURES_FOR_AI.md` §3.3）
 
-- **架構**：前端先用規則（本機、免費），規則做不到才請 AI；管理員在 `.env` 設一把共用 Key，後端 `server/app/service/ai_{quota,providers,tasks,service}.py` 提供供應商鏈（`gemini`／`openrouter`／`nvidia`／`custom`，OpenAI 相容 `/chat/completions`，失敗自動換下一家、連續 3 次失敗冷卻 5 分鐘）與額度（每位使用者日／週／月＋全站每日＋全站每分鐘；`ai_usage` 表；失敗不扣額度；收據辨識扣 2 點）。API：`/api/ai/{status,parse-entry,ask,budget-plan,insights,categorize,receipt}`、`/api/admin/ai{,/console,/test}`。
-- **前端**：`src/services/ai.ts`（呼叫、本機結果快取 `meta` 表、進行中請求共用）、`src/domain/aisummary.ts`（去識別化收支摘要、日常預算＝（總預算−固定支出）÷天數、預算建議對回分類）、`src/domain/aiparse.ts`、`src/features/ai/{AiAssistant,AiInsights}.tsx`（`/ai`：問 AI、下月預算建議、白話解讀、AI 整理分類、拍照記帳）、`src/features/settings/AiPage.tsx`（兩個隱私開關 `ai.enabled`／`ai.allowData`，預設關）、`src/features/admin/AiConsole.tsx`（管理員主控台：連線狀態、測試連線、用量、額度）。
-- **隱私原則**：統計類功能只送整數統計與分類名稱（無備註、商家、帳戶名、單筆帳目）；伺服器不保存內容；輸出驗證（分類必須在使用者名單內）並以純文字顯示。免費層的內容可能被供應商用於改進產品。
-- **測試**：`server/tests/test_ai.py`、`test_rate_limit.py`；`tests/unit/aisummary.test.ts`、`aiparse.test.ts`、`nlquery.test.ts`。
+- **預設關閉**，兩個隱私開關 `ai.enabled`、`ai.allowData`；管理員在 `.env` 設共用 Key。後端 `server/app/service/ai_{quota,providers,tasks,service}.py`：供應商鏈（`gemini`／`openrouter`／`nvidia`／`custom`，OpenAI 相容，失敗自動換下一家、連續 3 次失敗冷卻 5 分鐘）、額度（每位使用者日／週／月，管理員與一般使用者分開，另有全站每日與每分鐘上限；`ai_usage` 表；**先預留、成功才扣、失敗與中斷還回去**）。
+- **任務與點數**：parse_entry 1、ask 1、**chat 0（閒聊，每人每小時 40 次）**、agent_plan 1、budget_plan 1、insights 1、categorize 1、receipt 2、search_plan 1、explain 1、price_check 0。`ask`／`chat`／`agent-plan` 有 `/stream`（SSE；nginx 關閉緩衝；已開始輸出後不換供應商）。`ask`／`chat` 可帶 `history`（最近 8 句、每句 400 字）。
+- **對話分流 `respond()`**（`features/home/AiChat.tsx`，規則優先、本機能做的不扣額度）：`localView` 短句→檢視卡 → `localEditPlan`（刪／改「剛剛那筆」）→ `looksLikeOperation`→操作助手 → 「再來一杯」 → `accountTalk`／`budgetTalk`（餘額、預算） → `followUp`（查帳追問與比較） → 規則記帳（日期在未來或時間未到＝排程） → 規則查帳 → 問自己的錢→`aiAsk` → 口語記帳 `draftsSmart` → **其餘 `aiChatTalk` 閒聊（盡量回答；做不到明說資料有限／權限不足／不提供）**。對話上下文只在這次對話，清除或重新整理就忘。
+- **操作助手**：AI 只規劃（15 個白名單工具）→ 伺服器驗證 → 前端 `domain/agent/plan.ts` 再驗證並模擬預覽 → 使用者確認 → `services/agent.ts` 單一 Dexie 交易寫入 → 整包可還原（7 天、20 筆）。
+- **隱私原則**：統計類功能只送整數統計與分類名稱（無備註、商家、帳戶名、單筆帳目）；送出前 `sanitizeForAi`；伺服器不保存內容；輸出驗證並以純文字顯示；AI 送出紀錄存本機。免費層內容可能被供應商用於改進產品。
+- **測試**：`server/tests/test_ai.py`、`test_ai_stream.py`、`test_ai_v4112.py`、`test_rate_limit.py`；`tests/unit/aichat*.test.ts`、`v4112.test.ts`、`aisummary.test.ts`、`aiparse.test.ts`、`nlquery.test.ts`…。
 
 ---
 
 ## 14. 開發慣例與注意事項（AI 修改程式碼時請遵守）
 
-1. **語言**：UI 文字、註解、commit 訊息、文件均為**繁體中文**；commit 格式 `feat|fix: vX.Y.Z — 說明`（例：`fix: v1.4.4 — iPhone 長按語音：…`）。版本號在 `package.json`，變更要同步寫 `CHANGELOG.md`。
+1. **語言**：UI 文字、註解、commit 訊息、文件均為**繁體中文**；commit 格式 `feat|fix: vX.Y.Z — 說明`（例：`fix: v1.4.4 — iPhone 長按語音：…`）。版本號由使用者指定，發佈時照本檔開頭的清單同步多處（含功能介紹與更新說明視窗資料）。結尾附 `Co-Authored-By` 行；**完成後（測試、lint、build 都通過）直接 commit 並推送** `feature/v1.2`，再 fast-forward 合併 `main` 並推送，不必再問（使用者 2026-11-09 確認），不 force push。
 2. **金額**：一律整數最小單位；股價／股數／匯率用 decimal 字串＋`decimal.js`；不要用浮點加總金額。
 3. **寫 DB 只能走 `src/db/repo/*`**（會維護帳戶餘額快取與同步追蹤）；不要在元件裡直接 `db.table.put()`。
 4. **新增資料表或索引**：新增 `db.version(n)`，不得改既有版本；若該表需同步，加入 `SYNCED_TABLES` 與後端白名單。
 5. **同步相關**：遠端套用須在「遠端」交易中（避免回寫）；E2EE 解密不可放在 IndexedDB 交易內；備份／還原不可帶入 `meta`、`sync_outbox`、App 鎖與通知設定。
 6. **domain 層保持純函式**並補單元測試（`tests/unit/`）；後端新增邏輯補 `server/tests/`。
 7. **後端分層**：路由不碰 DB、repository 才碰 Session；錯誤用 `service/errors.py` 的業務錯誤、訊息用繁體中文且不洩漏內部細節；日誌禁用 `print`、不得記錄密碼／權杖。
-8. **後端 DB 變更**一律新增 Alembic 遷移（下一個是 `0010_…`），啟動時自動套用。
+8. **後端 DB 變更**一律新增 Alembic 遷移（下一個是 `0014_…`），啟動時自動套用。同步資料是 JSON，前端新增**可選**欄位通常不需遷移。
 9. **iOS 限制**：語音辨識、通知、Face ID 都需要「真正的使用者手勢」與 HTTPS；輸入框在觸控裝置至少 16px 避免縮放；不要在長按計時器內啟動需要手勢的 API。
 10. **Service Worker**：不自動 `skipWaiting`（由使用者同意更新）；導覽 denylist 含 `/proxy/`、`/api/`、`/shortcuts/`。
 11. **CSP**：不能新增 inline `<style>` 元素或 inline script；新增外部連線網域要同步改 `docker/security-headers.conf` 的 `connect-src`，必要時也改 `proxy/src/core.ts` 的 `ALLOWED_HOSTS`。
 12. **相容性命名**：保留 `CLURE_*`、`clure-u{id}`、`x-clure-token` 等舊名（見第 1 節）。
 13. **解析類功能先走規則式**（`nlp.ts`、收件匣簡訊、`nlquery.ts`、異常偵測的 `pricing.ts`），規則解析不了時才由使用者開啟的 AI 後備（v2.0 起，見 `docs/AI.md`；送出內容都記在 AI 送出紀錄）；改規則時請同步更新對應單元測試。
-14. 目前分支 `feature/v1.2`（開發分支，比 `main` 新很多）；最新版 4.0.0，提交格式見第 1 條。
+14. 目前分支 `feature/v1.2`（與 `main` 同步）；最新版 4.1.14，提交格式見第 1 條。
+15. **不要在 `for db in session_scope()` 迴圈內提前 return**（會跳過 commit，曾讓限流整個失效）。
+16. **不用 `window.confirm`／`prompt`**：用 `askConfirm()`／`askInput()`；新功能標題前放 `<NewMark since="版本" />` 並更新 `release.json` 的 `featureRelease`；動畫要尊重 `prefers-reduced-motion`。
+17. **公開倉庫**：不要提交金鑰、個人資料；`.env`、`data/`、交接包 `productAI*` 都在 `.gitignore`。
 
 ---
 
@@ -425,5 +468,7 @@ Aster/
 - 電子發票手機條碼自動抓取需財政部 AppID（個人通常申請不到）；財政部 API 只能查約 9 個月。
 - 稅務彙總與財務自由試算為估算（113 年度標準、常態分布報酬＋固定通膨）。
 - 一句話記帳／用問的查帳為規則解析，說法差太多可能判斷錯。
+- 排程記帳的「到時候自動記」需要 App 開啟才會寫入（資料在裝置上，伺服器推播只負責通知）；對話上下文只保留這次對話。
+- LINE 刷卡訊息無法自動讀取（LINE 不開放、iOS 捷徑沒有通知觸發），只能用分享／貼上捷徑手動送入收件匣。
 - PDF 報表為「瀏覽器列印→另存 PDF」；XLSX 為精簡自寫產生器（無公式）。
 - 審計日誌不自動清除；Cookie 未走 HTTPS 時不帶 Secure。
