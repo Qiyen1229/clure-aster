@@ -119,3 +119,32 @@ export async function bookDrafts(list: ResolvedDraft[]): Promise<{ txIds: string
   if (list[0]) useSettings.getState().set('lastAccountId', list[list.length - 1].accountId);
   return { txIds, transferIds };
 }
+
+/** 這一筆草稿應該「排程」而不是馬上記：日期在未來，或今天但寫了還沒到的時間（轉帳不排程） */
+export function isScheduled(d: Pick<DraftEntry, 'kind' | 'date' | 'time'>, now = new Date()): boolean {
+  if (d.kind === 'transfer') return false;
+  const today = todayKey();
+  if (d.date > today) return true;
+  if (d.date < today || !d.time) return false;
+  return d.time > `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+}
+
+/** 把草稿建成「單次排程」：到那天（那個時間）通知你，在收件匣按一下才入帳；回傳規則 id 供復原 */
+export async function scheduleDrafts(list: ResolvedDraft[]): Promise<string[]> {
+  const { saveRecurring } = await import('@/db/repo/plan');
+  const accounts = new Map((await db.accounts.toArray()).map((a) => [a.id, a]));
+  const ids: string[] = [];
+  for (const d of list) {
+    const acc = accounts.get(d.accountId);
+    if (!acc) throw new Error('找不到帳戶，請先新增帳戶');
+    if (d.kind === 'transfer') throw new Error('轉帳不能排程，請直接記帳');
+    const cat = d.categoryId ? await db.categories.get(d.categoryId) : undefined;
+    const currency = d.currency ?? acc.currency;
+    ids.push(await saveRecurring({
+      kind: 'normal', name: (d.note || cat?.name || '排程記帳').slice(0, 30), mode: 'confirm', remindDaysBefore: 0, active: 1,
+      startDate: d.date, rule: { freq: 'day', interval: 1, count: 1 }, ...(d.time ? { at: d.time } : {}),
+      template: { type: d.kind, accountId: acc.id, categoryId: d.categoryId, amountMinor: toMinor(d.amount, currency), currency, note: d.note, tagIds: d.tagIds },
+    }));
+  }
+  return ids;
+}

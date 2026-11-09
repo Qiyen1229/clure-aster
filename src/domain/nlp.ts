@@ -7,7 +7,7 @@
 
 import { addDays, fromDateKey, toDateKey, type DateKey } from './period';
 import { CURRENCY_WORDS, detectCurrency, findAmounts, toHalfWidth, type AmountHit } from './nlp-amount';
-import { extractDate } from './nlp-date';
+import { extractClock, extractDate } from './nlp-date';
 import { findAccounts, matchCategory, type CategoryMatch, type NlpAccount, type NlpCategory } from './nlp-entities';
 
 // 舊的匯入路徑（@/domain/nlp）維持可用：數字、金額、日期、帳戶／分類的函式都從這裡轉出
@@ -26,6 +26,8 @@ export interface DraftEntry {
   date: DateKey;
   /** 有沒有在文字中寫到日期（沒寫就是今天） */
   dateGiven: boolean;
+  /** 文字中寫到的時間（HH:MM）；排程提醒用，沒寫就沒有 */
+  time?: string;
   accountId?: string;
   toAccountId?: string;
   categoryId?: string;
@@ -124,6 +126,8 @@ export function parseEntries(input: string, ctx: ParseContext): DraftEntry[] {
     // 2. 日期
     const dt = extractDate(rest, ctx.today);
     rest = dt.rest;
+    const clock = extractClock(rest);
+    rest = clock.rest;
     if (dt.date) datesFound.push(dt.date);
     // 3. 帳戶（連同前面的「用／刷／從」一起拿掉）
     const accs = findAccounts(rest, ctx.accounts);
@@ -156,7 +160,7 @@ export function parseEntries(input: string, ctx: ParseContext): DraftEntry[] {
     // 轉帳的備註只留真正的說明；「轉」「到」「從」這類連接詞不是備註
     const note = kind === 'transfer' ? rawNote.replace(/轉帳|轉出|轉|匯款|匯|到|至|去|從|由|給|的/g, ' ').replace(/\s+/g, ' ').trim() : tidyNote(rawNote, match, kind);
     drafts.push({
-      kind, amount: a.value, currency, date: dt.date ?? ctx.today, dateGiven: !!dt.date,
+      kind, amount: a.value, currency, date: dt.date ?? ctx.today, dateGiven: !!dt.date, ...(clock.time ? { time: clock.time } : {}),
       accountId, toAccountId, categoryId: cat?.id, note, raw: seg.text.trim(),
     });
   }

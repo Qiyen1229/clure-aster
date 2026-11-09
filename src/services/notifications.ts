@@ -104,10 +104,23 @@ export async function runReminderChecks(now = new Date()) {
     }
   }
 
+  // 單次排程（對話框「下週二 15:30 記一筆午餐 200」）：到那天、那個時間主動通知；在收件匣按一下才入帳
+  {
+    const nowHm = new Date().toTimeString().slice(0, 5);
+    for (const r of await db.recurring_rules.toArray()) {
+      if (r.rule.count !== 1 || !r.pendingDates.length) continue;
+      for (const d of r.pendingDates) {
+        if (d > today || (d === today && r.at && nowHm < r.at)) continue;
+        const amt = formatMoney(r.template.amountMinor ?? 0, r.template.currency ?? s.baseCurrency);
+        await notify(`⏰ 該記一筆了：${r.name}`, `${amt}，到收件匣按一下確認入帳`, '/inbox', 'subscription', `once:${r.id}:${d}`);
+      }
+    }
+  }
+
   // 訂閱續約與週期待確認
   if (cfg.subscription) {
     for (const r of await db.recurring_rules.where('active').equals(1).toArray()) {
-      if (r.pendingDates.length) {
+      if (r.pendingDates.length && r.rule.count !== 1) {
         await notify(`🔁 ${r.name} 待確認`, `有 ${r.pendingDates.length} 筆週期帳目等待確認入帳`, '/plan?tab=recurring', 'subscription', `pending:${r.id}:${r.pendingDates.join(',')}`);
       }
       if (r.kind === 'subscription' && r.nextDue >= today && r.nextDue <= addDays(today, r.remindDaysBefore)) {

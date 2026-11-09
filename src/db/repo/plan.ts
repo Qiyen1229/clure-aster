@@ -165,7 +165,7 @@ export async function projectStats(project: Project) {
 
 // ───────────── 週期／訂閱 ─────────────
 
-export type RecurringInput = Pick<RecurringRule, 'kind' | 'name' | 'template' | 'rule' | 'startDate' | 'mode' | 'remindDaysBefore' | 'subscription' | 'active'>;
+export type RecurringInput = Pick<RecurringRule, 'kind' | 'name' | 'template' | 'rule' | 'startDate' | 'mode' | 'remindDaysBefore' | 'subscription' | 'active'> & { at?: string };
 
 export async function saveRecurring(input: RecurringInput, id?: string): Promise<string> {
   const today = todayKey();
@@ -189,7 +189,7 @@ function templateToInput(r: RecurringRule, date: string): TxInput {
   return {
     type: (t.type as TxInput['type']) ?? 'expense',
     accountId: t.accountId!, categoryId: t.categoryId!, amountMinor: t.amountMinor!, currency: t.currency!,
-    date, ts: new Date(`${date}T09:00:00`).getTime(), note: t.note || r.name, tagIds: t.tagIds ?? [], projectId: t.projectId,
+    date, ts: new Date(`${date}T${r.rule.count === 1 && r.at ? r.at : '09:00'}:00`).getTime(), note: t.note || r.name, tagIds: t.tagIds ?? [], projectId: t.projectId,
     recurringRuleId: r.id,
   };
 }

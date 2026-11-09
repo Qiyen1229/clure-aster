@@ -109,6 +109,17 @@ export async function upcomingPushItems(days = 14, now = Date.now()): Promise<Pu
       });
     }
   }
+  // 單次排程：到那天那個時間由伺服器送出（App 沒開也會響）；金額在隱私模式下不放進通知
+  // （當天早上開過 App 時規則已經結束、但還沒確認的那一筆仍在 pendingDates，所以兩邊都要看，不然會被取消排程）
+  for (const r of await db.recurring_rules.toArray()) {
+    if (r.rule.count !== 1) continue;
+    for (const d of new Set([...(r.active ? [r.nextDue] : []), ...r.pendingDates])) {
+      add({
+        id: `once:${r.id}:${d}`, at: at(d, r.at ?? '09:00'), title: priv ? '⏰ 該記一筆了' : `⏰ 該記一筆了：${r.name}`,
+        body: priv ? '到收件匣按一下確認入帳' : `${formatMoney(r.template.amountMinor ?? 0, r.template.currency ?? s.baseCurrency)}，到收件匣按一下確認入帳`, url: '/inbox',
+      });
+    }
+  }
   if (cfg.subscription) {
     for (const r of await db.recurring_rules.where('active').equals(1).toArray()) {
       if (r.kind !== 'subscription') continue;

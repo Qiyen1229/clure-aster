@@ -33,9 +33,12 @@ async function skippedSet(): Promise<Set<string>> {
 
 /** 載入待確認的週期帳目與預計扣款，並更新首頁／導覽列的數字 */
 export async function loadForecast(today = todayKey()): Promise<ForecastData> {
+  // 單次排程到期後規則就結束（active=0），但還沒確認的那一筆要留著；排了時間的，當天要到那個時間才出現
+  const nowHm = new Date().toTimeString().slice(0, 5);
   const rules: PendingRuleItem[] = (await db.recurring_rules.toArray())
-    .filter((r) => r.active && r.pendingDates.length)
+    .filter((r) => (r.active || r.pendingDates.length) && r.pendingDates.length)
     .flatMap((r) => r.pendingDates.map((date) => ({ id: `rule:${r.id}:${date}`, rule: r, date })))
+    .filter((it) => !(it.rule.rule.count === 1 && it.rule.at && it.date === today && nowHm < it.rule.at))
     .sort((a, b) => (a.date < b.date ? -1 : 1));
   let predicted: ForecastItem[] = [];
   if (forecastOn()) {

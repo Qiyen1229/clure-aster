@@ -18,6 +18,9 @@ function monthlyAt(start: DateKey, rule: RecurrenceRule, k: number): DateKey | n
 }
 
 /** 產生 [from, to] 區間內的發生日（含 start 之後，受 until/count 限制） */
+/** 單次排程：只發生一次的規則（對話框「下週二 15:30 記一筆午餐 200」建出來的） */
+export const isOnce = (r: { rule: { count?: number } }) => r.rule.count === 1;
+
 export function occurrences(rule: RecurrenceRule, start: DateKey, from: DateKey, to: DateKey, max = 1000): DateKey[] {
   const out: DateKey[] = [];
   const interval = Math.max(1, rule.interval || 1);

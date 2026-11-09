@@ -18,7 +18,7 @@ import { currentScreen, useScreen } from '@/stores/screenContext';
 import { ViewBubble } from '../ai/views/ViewBubble';
 import { aiDataEnabled, aiAsk, aiChatTalk, aiEnabledLocally, aiReceipt, quotaLabel } from '@/services/ai';
 import { ask } from '@/services/nlquery';
-import { bookDrafts, draftsFromText, draftsSmart, fallbackAccount, resolveDraft, type ResolvedDraft } from '@/services/quickentry';
+import { bookDrafts, draftsFromText, draftsSmart, fallbackAccount, isScheduled, resolveDraft, scheduleDrafts, type ResolvedDraft } from '@/services/quickentry';
 import { useSettings } from '@/stores/settings';
 import { askConfirm, snackUndo, useUI } from '@/stores/ui';
 import { AiMark, Icon } from '@/ui/Icon';
@@ -232,16 +232,23 @@ function EntriesBubble({ m }: { m: Extract<Msg, { kind: 'entries' }> }) {
   const [off, setOff] = useState<Set<number>>(new Set());
   const chosen = m.drafts.filter((_, i) => !off.has(i));
   const multi = m.drafts.length > 1;
-  const book = async () => {
+  // 日期在未來（或今天還沒到的時間）的那幾筆：建成「單次排程」，到時候通知你、在收件匣按一下才入帳；其他照常馬上記
+  const sched = chosen.filter((d) => isScheduled(d));
+  const allSched = sched.length === chosen.length && chosen.length > 0;
+  const book = async (forceNow = false) => {
     if (!chosen.length) return;
     setBusy(true);
     try {
-      const r = await bookDrafts(chosen);
-      useChat.getState().patch(m.id, { booked: true } as Partial<Msg>);
-      snackUndo(`已記下 ${chosen.length} 筆`, async () => {
+      const later = forceNow ? [] : sched;
+      const now = chosen.filter((d) => !later.includes(d));
+      const r = now.length ? await bookDrafts(now) : { txIds: [], transferIds: [] };
+      const ruleIds = later.length ? await scheduleDrafts(later) : [];
+      useChat.getState().patch(m.id, { booked: true, scheduled: ruleIds.length > 0 && !now.length } as Partial<Msg>);
+      snackUndo(ruleIds.length ? (now.length ? `已記下 ${now.length} 筆、排程 ${ruleIds.length} 筆` : `已排程 ${ruleIds.length} 筆，到時候通知你`) : `已記下 ${chosen.length} 筆`, async () => {
         if (r.txIds.length) await deleteTransactions(r.txIds);
         if (r.transferIds.length) await deleteTransfers(r.transferIds);
-        useChat.getState().patch(m.id, { booked: false } as Partial<Msg>);
+        if (ruleIds.length) await db.recurring_rules.bulkDelete(ruleIds);
+        useChat.getState().patch(m.id, { booked: false, scheduled: false } as Partial<Msg>);
       });
     } catch (e) { useUI.getState().showSnack({ text: (e as Error).message }); } finally { setBusy(false); }
   };
@@ -261,16 +268,19 @@ function EntriesBubble({ m }: { m: Extract<Msg, { kind: 'entries' }> }) {
             <span className="row-main">
               <span className="row-title num">{d.kind === 'income' ? '＋' : d.kind === 'transfer' ? '↔ ' : '－'}{formatMoney(Math.round(d.amount * 100), d.currency ?? base, { decimals: 0 })}　{d.note || (d.kind === 'transfer' ? '轉帳' : '')}</span>
               <span className="row-sub" style={{ display: 'block' }}>
-                {d.kind === 'transfer' ? `${accounts.map.get(d.accountId)?.name ?? ''} → ${accounts.map.get(d.toAccountId ?? '')?.name ?? ''}` : `${cats.map.get(d.categoryId ?? '')?.name ?? '其他'}　${accounts.map.get(d.accountId)?.name ?? ''}`}　{d.date}
+                {d.kind === 'transfer' ? `${accounts.map.get(d.accountId)?.name ?? ''} → ${accounts.map.get(d.toAccountId ?? '')?.name ?? ''}` : `${cats.map.get(d.categoryId ?? '')?.name ?? '其他'}　${accounts.map.get(d.accountId)?.name ?? ''}`}　{d.date}{d.time ? ` ${d.time}` : ''}{isScheduled(d) ? '　⏰ 排程' : ''}
               </span>
             </span>
           </div>
         ))}
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-        {m.booked ? <span className="muted">✅ 已記帳</span> : <button className="btn small" disabled={busy || !chosen.length} onClick={() => void book()}>記帳（{chosen.length} 筆）</button>}
+        {m.booked ? <span className="muted">{m.scheduled ? '⏰ 已排程，到時候通知你' : '✅ 已記帳'}</span>
+          : <button className="btn small" disabled={busy || !chosen.length} onClick={() => void book()}>{allSched ? `排程提醒（${chosen.length} 筆）` : `記帳（${chosen.length} 筆）`}</button>}
+        {!m.booked && sched.length > 0 && <button className="btn small tinted" disabled={busy} onClick={() => void book(true)}>現在就記</button>}
         {!m.booked && m.drafts.length === 1 && <button className="btn small tinted" onClick={toPanel}>帶入記帳面板</button>}
       </div>
+      {!m.booked && sched.length > 0 && <div className="row-sub">⏰ 排程的帳不會馬上入帳：到那天{sched[0].time ? '（那個時間）' : ''}會通知你，在收件匣按一下才記下，餘額現在不受影響。</div>}
       {m.sub && <div className="row-sub">{m.sub}</div>}
     </div>
   );

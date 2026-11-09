@@ -233,6 +233,8 @@ export interface RecurringRule extends BaseRow {
   pendingDates: string[];
   mode: 'auto' | 'confirm';
   remindDaysBefore: number;
+  /** 單次排程（rule.count === 1）當天要提醒的時間 HH:MM；沒有就是早上 9 點。其他週期帳目不用 */
+  at?: string;
   subscription?: { service: string; logo?: string; priceHistory: { date: string; amountMinor: number }[] };
   active: 0 | 1;
 }

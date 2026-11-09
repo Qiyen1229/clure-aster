@@ -43,6 +43,7 @@
 ### 1.2 一句話／語音記帳（`domain/nlp*.ts`、`services/voice.ts`、`features/home/VoiceSheet.tsx`）
 - **純規則解析，不經任何 AI**：金額（「兩千三」「5萬2」「1,200」）、日期（「昨天」「上週五」「10/25」）、帳戶、分類、一次多筆；電話、連續 9 碼以上數字、網址不會被當成金額。
 - 長按導覽列中間按鈕：Android／桌機「按住說話、放開入帳」；**iPhone 因 iOS 限制**改為放開後彈窗、點麥克風才開始說話。
+- **單次排程（未發佈）**：句子的日期在未來、或今天但時間還沒到（`isScheduled`），預覽卡預設「排程提醒」→ `scheduleDrafts` 建一條 `rule.count = 1`、`mode = 'confirm'`、`at = HH:MM` 的週期帳目；到期後規則結束但 `pendingDates` 留在收件匣（`loadForecast` 不再要求 `active`；`at` 當天未到不顯示）。通知：`runReminderChecks`（`once:<rule>:<date>`）＋ `upcomingPushItems`（伺服器推播，`at` 當天 HH:MM，預設 09:00）。日期另支援後天、N 天／週後、下個月 N 號、月底；`extractClock` 認 15:30、下午三點半等明確時間。
 - 解析檔拆成 `nlp-amount.ts`、`nlp-date.ts`、`nlp-entities.ts`、`nlp.ts`。
 
 ### 1.3 首頁（`features/home/`）— 「一個畫面一個重點」
