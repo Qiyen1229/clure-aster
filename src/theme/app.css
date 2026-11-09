@@ -1185,8 +1185,37 @@ button.stat.clickable:active {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px 10px;
+  padding: 16px 18px 12px;
   border-bottom: 0.5px solid var(--sep);
+}
+.whatsnew-header-end {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.whatsnew-close-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 0.5px solid var(--glass-border);
+  background: var(--surface-2);
+  color: var(--text-2);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 140ms ease, background 140ms ease, color 140ms ease;
+  position: relative;
+}
+.whatsnew-close-btn::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+}
+.whatsnew-close-btn:active {
+  transform: scale(0.92);
+  background: var(--surface-3);
+  color: var(--text);
 }
 .whatsnew-title {
   margin: 0;

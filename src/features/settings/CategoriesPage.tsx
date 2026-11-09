@@ -1,8 +1,9 @@
 /**
  * 分類管理：支出／收入兩層分類。
- * 簡潔直覺介面：主分類清楚展示、點開為子分類膠囊；右上角可切換「排序模式」，平時不被上下箭頭干擾。
+ * 全新長按拖動排序：卡片長按懸停浮起、1:1 即時跟手、相鄰平滑避讓與觸覺反饋；
+ * 告別繁瑣的箭頭與模式切換，還原純粹直覺的互動體驗。
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Category, CategoryKind } from '@/db/types';
 import { addCategory, buildTree, deleteOrArchiveCategory, reorderCategories, updateCategory } from '@/db/repo/categories';
@@ -12,26 +13,144 @@ import { useUI, ask } from '@/stores/ui';
 import { Segmented } from '@/ui/controls';
 import { Icon } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
+import { haptic } from '@/services/haptics';
 
 type Edit = { cat?: Category; parentId: string; kind: CategoryKind } | null;
+
+interface DragState {
+  activeId: string;
+  startIndex: number;
+  overIndex: number;
+  startY: number;
+  currentY: number;
+  itemHeights: number[];
+}
 
 export default function CategoriesPage() {
   const navigate = useNavigate();
   const [kind, setKind] = useState<CategoryKind>('expense');
   const [showArchived, setShowArchived] = useState(false);
   const [expanded, setExpanded] = useState<string>('');
-  const [reordering, setReordering] = useState(false);
   const [edit, setEdit] = useState<Edit>(null);
   const { all } = useCategories();
   const tree = useMemo(() => buildTree(all, kind, showArchived), [all, kind, showArchived]);
 
-  const move = async (list: Category[], c: Category, dir: -1 | 1) => {
-    const i = list.findIndex((x) => x.id === c.id);
-    const j = i + dir;
-    if (j < 0 || j >= list.length) return;
-    const ids = list.map((x) => x.id);
-    [ids[i], ids[j]] = [ids[j], ids[i]];
-    await reorderCategories(ids);
+  // 本地順序狀態（拖動時即時響應，放手後寫回資料庫）
+  const [orderedList, setOrderedList] = useState(tree);
+  useEffect(() => {
+    setOrderedList(tree);
+  }, [tree]);
+
+  // 長按拖動排序控制
+  const [dragState, setDragState] = useState<DragState | null>(null);
+  const holdTimer = useRef<number>(0);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const dragRef = useRef<DragState | null>(null);
+  dragRef.current = dragState;
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>, mainId: string, index: number) => {
+    // 點擊編輯按鈕或展开按鈕時不觸發拖曳長按
+    const target = e.target as HTMLElement;
+    if (target.closest('.cat-edit-btn') || target.closest('.cat-sub-wrap')) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+
+    window.clearTimeout(holdTimer.current);
+    holdTimer.current = window.setTimeout(() => {
+      // 計算所有項目高度
+      const heights = orderedList.map((t) => cardRefs.current.get(t.main.id)?.offsetHeight ?? 64);
+      const state: DragState = {
+        activeId: mainId,
+        startIndex: index,
+        overIndex: index,
+        startY,
+        currentY: startY,
+        itemHeights: heights,
+      };
+      setDragState(state);
+      haptic('medium');
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+    }, 240);
+
+    const onCancel = (ev: PointerEvent) => {
+      if (Math.abs(ev.clientX - startX) > 8 || Math.abs(ev.clientY - startY) > 8) {
+        window.clearTimeout(holdTimer.current);
+      }
+    };
+    window.addEventListener('pointermove', onCancel, { once: true });
+  };
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const ds = dragRef.current;
+    if (!ds) return;
+    const dy = e.clientY - ds.startY;
+
+    // 計算目前懸停在第幾個項目（overIndex）
+    let cumulative = 0;
+    let target = ds.startIndex;
+    const centerOffset = dy;
+
+    if (centerOffset > 0) {
+      // 往下拖
+      for (let i = ds.startIndex + 1; i < orderedList.length; i++) {
+        cumulative += ds.itemHeights[i];
+        if (centerOffset > cumulative - ds.itemHeights[i] / 2) {
+          target = i;
+        } else {
+          break;
+        }
+      }
+    } else if (centerOffset < 0) {
+      // 往上拖
+      for (let i = ds.startIndex - 1; i >= 0; i--) {
+        cumulative -= ds.itemHeights[i];
+        if (centerOffset < cumulative + ds.itemHeights[i] / 2) {
+          target = i;
+        } else {
+          break;
+        }
+      }
+    }
+
+    if (target !== ds.overIndex) {
+      haptic('selection');
+    }
+
+    setDragState({
+      ...ds,
+      currentY: e.clientY,
+      overIndex: target,
+    });
+  };
+
+  const onPointerUp = async (e: React.PointerEvent<HTMLDivElement>) => {
+    window.clearTimeout(holdTimer.current);
+    const ds = dragRef.current;
+    if (!ds) return;
+
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+
+    const { startIndex, overIndex } = ds;
+    setDragState(null);
+
+    if (startIndex !== overIndex) {
+      haptic('success');
+      const next = [...orderedList];
+      const [moved] = next.splice(startIndex, 1);
+      next.splice(overIndex, 0, moved);
+      setOrderedList(next);
+      await reorderCategories(next.map((t) => t.main.id));
+    }
   };
 
   return (
@@ -39,18 +158,9 @@ export default function CategoriesPage() {
       <header className="topbar">
         <button className="icon-btn" aria-label="返回" onClick={() => navigate(-1)}><Icon name="chevronL" /></button>
         <h1>分類管理</h1>
-        <div style={{ display: 'flex', gap: 4 }}>
-          <button
-            className={`btn small ${reordering ? '' : 'secondary'}`}
-            style={{ minHeight: 32, padding: '0 10px', fontSize: '0.82rem' }}
-            onClick={() => setReordering((r) => !r)}
-          >
-            {reordering ? '完成' : '排序'}
-          </button>
-          <button className="icon-btn" aria-label="新增主分類" onClick={() => setEdit({ parentId: '', kind })}>
-            <Icon name="plus" />
-          </button>
-        </div>
+        <button className="icon-btn" aria-label="新增主分類" onClick={() => setEdit({ parentId: '', kind })}>
+          <Icon name="plus" />
+        </button>
       </header>
 
       <Segmented
@@ -60,16 +170,66 @@ export default function CategoriesPage() {
         ariaLabel="分類類型"
       />
 
-      <div className="cat-manage-list" style={{ marginTop: 14 }}>
-        {tree.map(({ main, subs }) => {
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '14px 4px 6px' }}>
+        <span className="muted" style={{ fontSize: '0.78rem' }}>長按卡片即可拖曳調整順序</span>
+        <button
+          type="button"
+          className="accent"
+          style={{ fontSize: '0.8rem', minHeight: 32 }}
+          onClick={() => setShowArchived((s) => !s)}
+        >
+          {showArchived ? '隱藏封存' : '顯示封存'}
+        </button>
+      </div>
+
+      <div
+        ref={listRef}
+        className="cat-manage-list"
+        style={{ marginTop: 6 }}
+      >
+        {orderedList.map(({ main, subs }, index) => {
           const isOpen = expanded === main.id;
+          const isDraggingThis = dragState?.activeId === main.id;
+
+          // 計算其他項目的避讓偏移量
+          let translateY = 0;
+          if (dragState) {
+            const { startIndex, overIndex, itemHeights } = dragState;
+            const activeH = itemHeights[startIndex] || 64;
+            if (isDraggingThis) {
+              translateY = dragState.currentY - dragState.startY;
+            } else if (startIndex < overIndex && index > startIndex && index <= overIndex) {
+              translateY = -activeH - 10;
+            } else if (startIndex > overIndex && index >= overIndex && index < startIndex) {
+              translateY = activeH + 10;
+            }
+          }
+
           return (
-            <div key={main.id} className={`cat-card ${main.archived ? 'archived' : ''}`}>
+            <div
+              key={main.id}
+              ref={(el) => {
+                if (el) cardRefs.current.set(main.id, el);
+                else cardRefs.current.delete(main.id);
+              }}
+              className={`cat-card ${main.archived ? 'archived' : ''}${isDraggingThis ? ' is-dragging' : ''}`}
+              style={{
+                transform: translateY !== 0 ? `translate3d(0, ${translateY}px, 0)` : undefined,
+                transition: isDraggingThis ? 'box-shadow 160ms ease, border-color 160ms ease' : 'transform 200ms cubic-bezier(0.2, 0, 0, 1)',
+              }}
+              onPointerDown={(e) => onPointerDown(e, main.id, index)}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerCancel={onPointerUp}
+            >
               <div className="cat-card-header">
                 <button
                   type="button"
                   className="cat-card-main"
-                  onClick={() => setExpanded((e) => (e === main.id ? '' : main.id))}
+                  onClick={() => {
+                    if (dragState) return;
+                    setExpanded((e) => (e === main.id ? '' : main.id));
+                  }}
                 >
                   <span className="cat-icon" style={{ ['--c' as string]: main.color }} aria-hidden="true">
                     {main.icon}
@@ -85,36 +245,19 @@ export default function CategoriesPage() {
                   <Icon name={isOpen ? 'chevronD' : 'chevronR'} className="cat-chev" />
                 </button>
 
-                {reordering ? (
-                  <div className="cat-reorder-btns">
-                    <button
-                      type="button"
-                      className="icon-btn plain"
-                      aria-label={`${main.name} 上移`}
-                      onClick={() => void move(tree.map((t) => t.main), main, -1)}
-                    >
-                      <Icon name="up" size={17} />
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-btn plain"
-                      aria-label={`${main.name} 下移`}
-                      onClick={() => void move(tree.map((t) => t.main), main, 1)}
-                    >
-                      <Icon name="down" size={17} />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    className="icon-btn plain cat-edit-btn"
-                    aria-label={`編輯 ${main.name}`}
-                    title="編輯主分類"
-                    onClick={() => setEdit({ cat: main, parentId: '', kind })}
-                  >
-                    <Icon name="edit" size={16} />
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="icon-btn plain cat-edit-btn"
+                  aria-label={`編輯 ${main.name}`}
+                  title="編輯主分類"
+                  onClick={() => setEdit({ cat: main, parentId: '', kind })}
+                >
+                  <Icon name="edit" size={16} />
+                </button>
+
+                <div className="cat-card-grip" title="長按拖曳排序" aria-hidden="true">
+                  <Icon name="grip" size={16} />
+                </div>
               </div>
 
               {isOpen && (
@@ -130,54 +273,22 @@ export default function CategoriesPage() {
                           <span className="cat-chip-icon">{s.icon}</span>
                           <span className="cat-chip-name">{s.name}{s.archived ? ' (封存)' : ''}</span>
                         </button>
-                        {reordering && (
-                          <div className="cat-sub-move">
-                            <button
-                              type="button"
-                              className="icon-btn plain tiny"
-                              onClick={() => void move(subs, s, -1)}
-                              aria-label="上移"
-                            >
-                              <Icon name="up" size={12} />
-                            </button>
-                            <button
-                              type="button"
-                              className="icon-btn plain tiny"
-                              onClick={() => void move(subs, s, 1)}
-                              aria-label="下移"
-                            >
-                              <Icon name="down" size={12} />
-                            </button>
-                          </div>
-                        )}
                       </div>
                     ))}
-                    {!reordering && (
-                      <button
-                        type="button"
-                        className="cat-chip add"
-                        onClick={() => setEdit({ parentId: main.id, kind })}
-                      >
-                        <Icon name="plus" size={14} />
-                        <span>新增子分類</span>
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      className="cat-chip add"
+                      onClick={() => setEdit({ parentId: main.id, kind })}
+                    >
+                      <Icon name="plus" size={14} />
+                      <span>新增子分類</span>
+                    </button>
                   </div>
                 </div>
               )}
             </div>
           );
         })}
-      </div>
-
-      <div style={{ textAlign: 'center', margin: '20px 0 10px' }}>
-        <button
-          type="button"
-          className="btn secondary small"
-          onClick={() => setShowArchived((s) => !s)}
-        >
-          {showArchived ? '隱藏已封存分類' : '顯示已封存分類'}
-        </button>
       </div>
 
       <CategoryEditor edit={edit} onClose={() => setEdit(null)} />
@@ -243,3 +354,4 @@ function EditorBody({ edit, onClose }: { edit: NonNullable<Edit>; onClose: () =>
     </>
   );
 }
+

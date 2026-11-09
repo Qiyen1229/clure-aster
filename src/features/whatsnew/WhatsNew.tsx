@@ -134,10 +134,16 @@ export function WhatsNewHost() {
       <div className="whatsnew-modal">
         <header className="whatsnew-header">
           <h2 id="whatsnew-modal-title" className="whatsnew-title">新功能介紹</h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="whatsnew-header-end">
             <span className="whatsnew-count">{page + 1} / {n}</span>
-            <button type="button" className="icon-btn plain" aria-label="關閉" onClick={close} style={{ width: 32, height: 32, minHeight: 32 }}>
-              <Icon name="x" size={18} />
+            <button
+              type="button"
+              className="whatsnew-close-btn"
+              aria-label="關閉新功能介紹"
+              title="關閉"
+              onClick={close}
+            >
+              <Icon name="close" size={16} stroke={2.2} />
             </button>
           </div>
         </header>

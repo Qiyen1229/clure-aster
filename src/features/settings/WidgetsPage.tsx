@@ -11,7 +11,6 @@ export default function WidgetsPage() {
   const navigate = useNavigate();
   const keys = useSettings((s) => s.homeWidgets);
   const set = useSettings((s) => s.set);
-  const homeAiChat = useSettings((s) => s.homeAiChat);
   const hidden = ALL_WIDGETS.filter((w) => !keys.includes(w.key));
   const move = (i: number, d: -1 | 1) => {
     const j = i + d;
@@ -28,12 +27,6 @@ export default function WidgetsPage() {
         <h1>首頁快覽</h1>
         <div style={{ width: 44 }} />
       </header>
-      <div className="list" style={{ marginBottom: 12 }}>
-        <div className="row">
-          <span className="row-main"><span className="row-title">AI 按鈕</span><span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>首頁右上角的 AI 按鈕：點開說「昨天午餐 150」就能記帳，也能問「這個月花多少」</span></span>
-          <Switch checked={homeAiChat} label="顯示 AI 按鈕" onChange={(v) => set('homeAiChat', v)} />
-        </div>
-      </div>
       <div className="section-title">顯示中（依序排列在首頁最下方）</div>
       <div className="list">
         {keys.map((k, i) => (

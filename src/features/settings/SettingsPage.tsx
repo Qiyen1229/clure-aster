@@ -3,7 +3,7 @@
  * 整合為 4 大主題集中入口：記帳與分類、自動化與智慧、介面與通知、系統與資料。
  * 主頁面俐落清爽、一目瞭然；性質相近的功能合併於專屬面板內。
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
@@ -11,6 +11,7 @@ import { clearSampleData, hasSampleData, loadSampleData } from '@/db/seed/sample
 import { CURRENCIES } from '@/domain/money';
 import { checkForUpdate } from '@/services/appUpdate';
 import { refreshRates } from '@/services/fx';
+import { haptic } from '@/services/haptics';
 import { useSettings } from '@/stores/settings';
 import { useUI, ask, askInput } from '@/stores/ui';
 import type { AccentKey } from '@/db/repo/settings';
@@ -390,6 +391,8 @@ function IntegrationHubSheet({ open, onClose }: { open: boolean; onClose: () => 
   );
 }
 
+const PTR_THRESHOLD = 58;
+
 export default function SettingsPage() {
   const s = useSettings();
   const auth = useAuth();
@@ -405,6 +408,60 @@ export default function SettingsPage() {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [integOpen, setIntegOpen] = useState(false);
 
+  // 下拉刷新（Pull-to-Refresh）
+  const [pullY, setPullY] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const ptrRef = useRef<{ startY: number; startX: number; active: boolean; armed: boolean } | null>(null);
+
+  const onTouchStart = (e: React.TouchEvent<HTMLElement>) => {
+    if (refreshing || window.scrollY > 2) return;
+    const t = e.touches[0];
+    if (!t) return;
+    ptrRef.current = { startY: t.clientY, startX: t.clientX, active: false, armed: false };
+  };
+  const onTouchMove = (e: React.TouchEvent<HTMLElement>) => {
+    const st = ptrRef.current;
+    if (!st || refreshing) return;
+    const t = e.touches[0];
+    if (!t) return;
+    const dy = t.clientY - st.startY;
+    const dx = Math.abs(t.clientX - st.startX);
+    if (!st.active) {
+      if (dy < 8 || dx > dy || window.scrollY > 2) {
+        if (dx > 12 || dy < -4) ptrRef.current = null;
+        return;
+      }
+      st.active = true;
+    }
+    const damped = Math.max(0, Math.min(92, Math.pow(Math.max(0, dy - 8), 0.78) * 2.2));
+    if (damped >= PTR_THRESHOLD && !st.armed) {
+      st.armed = true;
+      haptic('medium');
+    } else if (damped < PTR_THRESHOLD && st.armed) {
+      st.armed = false;
+      haptic('selection');
+    }
+    setPullY(damped);
+  };
+  const onTouchEnd = () => {
+    const st = ptrRef.current;
+    ptrRef.current = null;
+    if (!st || !st.active) return;
+    if (st.armed && !refreshing) {
+      setRefreshing(true);
+      setPullY(44);
+      void Promise.allSettled([syncNow(), refreshRates(s.baseCurrency)]).finally(() => {
+        haptic('success');
+        window.setTimeout(() => {
+          setRefreshing(false);
+          setPullY(0);
+        }, 320);
+      });
+    } else {
+      setPullY(0);
+    }
+  };
+
   const account = AUTH_ENABLED && auth.user;
 
   /** 刪除帳號：伺服器上的帳號與全部同步資料永久刪除，這台裝置的本機資料一併清除 */
@@ -415,7 +472,27 @@ export default function SettingsPage() {
   };
 
   return (
-    <main className="page settings-page">
+    <main
+      className="page settings-page"
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchEnd}
+    >
+      {/* 下拉刷新指示器 */}
+      {(pullY > 0 || refreshing) && (
+        <div
+          className={`ptr-indicator${refreshing ? ' refreshing' : pullY >= PTR_THRESHOLD ? ' armed' : ''}`}
+          style={{ height: `${pullY}px`, opacity: Math.min(1, pullY / 36) }}
+          aria-live="polite"
+        >
+          <span className="ptr-pill">
+            <span className="ptr-spinner" aria-hidden="true" />
+            <span>{refreshing ? '同步更新中…' : pullY >= PTR_THRESHOLD ? '放開立即同步' : '下拉同步'}</span>
+          </span>
+        </div>
+      )}
+
       <h1 className="large-title" style={{ marginTop: 12 }}>設定</h1>
 
       {account && auth.user && (

@@ -120,7 +120,7 @@ export async function respond(text: string, screen?: string, onPartial?: (text: 
   if (dataTalk && aiDataEnabled()) {
     try {
       const r = await aiAsk(t, screen, onPartial, history);
-      return { role: 'ai', kind: 'text', text: r.value.answer, followups: r.value.followups, sub: `${r.cached ? '使用先前的回答（未扣額度）' : r.quota ? quotaLabel(r.quota) : ''}　AI 的回答僅供參考` };
+      return { role: 'ai', kind: 'text', text: r.value.answer, followups: r.value.followups, sub: r.cached ? '使用先前的回答（未扣額度）' : r.quota ? quotaLabel(r.quota) : undefined };
     } catch (e) {
       return { role: 'ai', kind: 'text', text: (e as Error).message };
     }
@@ -136,7 +136,7 @@ export async function respond(text: string, screen?: string, onPartial?: (text: 
       const r = await aiChatTalk(t, onPartial, history);
       return {
         role: 'ai', kind: 'text', text: r.answer, followups: r.followups,
-        sub: dataTalk ? '我現在看不到你的收支（沒有開啟「允許 AI 分析收支統計」），所以只能一般性地回答。開啟後我就能根據你的實際數字回答。' : '一般對話不扣額度　AI 的回答僅供參考',
+        sub: dataTalk ? '未開啟「允許 AI 分析收支統計」，僅能提供一般性回答。' : undefined,
         link: dataTalk ? { label: '前往 AI 設定', to: '/settings/ai' } : undefined,
       };
     } catch (e) {

@@ -94,7 +94,7 @@ export default function InvoicePrizePage() {
                   <>
                     <div className="prize-emoji" aria-hidden="true">{result.checked ? '🍀' : '🧾'}</div>
                     <div className="row-title">{result.checked ? `這一期對了 ${result.checked} 張發票，沒有中獎` : '這一期沒有帶發票號碼的帳目'}</div>
-                    <div className="muted">{result.checked ? '下一期加油！' : '用手機條碼載具、掃描紙本發票 QR Code 或匯入明細記帳，就會自動對獎。'}</div>
+                    {!result.checked && <div className="muted">記帳時填入發票號碼即可自動對獎</div>}
                   </>
                 )}
                 {result && <div className="muted prize-sub">開獎 {result.schedule.drawDate}・領獎 {result.schedule.claimFrom} ～ {result.schedule.claimTo}（{CLAIM_STATE[result.claimState]}）</div>}
@@ -116,11 +116,10 @@ export default function InvoicePrizePage() {
                       </div>
                     ))}
                   </div>
-                  <p className="muted prize-note">請在領獎期間內持中獎發票到郵局或指定銀行兌領；「記入中獎收入」只是在帳本記一筆，不會替你領獎。</p>
                 </>
               )}
 
-              <div className="section-title">這一期的中獎號碼</div>
+              <div className="section-title">中獎號碼</div>
               <div className="list">
                 <div className="row"><span className="row-main">特別獎 1,000 萬</span><span className="num">{draw.special}</span></div>
                 <div className="row"><span className="row-main">特獎 200 萬</span><span className="num">{draw.grand}</span></div>
@@ -130,7 +129,7 @@ export default function InvoicePrizePage() {
                 </span></div>
               </div>
 
-              <div className="section-title">增開六獎（財政部有公布時才需要）</div>
+              <div className="section-title">增開六獎</div>
               <div className="list">
                 <div className="field">
                   <label htmlFor="pz-extra">末 3 碼，用頓號或逗號分隔</label>
@@ -139,17 +138,16 @@ export default function InvoicePrizePage() {
                 <button className="row accent" onClick={async () => { await setExtraSixth(draw.period, extra.match(/\d{3}/g) ?? []); await refresh(); snack('已儲存增開六獎'); }}>儲存並重新對獎</button>
               </div>
 
-              <div className="section-title">手動對獎（沒記帳的發票）</div>
+              <div className="section-title">手動對獎</div>
               <div className="list">
                 <div className="field">
-                  <label htmlFor="pz-manual">發票號碼（可只輸入末 8 碼）</label>
+                  <label htmlFor="pz-manual">發票號碼</label>
                   <input id="pz-manual" value={manual} autoCapitalize="characters" autoCorrect="off" spellCheck={false} placeholder="AB12345678" onChange={(e) => setManual(e.target.value)} />
                 </div>
                 {manualReady && (
                   <div className="row"><span className="row-main">{manualHit ? `🎉 中了${manualHit.name}　$${manualHit.amount.toLocaleString()}` : '沒有中獎'}</span></div>
                 )}
               </div>
-              <p className="muted prize-note">雲端發票專屬獎由財政部另外通知載具使用者，這裡不含。號碼來源為財政部公告，結果僅供參考。</p>
             </>
           )}
         </>
