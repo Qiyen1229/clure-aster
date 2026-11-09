@@ -1,5 +1,6 @@
 /**
- * 分類管理：支出／收入兩層分類，新增、改名、改圖示與顏色、上下移動排序、封存／刪除。
+ * 分類管理：支出／收入兩層分類。
+ * 簡潔直覺介面：主分類清楚展示、點開為子分類膠囊；右上角可切換「排序模式」，平時不被上下箭頭干擾。
  */
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -19,6 +20,7 @@ export default function CategoriesPage() {
   const [kind, setKind] = useState<CategoryKind>('expense');
   const [showArchived, setShowArchived] = useState(false);
   const [expanded, setExpanded] = useState<string>('');
+  const [reordering, setReordering] = useState(false);
   const [edit, setEdit] = useState<Edit>(null);
   const { all } = useCategories();
   const tree = useMemo(() => buildTree(all, kind, showArchived), [all, kind, showArchived]);
@@ -32,44 +34,152 @@ export default function CategoriesPage() {
     await reorderCategories(ids);
   };
 
-  const row = (c: Category, siblings: Category[], isSub: boolean) => (
-    <div key={c.id} className="row with-icon" style={{ paddingLeft: isSub ? 40 : 16, opacity: c.archived ? 0.5 : 1 }}>
-      <button style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, minHeight: 44, textAlign: 'left' }}
-        onClick={() => (isSub ? setEdit({ cat: c, parentId: c.parentId, kind }) : setExpanded((e) => (e === c.id ? '' : c.id)))}>
-        <span className={`cat-icon${isSub ? ' sm' : ''}`} style={{ ['--c' as string]: c.color }} aria-hidden="true">{c.icon}</span>
-        <span className="row-main row-title">{c.name}{c.archived ? '（已封存）' : ''}</span>
-        {!isSub && <Icon name={expanded === c.id ? 'chevronD' : 'chevronR'} className="row-chev" />}
-      </button>
-      <button className="icon-btn plain" aria-label={`${c.name} 上移`} onClick={() => void move(siblings, c, -1)}><Icon name="up" size={18} /></button>
-      <button className="icon-btn plain" aria-label={`${c.name} 下移`} onClick={() => void move(siblings, c, 1)}><Icon name="down" size={18} /></button>
-      {!isSub && <button className="icon-btn plain" aria-label={`編輯 ${c.name}`} onClick={() => setEdit({ cat: c, parentId: '', kind })}><Icon name="edit" size={18} /></button>}
-    </div>
-  );
-
   return (
-    <main className="page">
+    <main className="page categories-page">
       <header className="topbar">
         <button className="icon-btn" aria-label="返回" onClick={() => navigate(-1)}><Icon name="chevronL" /></button>
-        <h1>分類</h1>
-        <button className="icon-btn" aria-label="新增主分類" onClick={() => setEdit({ parentId: '', kind })}><Icon name="plus" /></button>
+        <h1>分類管理</h1>
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button
+            className={`btn small ${reordering ? '' : 'secondary'}`}
+            style={{ minHeight: 32, padding: '0 10px', fontSize: '0.82rem' }}
+            onClick={() => setReordering((r) => !r)}
+          >
+            {reordering ? '完成' : '排序'}
+          </button>
+          <button className="icon-btn" aria-label="新增主分類" onClick={() => setEdit({ parentId: '', kind })}>
+            <Icon name="plus" />
+          </button>
+        </div>
       </header>
-      <Segmented value={kind} onChange={setKind} options={[{ value: 'expense', label: '支出' }, { value: 'income', label: '收入' }]} ariaLabel="分類類型" />
-      <div className="list" style={{ marginTop: 12 }}>
-        {tree.map(({ main, subs }) => (
-          <div key={main.id}>
-            {row(main, tree.map((t) => t.main), false)}
-            {expanded === main.id && (
-              <>
-                {subs.map((s) => row(s, subs, true))}
-                <button className="row" style={{ paddingLeft: 40 }} onClick={() => setEdit({ parentId: main.id, kind })}>
-                  <Icon name="plus" size={18} /><span className="row-main accent">新增「{main.name}」的子分類</span>
+
+      <Segmented
+        value={kind}
+        onChange={setKind}
+        options={[{ value: 'expense', label: '支出分類' }, { value: 'income', label: '收入分類' }]}
+        ariaLabel="分類類型"
+      />
+
+      <div className="cat-manage-list" style={{ marginTop: 14 }}>
+        {tree.map(({ main, subs }) => {
+          const isOpen = expanded === main.id;
+          return (
+            <div key={main.id} className={`cat-card ${main.archived ? 'archived' : ''}`}>
+              <div className="cat-card-header">
+                <button
+                  type="button"
+                  className="cat-card-main"
+                  onClick={() => setExpanded((e) => (e === main.id ? '' : main.id))}
+                >
+                  <span className="cat-icon" style={{ ['--c' as string]: main.color }} aria-hidden="true">
+                    {main.icon}
+                  </span>
+                  <div className="cat-card-info">
+                    <span className="cat-card-title">
+                      {main.name}{main.archived ? '（已封存）' : ''}
+                    </span>
+                    <span className="cat-card-count">
+                      {subs.length} 個子分類
+                    </span>
+                  </div>
+                  <Icon name={isOpen ? 'chevronD' : 'chevronR'} className="cat-chev" />
                 </button>
-              </>
-            )}
-          </div>
-        ))}
+
+                {reordering ? (
+                  <div className="cat-reorder-btns">
+                    <button
+                      type="button"
+                      className="icon-btn plain"
+                      aria-label={`${main.name} 上移`}
+                      onClick={() => void move(tree.map((t) => t.main), main, -1)}
+                    >
+                      <Icon name="up" size={17} />
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-btn plain"
+                      aria-label={`${main.name} 下移`}
+                      onClick={() => void move(tree.map((t) => t.main), main, 1)}
+                    >
+                      <Icon name="down" size={17} />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="icon-btn plain cat-edit-btn"
+                    aria-label={`編輯 ${main.name}`}
+                    title="編輯主分類"
+                    onClick={() => setEdit({ cat: main, parentId: '', kind })}
+                  >
+                    <Icon name="edit" size={16} />
+                  </button>
+                )}
+              </div>
+
+              {isOpen && (
+                <div className="cat-sub-wrap">
+                  <div className="cat-chips">
+                    {subs.map((s) => (
+                      <div key={s.id} className="cat-sub-item">
+                        <button
+                          type="button"
+                          className={`cat-chip ${s.archived ? 'archived' : ''}`}
+                          onClick={() => setEdit({ cat: s, parentId: s.parentId, kind })}
+                        >
+                          <span className="cat-chip-icon">{s.icon}</span>
+                          <span className="cat-chip-name">{s.name}{s.archived ? ' (封存)' : ''}</span>
+                        </button>
+                        {reordering && (
+                          <div className="cat-sub-move">
+                            <button
+                              type="button"
+                              className="icon-btn plain tiny"
+                              onClick={() => void move(subs, s, -1)}
+                              aria-label="上移"
+                            >
+                              <Icon name="up" size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              className="icon-btn plain tiny"
+                              onClick={() => void move(subs, s, 1)}
+                              aria-label="下移"
+                            >
+                              <Icon name="down" size={12} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {!reordering && (
+                      <button
+                        type="button"
+                        className="cat-chip add"
+                        onClick={() => setEdit({ parentId: main.id, kind })}
+                      >
+                        <Icon name="plus" size={14} />
+                        <span>新增子分類</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
-      <button className="btn secondary small" onClick={() => setShowArchived((s) => !s)}>{showArchived ? '隱藏已封存' : '顯示已封存'}</button>
+
+      <div style={{ textAlign: 'center', margin: '20px 0 10px' }}>
+        <button
+          type="button"
+          className="btn secondary small"
+          onClick={() => setShowArchived((s) => !s)}
+        >
+          {showArchived ? '隱藏已封存分類' : '顯示已封存分類'}
+        </button>
+      </div>
+
       <CategoryEditor edit={edit} onClose={() => setEdit(null)} />
     </main>
   );
@@ -77,7 +187,7 @@ export default function CategoriesPage() {
 
 function CategoryEditor({ edit, onClose }: { edit: Edit; onClose: () => void }) {
   return (
-    <Sheet open={!!edit} onClose={onClose} title={edit?.cat ? '編輯分類' : edit?.parentId ? '新增子分類' : '新增分類'}>
+    <Sheet open={!!edit} onClose={onClose} title={edit?.cat ? '編輯分類' : edit?.parentId ? '新增子分類' : '新增主分類'}>
       {edit && <EditorBody key={edit.cat?.id ?? `new-${edit.parentId}`} edit={edit} onClose={onClose} />}
     </Sheet>
   );
@@ -97,17 +207,25 @@ function EditorBody({ edit, onClose }: { edit: NonNullable<Edit>; onClose: () =>
   return (
     <>
       <div className="list">
-        <div className="field"><label htmlFor="c-name">名稱</label><input id="c-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={12} /></div>
-        <div className="field"><label htmlFor="c-icon">圖示 emoji</label><input id="c-icon" value={icon} onChange={(e) => setIcon([...e.target.value].slice(-2).join(''))} placeholder="🏷️" /></div>
+        <div className="field">
+          <label htmlFor="c-name">名稱</label>
+          <input id="c-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={12} placeholder="分類名稱" />
+        </div>
+        <div className="field">
+          <label htmlFor="c-icon">圖示 emoji</label>
+          <input id="c-icon" value={icon} onChange={(e) => setIcon([...e.target.value].slice(-2).join(''))} placeholder="🏷️" />
+        </div>
       </div>
       {!edit.parentId && (
         <div className="swatches" role="radiogroup" aria-label="顏色">
-          {CATEGORY_COLORS.map((c) => <button key={c} className="swatch" style={{ ['--c' as string]: c }} aria-pressed={color === c} aria-label={c} onClick={() => setColor(c)} />)}
+          {CATEGORY_COLORS.map((c) => (
+            <button key={c} className="swatch" style={{ ['--c' as string]: c }} aria-pressed={color === c} aria-label={c} onClick={() => setColor(c)} />
+          ))}
         </div>
       )}
-      <button className="btn" style={{ marginTop: 12 }} onClick={() => void save()}>儲存</button>
+      <button className="btn" style={{ marginTop: 14 }} onClick={() => void save()}>儲存</button>
       {edit.cat && !edit.cat.system && edit.cat.parentId && edit.cat.name === OTHER_SUB_NAME && (
-        <p className="muted" style={{ fontSize: '0.8rem', marginTop: 10 }}>每個分類都固定保留「其他」子分類，無法封存或刪除。</p>
+        <p className="muted" style={{ fontSize: '0.8rem', marginTop: 10, textAlign: 'center' }}>每個分類都固定保留「其他」子分類，無法封存或刪除。</p>
       )}
       {edit.cat && !edit.cat.system && !(edit.cat.parentId && edit.cat.name === OTHER_SUB_NAME) && (
         <div className="btn-row" style={{ marginTop: 10 }}>

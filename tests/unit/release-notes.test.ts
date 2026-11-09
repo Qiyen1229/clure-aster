@@ -59,7 +59,7 @@ describe('planWhatsNew：什麼時候跳視窗', () => {
     const p = planWhatsNew({ current: pkg.version, onboarded: true, read: s.read, write: s.write })!;
     expect(p.seen).toBe('4.1.8');
     const versions = new Set(p.items.map((i) => i.version));
-    expect(versions.has('4.1.9') && versions.has('4.1.12') && versions.has('4.1.14') && versions.has('4.1.15')).toBe(true);
+    expect(versions.has('4.1.9') && versions.has('4.1.12') && versions.has('4.1.14') && versions.has('4.1.15') && versions.has('4.1.16')).toBe(true);
     expect(versions.has('4.1.8')).toBe(false);
     expect(s.m.get('k')).toBe('4.1.8');
   });
