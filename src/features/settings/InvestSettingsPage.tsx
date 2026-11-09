@@ -141,7 +141,6 @@ export default function InvestSettingsPage() {
         {text('證交稅（ETF）', inv.taxEtfDec, (v) => setI({ taxEtfDec: v || '0.001' }), { mode: 'decimal' })}
         {text('證交稅（債券 ETF）', inv.taxBondEtfDec, (v) => setI({ taxBondEtfDec: v || '0' }), { mode: 'decimal' })}
       </div>
-      <p className="disclaimer">報價可能延遲，僅供參考，不構成投資建議。</p>
     </main>
   );
 }

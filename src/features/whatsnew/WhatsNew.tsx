@@ -6,6 +6,8 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSettings } from '@/stores/settings';
+import { haptic } from '@/services/haptics';
+import { Icon } from '@/ui/Icon';
 import { featuresBetween, type WhatsNewItem } from './releaseNotes';
 
 const KEY = 'aster.seenVersion';
@@ -81,6 +83,7 @@ export function WhatsNewHost() {
 
   const goToPage = useCallback((idx: number) => {
     const target = Math.max(0, Math.min(n - 1, idx));
+    haptic('selection');
     setPage(target);
     const el = sliderRef.current;
     if (el) {
@@ -93,6 +96,7 @@ export function WhatsNewHost() {
     if (!el || el.clientWidth === 0) return;
     const p = Math.round(el.scrollLeft / el.clientWidth);
     if (p !== page && p >= 0 && p < n) {
+      haptic('selection');
       setPage(p);
     }
   };
@@ -126,18 +130,17 @@ export function WhatsNewHost() {
       aria-modal="true"
       aria-labelledby="whatsnew-modal-title"
     >
-      <div className="whatsnew-backdrop" aria-hidden="true" />
+      <div className="whatsnew-backdrop" aria-hidden="true" onClick={close} />
       <div className="whatsnew-modal">
         <header className="whatsnew-header">
-          <h2 id="whatsnew-modal-title" className="whatsnew-title">✨ 新功能介紹</h2>
-          <span className="whatsnew-count">{page + 1} / {n}</span>
+          <h2 id="whatsnew-modal-title" className="whatsnew-title">新功能介紹</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span className="whatsnew-count">{page + 1} / {n}</span>
+            <button type="button" className="icon-btn plain" aria-label="關閉" onClick={close} style={{ width: 32, height: 32, minHeight: 32 }}>
+              <Icon name="x" size={18} />
+            </button>
+          </div>
         </header>
-
-        {state.seen !== __APP_VERSION__ && (
-          <p className="whatsnew-lead-text">
-            你從 <b>v{state.seen}</b> 更新到 <b>v{__APP_VERSION__}</b>，共新增 <b>{n}</b> 項功能
-          </p>
-        )}
 
         <div
           ref={sliderRef}

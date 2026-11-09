@@ -60,14 +60,14 @@ export function TaxPlanCards() {
   const oadv = ow ? overseasAdvice(ow) : null;
   return (
     <>
-      <div className="section-title"><NewMark since="4.0.0" /> 📅 除息前預警（未來 4 個月）</div>
-      {!plan.netIncomeSet && <p className="row-sub" style={{ margin: '0 8px 8px', whiteSpace: 'normal' }}>你還沒填下面的「綜合所得淨額」，目前以 0 估算（邊際稅率 5%）；填了之後建議會更準。</p>}
+      <div className="section-title"><NewMark since="4.0.0" /> 除息前預警（未來 4 個月）</div>
+      {!plan.netIncomeSet && <p className="row-sub" style={{ margin: '0 8px 8px', whiteSpace: 'normal' }}>填寫下方「綜合所得淨額」後，邊際稅率估算將更精準。</p>}
       {plan.events.length === 0 ? (
-        <section className="card"><p style={{ margin: 0, whiteSpace: 'normal' }}>近期沒有持股要除息。有公告或去年的配息紀錄時，這裡會提早告訴你會不會被扣二代健保、要不要參與除息。</p></section>
+        <section className="card"><p style={{ margin: 0, whiteSpace: 'normal' }}>近期沒有持股要除息。</p></section>
       ) : plan.events.map((a) => <EventCard key={`${a.event.stockId}:${a.event.exDate ?? a.event.payDate}`} a={a} />)}
       {ow && oadv && (
         <>
-          <div className="section-title"><NewMark since="4.0.0" /> 🌏 海外所得控管（{plan.year} 年）</div>
+          <div className="section-title"><NewMark since="4.0.0" /> 海外所得控管（{plan.year} 年）</div>
           <section className="card">
             <div className="stat-grid">
               <div className="stat"><div className="k">海外所得（股利＋獲利）</div><div className="v num">{n(ow.income)}</div></div>
@@ -81,7 +81,6 @@ export function TaxPlanCards() {
           </section>
         </>
       )}
-      <p className="disclaimer">除息與棄息試算依你的持股、股利紀錄、報價與費稅設定估算，不含價格波動與稅法變動，僅供參考，不構成投資或稅務建議；以財政部公告為準。</p>
     </>
   );
 }

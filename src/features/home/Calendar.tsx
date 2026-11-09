@@ -8,6 +8,7 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { addDays, fromDateKey, monthGrid, todayKey, weekRange, type CalendarCell } from '@/domain/period';
 import type { Totals } from '@/domain/ledger';
+import { haptic } from '@/services/haptics';
 import { Icon } from '@/ui/Icon';
 
 const SHORT_WEEK_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
@@ -147,6 +148,7 @@ export function Calendar({
 
   // 展開／收合：先記下舊內容（殘影）與高度，狀態換掉後在同一個 commit 內開始動畫
   const toggle = () => {
+    haptic('light');
     const c = containerRef.current, vp = viewportRef.current;
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     if (c && vp && typeof c.animate === 'function' && !reduce) {
@@ -304,6 +306,7 @@ export function Calendar({
                 e.stopPropagation();
                 return;
               }
+              if (k !== selDate) haptic('selection');
               onSelect(k);
             }}
             aria-selected={isSelected}
@@ -347,6 +350,7 @@ export function Calendar({
                 e.stopPropagation();
                 return;
               }
+              if (c.key !== selDate) haptic('selection');
               onSelect(c.key);
             }}
           >

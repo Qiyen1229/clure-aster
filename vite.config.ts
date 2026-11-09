@@ -101,7 +101,9 @@ export default defineConfig({
           { src: `/icons/maskable-512.png?v=${pkg.version}`, sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
         shortcuts: [
-          { name: '快速記帳', short_name: '記帳', url: '/add?source=shortcut', icons: [{ src: '/icons/shortcut-add.png', sizes: '96x96' }] },
+          { name: '記一筆', short_name: '記帳', url: '/add?source=shortcut', icons: [{ src: '/icons/shortcut-add.png', sizes: '96x96' }] },
+          { name: '搜尋帳目', short_name: '搜尋', url: '/search?source=shortcut', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
+          { name: '財務報表', short_name: '報表', url: '/reports?source=shortcut', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
           { name: '查看投資', short_name: '投資', url: '/accounts?tab=invest&source=shortcut', icons: [{ src: '/icons/shortcut-invest.png', sizes: '96x96' }] },
         ],
       },

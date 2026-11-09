@@ -167,7 +167,6 @@ export default function FirePage() {
             <NumField label="通膨" value={draft.inflationPct} onChange={(v) => upd({ inflationPct: v })} suffix="%" step={0.5} />
             <NumField label="安全提領率" value={draft.swrPct} onChange={(v) => upd({ swrPct: v })} suffix="%" step={0.5} />
           </div>
-          <p className="disclaimer">模擬結果僅供規劃參考，不構成投資建議。股債 60/40 的長期年化報酬約 5–7%、波動 10–15%；全股票約 7–9%、波動 15–20%。</p>
         </>
       )}
     </main>

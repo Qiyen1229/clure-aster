@@ -197,7 +197,6 @@ function TradeForm({ stockId, trade, initialType, onClose }: { stockId?: string;
           onClose();
         }}>刪除交易</button>
       )}
-      <p className="disclaimer">台股手續費依「設定 → 股票」的費率與折扣計算，實際以券商對帳單為準。</p>
     </>
   );
 }

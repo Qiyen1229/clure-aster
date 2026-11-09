@@ -3,6 +3,7 @@
  * 也支援實體鍵盤輸入（桌機）。
  */
 import { useEffect, useRef } from 'react';
+import { haptic } from '@/services/haptics';
 import { Icon } from '@/ui/Icon';
 
 interface Props {
@@ -42,7 +43,7 @@ export function Keypad({ onKey, onSubmit, submitLabel, disabled }: Props) {
       {ROWS.flat().map((k) => {
         if (k === 'SAVE') {
           return (
-            <button key={k} className="key save" onClick={onSubmit} disabled={disabled}>{submitLabel}</button>
+            <button key={k} className="key save" onClick={() => { haptic('medium'); onSubmit(); }} disabled={disabled}>{submitLabel}</button>
           );
         }
         const isOp = ['÷', '×', '−', '+'].includes(k);
@@ -50,10 +51,10 @@ export function Keypad({ onKey, onSubmit, submitLabel, disabled }: Props) {
         return (
           <button key={k} className={`key num${isOp ? ' op' : ''}${k === 'C' || k === '⌫' ? ' fn' : ''}`}
             aria-label={k === '⌫' ? '退格（長按清除）' : k === 'C' ? '清除' : k}
-            onClick={() => onKey(k)}
+            onClick={() => { haptic('selection'); onKey(k); }}
             onPointerDown={() => {
               if (k !== '⌫') return;
-              longTimer.current = window.setTimeout(() => { onKey('C'); navigator.vibrate?.(15); }, 550);
+              longTimer.current = window.setTimeout(() => { onKey('C'); haptic('medium'); }, 550);
             }}
             onPointerUp={() => clearTimeout(longTimer.current)}
             onPointerLeave={() => clearTimeout(longTimer.current)}>

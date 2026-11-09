@@ -44,7 +44,7 @@ export default function WatchlistPage() {
             <div className="row">
               <div className="row-main">
                 <div className="row-title"><b className="num">{stock.symbol}</b> {stock.name}</div>
-                <div className="row-sub">{w.alerts.filter((a) => a.enabled).map((a) => `${a.op === '>=' ? '站上' : '跌破'} ${a.priceDec}`).join('、') || '無到價提醒（右滑設定）'}</div>
+                <div className="row-sub">{w.alerts.filter((a) => a.enabled).map((a) => `${a.op === '>=' ? '站上' : '跌破'} ${a.priceDec}`).join('、') || '無到價提醒'}</div>
               </div>
               <div className="row-end">
                 <div className="num" style={{ fontWeight: 600 }}>{price ? Number(price.priceDec).toLocaleString('zh-TW', { maximumFractionDigits: 4 }) : '—'}</div>
@@ -54,7 +54,6 @@ export default function WatchlistPage() {
           </SwipeRow>
         ))}
       </PullToRefresh>
-      <p className="disclaimer">到價提醒在 App 開啟或報價更新時檢查。報價可能延遲，僅供參考，不構成投資建議。</p>
       <Sheet open={adding} onClose={() => setAdding(false)} title="加入觀察清單" full>
         {adding && <StockSearch onPick={async (s) => { await addWatch(s.id); setAdding(false); void updateAllQuotes({ silent: true }); }} />}
       </Sheet>

@@ -14,13 +14,11 @@ import { describeTerm, parseSearch, preferPlainSearch } from '@/domain/search';
 import { todayKey } from '@/domain/period';
 import { searchLedger } from '@/services/search';
 import { useSettings } from '@/stores/settings';
-import { AiMark, Icon } from '@/ui/Icon';
+import { Icon } from '@/ui/Icon';
 import { EmptyState, SkeletonRows } from '@/ui/controls';
 import { LedgerRow } from '../ledger/LedgerRow';
-import { isQuestion, looksLikeAiQuestion, rangeText } from '@/domain/nlquery';
+import { isQuestion, rangeText } from '@/domain/nlquery';
 import { ask, type QueryAnswer } from '@/services/nlquery';
-import { aiEnabledLocally } from '@/services/ai';
-import { useChat } from '@/features/home/aiChatStore';
 
 const EXAMPLES = ['上個月吃飯花多少', '這週咖啡喝了幾次', '今年最大一筆', '上個月錢都花到哪', '最近 30 天平均每天花多少', '去年收入多少'];
 const TIPS = ['5000', '5000 轉帳', '10/25 午餐', '1000-5000 上週', '>=3000 #旅遊', '@玉山 本月', '麥當勞 支出'];
@@ -65,18 +63,6 @@ export default function SearchPage() {
   const lowDq = dq.toLowerCase();
   const chips = parsed.terms.length > 1 || parsed.terms.some((t) => t.kind !== 'text') ? parsed.terms.map(describeTerm) : [];
 
-  // 搜尋頁只做篩選：自然語言的問答、分析全部交給 AI 對話框（同一個輸入框、同一份對話）
-  const noHit = search !== null && search !== undefined && search.items.length === 0;
-  const wantsAi = !!dq && (ruleFailed || looksLikeAiQuestion(dq) || (noHit && dq.length >= 8));
-  const handOff = wantsAi ? (
-    <section className="card ask-answer">
-      <p className="ask-text">{ruleFailed ? '這個問題我用規則看不懂，先列出可能相關的帳目。' : '這像是一個請教的問題。'}</p>
-      {aiEnabledLocally()
-        ? <button className="btn small" onClick={() => useChat.getState().ask(dq)}><AiMark /> 交給 AI 對話深入分析 →</button>
-        : <p className="muted" style={{ margin: '4px 0 0' }}>到「設定 → AI 助理」開啟 AI 後，可以問更複雜的問題。</p>}
-    </section>
-  ) : null;
-
   const matchedAccounts = dq && parsed.terms.length === 1 && parsed.terms[0].kind === 'text' ? accounts.all.filter((a) => a.name.toLowerCase().includes(lowDq)) : [];
 
   return (
@@ -85,22 +71,21 @@ export default function SearchPage() {
         <button className="icon-btn" aria-label="返回" onClick={() => navigate(-1)}><Icon name="chevronL" /></button>
         <div style={{ flex: 1, position: 'relative' }}>
           <input ref={inputRef} className="input" type="search" value={q} onChange={(e) => setQ(e.target.value)}
-            placeholder="搜尋，或直接問：上個月吃飯花多少" aria-label="搜尋" enterKeyHint="search" style={{ paddingLeft: 38 }} />
+            placeholder="搜尋備註、金額，或直接輸入問題" aria-label="搜尋" enterKeyHint="search" style={{ paddingLeft: 38 }} />
           <span className="faint" style={{ position: 'absolute', left: 11, top: 12 }}><Icon name="search" size={20} /></span>
         </div>
       </header>
 
       {!dq ? (
         <>
-          <EmptyState emoji="🔎" title="想找哪一筆？" text={<>可以搜尋「午餐」、「Netflix」、帳戶名稱、金額「5000」，<br />也可以直接用問的。<span className="kbd">⌘K</span> 隨時開啟搜尋</>} />
-          <div className="section-title">組合搜尋（空白分隔，全部符合）</div>
+          <EmptyState emoji="🔎" title="搜尋帳目與轉帳" text="輸入關鍵字、帳戶名稱、金額區間，或直接輸入問句查詢。" />
+          <div className="section-title">快速篩選範例</div>
           <div className="ask-examples">
-            {TIPS.map((x) => <button key={x} className="pill" onClick={() => setQ(x)}>🔎 {x}</button>)}
+            {TIPS.map((x) => <button key={x} className="pill" onClick={() => setQ(x)}>{x}</button>)}
           </div>
-          <p className="set-note">可搜尋備註、商家、分類、帳戶、標籤、專案、發票號碼；金額（5000、1000-5000、&gt;=3000）、日期（10/25、2026-10、上週…）、類型（支出、收入、轉帳）也行。</p>
-          <div className="section-title">試試看用問的</div>
+          <div className="section-title">自然語言查詢</div>
           <div className="ask-examples">
-            {EXAMPLES.map((x) => <button key={x} className="pill" onClick={() => setQ(x)}>💬 {x}</button>)}
+            {EXAMPLES.map((x) => <button key={x} className="pill" onClick={() => setQ(x)}>{x}</button>)}
           </div>
         </>
       ) : question && (!answered || answered.text !== dq) ? (
@@ -108,17 +93,16 @@ export default function SearchPage() {
       ) : question && answer ? (
         <>
           <section className="card ask-answer" aria-live="polite">
-            <p className="ask-text">💬 {answer.answer}</p>
+            <p className="ask-text">{answer.answer}</p>
             {answer.detail && <p className="muted" style={{ margin: '4px 0 0', fontSize: '0.88rem' }}>{answer.detail}</p>}
             <div className="ask-chips" aria-label="我理解的條件">
-              <span className="chip">📅 {answer.query.rangeLabel}（{rangeText(answer.query.range)}）</span>
-              <span className="chip">{answer.query.kind === 'income' ? '💰 收入' : '💸 支出'}</span>
-              {answer.query.categoryLabel && <span className="chip">🏷 {answer.query.categoryLabel}</span>}
-              {answer.query.keyword && <span className="chip">🔎 {answer.query.keyword}</span>}
+              <span className="chip">{answer.query.rangeLabel}（{rangeText(answer.query.range)}）</span>
+              <span className="chip">{answer.query.kind === 'income' ? '收入' : '支出'}</span>
+              {answer.query.categoryLabel && <span className="chip">{answer.query.categoryLabel}</span>}
+              {answer.query.keyword && <span className="chip">{answer.query.keyword}</span>}
               {answer.query.accountIds.map((id) => <span key={id} className="chip">{accounts.map.get(id)?.icon} {accounts.map.get(id)?.name}</span>)}
             </div>
           </section>
-          {answer.items.length === 0 && handOff}
           <div className="section-title">符合的帳目（{answer.items.length}）</div>
           {answer.items.slice(0, 300).map((t) => (
             <LedgerRow key={t.id} item={{ kind: 'tx', id: t.id, date: t.date, ts: t.ts, tx: t }} cats={cats.map} accounts={accounts.map} tags={tags.map} showDate />
@@ -126,7 +110,6 @@ export default function SearchPage() {
         </>
       ) : (
         <>
-          {handOff}
           {chips.length > 0 && (
             <div className="ask-chips" aria-label="我理解的搜尋條件" style={{ margin: '0 4px 8px' }}>
               {chips.map((c, i) => <span key={i} className="chip">{c}</span>)}
@@ -145,10 +128,9 @@ export default function SearchPage() {
             </>
           )}
           <div className="section-title">帳目 {results ? `（${results.length}${search?.truncated ? '+' : ''}）` : ''}</div>
-          {results?.length === 0 ? <EmptyState emoji="🫥" title="沒有符合的帳目" text="多個條件要全部符合；可以拿掉一些條件再試試" /> : results?.map((it) => (
+          {results?.length === 0 ? <EmptyState emoji="🫥" title="沒有符合的帳目" text="請減少篩選條件或更換關鍵字再試試" /> : results?.map((it) => (
             <LedgerRow key={`${it.kind}:${it.id}`} item={it} cats={cats.map} accounts={accounts.map} tags={tags.map} showDate />
           ))}
-          {search?.truncated && <p className="set-note">只顯示最新的 300 筆，請加上日期或金額縮小範圍。</p>}
         </>
       )}
     </main>

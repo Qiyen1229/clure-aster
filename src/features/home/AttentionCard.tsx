@@ -54,7 +54,7 @@ export function AttentionCard({ onGo }: { onGo?: () => void }) {
   if (cfg?.budgetWarn) for (const w of (snap?.warnings ?? []).filter((w) => w.level === 'over').slice(0, 2)) rows.push({ key: w.id, amount: 1, icon: w.level === 'over' ? '⚠️' : '🔔', text: w.title, tone: w.level === 'over' ? 'danger' : 'warn', to: '/plan?tab=budget' });
   if (inboxCount > 0) rows.push({ key: 'inbox', amount: inboxCount, icon: '📥', text: `收件匣有 ${inboxCount} 筆待確認`, to: '/inbox' });
   const warnN = cfg?.anomaly ? (snap?.findings ?? []).filter((f) => f.severity === 'warn').length : 0;
-  if (warnN > 0) rows.push({ key: 'anomaly', amount: warnN, icon: '🔎', text: `${warnN} 項異常或疑似重複，點開看白話說明`, });
+  if (warnN > 0) rows.push({ key: 'anomaly', amount: warnN, icon: '🔎', text: `${warnN} 項消費異常或疑似重複`, });
   for (const t of taxRows) rows.push({ key: t.key, amount: 1, icon: '📅', text: t.text, tone: 'warn', to: '/reports/tax' });
   const weeklyKey = weekly ? `weekly:${weekly.label}` : '';
 
@@ -83,8 +83,8 @@ export function AttentionCard({ onGo }: { onGo?: () => void }) {
   const shown = visible.slice(0, 4);
   return (
     <SwipeRow flat collapse onDelete={hideAll} action={{ label: '隱藏', icon: 'eyeOff' }}>
-    <section className="attn-card" aria-label="需要你看一下">
-      <div className="attn-title">需要你看一下</div>
+    <section className="attn-card" aria-label="待處理事項">
+      <div className="attn-title">待處理事項</div>
       {shown.map((r) => (
         <button key={r.key} className={`attn-row${r.tone ? ` ${r.tone}` : ''}`} onClick={() => { onGo?.(); navigate(r.to ?? '/ai'); }}>
           <span className="attn-ico" aria-hidden="true">{r.icon}</span>

@@ -3,6 +3,7 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { formatMoney, type FormatOptions } from '@/domain/money';
+import { haptic } from '@/services/haptics';
 import { useSettings } from '@/stores/settings';
 
 export function Segmented<T extends string | number>({ value, options, onChange, ariaLabel }: {
@@ -16,7 +17,7 @@ export function Segmented<T extends string | number>({ value, options, onChange,
     <div className="segmented" role="group" aria-label={ariaLabel}>
       <span className="seg-thumb" style={{ width: `calc((100% - 4px) / ${options.length})`, transform: `translateX(${idx * 100}%)`, left: 2 }} />
       {options.map((o) => (
-        <button key={String(o.value)} type="button" aria-pressed={o.value === value} onClick={() => onChange(o.value)}>
+        <button key={String(o.value)} type="button" aria-pressed={o.value === value} onClick={() => { if (o.value !== value) haptic('selection'); onChange(o.value); }}>
           {o.label}
         </button>
       ))}
@@ -27,7 +28,7 @@ export function Segmented<T extends string | number>({ value, options, onChange,
 export function Switch({ checked, onChange, label, disabled }: { checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) {
   return (
     <span className="switch" style={disabled ? { opacity: 0.4 } : undefined}>
-      <input type="checkbox" role="switch" aria-label={label} checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+      <input type="checkbox" role="switch" aria-label={label} checked={checked} disabled={disabled} onChange={(e) => { haptic('light'); onChange(e.target.checked); }} />
       <span />
     </span>
   );
@@ -42,26 +43,37 @@ export function useMoneyFormat() {
 
 const reduceMotion = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-/** 數字滾動動畫（整數插值，最終值保證精確） */
-function useAnimatedInt(target: number, duration = 600): number {
+/** 數字滾動動畫（整數插值＋滾輪脈衝回饋，最終值保證精確） */
+function useAnimatedInt(target: number, duration = 420): { value: number; dir: 'up' | 'down' | null } {
   const [v, setV] = useState(target);
+  const [dir, setDir] = useState<'up' | 'down' | null>(null);
   const from = useRef(target);
   useEffect(() => {
-    if (reduceMotion() || from.current === target) { setV(target); from.current = target; return; }
+    if (duration <= 0 || reduceMotion() || from.current === target) {
+      setV(target);
+      setDir(null);
+      from.current = target;
+      return;
+    }
     const start = performance.now();
     const a = from.current;
+    setDir(target > a ? 'up' : 'down');
     let raf = 0;
     const step = (now: number) => {
       const p = Math.min(1, (now - start) / duration);
       const eased = 1 - Math.pow(1 - p, 3);
       setV(p === 1 ? target : Math.round(a + (target - a) * eased));
-      if (p < 1) raf = requestAnimationFrame(step);
-      else from.current = target;
+      if (p < 1) {
+        raf = requestAnimationFrame(step);
+      } else {
+        from.current = target;
+        setDir(null);
+      }
     };
     raf = requestAnimationFrame(step);
     return () => { cancelAnimationFrame(raf); from.current = target; };
   }, [target, duration]);
-  return v;
+  return { value: v, dir };
 }
 
 export function Amount({ minor, currency, tone, animate, opts, className = '' }: {
@@ -74,10 +86,11 @@ export function Amount({ minor, currency, tone, animate, opts, className = '' }:
   className?: string;
 }) {
   const fmt = useMoneyFormat();
-  const shown = useAnimatedInt(minor, animate ? 600 : 0);
+  const { value: shown, dir } = useAnimatedInt(minor, animate ? 420 : 0);
   const value = animate ? shown : minor;
   const t = tone === 'auto' ? (minor > 0 ? 'pos' : minor < 0 ? 'neg' : '') : tone === 'none' || !tone ? '' : tone;
-  return <span className={`amount ${t} ${className}`}>{fmt(value, currency, opts)}</span>;
+  const animCls = animate && dir ? ` amount-tick-${dir}` : '';
+  return <span className={`amount ${t}${animCls} ${className}`}>{fmt(value, currency, opts)}</span>;
 }
 
 export function EmptyState({ emoji, title, text, action }: { emoji: string; title: string; text?: ReactNode; action?: ReactNode }) {

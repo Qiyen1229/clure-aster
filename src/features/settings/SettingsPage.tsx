@@ -272,20 +272,16 @@ function AutoRecordHubSheet({ open, onClose }: { open: boolean; onClose: () => v
   );
 }
 
-/** AI 助理與對話集合面板 */
+/** AI 助理與智慧偵測集合面板 */
 function AiHubSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const s = useSettings();
   const navTo = useHubNav(onClose);
   return (
-    <Sheet open={open} onClose={onClose} title="AI 助理與對話">
+    <Sheet open={open} onClose={onClose} title="AI 助理與智慧偵測">
       <div className="list">
         {AUTH_ENABLED && (
           <Row icon="sliders" tint="#8E8E93" label="AI 功能設定與額度" sub="AI 總開關、送出內容去識別化、點數查詢" onClick={() => navTo('/settings/ai')} />
         )}
-        <Row icon="ai" tint="#5E5CE6" label="首頁右上角 AI 對話按鈕" sub="開啟後在首頁頂部顯示對話入口">
-          <Switch checked={s.homeAiChat} label="顯示 AI 按鈕" onChange={(v) => s.set('homeAiChat', v)} />
-        </Row>
-        <Row icon="ai" tint="#17181c" label="開啟 AI 操作助手" sub="一句話記帳、查帳、跨帳戶綜合操作" onClick={() => navTo('/ai')} />
+        <Row icon="ai" tint="#17181c" label="消費異常與預算預警" sub="本機規則偵測重複扣款、訂閱漲價與超支預警" onClick={() => navTo('/ai')} />
       </div>
     </Sheet>
   );
@@ -446,7 +442,7 @@ export default function SettingsPage() {
       {/* 2. 智慧與自動化 */}
       <Group title="自動化與智慧">
         <Row icon="download" tint="#30D158" label="自動記帳與對帳" sub="Apple Pay 收件匣、電子發票載具對獎、帳單核對" onClick={() => setAutoOpen(true)} />
-        <Row icon="ai" tint="#17181c" label="AI 助理與對話" sub="助理開關、送出內容設定、額度、首頁對話按鈕" onClick={() => setAiOpen(true)} />
+        <Row icon="ai" tint="#17181c" label="AI 助理與智慧偵測" sub="助理開關、送出內容設定、額度、異常與預算預警" onClick={() => setAiOpen(true)} />
       </Group>
 
       {/* 3. 介面與通知 */}

@@ -371,17 +371,17 @@ interface ScreenChip { label: string; text: string; /** true＝只把文字填�
 /** 依「目前畫面」插在最上面的專屬晶片：讓人知道現在可以直接講「這檔」「這個帳戶」（本機規則產生，不用 AI） */
 function screenChips(screen: string): ScreenChip[] {
   if (screen.startsWith('個股頁')) return [
-    { label: '⚡ 買 1 張這檔股票', text: '買 1 張這檔股票' }, { label: '⚡ 賣 1 張這檔股票', text: '賣 1 張這檔股票' }, { label: '⚡ 這檔佔我投資組合多少？', text: '這檔佔我投資組合多少？' },
+    { label: '買 1 張這檔股票', text: '買 1 張這檔股票' }, { label: '賣 1 張這檔股票', text: '賣 1 張這檔股票' }, { label: '這檔佔投資組合多少？', text: '這檔佔我投資組合多少？' },
   ];
   if (screen.startsWith('帳戶明細頁')) return [
-    { label: '⚡ 從這個帳戶轉 1 萬到…', text: '從這個帳戶轉 1 萬到', fill: true }, { label: '⚡ 這個帳戶最近花在哪？', text: '這個帳戶最近花在哪？' },
+    { label: '從這個帳戶轉 1 萬到…', text: '從這個帳戶轉 1 萬到', fill: true }, { label: '這個帳戶最近花在哪？', text: '這個帳戶最近花在哪？' },
   ];
-  if (screen.startsWith('專案與預算 → 應收應付')) return [{ label: '⚡ 把欠款結清', text: '把欠 的款項結清', fill: true }];
-  if (screen.startsWith('專案與預算 → 目標')) return [{ label: '⚡ 存 5000 進目標', text: '存 5000 進目標', fill: true }];
-  if (screen.startsWith('專案與預算 → 預算')) return [{ label: '⚡ 哪些預算快超支了？', text: '哪些預算快超支了？' }];
-  if (screen.startsWith('投資：')) return [{ label: '⚡ 看我的稅務規劃', text: '稅務規劃' }, { label: '⚡ 買 1000 股…', text: '買 1000 股 ', fill: true }];
-  if (screen.startsWith('報表：')) return [{ label: '⚡ 哪裡花太多？', text: '這個月哪裡花太多？' }];
-  if (screen.startsWith('帳目列表')) return [{ label: '⚡ 這些帳目合計多少？', text: '目前篩選的這些帳目合計多少？' }];
+  if (screen.startsWith('專案與預算 → 應收應付') || screen.startsWith('專案與預算 → 週期與借貸')) return [{ label: '把欠款結清', text: '把欠 的款項結清', fill: true }];
+  if (screen.startsWith('專案與預算 → 目標')) return [{ label: '存 5000 進目標', text: '存 5000 進目標', fill: true }];
+  if (screen.startsWith('專案與預算 → 預算')) return [{ label: '哪些預算快超支了？', text: '哪些預算快超支了？' }];
+  if (screen.startsWith('投資：')) return [{ label: '看我的稅務規劃', text: '稅務規劃' }, { label: '買 1000 股…', text: '買 1000 股 ', fill: true }];
+  if (screen.startsWith('報表：')) return [{ label: '哪裡花太多？', text: '這個月哪裡花太多？' }];
+  if (screen.startsWith('帳目列表')) return [{ label: '這些帳目合計多少？', text: '目前篩選的這些帳目合計多少？' }];
   return [];
 }
 
@@ -445,9 +445,8 @@ export function ChatPanel({ onLeave, autoFocus }: { onLeave?: () => void; autoFo
       <div className="chat-list" role="log" aria-live="polite">
         {!msgs.length && (
           <div style={{ margin: 8 }}>
-            <p className="muted" style={{ margin: '0 0 8px' }}>說一句話就好：記帳、查帳、問問題，或跨帳戶、貸款、股票、欠款一次做完（先預覽、確認才執行、可整包還原）。{aiOn ? '' : '（整理帳本與問 AI 需要先在設定開啟 AI）'}</p>
             {chips.length > 0 && <div className="ask-examples" style={{ marginBottom: 6 }}>{chips.slice(0, 3).map((c) => <button key={c.label} className="pill ctx-chip" disabled={busy} onClick={() => pickChip(c)}>{c.label}</button>)}</div>}
-            <div className="ask-examples">{VIEW_CHIPS.slice(0, 3).map((x) => <button key={x} className="pill view-chip" disabled={busy} onClick={() => go(x)}>📊 {x}</button>)}</div>
+            <div className="ask-examples">{VIEW_CHIPS.slice(0, 3).map((x) => <button key={x} className="pill view-chip" disabled={busy} onClick={() => go(x)}>{x}</button>)}</div>
             <div className="ask-examples" style={{ marginTop: 6 }}>{CHAT_EXAMPLES.slice(0, Math.max(2, MAX_CHIPS - Math.min(chips.length, 3) - 3)).map((x) => <button key={x} className="pill" disabled={busy} onClick={() => go(x)}>{x}</button>)}</div>
           </div>
         )}

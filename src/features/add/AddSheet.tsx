@@ -36,6 +36,7 @@ import { addDebts, addLoan, findOrCreatePerson, removeLoan } from '@/db/repo/pla
 import { addDurable, durableOfTx, syncTxDurable } from '@/db/repo/durables';
 import { countRuleHit, recentNoteSuggestions, suggestCategory, type CategorySuggestion } from '@/services/autocat';
 import { findPinned, listPinned, pinTransaction, touchPinned, unpin } from '@/db/repo/pinned';
+import { haptic } from '@/services/haptics';
 import type { NoteSuggestion } from '@/domain/notesuggest';
 import type { ResolvedDraft } from '@/services/quickentry';
 import { QuickEntry } from './QuickEntry';
@@ -370,9 +371,10 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
         // 再記一筆：保留分類／帳戶／日期，清空金額與備註
         atts.forEach((a) => URL.revokeObjectURL(a.url));
         reset();
-        navigator.vibrate?.(10);
+        haptic('success');
       } else {
         saved.current = true;
+        haptic('success');
         if (editing) useUI.getState().showSnack({ text: '已更新' });
         onClose();
       }

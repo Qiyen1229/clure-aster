@@ -190,7 +190,6 @@ export default function StockDetailPage() {
           </div>
         </>
       )}
-      <p className="disclaimer">報價可能延遲，僅供參考，不構成投資建議。</p>
 
       <TradeSheet open={!!trade} onClose={() => setTrade(null)} stockId={stock.id} trade={trade?.t} initialType={trade?.type ?? 'buy'} />
       <DividendSheet open={divOpen} onClose={() => setDivOpen(false)} stockId={stock.id} />

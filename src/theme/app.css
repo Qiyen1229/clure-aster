@@ -145,9 +145,10 @@ button img, a img, .cat-icon, .tab svg { -webkit-user-drag: none; }
   display: flex; align-items: center; gap: 8px;
   margin: calc(-1 * (var(--safe-t) + 8px)) -16px 8px;
   padding: calc(var(--safe-t) + 8px) 16px 8px;
-  background: color-mix(in srgb, var(--bg) 82%, transparent);
-  -webkit-backdrop-filter: saturate(160%) blur(14px);
-  backdrop-filter: saturate(160%) blur(14px);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  -webkit-backdrop-filter: saturate(150%) blur(10px);
+  backdrop-filter: saturate(150%) blur(10px);
+  transform: translateZ(0);
 }
 .topbar h1 { flex: 1; margin: 0; font-size: 1.06rem; font-weight: 600; text-align: center; }
 .topbar .title-btn { flex: 1; font-size: 1.06rem; font-weight: 600; min-height: 44px; }
@@ -2101,4 +2102,62 @@ button.accent, button.muted { min-height: 44px; }
 .cat-chip.add { border-style: dashed; background: transparent; color: var(--accent-text); }
 .cat-sub-move { display: inline-flex; flex-direction: column; }
 .cat-sub-move .icon-btn.tiny { width: 18px; height: 16px; padding: 0; color: var(--text-3); }
+
+/* ───── v4.1.17 首頁下拉刷新（Pull-to-Refresh）與數字滾輪動效 ───── */
+.ptr-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: height 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease;
+  pointer-events: none;
+}
+.ptr-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 0.5px solid var(--glass-border);
+  color: var(--text-2);
+  font-size: 0.78rem;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+.ptr-indicator.armed .ptr-pill,
+.ptr-indicator.refreshing .ptr-pill {
+  color: var(--accent-text);
+  background: var(--accent-soft, var(--surface-2));
+}
+.ptr-spinner {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  transition: transform 200ms ease;
+}
+.ptr-indicator.armed .ptr-spinner {
+  transform: rotate(180deg);
+}
+.ptr-indicator.refreshing .ptr-spinner {
+  animation: ptr-spin 700ms linear infinite;
+}
+@keyframes ptr-spin {
+  to { transform: rotate(360deg); }
+}
+
+.amount {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.amount-tick-up {
+  transform: translateY(-1.5px);
+}
+.amount-tick-down {
+  transform: translateY(1.5px);
+}
+
 

@@ -1,10 +1,10 @@
 /**
- * 專案與預算（Tab 2）：預算｜專案｜週期與分期｜應收應付｜目標（含心願冷靜期）｜耐用品
- * 舊網址 ?tab=installment 轉到週期與分期、?tab=wish 轉到目標，通知與書籤都不會失效。
+ * 專案與預算（Tab 2）：整合為 3 大主題分頁（預算｜週期與借貸｜目標與資產）
+ * 舊網址 ?tab=installment / ?tab=debt 轉到週期與借貸；?tab=project / ?tab=wish / ?tab=durable 轉到目標與資產，通知與書籤都不會失效。
  */
 import { lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { SkeletonRows } from '@/ui/controls';
+import { Segmented, SkeletonRows } from '@/ui/controls';
 import { Icon } from '@/ui/Icon';
 import { useScreenDetail } from '@/stores/screenContext';
 
@@ -18,19 +18,20 @@ const WishlistSection = lazy(() => import('./wishlist'));
 const DurableSection = lazy(() => import('./durables'));
 
 const TABS = [
-  { key: 'budget', label: '預算', icon: '🎯' },
-  { key: 'project', label: '專案', icon: '🧳' },
-  { key: 'recurring', label: '週期與分期', icon: '🔁' },
-  { key: 'debt', label: '應收應付', icon: '🤝' },
-  { key: 'goal', label: '目標', icon: '🐷' },
-  { key: 'durable', label: '耐用品', icon: '🧰' },
+  { key: 'budget', label: '預算' },
+  { key: 'recurring', label: '週期與借貸' },
+  { key: 'goal', label: '目標與資產' },
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
 
 export default function PlanPage() {
   const [params, setParams] = useSearchParams();
   const raw = params.get('tab');
-  const legacy = raw === 'installment' ? 'recurring' : raw === 'wish' ? 'goal' : raw;
+  const legacy = (raw === 'installment' || raw === 'debt')
+    ? 'recurring'
+    : (raw === 'project' || raw === 'wish' || raw === 'durable')
+      ? 'goal'
+      : raw;
   const tab = (TABS.some((t) => t.key === legacy) ? legacy : 'budget') as TabKey;
   // 預算分頁由它自己提供更詳細的摘要（各預算使用率），這裡只負責其他分頁
   useScreenDetail(tab === 'budget' ? null : `專案與預算 → ${TABS.find((t) => t.key === tab)?.label ?? ''}`);
@@ -39,22 +40,19 @@ export default function PlanPage() {
   return (
     <main className="page">
       <h1 className="large-title" style={{ marginTop: 12 }}>專案與預算</h1>
-      <nav className="sub-row" aria-label="規劃分類" style={{ marginBottom: 8 }}>
-        {TABS.map((t) => (
-          <button key={t.key} className="pill" aria-pressed={tab === t.key} onClick={() => set(t.key)}>
-            <span aria-hidden="true">{t.icon}</span>{t.label}
-          </button>
-        ))}
-      </nav>
+      <div style={{ marginBottom: 12 }}>
+        <Segmented
+          value={tab}
+          onChange={set}
+          ariaLabel="規劃分類"
+          options={TABS.map((t) => ({ value: t.key, label: t.label }))}
+        />
+      </div>
       <Suspense fallback={<SkeletonRows />}>
         {tab === 'budget' && <BudgetSection />}
-        {tab === 'project' && <ProjectSection />}
-        {tab === 'recurring' && <><RecurringSection /><InstallmentSection /></>}
-        {tab === 'debt' && <DebtSection />}
-        {tab === 'goal' && <><GoalSection /><WishlistSection /></>}
-        {tab === 'durable' && <DurableSection />}
+        {tab === 'recurring' && <><RecurringSection /><InstallmentSection /><DebtSection /></>}
+        {tab === 'goal' && <><ProjectSection /><GoalSection /><WishlistSection /><DurableSection /></>}
       </Suspense>
-      <p className="disclaimer"><Icon name="info" size={14} /> 週期帳目與分期會在每次開啟 App 時自動補齊到今天。</p>
     </main>
   );
 }
@@ -62,8 +60,8 @@ export default function PlanPage() {
 /** 區塊標題列：標題＋新增按鈕 */
 export function SectionHead({ title, onAdd, addLabel = '新增' }: { title: string; onAdd?: () => void; addLabel?: string }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '12px 4px 8px' }}>
-      <h2 style={{ margin: 0, fontSize: '1.1rem' }}>{title}</h2>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '16px 4px 8px' }}>
+      <h2 style={{ margin: 0, fontSize: '1.08rem' }}>{title}</h2>
       {onAdd && <button className="btn small tinted" onClick={onAdd}><Icon name="plus" size={16} />{addLabel}</button>}
     </div>
   );

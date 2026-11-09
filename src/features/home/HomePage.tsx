@@ -1,13 +1,13 @@
 /**
  * Aster 首頁（中央 Tab）——一個畫面一個重點：
- * - 頂部：月份、（不是今天時的）回今天、AI 小圓球、搜尋、提醒。
+ * - 頂部：月份、（不是今天時的）回今天、搜尋、提醒。
+ * - 下拉刷新：頁面頂端往下拉即可立即觸發雲端同步與匯率更新。
  * - 主角：這個月花了多少（一個大數字＋結餘／今日還可花）。
  * - 週曆（預設收成一週，可展開整月）。
  * - 當日：一行標題（日期＋支出／收入）＋帳目清單；「全部 ›」進帳目列表。
- * - 「需要你看一下」：收件匣、預算預警、異常偵測、AI 上週重點併成一張卡，沒事就不出現。
- * - 小工具預設不在首頁（設定 → 首頁小工具可加回）。
+ * - 小工具預設不在首頁（設定 → 首頁快覽配置可加回）。
  */
-import { lazy, Suspense, useMemo, useState } from 'react';
+import { lazy, Suspense, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
@@ -20,31 +20,82 @@ import { useUI } from '@/stores/ui';
 import { Icon } from '@/ui/Icon';
 import { Amount, EmptyState, SkeletonRows } from '@/ui/controls';
 import { Calendar } from './Calendar';
-
-import { AiOrb } from './AiOrb';
 import { MonthPicker } from './MonthPicker';
 import { HomeHero } from './HomeHero';
 import { RemindersSheet, useUnreadCount } from './RemindersSheet';
 import { useInboxCount } from '@/services/inboxCount';
+import { syncNow } from '@/services/sync';
+import { refreshRates } from '@/services/fx';
+import { haptic } from '@/services/haptics';
 import { LedgerRow } from '../ledger/LedgerRow';
 
-// 小工具（連投資組合、報價都會載入）與對話視窗都比較大：用到才載入，不拖慢首頁
-
-const CalculatorSheet = lazy(() => import('./CalculatorSheet').then((m) => ({ default: m.CalculatorSheet })));
 const Widgets = lazy(() => import('./Widgets').then((m) => ({ default: m.Widgets })));
 const WEEK_NAMES = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
+const PTR_THRESHOLD = 58;
 
 export default function HomePage() {
   const navigate = useNavigate();
   const selected = useUI((s) => s.selectedDate);
   const setSelected = useUI((s) => s.setSelectedDate);
   const openAdd = useUI((s) => s.openAdd);
-  const { weekStart, calendarCollapsed, baseCurrency, homeAiChat, homeWidgets, set } = useSettings();
+  const { weekStart, calendarCollapsed, baseCurrency, homeWidgets, set } = useSettings();
   const [monthOpen, setMonthOpen] = useState(false);
   const [remindersOpen, setRemindersOpen] = useState(false);
-  const [calcOpen, setCalcOpen] = useState(false);
-  const [calcUsed, setCalcUsed] = useState(false); // 第一次打開才載入計算機（之後保持掛載，關閉動畫才完整）
   const unread = useUnreadCount() + useInboxCount((x) => x.n + x.extra);
+
+  // 下拉刷新（Pull-to-Refresh）
+  const [pullY, setPullY] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const ptrRef = useRef<{ startY: number; startX: number; active: boolean; armed: boolean } | null>(null);
+
+  const onTouchStart = (e: React.TouchEvent<HTMLElement>) => {
+    if (refreshing || window.scrollY > 2) return;
+    const t = e.touches[0];
+    if (!t) return;
+    ptrRef.current = { startY: t.clientY, startX: t.clientX, active: false, armed: false };
+  };
+  const onTouchMove = (e: React.TouchEvent<HTMLElement>) => {
+    const st = ptrRef.current;
+    if (!st || refreshing) return;
+    const t = e.touches[0];
+    if (!t) return;
+    const dy = t.clientY - st.startY;
+    const dx = Math.abs(t.clientX - st.startX);
+    if (!st.active) {
+      if (dy < 8 || dx > dy || window.scrollY > 2) {
+        if (dx > 12 || dy < -4) ptrRef.current = null;
+        return;
+      }
+      st.active = true;
+    }
+    const damped = Math.max(0, Math.min(92, Math.pow(Math.max(0, dy - 8), 0.78) * 2.2));
+    if (damped >= PTR_THRESHOLD && !st.armed) {
+      st.armed = true;
+      haptic('medium');
+    } else if (damped < PTR_THRESHOLD && st.armed) {
+      st.armed = false;
+      haptic('selection');
+    }
+    setPullY(damped);
+  };
+  const onTouchEnd = () => {
+    const st = ptrRef.current;
+    ptrRef.current = null;
+    if (!st || !st.active) return;
+    if (st.armed && !refreshing) {
+      setRefreshing(true);
+      setPullY(44);
+      void Promise.allSettled([syncNow(), refreshRates(baseCurrency)]).finally(() => {
+        haptic('success');
+        window.setTimeout(() => {
+          setRefreshing(false);
+          setPullY(0);
+        }, 320);
+      });
+    } else {
+      setPullY(0);
+    }
+  };
 
   const sel = fromDateKey(selected);
   const year = sel.getFullYear();
@@ -90,14 +141,34 @@ export default function HomePage() {
   const expenseTotal = dayTotal?.expense ?? 0;
 
   return (
-    <main className="page home-page">
+    <main
+      className="page home-page"
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchEnd}
+    >
+      {/* 下拉刷新指示器 */}
+      {(pullY > 0 || refreshing) && (
+        <div
+          className={`ptr-indicator${refreshing ? ' refreshing' : pullY >= PTR_THRESHOLD ? ' armed' : ''}`}
+          style={{ height: `${pullY}px`, opacity: Math.min(1, pullY / 36) }}
+          aria-live="polite"
+        >
+          <span className="ptr-pill">
+            <span className="ptr-spinner" aria-hidden="true" />
+            <span>{refreshing ? '同步更新中…' : pullY >= PTR_THRESHOLD ? '放開立即同步' : '下拉同步'}</span>
+          </span>
+        </div>
+      )}
+
       {/* 頂部功能列：月份選取 + 動作按鈕 */}
       <header className="home-topbar">
         <button
           className="month-selector-btn"
           aria-label={`選擇月份，目前 ${year} 年 ${month0 + 1} 月`}
           aria-haspopup="dialog"
-          onClick={() => setMonthOpen(true)}
+          onClick={() => { haptic('selection'); setMonthOpen(true); }}
         >
           <span className="month-selector-text num">{year} 年 {month0 + 1} 月</span>
           <Icon name="chevronD" size={14} className="month-selector-icon" />
@@ -105,21 +176,17 @@ export default function HomePage() {
 
         <div className="home-topbar-actions">
           {!isToday && (
-            <button className="chip-today-btn" onClick={() => setSelected(todayKey())}>
+            <button className="chip-today-btn" onClick={() => { haptic('light'); setSelected(todayKey()); }}>
               今天
             </button>
           )}
-          {homeAiChat && <AiOrb />}
-          <button className="icon-btn" aria-label="計算機" onClick={() => { setCalcUsed(true); setCalcOpen(true); }}>
-            <Icon name="calculator" />
-          </button>
-          <button className="icon-btn" aria-label="搜尋" onClick={() => navigate('/search')}>
+          <button className="icon-btn" aria-label="搜尋" onClick={() => { haptic('selection'); navigate('/search'); }}>
             <Icon name="search" />
           </button>
           <button
             className="icon-btn"
             aria-label={`提醒${unread ? `（${unread} 則未讀）` : ''}`}
-            onClick={() => setRemindersOpen(true)}
+            onClick={() => { haptic('selection'); setRemindersOpen(true); }}
             style={{ position: 'relative' }}
           >
             <Icon name="bell" />
@@ -186,7 +253,6 @@ export default function HomePage() {
 
       <MonthPicker open={monthOpen} onClose={() => setMonthOpen(false)} year={year} month0={month0} onPick={goMonth} />
       <RemindersSheet open={remindersOpen} onClose={() => setRemindersOpen(false)} />
-      {calcUsed && <Suspense fallback={null}><CalculatorSheet open={calcOpen} onClose={() => setCalcOpen(false)} /></Suspense>}
     </main>
   );
 }

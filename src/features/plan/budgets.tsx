@@ -2,7 +2,6 @@
  * 預算：月／週／自訂週期、總額或分類／專案預算、結轉、警示門檻。
  * 卡片顯示進度條、剩餘金額、剩餘天數、今日可用（Moze 式動態每日額度）、推估期末花費、超支警示。
  */
-import { AiMark } from '@/ui/Icon';
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
@@ -14,14 +13,12 @@ import { WhyToggle } from '../insights/WhyToggle';
 import { evaluate } from '@/domain/calc-expr';
 import { todayKey } from '@/domain/period';
 import { useCategories, useProjects } from '@/app/hooks';
-import { AUTH_ENABLED } from '@/stores/auth';
 import { useSettings } from '@/stores/settings';
 import { snackUndo, useUI, ask } from '@/stores/ui';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { AmountField, CategoryField, DateField, SelectField, SwitchField, TextField } from '@/ui/form';
 import { Sheet } from '@/ui/Sheet';
 import { SectionHead } from './PlanPage';
-import { BUDGET_PROMPT, useChat } from '../home/aiChatStore';
 import { useScreenDetail } from '@/stores/screenContext';
 
 export default function BudgetSection() {
@@ -47,12 +44,6 @@ export default function BudgetSection() {
   return (
     <>
       <SectionHead title="預算" onAdd={() => setEdit('new')} />
-      {AUTH_ENABLED && (
-        <button className="card" style={{ width: '100%', textAlign: 'left', marginBottom: 8 }} onClick={() => useChat.getState().ask(BUDGET_PROMPT)}>
-          <span className="row-title"><AiMark /> 請 AI 規劃預算</span>
-          <span className="row-sub" style={{ display: 'block', whiteSpace: 'normal' }}>依過去花費由操作助手規劃，先預覽、你確認才建立，建立後 7 天內可還原</span>
-        </button>
-      )}
       {!views ? <SkeletonRows /> : views.length === 0 ? (
         <EmptyState emoji="🎯" title="還沒有預算" text="先設一個「每月總預算」，再為容易超支的分類（飲食、購物）各設一個。已有幾個月的帳目，可以直接依實際花費建立。"
           action={(

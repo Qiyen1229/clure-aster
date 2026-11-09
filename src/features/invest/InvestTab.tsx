@@ -211,7 +211,7 @@ export default function InvestTab() {
           )}
         </>
       )}
-      <p className="disclaimer">報價可能延遲，僅供參考，不構成投資建議。<br />{pf.lastUpdated ? `資料時間 ${new Date(pf.lastUpdated).toLocaleString('zh-TW')}` : ''}</p>
+      {pf.lastUpdated ? <p className="disclaimer">資料更新時間：{new Date(pf.lastUpdated).toLocaleString('zh-TW')}</p> : null}
       <TradeSheet open={adding} onClose={() => setAdding(false)} />
     </PullToRefresh>
   );

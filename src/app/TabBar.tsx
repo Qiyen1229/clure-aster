@@ -3,9 +3,9 @@
  * - 高透光玻璃膠囊；目前分頁以「玻璃透鏡」標示：手指一按下透鏡就 Q 彈地彈到該分頁，按住左右滑動會跟著手指，放開後前往；
  *   放開後的彈簧軌跡預先算好交給合成器播放（WAAPI），換頁掛載再重也不掉幀
  * - 中央按鈕與膠囊等高、圖示置中：
- *   - 主頁（/ 或 /ledger）：「＋」短按新增記帳，長按（0.35s）直接開啟 AI 語音記帳
- *   - 其他頁面：Logo，點擊回到今日記帳；長按（0.35s）叫出 AI 對話
- *   - 任何頁面往上滑：叫出 AI 對話（v4.1.0）。對話會知道你正在看哪個畫面（「📍 目前畫面」標籤，可一鍵取消），
+ *   - 主頁（/ 或 /ledger）：「＋」短按新增記帳，長按（0.35s）直接開啟語音記帳
+ *   - 其他頁面：Logo，點擊回到今日記帳
+ *   - 任何頁面往上滑：叫出 AI 對話（唯一全局入口）。對話會知道你正在看哪個畫面（「📍 目前畫面」標籤，可一鍵取消），
  *     所以停在投資頁、帳戶頁或報表時都能直接對眼前的東西下指令；一切都是手動觸發，不會自動呼叫 AI
  *   - 有待確認電子發票或未讀提醒時，右上角出現小光點
  */
@@ -14,6 +14,7 @@ import { makeSpring, projectEnd, sampleSpring, stepSpring, trackAt, type SpringT
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Icon, Logo, type IconName } from '@/ui/Icon';
 import { holdGuard, openVoice, releaseVoice } from '@/services/voice';
+import { haptic } from '@/services/haptics';
 import { markDockNav } from './navSource';
 import { useUI } from '@/stores/ui';
 import { useUnreadCount } from '@/features/home/RemindersSheet';
@@ -210,7 +211,7 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
     const r = rectOf(to);
     if (r) {
       sizeLens();
-      if (to !== shownTo) navigator.vibrate?.(8);
+      if (to !== shownTo) haptic('selection');
       aim(r.x - 2, !lensShown);
       setLensShown(true);
       setScrubTo(to);
@@ -243,7 +244,7 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
     P.x.p = P.x.t = cx - cap.left - (lensRef.current?.offsetWidth ?? 60) / 2;
     P.x.v = st.v;
     paint();
-    if (near && near !== scrubTo) { navigator.vibrate?.(8); setScrubTo(near); }
+    if (near && near !== scrubTo) { haptic('selection'); setScrubTo(near); }
   };
   const finishScrub = (e: React.PointerEvent<HTMLDivElement>, cancelled: boolean) => {
     const st = scrub.current;
@@ -273,15 +274,15 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
   const inboxCount = useInboxTotal();
   const hasAlert = unreadCount > 0 || inboxCount > 0;
 
-  /** 叫出 AI 對話（任何頁面都一樣；AI 助理頁不再內嵌對話，也是開同一個視窗） */
+  /** 叫出 AI 對話（僅限中央按鈕往上滑觸發） */
   const openAi = () => {
-    navigator.vibrate?.(15);
+    haptic('medium');
     setAiHold(true);
     window.setTimeout(() => setAiHold(false), 500);
     useChat.getState().setOpen(true);
   };
 
-  // 長按：記帳區在手勢內同步開始語音辨識（iOS 需在使用者手勢內啟動），其他頁面叫出 AI；往上滑在任何頁面叫出 AI。短按維持原本功能
+  // 長按：僅記帳區在手勢內同步開始語音辨識（iOS 需在使用者手勢內啟動）；往上滑在任何頁面叫出 AI。短按維持原本功能
   const onDown = (e: React.PointerEvent<HTMLButtonElement>) => {
     if (e.button > 0) return;
     held.current = false;
@@ -293,11 +294,14 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
     } catch {
       /* 忽略 */
     }
-    timer.current = window.setTimeout(() => {
-      held.current = true;
-      if (plusMode) { heldKind.current = 'voice'; navigator.vibrate?.(15); openVoice(true); }
-      else { heldKind.current = 'ai'; openAi(); }
-    }, HOLD_MS);
+    if (plusMode) {
+      timer.current = window.setTimeout(() => {
+        held.current = true;
+        heldKind.current = 'voice';
+        haptic('medium');
+        openVoice(true);
+      }, HOLD_MS);
+    }
   };
 
   const onMove = (e: React.PointerEvent<HTMLButtonElement>) => {
@@ -342,7 +346,7 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
         <div className="tab-center" ref={(el) => { if (el) tabEls.current.set(HOME, el); else tabEls.current.delete(HOME); }}>
           <button
             className={`dynamic-fab${plusMode ? ' mode-plus' : ' mode-logo'}${pressing ? ' pressing' : ''}${aiHold ? ' ai-hold' : ''}${scrubTo === HOME ? ' scrub-target' : ''}${hasAlert ? ' has-alert' : ''}`}
-            aria-label={plusMode ? '新增記帳（長按語音記帳，往上滑問 AI）' : '回到記帳主頁（長按或往上滑問 AI）'}
+            aria-label={plusMode ? '新增記帳' : '回到記帳主頁'}
             onPointerDown={onDown}
             onPointerMove={onMove}
             onPointerUp={onUp}
@@ -353,6 +357,7 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
                 held.current = false;
                 return;
               }
+              haptic('light');
               if (plusMode) openAdd();
               else { markDockNav(); navigate('/'); }
             }}
