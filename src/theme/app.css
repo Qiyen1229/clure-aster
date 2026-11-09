@@ -627,7 +627,9 @@ a { color: inherit; text-decoration: none; }
   width: 300%;
   transform: translate3d(-33.333333%, 0, 0);
   will-change: transform;
+  transform-style: preserve-3d;
   backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 .cal-slide {
   contain: layout paint;
@@ -1139,17 +1141,204 @@ button.stat.clickable:active {
 .showcase-dots button { width: 28px; height: 28px; position: relative; }
 .showcase-dots button::before { content: ''; position: absolute; left: 50%; top: 50%; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%; background: var(--surface-3); transition: width 250ms var(--ease), margin 250ms var(--ease), background 250ms; }
 .showcase-dots button.on::before { width: 20px; margin-left: -10px; border-radius: 4px; background: var(--accent); }
-.whatsnew { padding: 0 2px 8px; }
-.whatsnew-lead { margin: 0 2px 12px; color: var(--text-2); line-height: 1.5; }
-.whatsnew-lead:empty { display: none; }
-.whatsnew-lead b { color: var(--text); }
-.whatsnew-card { background: var(--surface); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 10px; box-shadow: var(--shadow); border: 0.5px solid var(--glass-border); }
-.whatsnew-card header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
-.whatsnew-card h3 { margin: 0; font-size: 1.05rem; line-height: 1.35; }
-.whatsnew-ver { flex: none; font-size: 0.75rem; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--accent); color: var(--on-accent); }
-.whatsnew-card p { margin: 0 0 8px; color: var(--text-2); line-height: 1.6; font-size: 0.95rem; }
-.whatsnew-card .whatsnew-how { margin: 0; padding: 9px 11px; border-radius: 10px; background: var(--surface-2); font-size: 0.88rem; }
-.whatsnew-how b { display: block; font-size: 0.75rem; color: var(--text-3); margin-bottom: 2px; letter-spacing: 0.02em; }
+/* 更新後新功能置中彈窗（分頁、手勢左滑切換） */
+.whatsnew-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 310;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+.whatsnew-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.48);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  touch-action: none;
+  overscroll-behavior: contain;
+  animation: dlg-fade 200ms ease both;
+}
+.whatsnew-modal {
+  position: relative;
+  width: min(100%, 370px);
+  max-height: min(86dvh, 580px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 24px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.45), inset 0 0 0 0.5px var(--glass-border);
+  animation: dlg-in 360ms var(--spring-linear, var(--ease)) both;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+}
+.whatsnew-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 10px;
+  border-bottom: 0.5px solid var(--sep);
+}
+.whatsnew-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.whatsnew-count {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-3);
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+.whatsnew-lead-text {
+  margin: 0;
+  padding: 8px 20px 4px;
+  font-size: 0.8rem;
+  color: var(--text-3);
+  line-height: 1.4;
+}
+.whatsnew-lead-text b { color: var(--text-2); }
+.whatsnew-slider {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 200px;
+  touch-action: pan-y;
+}
+.whatsnew-slides {
+  display: flex;
+  width: 100%;
+  transition: transform 280ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+.whatsnew-slide {
+  flex: 0 0 100%;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 18px 8px;
+  max-height: calc(min(86dvh, 580px) - 170px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+.whatsnew-card {
+  background: var(--surface-2);
+  border-radius: 18px;
+  padding: 16px;
+  border: 0.5px solid var(--glass-border);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+}
+.whatsnew-card header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.whatsnew-card h3 {
+  margin: 0;
+  font-size: 1.12rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--text);
+}
+.whatsnew-ver {
+  flex: none;
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.whatsnew-card p {
+  margin: 0 0 10px;
+  color: var(--text-2);
+  line-height: 1.6;
+  font-size: 0.92rem;
+}
+.whatsnew-card .whatsnew-how {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 0.88rem;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+.whatsnew-how b {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent-text);
+  margin-bottom: 4px;
+  letter-spacing: 0.02em;
+}
+.whatsnew-dots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 0 2px;
+}
+.whatsnew-dots button {
+  width: 24px;
+  height: 24px;
+  position: relative;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.whatsnew-dots button::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  transition: width 240ms var(--ease), margin 240ms var(--ease), background 240ms;
+}
+.whatsnew-dots button.on::before {
+  width: 18px;
+  margin-left: -9px;
+  border-radius: 4px;
+  background: var(--accent);
+}
+.whatsnew-hint {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-3);
+  margin: 2px 0 4px;
+}
+.whatsnew-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px 16px;
+  border-top: 0.5px solid var(--sep);
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+}
+.whatsnew-actions .btn {
+  flex: 1;
+  min-height: 44px;
+  font-weight: 600;
+}
 .steps { display: flex; gap: 6px; justify-content: center; margin-bottom: 16px; }
 .steps i { width: 6px; height: 6px; border-radius: 3px; background: var(--surface-3); transition: width 300ms var(--ease), background 300ms; }
 .steps i.on { width: 20px; background: var(--accent); }

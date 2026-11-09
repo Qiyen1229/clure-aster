@@ -104,9 +104,11 @@ export function Calendar({
     const targetPx = dir === 1 ? -2 * width : dir === -1 ? 0 : -width;
     const current = new DOMMatrixReadOnly(getComputedStyle(track).transform).m41;
     const remain = Math.abs(targetPx - current);
-    // 剩餘距離 ÷ 速度（px/ms）；限制在 180～380ms
-    const ms = Math.round(Math.min(380, Math.max(180, velocity > 0.2 ? remain / velocity : 120 + remain * 0.7)));
-    track.style.transition = `transform ${ms}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+    // 柔順減速：甩動時依速度與剩餘距離動態配比，落在 220～340ms 舒適黃金區間；手動點擊或無初速給予 280ms
+    const ms = velocity > 0.15
+      ? Math.round(Math.min(340, Math.max(220, remain / Math.max(0.45, velocity))))
+      : 280;
+    track.style.transition = `transform ${ms}ms cubic-bezier(0.16, 1, 0.3, 1)`;
     track.style.transform = `translate3d(${targetPx}px, 0, 0)`;
 
     let finished = false;
@@ -162,8 +164,8 @@ export function Calendar({
     morph.current = null;
     const c = containerRef.current, vp = viewportRef.current;
     if (!m || !c || !vp) return;
-    const EASE = 'cubic-bezier(0.32, 0.72, 0, 1)'; // iOS 的減速曲線：順、不彈
-    const D = 460;
+    const EASE = 'cubic-bezier(0.16, 1, 0.3, 1)'; // 流體減速曲線：俐落、順滑、不生硬
+    const D = 340;
     const newH = c.offsetHeight;
     const newTop = vp.offsetTop;
     const expanding = !collapsed;
@@ -221,11 +223,21 @@ export function Calendar({
     if (isDragging.current) {
       const now = performance.now();
       const dt = now - last.current.t;
-      if (dt > 0) last.current = { x: e.clientX, t: now, v: 0.8 * last.current.v + 0.2 * ((e.clientX - last.current.x) / dt) };
-      else last.current.x = e.clientX;
+      if (dt > 0) {
+        const instantV = (e.clientX - last.current.x) / dt;
+        last.current = { x: e.clientX, t: now, v: 0.65 * last.current.v + 0.35 * instantV };
+      } else {
+        last.current.x = e.clientX;
+      }
       const width = viewportRef.current.clientWidth;
+      let clampedDx = dx;
+      if (Math.abs(dx) > width) {
+        const sign = dx < 0 ? -1 : 1;
+        const over = Math.abs(dx) - width;
+        clampedDx = sign * (width + over * 0.4);
+      }
       trackRef.current.style.transition = 'none';
-      trackRef.current.style.transform = `translate3d(${-width + dx}px, 0, 0)`;
+      trackRef.current.style.transform = `translate3d(${-width + clampedDx}px, 0, 0)`;
     }
   };
 
@@ -249,9 +261,10 @@ export function Calendar({
       justSwiped.current = true;
       window.setTimeout(() => { justSwiped.current = false; }, 80);
       const width = viewportRef.current?.clientWidth ?? 320;
-      const flick = Math.abs(v) > 0.45; // 甩動
-      if (dx < -width * 0.18 || (flick && v < 0 && dx < -8)) animateTo(1, Math.abs(v));
-      else if (dx > width * 0.18 || (flick && v > 0 && dx > 8)) animateTo(-1, Math.abs(v));
+      const flick = Math.abs(v) > 0.22; // 輕甩門檻更靈敏
+      // 位移達 13% 或輕輕一甩即順暢換頁
+      if (dx < -width * 0.13 || (flick && v < 0 && dx < -12)) animateTo(1, Math.abs(v));
+      else if (dx > width * 0.13 || (flick && v > 0 && dx > 12)) animateTo(-1, Math.abs(v));
       else animateTo(0, Math.abs(v));
     }
   };

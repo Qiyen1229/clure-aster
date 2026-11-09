@@ -51,27 +51,27 @@ describe('planWhatsNew：什麼時候跳視窗', () => {
   const store = () => { const m = new Map<string, string>(); return { m, read: () => m.get('k') ?? null, write: (v: string) => { m.set('k', v); } }; };
   it('★ 全新安裝（沒做完首次引導）不跳，直接記下版本', () => {
     const s = store();
-    expect(planWhatsNew({ current: '4.1.14', onboarded: false, read: s.read, write: s.write })).toBeNull();
-    expect(s.m.get('k')).toBe('4.1.14');
+    expect(planWhatsNew({ current: pkg.version, onboarded: false, read: s.read, write: s.write })).toBeNull();
+    expect(s.m.get('k')).toBe(pkg.version);
   });
   it('★ 已在用的使用者、有舊版紀錄 → 列出舊版到現在的所有功能；還沒按「知道了」前不改紀錄', () => {
     const s = store(); s.m.set('k', '4.1.8');
-    const p = planWhatsNew({ current: '4.1.14', onboarded: true, read: s.read, write: s.write })!;
+    const p = planWhatsNew({ current: pkg.version, onboarded: true, read: s.read, write: s.write })!;
     expect(p.seen).toBe('4.1.8');
     const versions = new Set(p.items.map((i) => i.version));
-    expect(versions.has('4.1.9') && versions.has('4.1.12') && versions.has('4.1.14')).toBe(true);
+    expect(versions.has('4.1.9') && versions.has('4.1.12') && versions.has('4.1.14') && versions.has('4.1.15')).toBe(true);
     expect(versions.has('4.1.8')).toBe(false);
     expect(s.m.get('k')).toBe('4.1.8');
   });
   it('沒有任何紀錄的既有使用者，視為從機制上線前的最後一版更新上來', () => {
     const s = store();
-    const p = planWhatsNew({ current: '4.1.14', onboarded: true, read: s.read, write: s.write })!;
+    const p = planWhatsNew({ current: pkg.version, onboarded: true, read: s.read, write: s.write })!;
     expect(p.seen).toBe(LEGACY_BASELINE);
     expect(p.items.every((i) => cmpVersion(i.version, LEGACY_BASELINE) > 0)).toBe(true);
   });
   it('已經是最新、或這段更新只有小修正（沒有新功能）→ 不跳；小修正會靜默記下版本', () => {
-    const a = store(); a.m.set('k', '4.1.14');
-    expect(planWhatsNew({ current: '4.1.14', onboarded: true, read: a.read, write: a.write })).toBeNull();
+    const a = store(); a.m.set('k', pkg.version);
+    expect(planWhatsNew({ current: pkg.version, onboarded: true, read: a.read, write: a.write })).toBeNull();
     const b = store(); b.m.set('k', '4.1.13'); // 4.1.13 沒有新功能，但到 4.1.14 有；改用「已在 4.1.14、目前也 4.1.14」之外的情境：目前版本為 4.1.13
     expect(planWhatsNew({ current: '4.1.13', onboarded: true, read: b.read, write: b.write })).toBeNull();
     const c = store(); c.m.set('k', '4.1.12');

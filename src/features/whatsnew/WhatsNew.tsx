@@ -4,9 +4,8 @@
  * 每一項最上面是功能標題與「哪一版更新的」，下面是一段介紹與如何使用。看完按「知道了」就記下目前版本，下次更新才會再跳出。
  * 全新安裝（還沒做完首次引導）不跳；更新沒有新功能（只有小修正）就靜默記下版本。
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSettings } from '@/stores/settings';
-import { Sheet } from '@/ui/Sheet';
 import { featuresBetween, type WhatsNewItem } from './releaseNotes';
 
 const KEY = 'aster.seenVersion';
@@ -28,6 +27,11 @@ export function WhatsNewHost() {
   const onboarded = useSettings((s) => s.onboarded);
   const [state, setState] = useState<{ seen: string; items: WhatsNewItem[] } | null>(null);
   const [open, setOpen] = useState(false);
+  const [page, setPage] = useState(0);
+
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const prevFocus = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!onboarded) return;
@@ -36,33 +40,194 @@ export function WhatsNewHost() {
       read: () => { try { return localStorage.getItem(KEY); } catch { return null; } },
       write: (v) => { try { localStorage.setItem(KEY, v); } catch { /* 忽略 */ } },
     });
-    if (plan) { setState(plan); const t = setTimeout(() => setOpen(true), 900); return () => clearTimeout(t); } // 等主畫面出來再跳，不搶開啟的瞬間
+    if (plan) {
+      setState(plan);
+      setPage(0);
+      const t = setTimeout(() => setOpen(true), 900);
+      return () => clearTimeout(t);
+    } // 等主畫面出來再跳，不搶開啟的瞬間
   }, [onboarded]);
+
+  // 開啟前保留原本焦點，關閉時歸還；同時鎖定 body 捲動，防止背景內容被滑動
+  useEffect(() => {
+    if (!open) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    prevFocus.current = document.activeElement as HTMLElement | null;
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      const el = prevFocus.current;
+      prevFocus.current = null;
+      setTimeout(() => el?.isConnected && el.focus?.({ preventScroll: true }), 0);
+    };
+  }, [open]);
+
+  // 阻擋觸控事件穿透至背景：背景遮罩與非滾動區域直接阻止原生捲動
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!open || !el) return;
+    const onTouchMove = (e: TouchEvent) => {
+      const target = e.target as HTMLElement | null;
+      const slide = target?.closest('.whatsnew-slide') as HTMLElement | null;
+      if (!slide) {
+        e.preventDefault();
+        return;
+      }
+      if (slide.scrollHeight <= slide.clientHeight) {
+        e.preventDefault();
+      }
+    };
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    return () => el.removeEventListener('touchmove', onTouchMove);
+  }, [open]);
+
+  const n = state?.items.length ?? 0;
+  const isLast = page >= n - 1;
+
+  // 鍵盤左右箭頭換頁
+  useEffect(() => {
+    if (!open || n <= 1) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') {
+        setPage((p) => Math.min(n - 1, p + 1));
+      } else if (e.key === 'ArrowLeft') {
+        setPage((p) => Math.max(0, p - 1));
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, n]);
 
   const close = () => {
     setOpen(false);
     try { localStorage.setItem(KEY, __APP_VERSION__); } catch { /* 忽略 */ }
   };
-  if (!state) return null;
-  const n = state.items.length;
+
+  if (!state || !open || n === 0) return null;
+
+  // 觸控手勢：向左滑下一頁、向右滑上一頁
+  const onTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    touchStart.current = { x: t.clientX, y: t.clientY };
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    e.stopPropagation();
+  };
+
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStart.current) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStart.current.x;
+    const dy = t.clientY - touchStart.current.y;
+    touchStart.current = null;
+    if (Math.abs(dx) > 36 && Math.abs(dx) > Math.abs(dy) * 1.1) {
+      if (dx < 0) {
+        setPage((p) => Math.min(n - 1, p + 1));
+      } else {
+        setPage((p) => Math.max(0, p - 1));
+      }
+    }
+  };
+
   return (
-    <Sheet open={open} onClose={close} title="新功能">
-      <div className="whatsnew">
-        <p className="whatsnew-lead">
-          {state.seen === __APP_VERSION__ ? '' : <>你從 <b>v{state.seen}</b> 更新到 <b>v{__APP_VERSION__}</b>，這中間共新增 <b>{n}</b> 項功能。</>}
-        </p>
-        {state.items.map((f) => (
-          <article key={`${f.version}-${f.title}`} className="whatsnew-card">
-            <header>
-              <h3>{f.title}</h3>
-              <span className="whatsnew-ver" title={`${f.date} 更新`}>v{f.version}</span>
-            </header>
-            <p>{f.intro}</p>
-            <p className="whatsnew-how"><b>如何使用</b>{f.howto}</p>
-          </article>
-        ))}
-        <button className="btn" style={{ marginTop: 8 }} onClick={close}>知道了</button>
+    <div
+      ref={wrapRef}
+      className="whatsnew-wrap"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="whatsnew-modal-title"
+    >
+      <div className="whatsnew-backdrop" aria-hidden="true" />
+      <div
+        className="whatsnew-modal"
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        <header className="whatsnew-header">
+          <h2 id="whatsnew-modal-title" className="whatsnew-title">✨ 新功能介紹</h2>
+          <span className="whatsnew-count">{page + 1} / {n}</span>
+        </header>
+
+        {state.seen !== __APP_VERSION__ && (
+          <p className="whatsnew-lead-text">
+            你從 <b>v{state.seen}</b> 更新到 <b>v{__APP_VERSION__}</b>，共新增 <b>{n}</b> 項功能
+          </p>
+        )}
+
+        <div className="whatsnew-slider">
+          <div
+            className="whatsnew-slides"
+            style={{ transform: `translateX(-${page * 100}%)` }}
+          >
+            {state.items.map((f, i) => (
+              <article key={`${f.version}-${f.title}-${i}`} className="whatsnew-slide">
+                <div className="whatsnew-card">
+                  <header>
+                    <h3>{f.title}</h3>
+                    <span className="whatsnew-ver" title={`${f.date} 更新`}>v{f.version}</span>
+                  </header>
+                  <p className="whatsnew-intro">{f.intro}</p>
+                  <div className="whatsnew-how">
+                    <b>如何使用</b>
+                    <span>{f.howto}</span>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+
+        {n > 1 && (
+          <div className="whatsnew-dots" role="tablist" aria-label="切換功能">
+            {state.items.map((f, i) => (
+              <button
+                key={`${f.title}-${i}`}
+                role="tab"
+                aria-selected={i === page}
+                aria-label={`${i + 1} / ${n}：${f.title}`}
+                className={i === page ? 'on' : ''}
+                onClick={() => setPage(i)}
+              />
+            ))}
+          </div>
+        )}
+
+        {n > 1 && !isLast && (
+          <div className="whatsnew-hint">👈 向左滑動或點擊「下一頁」</div>
+        )}
+
+        <div className="whatsnew-actions">
+          {page > 0 && (
+            <button
+              type="button"
+              className="btn secondary"
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+            >
+              上一頁
+            </button>
+          )}
+          {isLast ? (
+            <button
+              type="button"
+              className="btn"
+              onClick={close}
+            >
+              知道了
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn"
+              onClick={() => setPage((p) => Math.min(n - 1, p + 1))}
+            >
+              下一頁
+            </button>
+          )}
+        </div>
       </div>
-    </Sheet>
+    </div>
   );
 }
