@@ -4,7 +4,7 @@
  * 垂直捲動優先：移動前 10px 若垂直位移較大，交還給瀏覽器捲動。
  */
 import { useRef, type ReactNode } from 'react';
-import { Icon } from './Icon';
+import { Icon, type IconName } from './Icon';
 
 const THRESHOLD = 88;
 const LONG_PRESS_MS = 480;
@@ -18,9 +18,13 @@ interface Props {
   disabled?: boolean;
   /** 放在 .list 裡面：不要自己的圓角與下方間距 */
   flat?: boolean;
+  /** 左滑超過門檻後，不是原地消失，而是整列「縮起來」（高度、間距、透明度一起收到 0）再呼叫 onDelete；用在「隱藏」這類動作 */
+  collapse?: boolean;
+  /** 左滑時露出的動作文字與圖示（預設是紅色的「刪除」＋垃圾桶）；給了就改成中性色 */
+  action?: { label: string; icon: IconName };
 }
 
-export function SwipeRow({ children, onTap, onEdit, onDelete, onLongPress, disabled, flat }: Props) {
+export function SwipeRow({ children, onTap, onEdit, onDelete, onLongPress, disabled, flat, collapse, action }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const st = useRef<{ x0: number; y0: number; dx: number; mode: 'idle' | 'h' | 'v'; timer?: number; long: boolean } | null>(null);
@@ -35,6 +39,22 @@ export function SwipeRow({ children, onTap, onEdit, onDelete, onLongPress, disab
       // 只有真的在滑動時才顯示底下的編輯／刪除色塊；平常藏起來，不然圓角邊緣會透出紅色
       wrap.current.toggleAttribute('data-active', x !== 0);
     }
+  };
+
+  /** 整列縮起來：先固定目前高度，再把高度與上下間距收到 0（連同容器的 gap 一起），收完才通知呼叫端 */
+  const collapseThen = (done: () => void) => {
+    const w = wrap.current;
+    if (!w) { done(); return; }
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) { done(); return; }
+    const gap = parseFloat(getComputedStyle(w.parentElement ?? w).rowGap) || 0;
+    w.style.height = `${w.offsetHeight}px`;
+    w.style.transition = 'height 300ms var(--ease), margin 300ms var(--ease), opacity 240ms ease';
+    void w.offsetHeight; // 強制重排，讓上面的起始高度生效
+    w.style.height = '0px';
+    w.style.marginBottom = `${-gap}px`;
+    w.style.opacity = '0';
+    setTimeout(done, 310);
   };
 
   const down = (e: React.PointerEvent) => {
@@ -80,7 +100,8 @@ export function SwipeRow({ children, onTap, onEdit, onDelete, onLongPress, disab
     if (s.mode !== 'h') return;
     if (s.dx <= -THRESHOLD && onDelete) {
       set(-(ref.current?.offsetWidth ?? 400), true);
-      setTimeout(() => { onDelete(); set(0); }, 200);
+      if (collapse) setTimeout(() => collapseThen(onDelete), 180);
+      else setTimeout(() => { onDelete(); set(0); }, 200);
     } else if (s.dx >= THRESHOLD && onEdit) {
       set(0, true);
       onEdit();
@@ -92,7 +113,7 @@ export function SwipeRow({ children, onTap, onEdit, onDelete, onLongPress, disab
   return (
     <div className={flat ? 'swipe flat' : 'swipe'} ref={wrap}>
       {onEdit && <div className="swipe-action left" aria-hidden="true"><Icon name="edit" />編輯</div>}
-      {onDelete && <div className="swipe-action right" aria-hidden="true">刪除<Icon name="trash" /></div>}
+      {onDelete && <div className={`swipe-action right${action ? ' neutral' : ''}`} aria-hidden="true">{action?.label ?? '刪除'}<Icon name={action?.icon ?? 'trash'} /></div>}
       <div ref={ref} className="swipe-content" onPointerDown={down} onPointerMove={move} onPointerUp={up}
         onPointerCancel={() => { if (st.current) clearTimeout(st.current.timer); st.current = null; set(0, true); }}
         onContextMenu={(e) => { if (onLongPress) { e.preventDefault(); onLongPress(); } }}

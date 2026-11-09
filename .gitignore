@@ -28,3 +28,7 @@ __pycache__/
 .playwright-mcp/
 clure-nas.zip
 clure-nas.tar.gz
+
+# 交接包（含個人記憶，不要提交到公開倉庫）
+productAI/
+productAI.zip

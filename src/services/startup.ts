@@ -16,7 +16,6 @@ import { getJson } from './quotes/http';
 import { useSettings } from '@/stores/settings';
 import { useUI } from '@/stores/ui';
 import { notify, runReminderChecks } from './notifications';
-import { FEATURE_HEADLINE, FEATURE_RELEASE } from '@/release';
 
 /** 需要更新報價的標的：有持股或在觀察清單中 */
 export async function trackedStocks() {
@@ -55,20 +54,6 @@ export async function loadTwHolidays(): Promise<void> {
 /** 瀏覽器閒置時才執行（不支援就稍後執行） */
 const idle = (fn: () => void) => ('requestIdleCallback' in window ? (window as unknown as { requestIdleCallback: (f: () => void, o?: { timeout: number }) => void }).requestIdleCallback(fn, { timeout: 8000 }) : setTimeout(fn, 2500));
 
-/**
- * 更新後第一次開啟：這批新功能還沒看過就在提醒中心放一則「✨ 有新功能可用」（每個新功能批次只通知一次）。
- * 全新安裝（還沒做完首次引導）不通知；已經在用的使用者第一次升到有這個機制的版本時也會看到一次。
- */
-export async function announceNewFeatures() {
-  const KEY = 'aster.featureRelease.seen';
-  let seen: string | null = null;
-  try { seen = localStorage.getItem(KEY); } catch { return; }
-  if (seen === FEATURE_RELEASE) return;
-  try { localStorage.setItem(KEY, FEATURE_RELEASE); } catch { /* 忽略 */ }
-  if (!useSettings.getState().onboarded) return;
-  await notify('✨ 有新功能可用', `${FEATURE_HEADLINE}。帶有 ✨ 的項目就是新功能，點開看看。`, '/ai', 'sync', `feature:${FEATURE_RELEASE}`, { system: false });
-}
-
 let started = false;
 export async function runStartupTasks() {
   if (started) return;
@@ -83,7 +68,6 @@ export async function runStartupTasks() {
   if (created || pending) {
     useUI.getState().showSnack({ text: [created ? `已自動入帳 ${created} 筆週期／分期帳目` : '', pending ? `${pending} 筆待確認` : ''].filter(Boolean).join('，') });
   }
-  void step('features', () => announceNewFeatures());
   // 監看帳目變動的 hook 先裝好（很輕、不等網路）：啟動期間新記的帳不會漏掉
   void step('newTxWatcher', () => import('./insights').then((m) => m.installNewTxWatcher()));
   void step('pushRefresh', () => import('./push').then((m) => m.installPushRefresh()));

@@ -7,6 +7,7 @@ import { Component, lazy, Suspense, useEffect, useMemo, useRef, type ReactNode }
 import { Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { TabBar } from './app/TabBar';
 import { ActionSheetHost, PrivacyShield, SnackbarHost, UpdatePrompt } from './app/overlays';
+import { WhatsNewHost } from './features/whatsnew/WhatsNew';
 import HomePage from './features/home/HomePage';
 import { useSettings } from './stores/settings';
 import { useUI, type AddMode } from './stores/ui';
@@ -327,6 +328,7 @@ export default function App() {
       <ActionSheetHost />
       <SnackbarHost />
       <UpdatePrompt />
+      <WhatsNewHost />
       </>)}
       <PrivacyShield />
       <LockScreen />

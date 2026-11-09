@@ -941,10 +941,14 @@ a { color: inherit; text-decoration: none; }
 .swipe-content { position: relative; z-index: 1; background: var(--surface); border-radius: var(--radius); will-change: transform; touch-action: pan-y; }
 .swipe.flat { margin-bottom: 0; border-radius: 0; }
 .swipe.flat > .swipe-content { border-radius: 0; }
+/* 「需要你看一下」整張卡左滑隱藏：外層保留卡片的圓角（不然四角會露出底色） */
+.swipe.flat:has(> .swipe-content > .attn-card), .swipe.flat:has(> .swipe-content > .attn-card) > .swipe-content { border-radius: var(--radius); }
+.swipe.flat:has(> .swipe-content > .attn-card) > .swipe-content { background: transparent; }
 .swipe-content.animating { transition: transform 280ms var(--ease); }
 .swipe-action { opacity: 0; transition: opacity 240ms var(--ease); position: absolute; top: 0; bottom: 0; left: 0; right: 0; display: flex; align-items: center; padding: 0 22px; color: #fff; font-weight: 600; gap: 6px; }
 .swipe-action.left { background: var(--accent); color: var(--on-accent); }
 .swipe-action.right { background: var(--danger); justify-content: flex-end; }
+.swipe-action.right.neutral { background: var(--surface-3); color: var(--text-2); }
 .swipe[data-active] .swipe-action { opacity: 1; }
 .swipe[data-dir='r'] .swipe-action.right, .swipe[data-dir='l'] .swipe-action.left { visibility: hidden; }
 .swipe-action svg { width: 22px; height: 22px; }
@@ -1135,6 +1139,17 @@ button.stat.clickable:active {
 .showcase-dots button { width: 28px; height: 28px; position: relative; }
 .showcase-dots button::before { content: ''; position: absolute; left: 50%; top: 50%; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%; background: var(--surface-3); transition: width 250ms var(--ease), margin 250ms var(--ease), background 250ms; }
 .showcase-dots button.on::before { width: 20px; margin-left: -10px; border-radius: 4px; background: var(--accent); }
+.whatsnew { padding: 0 2px 8px; }
+.whatsnew-lead { margin: 0 2px 12px; color: var(--text-2); line-height: 1.5; }
+.whatsnew-lead:empty { display: none; }
+.whatsnew-lead b { color: var(--text); }
+.whatsnew-card { background: var(--surface); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 10px; box-shadow: var(--shadow); border: 0.5px solid var(--glass-border); }
+.whatsnew-card header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.whatsnew-card h3 { margin: 0; font-size: 1.05rem; line-height: 1.35; }
+.whatsnew-ver { flex: none; font-size: 0.75rem; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--accent); color: var(--on-accent); }
+.whatsnew-card p { margin: 0 0 8px; color: var(--text-2); line-height: 1.6; font-size: 0.95rem; }
+.whatsnew-card .whatsnew-how { margin: 0; padding: 9px 11px; border-radius: 10px; background: var(--surface-2); font-size: 0.88rem; }
+.whatsnew-how b { display: block; font-size: 0.75rem; color: var(--text-3); margin-bottom: 2px; letter-spacing: 0.02em; }
 .steps { display: flex; gap: 6px; justify-content: center; margin-bottom: 16px; }
 .steps i { width: 6px; height: 6px; border-radius: 3px; background: var(--surface-3); transition: width 300ms var(--ease), background 300ms; }
 .steps i.on { width: 20px; background: var(--accent); }
@@ -1796,7 +1811,7 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
 /* ───── v4.1.3 提醒中心各區塊間距、計算機 ───── */
 .rem-stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; max-width: 100%; }
 .rem-stack > * { min-width: 0; max-width: 100%; }
-.rem-stack > .attn-card, .rem-stack > .card, .rem-stack > .list { margin: 0; }
+.rem-stack > .attn-card, .rem-stack > .card, .rem-stack > .list, .rem-stack > .swipe, .rem-stack .swipe > .swipe-content > .attn-card { margin: 0; }
 .calc-display { padding: 14px 16px 12px; margin-bottom: 10px; border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); border: 0.5px solid var(--glass-border); text-align: right; }
 .calc-expr { min-height: 1.3em; font-size: 0.9rem; color: var(--text-2); overflow-x: auto; white-space: nowrap; }
 .calc-value { font-size: 2.4rem; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; overflow-x: auto; white-space: nowrap; }

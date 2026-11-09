@@ -6,8 +6,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useUI } from '@/stores/ui';
 import { useSettings } from '@/stores/settings';
 import { Sheet } from '@/ui/Sheet';
-import { NewMark } from '@/ui/NewMark';
-import { FEATURE_RELEASE } from '@/release';
 
 export function SnackbarHost() {
   const snack = useUI((s) => s.snack);
@@ -156,18 +154,10 @@ export function UpdatePrompt() {
     if (!offlineReady) return;
     useUI.getState().showSnack({ text: '已可離線使用 ✓' });
   }, [offlineReady]);
-  // 有新版本時，讀伺服器上新版的 /release.json：這批新功能和目前版本不同，就提示「有新功能可用」
-  const [news, setNews] = useState('');
-  useEffect(() => {
-    if (!update) return;
-    fetch('/release.json', { cache: 'no-store' }).then((r) => r.json()).then((j: { featureRelease?: string; headline?: string }) => {
-      if (j.featureRelease && j.featureRelease !== FEATURE_RELEASE) setNews(j.headline || '');
-    }).catch(() => undefined);
-  }, [update]);
   if (!update) return null;
   return (
     <div className="banner" role="alert">
-      <span>{news ? <><NewMark since={FEATURE_RELEASE} /> 有新功能可用：{news}</> : '有新版本，點擊更新'}</span>
+      <span>有新版本，點擊更新（更新後會跳出這次新增的功能說明）</span>
       <button className="btn small" onClick={() => update(true)}>更新</button>
       <button className="btn small secondary" onClick={() => setUpdate(null)}>稍後</button>
     </div>

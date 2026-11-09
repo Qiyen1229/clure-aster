@@ -73,8 +73,8 @@ export default function Onboarding() {
 
       {step === 1 && (
         <>
-          <h1>Aster 最強的 6 招</h1>
-          <p style={{ marginBottom: 12 }}>左右滑動看看。這些之後都能在 App 裡用到。</p>
+          <h1>功能介紹</h1>
+          <p style={{ marginBottom: 12 }}>Aster 最強的 6 招，左右滑動看看。</p>
           <ShowcaseCarousel />
           <div className="grow" />
           <button className="btn" onClick={next}>下一步</button>

@@ -8,6 +8,7 @@
  *  1. 這版有沒有新功能？有的話，在下面的 CANDIDATES 新增一筆（power／novelty 照實打分，不要灌水）。
  *  2. 新功能的分數夠高就會自動擠掉第 6 名，不用手動改名單；不夠高就只留在候選裡，下次還有機會。
  *  3. 把 src/release.json 的 showcaseReviewed 改成這個版本，並在 CHANGELOG 該版寫一行「功能介紹：已檢查，…（有／沒有變動）」。
+ *  4. 更新後跳出的新功能說明視窗另有一份資料：features/whatsnew/releaseNotes.ts，同一版也要新增一筆（測試會檢查）。
  *  功能被拿掉或大改時，同步修改或移除對應的候選。
  */
 import type { IconName } from '@/ui/Icon';
