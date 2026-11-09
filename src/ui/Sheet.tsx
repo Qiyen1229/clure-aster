@@ -42,7 +42,7 @@ export function Sheet({ open, onClose, title, left, right, full, variant, childr
     if (open) { setMounted(true); setClosing(false); }
     else if (mounted) {
       setClosing(true);
-      const t = setTimeout(() => { setMounted(false); setClosing(false); }, 230);
+      const t = setTimeout(() => { setMounted(false); setClosing(false); }, 200);
       return () => clearTimeout(t);
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps

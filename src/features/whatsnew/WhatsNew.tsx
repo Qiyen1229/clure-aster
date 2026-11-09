@@ -4,7 +4,7 @@
  * 每一項最上面是功能標題與「哪一版更新的」，下面是一段介紹與如何使用。看完按「知道了」就記下目前版本，下次更新才會再跳出。
  * 全新安裝（還沒做完首次引導）不跳；更新沒有新功能（只有小修正）就靜默記下版本。
  */
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSettings } from '@/stores/settings';
 import { featuresBetween, type WhatsNewItem } from './releaseNotes';
 
@@ -30,7 +30,7 @@ export function WhatsNewHost() {
   const [page, setPage] = useState(0);
 
   const wrapRef = useRef<HTMLDivElement | null>(null);
-  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const sliderRef = useRef<HTMLDivElement | null>(null);
   const prevFocus = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -63,20 +63,14 @@ export function WhatsNewHost() {
     };
   }, [open]);
 
-  // 阻擋觸控事件穿透至背景：背景遮罩與非滾動區域直接阻止原生捲動
+  // 阻擋觸控事件穿透至背景：點擊在遮罩上時阻止捲動穿透，彈窗內保持 1:1 跟手原生捲動
   useEffect(() => {
     const el = wrapRef.current;
     if (!open || !el) return;
     const onTouchMove = (e: TouchEvent) => {
       const target = e.target as HTMLElement | null;
-      const slide = target?.closest('.whatsnew-slide') as HTMLElement | null;
-      if (!slide) {
-        e.preventDefault();
-        return;
-      }
-      if (slide.scrollHeight <= slide.clientHeight) {
-        e.preventDefault();
-      }
+      if (target?.closest('.whatsnew-modal')) return;
+      e.preventDefault();
     };
     el.addEventListener('touchmove', onTouchMove, { passive: false });
     return () => el.removeEventListener('touchmove', onTouchMove);
@@ -85,19 +79,37 @@ export function WhatsNewHost() {
   const n = state?.items.length ?? 0;
   const isLast = page >= n - 1;
 
+  const goToPage = useCallback((idx: number) => {
+    const target = Math.max(0, Math.min(n - 1, idx));
+    setPage(target);
+    const el = sliderRef.current;
+    if (el) {
+      el.scrollTo({ left: target * el.clientWidth, behavior: 'smooth' });
+    }
+  }, [n]);
+
+  const onScroll = () => {
+    const el = sliderRef.current;
+    if (!el || el.clientWidth === 0) return;
+    const p = Math.round(el.scrollLeft / el.clientWidth);
+    if (p !== page && p >= 0 && p < n) {
+      setPage(p);
+    }
+  };
+
   // 鍵盤左右箭頭換頁
   useEffect(() => {
     if (!open || n <= 1) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight') {
-        setPage((p) => Math.min(n - 1, p + 1));
+        goToPage(page + 1);
       } else if (e.key === 'ArrowLeft') {
-        setPage((p) => Math.max(0, p - 1));
+        goToPage(page - 1);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, n]);
+  }, [open, n, page, goToPage]);
 
   const close = () => {
     setOpen(false);
@@ -105,31 +117,6 @@ export function WhatsNewHost() {
   };
 
   if (!state || !open || n === 0) return null;
-
-  // 觸控手勢：向左滑下一頁、向右滑上一頁
-  const onTouchStart = (e: React.TouchEvent) => {
-    const t = e.touches[0];
-    touchStart.current = { x: t.clientX, y: t.clientY };
-  };
-
-  const onTouchMove = (e: React.TouchEvent) => {
-    e.stopPropagation();
-  };
-
-  const onTouchEnd = (e: React.TouchEvent) => {
-    if (!touchStart.current) return;
-    const t = e.changedTouches[0];
-    const dx = t.clientX - touchStart.current.x;
-    const dy = t.clientY - touchStart.current.y;
-    touchStart.current = null;
-    if (Math.abs(dx) > 36 && Math.abs(dx) > Math.abs(dy) * 1.1) {
-      if (dx < 0) {
-        setPage((p) => Math.min(n - 1, p + 1));
-      } else {
-        setPage((p) => Math.max(0, p - 1));
-      }
-    }
-  };
 
   return (
     <div
@@ -140,12 +127,7 @@ export function WhatsNewHost() {
       aria-labelledby="whatsnew-modal-title"
     >
       <div className="whatsnew-backdrop" aria-hidden="true" />
-      <div
-        className="whatsnew-modal"
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-      >
+      <div className="whatsnew-modal">
         <header className="whatsnew-header">
           <h2 id="whatsnew-modal-title" className="whatsnew-title">✨ 新功能介紹</h2>
           <span className="whatsnew-count">{page + 1} / {n}</span>
@@ -157,11 +139,12 @@ export function WhatsNewHost() {
           </p>
         )}
 
-        <div className="whatsnew-slider">
-          <div
-            className="whatsnew-slides"
-            style={{ transform: `translateX(-${page * 100}%)` }}
-          >
+        <div
+          ref={sliderRef}
+          className="whatsnew-slider"
+          onScroll={onScroll}
+        >
+          <div className="whatsnew-slides">
             {state.items.map((f, i) => (
               <article key={`${f.version}-${f.title}-${i}`} className="whatsnew-slide">
                 <div className="whatsnew-card">
@@ -189,14 +172,10 @@ export function WhatsNewHost() {
                 aria-selected={i === page}
                 aria-label={`${i + 1} / ${n}：${f.title}`}
                 className={i === page ? 'on' : ''}
-                onClick={() => setPage(i)}
+                onClick={() => goToPage(i)}
               />
             ))}
           </div>
-        )}
-
-        {n > 1 && !isLast && (
-          <div className="whatsnew-hint">👈 向左滑動或點擊「下一頁」</div>
         )}
 
         <div className="whatsnew-actions">
@@ -204,7 +183,7 @@ export function WhatsNewHost() {
             <button
               type="button"
               className="btn secondary"
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              onClick={() => goToPage(page - 1)}
             >
               上一頁
             </button>
@@ -221,7 +200,7 @@ export function WhatsNewHost() {
             <button
               type="button"
               className="btn"
-              onClick={() => setPage((p) => Math.min(n - 1, p + 1))}
+              onClick={() => goToPage(page + 1)}
             >
               下一頁
             </button>
