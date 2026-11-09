@@ -129,8 +129,8 @@ export function isScheduled(d: Pick<DraftEntry, 'kind' | 'date' | 'time'>, now =
   return d.time > `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 }
 
-/** 把草稿建成「單次排程」：到那天（那個時間）通知你，在收件匣按一下才入帳；回傳規則 id 供復原 */
-export async function scheduleDrafts(list: ResolvedDraft[]): Promise<string[]> {
+/** 把草稿建成「單次排程」：到那天（那個時間）通知你；預設在收件匣按一下才入帳，auto=true 則到時候由 App 直接記下（要開啟 App 才會寫入）；回傳規則 id 供復原 */
+export async function scheduleDrafts(list: ResolvedDraft[], opts: { auto?: boolean } = {}): Promise<string[]> {
   const { saveRecurring } = await import('@/db/repo/plan');
   const accounts = new Map((await db.accounts.toArray()).map((a) => [a.id, a]));
   const ids: string[] = [];
@@ -141,7 +141,7 @@ export async function scheduleDrafts(list: ResolvedDraft[]): Promise<string[]> {
     const cat = d.categoryId ? await db.categories.get(d.categoryId) : undefined;
     const currency = d.currency ?? acc.currency;
     ids.push(await saveRecurring({
-      kind: 'normal', name: (d.note || cat?.name || '排程記帳').slice(0, 30), mode: 'confirm', remindDaysBefore: 0, active: 1,
+      kind: 'normal', name: (d.note || cat?.name || '排程記帳').slice(0, 30), mode: opts.auto ? 'auto' : 'confirm', remindDaysBefore: 0, active: 1,
       startDate: d.date, rule: { freq: 'day', interval: 1, count: 1 }, ...(d.time ? { at: d.time } : {}),
       template: { type: d.kind, accountId: acc.id, categoryId: d.categoryId, amountMinor: toMinor(d.amount, currency), currency, note: d.note, tagIds: d.tagIds },
     }));

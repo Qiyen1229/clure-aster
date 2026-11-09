@@ -35,11 +35,19 @@ describe('對話框分流（AI 開啟）', () => {
     expect(r).toMatchObject({ kind: 'text', text: '嗨！' });
   });
 
-  it.each(['分析我的錢包', '我的中國信託有多少錢', '中國信託', '幫我檢討一下我的財務'])('★ 問到自己的錢才走「問 AI」：%s', async (t) => {
+  it.each(['分析我的錢包', '中國信託', '幫我檢討一下我的財務'])('★ 問到自己的錢才走「問 AI」：%s', async (t) => {
     const r = await respond(t);
     expect(ask).toHaveBeenCalledTimes(1);
     expect(chat).not.toHaveBeenCalled();
     expect(r).toMatchObject({ kind: 'text' });
+  });
+
+  it('★ 問帳戶餘額：本機直接回答，不用 AI、不扣額度', async () => {
+    const r = await respond('我的中國信託有多少錢');
+    expect(ask).not.toHaveBeenCalled();
+    expect(chat).not.toHaveBeenCalled();
+    expect(r).toMatchObject({ kind: 'text' });
+    if (r.kind === 'text') expect(r.text).toContain('中國信託');
   });
 
   it('記帳仍然優先，不會被當成閒聊', async () => {

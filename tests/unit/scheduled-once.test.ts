@@ -82,8 +82,8 @@ describe('建立單次排程 → 到期 → 通知 → 確認入帳', () => {
   it('排了時間的，當天還沒到那個時間就先不出現在收件匣、也不通知', async () => {
     const [rid] = await scheduleDrafts([await resolveDraft({ kind: 'expense', amount: 200, date: todayKey(), dateGiven: true, time: '23:59', note: '午餐', raw: '', categoryId: 'exp-food-lunch' }, accountId)]);
     await processRecurring(todayKey());
-    expect((await db.recurring_rules.get(rid))!.pendingDates).toEqual([todayKey()]);
     if (new Date().toTimeString().slice(0, 5) < '23:59') {
+      expect((await db.recurring_rules.get(rid))!.pendingDates).toEqual([]); // 還沒到時間，連待確認都還沒產生
       expect((await loadForecast()).rules.filter((x) => x.rule.id === rid)).toHaveLength(0);
       await runReminderChecks();
       expect((await db.reminders.toArray()).filter((x) => x.id.includes(`once:${rid}`))).toHaveLength(0);

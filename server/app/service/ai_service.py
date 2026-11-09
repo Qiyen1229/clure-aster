@@ -29,6 +29,13 @@ from app.service.audit_service import AuditService
 from app.service.errors import ServiceError
 
 CHAT_PER_HOUR = 40
+
+
+def _history(body: object) -> dict:
+    """前面幾句對話（最多 8 句、每句 400 字）。使用者的文字只當資料。"""
+    h = getattr(body, "history", None) or []
+    return {"對話紀錄": [{"誰": "使用者" if x.role == "user" else "助手", "說": x.text} for x in h]} if h else {}
+
 log = logging.getLogger("aster.ai")
 
 MAX_ENTRIES = 8
@@ -113,7 +120,7 @@ class AiService:
         return ParseEntryResult(entries=entries, quota=self._quota(user))  # type: ignore[arg-type]
 
     def ask(self, user: User, body: AskRequest) -> AskResult:
-        msg = ai_tasks.dumps({"問題": body.question, "摘要": body.summary})
+        msg = ai_tasks.dumps({"問題": body.question, "摘要": body.summary, **_history(body)})
         r = ai_tasks.run_task(self.db, user, "ask", ai_tasks.ASK, msg, ai_tasks.v_ask, fail_message="AI 沒能回答這個問題，請換個說法")
         return AskResult(**r, quota=self._quota(user))  # type: ignore[arg-type]
 
@@ -126,7 +133,7 @@ class AiService:
 
     def chat(self, user: User, body: ChatRequest) -> AskResult:
         self._chat_guard(user.id)
-        r = ai_tasks.run_task(self.db, user, "chat", ai_tasks.CHAT, ai_tasks.dumps({"使用者說": body.question}), ai_tasks.v_ask, fail_message="AI 沒能回答，請換個說法")
+        r = ai_tasks.run_task(self.db, user, "chat", ai_tasks.CHAT, ai_tasks.dumps({"使用者說": body.question, **_history(body)}), ai_tasks.v_ask, fail_message="AI 沒能回答，請換個說法")
         return AskResult(**r, quota=self._quota(user))  # type: ignore[arg-type]
 
     def chat_sse(self, user_id: int, body: ChatRequest) -> Iterator[str]:
@@ -135,11 +142,11 @@ class AiService:
             self._chat_guard(user_id)
         except ServiceError as e:
             return iter([f"event: error\ndata: {json.dumps({'status': e.status_code, 'detail': e.message}, ensure_ascii=False)}\n\n"])
-        return self._sse(user_id, "chat", ai_tasks.CHAT, ai_tasks.dumps({"使用者說": body.question}), ai_tasks.v_ask, "answer", "AI 沒能回答，請換個說法")
+        return self._sse(user_id, "chat", ai_tasks.CHAT, ai_tasks.dumps({"使用者說": body.question, **_history(body)}), ai_tasks.v_ask, "answer", "AI 沒能回答，請換個說法")
 
     def ask_sse(self, user_id: int, body: AskRequest) -> Iterator[str]:
         """問 AI 的串流版（SSE）：回答一邊生成一邊傳給前端，不用等整段寫完。"""
-        msg = ai_tasks.dumps({"問題": body.question, "摘要": body.summary})
+        msg = ai_tasks.dumps({"問題": body.question, "摘要": body.summary, **_history(body)})
         return self._sse(user_id, "ask", ai_tasks.ASK, msg, ai_tasks.v_ask, "answer", "AI 沒能回答這個問題，請換個說法")
 
     def agent_plan_sse(self, user_id: int, body: AgentPlanRequest) -> Iterator[str]:

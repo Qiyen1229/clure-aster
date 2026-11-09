@@ -5,7 +5,9 @@
  * 並在「記憶體裡的工作副本」上依序模擬每一步（後面的步驟看得到前面步驟的結果），算出影響預覽
  * （受影響筆數、預算變化、帳戶餘額是否變動）。使用者確認後，才由 services/agent.ts 把同樣的操作真的寫入。
  *
- * 安全：工具白名單；每個工具的參數都重新驗證；一次最多改 MAX_AFFECTED 筆帳目；沒有任何工具會刪帳目。
+ * 安全：工具白名單；每個工具的參數都重新驗證；一次最多改 MAX_AFFECTED 筆帳目。
+ * v4.1.12：新增 edit_transaction（改單筆帳目）與 delete_transaction（刪帳目）。刪除是軟刪除、整包可一鍵還原，一次最多 MAX_DELETE 筆；
+ * 改金額／帳戶／日期必須明確指到「一筆」（符合多筆就擋下，請使用者說得更具體），不會把一堆帳目改成同一個金額。
  * v4.1.0 起動作圖譜擴大到「記帳、轉帳（含還款）、結清欠款、存入目標、買進股票」，預覽會在帳戶餘額的工作副本上依序模擬
  * （後面的步驟看得到前面步驟的結果），並以 show_view 步驟指定要在對話裡嵌入哪張檢視卡（財務自由、稅務、現金流、花費）。
  * 這幾個會動到帳戶的工具目前只支援主幣別帳戶（外幣需要匯率，請用記帳面板）。
@@ -22,9 +24,11 @@ import Decimal from 'decimal.js';
 
 export const MAX_AFFECTED = 500;
 export const MAX_STEPS = 8;
+/** 一次最多刪幾筆帳目 */
+export const MAX_DELETE = 20;
 
 export type ToolName = 'reclassify' | 'set_budget' | 'add_recurring' | 'prepayment_sim' | 'add_goal' | 'add_rule'
-  | 'add_transaction' | 'transfer' | 'settle_debt' | 'goal_deposit' | 'buy_stock' | 'sell_stock' | 'show_view';
+  | 'add_transaction' | 'transfer' | 'settle_debt' | 'goal_deposit' | 'buy_stock' | 'sell_stock' | 'show_view' | 'edit_transaction' | 'delete_transaction';
 /** 對話裡可以嵌入的檢視卡 */
 export type ViewKind = 'fire' | 'tax' | 'cashflow' | 'spending';
 export const VIEW_KINDS: ViewKind[] = ['fire', 'tax', 'cashflow', 'spending'];
@@ -36,6 +40,8 @@ export type Op =
   | { kind: 'recat'; ids: string[]; categoryId: string }
   | { kind: 'budget'; id?: string; input: Omit<Budget, 'id' | 'createdAt' | 'updatedAt'> }
   | { kind: 'recurring'; input: Omit<RecurringRule, 'id' | 'createdAt' | 'updatedAt' | 'nextDue' | 'doneCount' | 'pendingDates'> }
+  | { kind: 'tx_edit'; id: string; set: { amountMinor?: number; categoryId?: string; accountId?: string; note?: string; date?: string } }
+  | { kind: 'tx_delete'; ids: string[] }
   | { kind: 'goal'; input: Omit<Goal, 'id' | 'createdAt' | 'updatedAt'> }
   | { kind: 'rule'; input: Omit<CategoryRule, 'id' | 'createdAt' | 'updatedAt' | 'hits'> }
   | { kind: 'tx'; input: { type: 'expense' | 'income'; accountId: string; categoryId: string; amountMinor: number; currency: string; date: string; note: string } }
@@ -564,6 +570,126 @@ function tradeStockTool(side: 'buy' | 'sell', a: Record<string, unknown>, d: Age
   };
 }
 
+// ───────────── 改單筆／刪帳目（v4.1.12） ─────────────
+
+/** 找出符合 match 條件的帳目：latest=true 取「最近記的那一筆」（依建立時間，所以補記舊日期的帳也算剛剛那筆） */
+function matchTxs(m: Record<string, unknown>, d: AgentData, work: Transaction[]): { hits: Transaction[]; label: string; err?: string } {
+  const catMap = new Map(d.categories.map((c) => [c.id, c]));
+  const kws = (Array.isArray(m.keywords) ? m.keywords : []).map((k) => str(k).toLowerCase()).filter(Boolean).slice(0, 4);
+  const cat = str(m.category) ? findCategory(d.categories, str(m.category)) : undefined;
+  const acc = str(m.account) ? findAccount(d.accounts, str(m.account)) : undefined;
+  const ds = dateOrNull(m.date_start), de = dateOrNull(m.date_end);
+  const amount = num(m.amount);
+  const latest = m.latest === true;
+  const type = m.type === 'income' || m.type === 'expense' ? m.type : undefined;
+  if (str(m.category) && !cat) return { hits: [], label: '', err: `找不到分類「${str(m.category)}」` };
+  if (str(m.account) && !acc) return { hits: [], label: '', err: `找不到帳戶「${str(m.account)}」` };
+  if (!kws.length && !cat && !acc && !ds && !de && !(amount > 0) && !latest) return { hits: [], label: '', err: '沒有任何篩選條件，請說明是哪一筆（例如「昨天的午餐」「剛剛那筆」）' };
+  let hits = work.filter((t) =>
+    !t.deletedAt && !t.transferId && !t.stockTradeId && !t.dividendId && !t.categoryId.startsWith('sys-') && (t.type === 'expense' || t.type === 'income') &&
+    (!type || t.type === type) && (!ds || t.date >= ds) && (!de || t.date <= de) && (!acc || t.accountId === acc.id) &&
+    (!cat || t.categoryId === cat.id || catMap.get(t.categoryId)?.parentId === cat.id) &&
+    (!(amount > 0) || Math.abs(t.amountMinor - minorOf(amount, t.currency)) < 1) &&
+    (!kws.length || kws.some((k) => `${t.note} ${t.merchant ?? ''} ${catMap.get(t.categoryId)?.name ?? ''}`.toLowerCase().includes(k))));
+  if (latest && hits.length) hits = [hits.reduce((a, b) => (b.createdAt > a.createdAt || (b.createdAt === a.createdAt && b.ts > a.ts) ? b : a))];
+  const label = [latest ? '最近記的一筆' : '', kws.join('、'), cat ? `「${cat.name}」` : '', acc ? `帳戶「${acc.name}」` : '', ds || de ? `${ds ?? ''}～${de ?? ''}` : '', amount > 0 ? `金額 ${amount}` : ''].filter(Boolean).join('、');
+  return { hits, label };
+}
+
+const sampleOf = (t: Transaction, catMap: Map<string, Category>) => ({ date: t.date, note: t.note || t.merchant || '（無備註）', amountMinor: statAmount(t), from: catMap.get(t.categoryId)?.name ?? '其他' });
+
+function editTxTool(a: Record<string, unknown>, d: AgentData, work: Transaction[]): ResolvedStep {
+  const blocked = (why: string): ResolvedStep => ({ op: null, preview: { tool: 'edit_transaction', title: '修改帳目', lines: [], warnings: [], blocked: why } });
+  const m = (a.match && typeof a.match === 'object' ? a.match : {}) as Record<string, unknown>;
+  const s = (a.set && typeof a.set === 'object' ? a.set : {}) as Record<string, unknown>;
+  const { hits, label, err } = matchTxs(m, d, work);
+  if (err) return blocked(err);
+  if (!hits.length) return blocked(`找不到符合條件的帳目（${label}）。候選範圍是最近一年`);
+  const catMap = new Map(d.categories.map((c) => [c.id, c]));
+  const t = hits[0];
+  const set: Extract<Op, { kind: 'tx_edit' }>['set'] = {};
+  const lines: string[] = [];
+  const cur = d.baseCurrency;
+  const newAmount = num(s.amount);
+  if (s.amount !== undefined && s.amount !== null) {
+    if (!(newAmount > 0)) return blocked('金額必須大於 0');
+    set.amountMinor = minorOf(newAmount, t.currency);
+  }
+  if (str(s.category)) {
+    const c = findCategory(d.categories, str(s.category), t.type === 'income' ? 'income' : 'expense');
+    if (!c) return blocked(`找不到${t.type === 'income' ? '收入' : '支出'}分類「${str(s.category)}」`);
+    set.categoryId = c.id;
+  }
+  if (str(s.account)) {
+    const ac = findAccount(d.accounts, str(s.account));
+    if (!ac) return blocked(`找不到帳戶「${str(s.account)}」`);
+    set.accountId = ac.id;
+  }
+  if (typeof s.note === 'string') set.note = s.note.trim().slice(0, 60);
+  if (s.date !== undefined && s.date !== null) {
+    const nd = dateOrNull(s.date);
+    if (!nd) return blocked('日期格式不正確');
+    set.date = nd;
+  }
+  if (!Object.keys(set).length) return blocked('沒有要修改的內容');
+  const needsOne = set.amountMinor !== undefined || set.accountId !== undefined || set.date !== undefined;
+  if (hits.length > 1 && needsOne) return blocked(`符合條件的帳目有 ${hits.length} 筆，改金額、帳戶或日期必須明確指到一筆（例如說出日期或金額，或說「剛剛那筆」）`);
+  if (hits.length > MAX_AFFECTED) return blocked(`符合的帳目有 ${hits.length} 筆，超過上限 ${MAX_AFFECTED} 筆`);
+  if (needsOne) {
+    if (t.split || t.installmentId) return blocked('這筆是分帳或分期帳目，金額、帳戶、日期請到帳目詳情修改');
+    const acc = d.accounts.find((x) => x.id === (set.accountId ?? t.accountId));
+    if ((set.amountMinor !== undefined || set.accountId !== undefined) && acc && acc.currency !== t.currency) return blocked('外幣帳目的金額、帳戶請用記帳面板修改（需要匯率）');
+  }
+  // 預覽（逐筆只示範第一筆；多筆時只有分類或備註會改）
+  const pieces: string[] = [];
+  if (set.amountMinor !== undefined) pieces.push(`金額 ${fmt(t.amountMinor, t.currency)} → ${fmt(set.amountMinor, t.currency)}`);
+  if (set.categoryId) pieces.push(`分類「${catMap.get(t.categoryId)?.name ?? '其他'}」→「${catMap.get(set.categoryId)?.name}」`);
+  if (set.accountId) pieces.push(`帳戶「${d.accounts.find((x) => x.id === t.accountId)?.name ?? ''}」→「${d.accounts.find((x) => x.id === set.accountId)?.name}」`);
+  if (set.note !== undefined) pieces.push(`備註「${t.note}」→「${set.note}」`);
+  if (set.date) pieces.push(`日期 ${t.date} → ${set.date}`);
+  lines.push(`符合條件：${label}`, `共 ${hits.length} 筆`, ...pieces);
+  const delta = (set.amountMinor !== undefined ? set.amountMinor - t.amountMinor : 0) * (t.type === 'income' ? 1 : -1);
+  lines.push(set.amountMinor !== undefined || set.accountId ? `帳戶餘額：${delta >= 0 ? '增加' : '減少'} ${fmt(Math.abs(delta), cur)}（${set.accountId ? '兩個帳戶都會跟著調整' : '依新金額重算'}）` : '帳戶餘額：不受影響');
+  const ids = new Set(hits.map((x) => x.id));
+  for (const w of work) {
+    if (!ids.has(w.id)) continue;
+    if (set.amountMinor !== undefined) { w.amountMinor = set.amountMinor; w.accountAmountMinor = set.amountMinor; w.baseAmountMinor = w.currency === cur ? set.amountMinor : w.baseAmountMinor; }
+    if (set.categoryId) w.categoryId = set.categoryId;
+    if (set.accountId) w.accountId = set.accountId;
+    if (set.note !== undefined) w.note = set.note;
+    if (set.date) w.date = set.date;
+  }
+  const ops: Op[] = hits.map((x) => ({ kind: 'tx_edit', id: x.id, set }));
+  return {
+    op: null, ops,
+    preview: { tool: 'edit_transaction', title: hits.length === 1 ? `修改帳目：${t.note || t.merchant || catMap.get(t.categoryId)?.name || ''} ${fmt(t.amountMinor, t.currency)}` : `修改 ${hits.length} 筆帳目`, lines,
+      samples: hits.slice(0, 5).map((x) => sampleOf(x, catMap)), warnings: hits.length > 1 ? [`會一次改 ${hits.length} 筆`] : [], affectedTx: hits.length },
+  };
+}
+
+function deleteTxTool(a: Record<string, unknown>, d: AgentData, work: Transaction[]): ResolvedStep {
+  const blocked = (why: string): ResolvedStep => ({ op: null, preview: { tool: 'delete_transaction', title: '刪除帳目', lines: [], warnings: [], blocked: why } });
+  const m = (a.match && typeof a.match === 'object' ? a.match : {}) as Record<string, unknown>;
+  const { hits, label, err } = matchTxs(m, d, work);
+  if (err) return blocked(err);
+  if (!hits.length) return blocked(`找不到符合條件的帳目（${label}）。候選範圍是最近一年`);
+  if (hits.length > MAX_DELETE) return blocked(`符合的帳目有 ${hits.length} 筆，一次最多刪 ${MAX_DELETE} 筆，請縮小範圍（例如指定日期）`);
+  const catMap = new Map(d.categories.map((c) => [c.id, c]));
+  const cur = d.baseCurrency;
+  const total = hits.reduce((s, t) => s + statAmount(t), 0);
+  const lines = [`符合條件：${label}`, `共 ${hits.length} 筆，合計 ${fmt(total, cur)}`,
+    ...hits.slice(0, 8).map((t) => `${t.date}　${t.note || t.merchant || catMap.get(t.categoryId)?.name || ''}　${t.type === 'income' ? '＋' : '－'}${fmt(t.amountMinor, t.currency)}`),
+    ...(hits.length > 8 ? [`…還有 ${hits.length - 8} 筆`] : []),
+    '帳戶餘額：會把這些帳目的影響退回去', '這是軟刪除：執行後可以按「還原」全部救回來'];
+  const ids = new Set(hits.map((x) => x.id));
+  for (const w of work) if (ids.has(w.id)) w.deletedAt = Date.now();
+  return {
+    op: { kind: 'tx_delete', ids: hits.map((x) => x.id) },
+    preview: { tool: 'delete_transaction', title: hits.length === 1 ? `刪除帳目：${hits[0].note || hits[0].merchant || catMap.get(hits[0].categoryId)?.name || ''} ${fmt(hits[0].amountMinor, hits[0].currency)}` : `刪除 ${hits.length} 筆帳目`,
+      lines, samples: hits.slice(0, 5).map((x) => sampleOf(x, catMap)), warnings: hits.length > 1 ? [`會一次刪 ${hits.length} 筆，請確認清單`] : [], affectedTx: hits.length },
+  };
+}
+
 function showViewTool(a: Record<string, unknown>): ResolvedStep {
   const kind = VIEW_KINDS.find((k) => k === a.view);
   if (!kind) return blockedStep('show_view', '顯示檢視', `不支援的檢視「${str(a.view).slice(0, 20)}」`);
@@ -609,6 +735,8 @@ export function resolvePlan(steps: RawStep[], data: AgentData): ResolvedStep[] {
     else if (s.tool === 'buy_stock') out.push(tradeStockTool('buy', a, data, W));
     else if (s.tool === 'sell_stock') out.push(tradeStockTool('sell', a, data, W));
     else if (s.tool === 'show_view') out.push(showViewTool(a));
+    else if (s.tool === 'edit_transaction') out.push(editTxTool(a, data, work));
+    else if (s.tool === 'delete_transaction') out.push(deleteTxTool(a, data, work));
     else out.push({ op: null, preview: { tool: 'reclassify', title: '不支援的操作', lines: [], warnings: [], blocked: `不支援的操作「${String(s.tool).slice(0, 20)}」` } });
   }
   return out;

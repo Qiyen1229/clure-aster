@@ -3,6 +3,7 @@
  */
 import { create } from 'zustand';
 import type { ResolvedDraft } from '@/services/quickentry';
+import type { NlQuery } from '@/domain/nlquery';
 import type { RawStep, ResolvedStep, ViewSpec } from '@/domain/agent/plan';
 
 /** 預算規劃的一句話（預算頁按鈕、舊連結 /ai?tool=budget 共用） */
@@ -32,6 +33,9 @@ interface ChatState {
   ask: (text: string) => void;
   patch: (id: number, p: Partial<Msg>) => void;
   clear: () => void;
+  /** 這次對話最近一次的查帳條件（追問「那上個月呢」用）與最近記下的草稿（「再來一杯」用）；開新對話就清掉 */
+  lastQuery?: NlQuery;
+  lastBooked?: ResolvedDraft[];
 }
 export let seq = 0;
 export const nextSeq = () => ++seq;
@@ -42,7 +46,7 @@ export const useChat = create<ChatState>((set) => ({
   pending: null,
   ask: (text) => set({ open: true, pending: text.slice(0, 300) }),
   patch: (id, p) => set((s) => ({ msgs: s.msgs.map((m) => (m.id === id ? ({ ...m, ...p } as Msg) : m)) })),
-  clear: () => set({ msgs: [] }),
+  clear: () => set({ msgs: [], lastQuery: undefined, lastBooked: undefined }),
 }));
 
 

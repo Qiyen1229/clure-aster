@@ -13,11 +13,14 @@ import { db } from '@/db/schema';
 import { isQuestion, looksLikeAiQuestion } from '@/domain/nlquery';
 import { isAggregationQuestion } from '@/domain/search';
 import { formatMoney } from '@/domain/money';
-import { localView, looksLikeOperation } from '@/domain/agent/intent';
+import { localEditPlan, localView, looksLikeOperation } from '@/domain/agent/intent';
+import type { NlQuery } from '@/domain/nlquery';
+import { todayKey } from '@/domain/period';
+import { accountTalk, budgetTalk } from '@/services/localTalk';
 import { currentScreen, useScreen } from '@/stores/screenContext';
 import { ViewBubble } from '../ai/views/ViewBubble';
-import { aiDataEnabled, aiAsk, aiChatTalk, aiEnabledLocally, aiReceipt, quotaLabel } from '@/services/ai';
-import { ask } from '@/services/nlquery';
+import { aiDataEnabled, aiAsk, aiChatTalk, aiEnabledLocally, aiReceipt, quotaLabel, type ChatTurn } from '@/services/ai';
+import { ask, followUp } from '@/services/nlquery';
 import { bookDrafts, draftsFromText, draftsSmart, fallbackAccount, isScheduled, resolveDraft, scheduleDrafts, type ResolvedDraft } from '@/services/quickentry';
 import { useSettings } from '@/stores/settings';
 import { askConfirm, snackUndo, useUI } from '@/stores/ui';
@@ -33,18 +36,42 @@ import { nextSeq, useChat, type Msg, type Reply } from './aiChatStore';
 const HAS_AMOUNT_HINT = /\d|[一二兩三四五六七八九十百千萬]/;
 /** 在問「我的錢」（要看收支摘要才答得出來）：這類走「問 AI」（扣 1 點）；其餘一般對話走閒聊（不扣額度） */
 const WANTS_DATA = /錢包|帳戶|餘額|資產|負債|淨值|存款|多少錢|有多少|花費|花了|開銷|支出|收入|預算|儲蓄|存錢|薪水|信用卡|銀行|現金|分析|檢討|財務|理財/;
+/** 「怎麼…？」這類請教的問句，提到自己（我、預算、存、花、貸款…）才需要看他的收支；純知識問題走閒聊 */
+const PERSONAL = /我|自己|預算|存|花|錢|貸款|房貸|薪|收入|支出|儲蓄|投資|退休|負擔|買得起|這個月|最近/;
 const isDataTalk = (t: string, accountNames: string[]) => WANTS_DATA.test(t) || accountNames.some((n) => n && t.includes(n));
+/** 「再來一杯」「同樣再記一筆」「同上」：照最近記下的那一筆（或幾筆）再記一次，日期改成今天 */
+const REPEAT_RE = /^(再|又)(來|記|買|喝|吃)?(一|1)?(杯|筆|份|個|次|碗|瓶|包|盒|罐)(一樣的?)?$|^(同樣|一樣)的?(再)?(記|來)?(一筆|一次)?$|^同上$/;
 
-/** 規則優先 → 規則查帳 → AI 問答 → AI 解析記帳 → 說明怎麼開啟 */
-export async function respond(text: string, screen?: string, onPartial?: (text: string) => void): Promise<Reply> {
+/** 這次對話前面的幾句（只有文字）：交給 AI 讓它聽得懂「那」「剛剛那個」；不含記帳卡、檢視卡，開新對話就清空 */
+export function chatHistory(msgs: Msg[]): ChatTurn[] {
+  return msgs
+    .flatMap((m): ChatTurn[] => (m.role === 'user' ? [{ role: 'user', text: m.text }] : m.kind === 'text' && !m.streaming && m.text ? [{ role: 'ai', text: m.text }] : []))
+    .slice(-8).map((x) => ({ role: x.role, text: x.text.slice(0, 400) }));
+}
+export interface ChatCtx { history?: ChatTurn[]; lastQuery?: NlQuery; lastBooked?: ResolvedDraft[] }
+
+/** 本機規則 → 本機查帳與追問 → 問 AI（看你的收支，扣 1 點）→ 閒聊（一般問題，不扣額度）→ 說明怎麼開啟 */
+export async function respond(text: string, screen?: string, onPartial?: (text: string) => void, ctx: ChatCtx = {}): Promise<Reply> {
   const t = text.trim();
   const asking = isQuestion(t) || looksLikeAiQuestion(t);
+  const history = ctx.history ?? [];
 
   // 對話即介面：「財務自由」「現金流」「如果 55 歲退休」這類短句直接在對話裡出檢視卡（本機運算，不用 AI）
   const view = localView(t);
   if (view) return { role: 'ai', kind: 'view', view };
 
-  // 要整理帳本（批次改分類、設預算、建週期、提前還款）：交給操作助手——先預覽影響、你確認才執行、可一鍵還原
+  // 修改／刪除「剛剛那筆」：本機就看得懂，不用 AI——直接進操作助手的預覽（確認才執行、可一鍵還原）
+  const quick = localEditPlan(t);
+  if (quick) {
+    try {
+      const { previewPlan } = await import('@/services/agent');
+      return { role: 'ai', kind: 'agent', summary: quick.summary, steps: await previewPlan(quick.steps), raw: quick.steps, quota: '本機規劃，不扣額度' };
+    } catch (e) {
+      return { role: 'ai', kind: 'text', text: (e as Error).message };
+    }
+  }
+
+  // 要整理帳本（批次改分類、設預算、建週期、提前還款、改／刪帳目）：交給操作助手——先預覽影響、你確認才執行、可一鍵還原
   if (looksLikeOperation(t)) {
     if (!aiEnabledLocally()) return { role: 'ai', kind: 'text', text: '整理帳本的操作需要開啟 AI（它只負責規劃，執行前一定先給你預覽）。', link: { label: '前往 AI 設定', to: '/settings/ai' } };
     // 直接在對話裡規劃並預覽：確認執行、一鍵還原都在這個泡泡完成（AI 只規劃；預覽與執行在本機）
@@ -57,6 +84,25 @@ export async function respond(text: string, screen?: string, onPartial?: (text: 
     }
   }
 
+  // 「再來一杯」：照最近記下的那一筆再記一次（今天），一樣先給草稿卡讓你確認
+  if (ctx.lastBooked?.length && REPEAT_RE.test(t.replace(/\s/g, ''))) {
+    const today = todayKey();
+    return { role: 'ai', kind: 'entries', drafts: ctx.lastBooked.map((d) => ({ ...d, date: today, dateGiven: false, time: undefined })), via: 'rule', sub: '照上一筆再記一次，日期是今天' };
+  }
+
+  // 帳戶餘額、預算：App 裡本來就有精確數字，本機直接回答（不用 AI、不扣額度）
+  const local = (await accountTalk(t).catch(() => null)) ?? (await budgetTalk(t).catch(() => null));
+  if (local) return { role: 'ai', kind: 'text', text: local.text, sub: local.sub, link: local.link };
+
+  // 接續上一個查詢的追問：「那上個月呢」「只看信用卡」「跟上個月比」（本機運算）
+  if (ctx.lastQuery) {
+    const f = await followUp(t, ctx.lastQuery).catch(() => null);
+    if (f) {
+      useChat.setState({ lastQuery: f.fu.query });
+      return { role: 'ai', kind: 'text', text: f.answer.answer, sub: f.answer.detail, link: f.answer.items.length ? { label: `查看符合的 ${f.answer.items.length} 筆帳目`, to: `/search?q=${encodeURIComponent(t)}` } : undefined };
+    }
+  }
+
   // 先當記帳：「昨天午餐 150」這類說法帶有日期詞，isQuestion 會誤判成查帳，所以只要有金額、又不是統計問法（多少、幾次、最大…）就先試著記帳
   if (!isAggregationQuestion(t) && !looksLikeAiQuestion(t)) {
     const drafts = await draftsFromText(t).catch(() => []);
@@ -64,40 +110,45 @@ export async function respond(text: string, screen?: string, onPartial?: (text: 
   }
   if (isQuestion(t)) {
     const a = await ask(t).catch(() => null);
+    if (a) useChat.setState({ lastQuery: a.query });
     // 規則查到 0 筆、而且 AI 可以回答時，交給 AI（例如「這個月哪裡花太多？」會被規則誤認成關鍵字「太多」）
     if (a && (a.items.length > 0 || !aiDataEnabled())) return { role: 'ai', kind: 'text', text: a.answer, sub: a.detail, link: a.items.length ? { label: `查看符合的 ${a.items.length} 筆帳目`, to: `/search?q=${encodeURIComponent(t)}` } : undefined };
   }
-  // 問到自己的錢（問句、分析、帳戶餘額…）→ 問 AI（會送去識別化的統計、扣 1 點）；打招呼、閒聊、一般問題 → 閒聊（不送帳務資料、不扣額度）
+  // 問到自己的錢（統計問句、分析、帳戶…）→ 問 AI（會送去識別化的統計、扣 1 點）；打招呼、閒聊、一般知識 → 閒聊（不送帳務資料、不扣額度）
   const accountNames = asking || !HAS_AMOUNT_HINT.test(t) ? (await db.accounts.toArray().catch(() => [])).map((a) => a.name) : [];
-  const dataTalk = asking || isDataTalk(t, accountNames);
+  const dataTalk = isQuestion(t) || isDataTalk(t, accountNames) || (looksLikeAiQuestion(t) && PERSONAL.test(t));
   if (dataTalk && aiDataEnabled()) {
     try {
-      const r = await aiAsk(t, screen, onPartial);
+      const r = await aiAsk(t, screen, onPartial, history);
       return { role: 'ai', kind: 'text', text: r.value.answer, followups: r.value.followups, sub: `${r.cached ? '使用先前的回答（未扣額度）' : r.quota ? quotaLabel(r.quota) : ''}　AI 的回答僅供參考` };
     } catch (e) {
       return { role: 'ai', kind: 'text', text: (e as Error).message };
     }
   }
-  if (!dataTalk && aiEnabledLocally() && HAS_AMOUNT_HINT.test(t)) {
+  if (!dataTalk && aiEnabledLocally() && HAS_AMOUNT_HINT.test(t) && !looksLikeAiQuestion(t)) {
     const r = await draftsSmart(t);
     if (r.list.length) return { role: 'ai', kind: 'entries', drafts: r.list, via: r.usedAi ? 'ai' : 'rule', sub: r.quotaText };
     if (r.aiNote) return { role: 'ai', kind: 'text', text: `我看不懂這句話。${r.aiNote}` };
   }
-  if (!dataTalk && aiEnabledLocally()) {
+  if (aiEnabledLocally()) {
+    // 其餘一律盡量回答（閒聊不扣額度）；問到自己的錢但沒開「允許分析收支統計」時，照樣回答一般性的部分，並明說看不到他的資料
     try {
-      const r = await aiChatTalk(t, onPartial);
-      return { role: 'ai', kind: 'text', text: r.answer, followups: r.followups, sub: '一般對話不扣額度　AI 的回答僅供參考' };
+      const r = await aiChatTalk(t, onPartial, history);
+      return {
+        role: 'ai', kind: 'text', text: r.answer, followups: r.followups,
+        sub: dataTalk ? '我現在看不到你的收支（沒有開啟「允許 AI 分析收支統計」），所以只能一般性地回答。開啟後我就能根據你的實際數字回答。' : '一般對話不扣額度　AI 的回答僅供參考',
+        link: dataTalk ? { label: '前往 AI 設定', to: '/settings/ai' } : undefined,
+      };
     } catch (e) {
       return { role: 'ai', kind: 'text', text: (e as Error).message };
     }
   }
-  const ai = useSettings.getState().ai;
   return {
     role: 'ai', kind: 'text',
     text: asking || dataTalk
       ? '這個問題我用規則回答不了。到「設定 → AI 助理」開啟 AI 並允許分析收支統計，就可以問更複雜的問題。'
-      : '我沒有聽出金額。可以試試「午餐 120」「昨天計程車兩百三」，或問「上個月吃飯花多少」。' + (ai?.enabled ? '' : '開啟 AI 後也能請 AI 解析更口語的說法。'),
-    link: asking || dataTalk ? { label: '前往 AI 設定', to: '/settings/ai' } : undefined,
+      : '我沒有聽出金額。可以試試「午餐 120」「昨天計程車兩百三」，或問「上個月吃飯花多少」。開啟 AI 後也能聊天、問更複雜的問題。',
+    link: { label: '前往 AI 設定', to: '/settings/ai' },
   };
 }
 
@@ -111,7 +162,7 @@ async function send(text: string, opts: { open?: boolean } = {}) {
     // 「📍 目前畫面」：使用者沒有按掉、而且這句話會送去 AI 時才附上（記帳與規則查帳是本機處理，用不到）
     // 問 AI 的回答是串流的：文字一生出來就顯示在這個泡泡裡（尾端有游標），寫完再換成完整結果（含建議追問與額度）
     const onPartial = (partial: string) => useChat.getState().patch(pending, { role: 'ai', kind: 'text', text: partial, streaming: true } as Partial<Msg>);
-    const r = await respond(t, st.attach && aiEnabledLocally() ? currentScreen() || undefined : undefined, onPartial);
+    const r = await respond(t, st.attach && aiEnabledLocally() ? currentScreen() || undefined : undefined, onPartial, { history: chatHistory(st.msgs), lastQuery: st.lastQuery, lastBooked: st.lastBooked });
     useChat.getState().patch(pending, { ...r, streaming: false } as Partial<Msg>);
   } catch (e) {
     useChat.getState().patch(pending, { role: 'ai', kind: 'text', text: (e as Error).message, streaming: false } as Partial<Msg>);
@@ -230,6 +281,9 @@ function EntriesBubble({ m }: { m: Extract<Msg, { kind: 'entries' }> }) {
   const [busy, setBusy] = useState(false);
   // 多筆草稿（一句話記好幾筆、收據批次）：每筆可以取消勾選，只記勾選的
   const [off, setOff] = useState<Set<number>>(new Set());
+  // 排程到期後要不要先確認：預設要確認；選「直接記」就由 App 在那個時間自動入帳（記住上次的選擇）
+  const [auto, setAuto] = useState(() => { try { return localStorage.getItem('aster.sched.auto') === '1'; } catch { return false; } });
+  const pickAuto = (v: boolean) => { setAuto(v); try { localStorage.setItem('aster.sched.auto', v ? '1' : '0'); } catch { /* 忽略 */ } };
   const chosen = m.drafts.filter((_, i) => !off.has(i));
   const multi = m.drafts.length > 1;
   // 日期在未來（或今天還沒到的時間）的那幾筆：建成「單次排程」，到時候通知你、在收件匣按一下才入帳；其他照常馬上記
@@ -242,8 +296,9 @@ function EntriesBubble({ m }: { m: Extract<Msg, { kind: 'entries' }> }) {
       const later = forceNow ? [] : sched;
       const now = chosen.filter((d) => !later.includes(d));
       const r = now.length ? await bookDrafts(now) : { txIds: [], transferIds: [] };
-      const ruleIds = later.length ? await scheduleDrafts(later) : [];
+      const ruleIds = later.length ? await scheduleDrafts(later, { auto }) : [];
       useChat.getState().patch(m.id, { booked: true, scheduled: ruleIds.length > 0 && !now.length } as Partial<Msg>);
+      if (now.length) useChat.setState({ lastBooked: now });
       snackUndo(ruleIds.length ? (now.length ? `已記下 ${now.length} 筆、排程 ${ruleIds.length} 筆` : `已排程 ${ruleIds.length} 筆，到時候通知你`) : `已記下 ${chosen.length} 筆`, async () => {
         if (r.txIds.length) await deleteTransactions(r.txIds);
         if (r.transferIds.length) await deleteTransfers(r.transferIds);
@@ -280,7 +335,19 @@ function EntriesBubble({ m }: { m: Extract<Msg, { kind: 'entries' }> }) {
         {!m.booked && sched.length > 0 && <button className="btn small tinted" disabled={busy} onClick={() => void book(true)}>現在就記</button>}
         {!m.booked && m.drafts.length === 1 && <button className="btn small tinted" onClick={toPanel}>帶入記帳面板</button>}
       </div>
-      {!m.booked && sched.length > 0 && <div className="row-sub">⏰ 排程的帳不會馬上入帳：到那天{sched[0].time ? '（那個時間）' : ''}會通知你，在收件匣按一下才記下，餘額現在不受影響。</div>}
+      {!m.booked && sched.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Switch checked={auto} label="到時候直接幫我記，不用再確認" onChange={pickAuto} />
+            <span>到時候直接幫我記，不用再確認</span>
+          </div>
+          <div className="row-sub" style={{ whiteSpace: 'normal' }}>
+            {auto
+              ? '到那天' + (sched[0].time ? '（那個時間）' : '') + '會先通知你；App 在那個時間之後開啟（或正開著）就自動入帳。資料存在你的裝置上，所以需要開啟 App 才會寫入。'
+              : '到那天' + (sched[0].time ? '（那個時間）' : '') + '會通知你，在收件匣按一下才記下。餘額現在不受影響。'}
+          </div>
+        </div>
+      )}
       {m.sub && <div className="row-sub">{m.sub}</div>}
     </div>
   );

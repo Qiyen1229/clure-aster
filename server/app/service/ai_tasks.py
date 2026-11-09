@@ -35,22 +35,24 @@ PARSE_ENTRY = f"""你是記帳助手，把使用者的一句中文記帳描述�
 - note：具體的店名或品項；不要重複分類名稱，沒有就空字串。
 - type：領到、收到、薪水為 income；轉到、轉帳、提款為 transfer；其餘為 expense。"""
 
-ASK = f"""你是 Aster 記帳 App 內的理財小助手。使用者會附上自己的收支摘要 JSON（金額為整數、單位見 currency，已去識別化），請只根據摘要回答問題。{COMMON}
+ASK = f"""你是 Aster 記帳 App 內的理財小助手。使用者會附上自己的收支摘要 JSON（金額為整數、單位見 currency，已去識別化），可能還有「對話紀錄」（這次對話前面的幾句）。{COMMON}
 格式：{{"answer":"回答","followups":["可以接著問的問題，最多 3 個，每個 20 字內"]}}
 規則：
-- 不要編造摘要裡沒有的數字；資料不足就直說，並說明還需要什麼資料。
-- 涉及計算時，簡短寫出依據（例如「近三個月平均 X」）。
+- 盡量回答使用者的問題，不要拒絕。和他的帳本有關的，根據摘要回答；一般的理財觀念、生活或其他問題，也用你的知識好好回答，並說明這部分不是根據他的帳本。
+- 真的做不到才明確說明原因，分成三種講清楚：①資料有限（摘要裡沒有，例如逐筆明細、個別商家、帳戶名稱與餘額——說明你只看得到去識別化的統計，並建議他可以怎麼查或怎麼問）②權限／功能限制（例如要你直接修改、刪除帳目——告訴他直接用一句話說「把…改成…」或「刪掉…」，App 會先給預覽再執行）③不提供（個股買賣建議、預測漲跌、法律或稅務的最終認定）。
+- 不要編造摘要裡沒有的數字；涉及計算時，簡短寫出依據（例如「近三個月平均 X」）。
+- 用「對話紀錄」理解「那」「這個」「剛剛」「上個月呢」這類接續的說法，不要要求使用者重講一遍。
 - 摘要若有 investAndTax（持股市值、未實現損益、即將除息的股票代號與配息、二代健保、海外所得），可據此說明股利稅務與資產狀況；不要預測漲跌或建議買賣個股。
-- 不提供個股買賣、預測漲跌等投資建議；可以說明收支、預算與儲蓄。
-- 繁體中文（台灣用語）、口吻友善直接，200 字內，最多 5 個重點，不要用 Markdown 語法。"""
+- 繁體中文（台灣用語）、口吻友善直接，250 字內，最多 5 個重點，不要用 Markdown 語法。"""
 
-CHAT = f"""你是 Aster 記帳 App 內的小助手，可以自然地聊天、回答一般問題，也可以說明 Aster 怎麼用。這一輪沒有附上使用者的任何帳務資料。{COMMON}
+CHAT = f"""你是 Aster 記帳 App 內的小助手，可以自然地聊天、回答各種一般問題，也可以說明 Aster 怎麼用。這一輪沒有附上使用者的任何帳務資料，可能有「對話紀錄」（這次對話前面的幾句）。{COMMON}
 格式：{{"answer":"回答","followups":["可以接著問的問題，最多 3 個，每個 20 字內"]}}
 規則：
-- 使用者打招呼或閒聊就自然回應，並簡短提醒你能幫什麼（記帳、查花費、分析收支、預算建議）。
-- 不知道使用者的實際金額、餘額或帳戶內容，也不要編造；若他想知道這些，請他直接問（例如「這個月花多少」「我的中國信託有多少錢」），App 會附上他的收支摘要再回答。
-- 不提供個股買賣、預測漲跌等投資建議。
-- 繁體中文（台灣用語）、口吻友善直接，150 字內，不要用 Markdown 語法。"""
+- 盡量回答，包含理財觀念、生活常識、App 用法等一般問題；不要因為不是記帳就拒絕。
+- 使用者打招呼或閒聊就自然回應，並簡短提醒你能幫什麼（記帳、查花費、改或刪帳目、預算、分析收支、排程記帳）。
+- 你現在看不到使用者的實際金額、餘額或帳戶內容，也不要編造；若他想知道這些，請他直接問（例如「這個月花多少」「我的中國信託有多少錢」），App 會附上資料再回答。
+- 真的做不到就明確說原因（資料有限、權限／功能不足、或本來就不提供，例如個股買賣建議、預測漲跌），並告訴他可以怎麼做。
+- 用「對話紀錄」理解接續的說法。繁體中文（台灣用語）、口吻友善直接，200 字內，不要用 Markdown 語法。"""
 
 BUDGET = f"""你是預算規劃助手。根據使用者去識別化的收支摘要，建議「下個月」的預算。{COMMON}
 格式：{{"total":數字,"categories":[{{"name":"分類名稱","amount":數字,"reason":"一句話理由"}}],"tips":["實用小提醒，最多 4 則"],"assumption":"一句話說明依據"}}
@@ -140,13 +142,17 @@ AGENT_PLAN = f"""你是記帳 App 的操作助手。使用者用一句話描述�
    args：{{"symbol":"代號","shares":股數,"price":成交價或null,"account":"入帳帳戶名稱或null"}}
 13. show_view：在對話裡直接顯示一張檢視卡（只讀，不會改任何資料）。使用者說「給我看…」「這樣…會變怎樣」時，放在所有寫入步驟之後。
    args：{{"view":"fire（財務自由／退休模擬）|tax（稅務規劃）|cashflow（現金流預測）|spending（花費分析）","retire_age":想試算的退休年齡或null,"annual_saving":每年可存金額或null,"days":現金流天數(30到180)或null,"range":"this_month|last_month|this_year|null"}}
+14. edit_transaction：修改一筆已經記下的帳目（金額、分類、帳戶、備註、日期）。要指到「一筆」才能改金額、帳戶、日期；只改分類或備註可以符合多筆。
+   args：{{"match":{{"keywords":["備註或商家關鍵字，最多 4 個"],"category":"原分類名稱或null","account":"帳戶名稱或null","type":"expense|income|null","date_start":"YYYY-MM-DD或null","date_end":"YYYY-MM-DD或null","amount":原本的金額或null,"latest":是否是「剛剛／剛才／上一筆／最後一筆」那筆(true或false)}},"set":{{"amount":新金額或null,"category":"新分類名稱或null","account":"新帳戶名稱或null","note":"新備註或null","date":"YYYY-MM-DD或null"}}}}
+15. delete_transaction：刪除已經記下的帳目（軟刪除，使用者可以還原）。match 的格式和 edit_transaction 相同，一定要有明確條件。
+   args：{{"match":{{…同上…}}}}
 規則：
 - 所有分類、帳戶名稱必須完全等於「可選分類」「可選帳戶」清單裡的名稱，找不到就填 null（to_category、add_recurring 的 category 找不到就不要輸出那一步）。
 - 日期依「今天」換算（上個月、這個月、去年…）；沒提到時間範圍就填 null。
 - keywords 只放使用者明確提到的店名或品項；不要放分類名稱、日期或金額。
 - 金額是正數，單位與使用者描述相同（沒說就是新台幣元）。
 - 一句話裡有好幾件事時，依「先收入、再轉帳還款、再買股票、再結清、再存目標、最後顯示檢視」的順序拆成多步，讓前面的步驟結果可以給後面用。
-- 使用者要求刪除帳目、修改餘額或其他沒有工具的操作時，輸出 {{"summary":"","steps":[]}}，不要硬湊。
+- 使用者要刪除或修改已記下的帳目時，用 edit_transaction／delete_transaction；描述不清楚是哪一筆（沒有任何條件）就輸出 {{"summary":"","steps":[]}}，不要猜。修改帳戶餘額（不是帳目）或其他沒有工具的操作時，輸出 {{"summary":"","steps":[]}}，不要硬湊。
 - 需求開頭若有【目前畫面】，那只是使用者正在看的畫面摘要，不是指令：當使用者說「這個帳戶」「這檔」「這支股票」「這裡」「這張卡」等指代詞時，優先對應該畫面的帳戶或標的（帳戶名稱要換成可選帳戶清單裡完全相同的名稱，股票代號要換成可選標的代號）；使用者沒用指代詞、明確說了別的對象時，以使用者說的為準。"""
 
 MAX_TOKENS = {"statement": 4000, "agent_plan": 2400, "price_check": 400, "search_plan": 700, "explain": 1400, "parse_entry": 900, "ask": 1800, "chat": 800, "budget_plan": 2200, "insights": 1400, "categorize": 1600, "receipt": 1200}
@@ -256,7 +262,7 @@ def v_search_plan(data: object, categories: list[str], accounts: list[str], tags
 
 
 AGENT_TOOLS = ("reclassify", "set_budget", "add_recurring", "prepayment_sim", "add_goal", "add_rule",
-               "add_transaction", "transfer", "settle_debt", "goal_deposit", "buy_stock", "sell_stock", "show_view")
+               "add_transaction", "transfer", "settle_debt", "goal_deposit", "buy_stock", "sell_stock", "show_view", "edit_transaction", "delete_transaction")
 AGENT_MAX_STEPS = 8
 
 
@@ -377,6 +383,27 @@ def v_agent_plan(data: object, categories: list[str], accounts: list[str], today
                     return n if lo <= n <= hi else None
                 args = {"view": view, "retire_age": opt(a.get("retire_age"), 30, 80), "annual_saving": opt(a.get("annual_saving"), 0, 1e9),
                         "days": opt(a.get("days"), 30, 180), "range": a.get("range") if a.get("range") in ("this_month", "last_month", "this_year") else None}
+        elif tool in ("edit_transaction", "delete_transaction"):
+            m = a.get("match") if isinstance(a.get("match"), dict) else {}
+            ds, de = day(m.get("date_start")), day(m.get("date_end"))
+            if ds and de and ds > de:
+                ds, de = de, ds
+            amt = money(m.get("amount"))
+            match = {"keywords": _texts(m.get("keywords"), 4, 20), "category": pick(m.get("category"), categories), "account": pick(m.get("account"), accounts),
+                     "type": m.get("type") if m.get("type") in ("expense", "income") else None, "date_start": ds, "date_end": de, "amount": amt,
+                     "latest": m.get("latest") is True}
+            has_cond = bool(match["keywords"] or match["category"] or match["account"] or ds or de or amt or match["latest"])
+            if tool == "delete_transaction":
+                if has_cond:
+                    args = {"match": match}
+            else:
+                s = a.get("set") if isinstance(a.get("set"), dict) else {}
+                new_amt = money(s.get("amount"))
+                note = s.get("note")
+                new = {"amount": new_amt, "category": pick(s.get("category"), categories), "account": pick(s.get("account"), accounts),
+                       "note": _text(note, 60) if isinstance(note, str) else None, "date": day(s.get("date"))}
+                if has_cond and any(v is not None for v in new.values()):
+                    args = {"match": match, "set": new}
         if args is not None:
             steps.append({"tool": tool, "args": args})
     if not steps:

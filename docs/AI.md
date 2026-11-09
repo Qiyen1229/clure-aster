@@ -105,6 +105,7 @@ CLURE_AI_NVIDIA_MODEL=nvidia/nemotron-3.5-super-vl-120b-a12b   # 已是預設值
 | `POST /api/ai/parse-entry` | 一句話解析 |
 | `POST /api/ai/agent-plan` | 操作助手：一句話 → 步驟計畫（只規劃不執行；工具白名單、名稱必須在你的名單內、壞步驟丟棄、至少要有篩選條件） |
 | `POST /api/ai/statement` | 帳單截圖 → 逐筆明細（日期、金額、商家、外幣、帳單合計）；每張 2 點 |
+| `POST /api/ai/chat`　`/chat/stream`（v4.1.11） | 閒聊／一般問題：不附任何帳務資料，**cost 0 不扣額度**，仍受管理員總開關與全站每分鐘上限限制，每人每小時最多 40 次。`ask`／`chat` 都可帶 `history`（v4.1.12：這次對話前面最多 8 句文字、每句 400 字，開新對話就清空，不留存） |
 | `POST /api/ai/ask`　`budget-plan`　`insights`　`categorize`　`receipt`　`search-plan`　`explain` | 問答、預算建議、洞察、分類整理、收據辨識（摘要上限 14,000 字元、照片上限約 1.2MB base64） |
 | `GET/PATCH /api/admin/ai`、`GET /api/admin/ai/console`、`POST /api/admin/ai/test` | 管理員 |
 

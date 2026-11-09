@@ -115,8 +115,8 @@ export async function upcomingPushItems(days = 14, now = Date.now()): Promise<Pu
     if (r.rule.count !== 1) continue;
     for (const d of new Set([...(r.active ? [r.nextDue] : []), ...r.pendingDates])) {
       add({
-        id: `once:${r.id}:${d}`, at: at(d, r.at ?? '09:00'), title: priv ? '⏰ 該記一筆了' : `⏰ 該記一筆了：${r.name}`,
-        body: priv ? '到收件匣按一下確認入帳' : `${formatMoney(r.template.amountMinor ?? 0, r.template.currency ?? s.baseCurrency)}，到收件匣按一下確認入帳`, url: '/inbox',
+        id: `once:${r.id}:${d}`, at: at(d, r.at ?? '09:00'), title: priv ? '⏰ 排程記帳時間到' : `⏰ 排程記帳：${r.name}`,
+        body: (priv ? '' : `${formatMoney(r.template.amountMinor ?? 0, r.template.currency ?? s.baseCurrency)}，`) + (r.mode === 'auto' ? '開啟 Aster 就會自動記下' : '到收件匣按一下確認入帳'), url: r.mode === 'auto' ? '/ledger' : '/inbox',
       });
     }
   }

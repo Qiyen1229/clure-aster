@@ -64,16 +64,24 @@ def _check_summary(v: dict[str, Any]) -> dict[str, Any]:
     return v
 
 
+class HistoryItem(BaseModel):
+    """這次對話前面的幾句（只有文字）：讓 AI 聽得懂「那上個月呢」「剛剛那個」。開新對話就清空，不會留存。"""
+    role: Literal["user", "ai"]
+    text: str = Field(max_length=400)
+
+
 class AskRequest(BaseModel):
     question: str = Field(min_length=1, max_length=500)
     summary: dict[str, Any]
+    history: list[HistoryItem] = Field(default_factory=list, max_length=8)
 
     _v = field_validator("summary")(_check_summary)
 
 
 class ChatRequest(BaseModel):
-    """一般閒聊／不需要帳本資料的問題：只送這一句話，不附任何收支摘要。"""
+    """一般閒聊／不需要帳本資料的問題：只送這一句話（加上前面幾句對話），不附任何收支摘要。"""
     question: str = Field(min_length=1, max_length=500)
+    history: list[HistoryItem] = Field(default_factory=list, max_length=8)
 
 
 class AskResult(BaseModel):

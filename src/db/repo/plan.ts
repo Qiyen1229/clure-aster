@@ -198,14 +198,20 @@ function templateToInput(r: RecurringRule, date: string): TxInput {
 export async function processRecurring(today = todayKey()): Promise<{ created: number; pending: number }> {
   const rules = await db.recurring_rules.where('nextDue').belowOrEqual(today).toArray();
   let created = 0, pending = 0;
+  const nowHm = new Date().toTimeString().slice(0, 5);
   for (const r of rules) {
     if (!r.active) continue;
     if (!r.template.accountId || !(await db.accounts.get(r.template.accountId))) continue;
+    // 單次排程排了時間：當天還沒到那個時間先不處理（不論自動記帳或等你確認）
+    if (r.rule.count === 1 && r.at && today === todayKey() && r.nextDue >= today && nowHm < r.at) continue;
     const due = occurrences(r.rule, r.startDate, r.nextDue, today, 400);
     const pend = [...r.pendingDates];
     for (const d of due) {
       if (r.mode === 'auto') {
-        try { await addTransaction(templateToInput(r, d)); created++; } catch (e) { console.warn('[recurring]', e); break; }
+        try {
+          await addTransaction(templateToInput(r, d)); created++;
+          if (r.rule.count === 1) void announceAutoBooked(r); // 單次排程自動記帳：記完要讓使用者知道
+        } catch (e) { console.warn('[recurring]', e); break; }
       } else if (!pend.includes(d)) { pend.push(d); pending++; }
     }
     const lastDone = due[due.length - 1] ?? r.nextDue;
@@ -216,6 +222,15 @@ export async function processRecurring(today = todayKey()): Promise<{ created: n
     });
   }
   return { created, pending };
+}
+
+/** 單次排程到時間、App 自動記下之後的通知（提醒中心＋系統通知）；失敗不影響記帳 */
+async function announceAutoBooked(r: RecurringRule): Promise<void> {
+  try {
+    const [{ notify }, { formatMoney }] = await Promise.all([import('@/services/notifications'), import('@/domain/money')]);
+    const amt = formatMoney(r.template.amountMinor ?? 0, r.template.currency ?? 'TWD');
+    await notify(`✅ 已幫你記下：${r.name}`, `${amt}（排程記帳）`, '/ledger', 'subscription', `once-booked:${r.id}`);
+  } catch { /* 通知失敗不重要 */ }
 }
 
 function addDaysSafe(d: string, n: number) {

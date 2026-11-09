@@ -113,15 +113,20 @@ export interface AskValue { answer: string; followups: string[] }
  * 問 AI。給 onPartial 就用串流版：回答一邊生成、一邊把「到目前為止的文字」交給 onPartial，使用者不用等整段寫完；
  * 瀏覽器不支援串流時自動改用一般版。相同問題 6 小時內直接用快取（不串流、不扣額度）。
  */
-export async function aiAsk(question: string, screen?: string, onPartial?: (text: string) => void): Promise<Cached<AskValue>> {
+export interface ChatTurn { role: 'user' | 'ai'; text: string }
+/** 送出前去掉網址、身分證、卡號、連續 10 碼數字，最多 8 句、每句 400 字 */
+const cleanHistory = (h: ChatTurn[]): ChatTurn[] => h.slice(-8).map((x) => ({ role: x.role, text: sanitizeForAi(x.text).slice(0, 400) })).filter((x) => x.text.trim());
+
+export async function aiAsk(question: string, screen?: string, onPartial?: (text: string) => void, history: ChatTurn[] = []): Promise<Cached<AskValue>> {
   const { loadFinanceSummary } = await import('./aisummary');
   const { summary: base } = await loadFinanceSummary();
   // 持股、除息與稅務的去識別化統計（整數元合計＋股票代號），讓「我今年股利會被扣二代健保嗎？」這類問題有資料可答；失敗就不附
   const investAndTax = await import('./taxplan').then((m) => m.investTaxSummary()).catch(() => null);
   const summary = investAndTax ? { ...base, investAndTax } : base;
   const q = `${screen ? `【目前畫面】${screen.slice(0, 160)}\n` : ''}${question.trim().slice(0, 300)}`;
-  const body = { question: q, summary };
-  return cached('ask', { q, summary }, 6 * HOUR, async () => {
+  const hist = cleanHistory(history);
+  const body = { question: sanitizeForAi(q), summary, history: hist };
+  return cached('ask', { q, summary, history: hist }, 6 * HOUR, async () => {
     if (!onPartial) return aiPost<AskValue & { quota: AiQuota }>('/ai/ask', body);
     await recordAiSend('/ai/ask/stream', body);
     try {
@@ -135,8 +140,8 @@ export async function aiAsk(question: string, screen?: string, onPartial?: (text
 }
 
 /** 閒聊／一般問題：只送這一句話（不附任何帳務資料），不扣額度（伺服器端每人每小時有次數上限） */
-export async function aiChatTalk(question: string, onPartial?: (text: string) => void): Promise<AskValue & { quota?: AiQuota }> {
-  const body = { question: question.trim().slice(0, 300) };
+export async function aiChatTalk(question: string, onPartial?: (text: string) => void, history: ChatTurn[] = []): Promise<AskValue & { quota?: AiQuota }> {
+  const body = { question: sanitizeForAi(question.trim().slice(0, 300)), history: cleanHistory(history) };
   if (!onPartial) return aiPost<AskValue & { quota: AiQuota }>('/ai/chat', body);
   await recordAiSend('/ai/chat/stream', body);
   try {

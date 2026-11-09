@@ -6,7 +6,7 @@ import type { Category, Transaction } from '@/db/types';
 import { countsInStats, statAmount } from '@/domain/ledger';
 import { formatMoney } from '@/domain/money';
 import { normText } from '@/domain/rules';
-import { parseQuery, rangeText, type NlQuery } from '@/domain/nlquery';
+import { parseFollowUp, parseQuery, rangeText, type FollowUp, type NlQuery } from '@/domain/nlquery';
 import { eachDay, todayKey } from '@/domain/period';
 import { pctChange } from '@/domain/reports';
 import { useSettings } from '@/stores/settings';
@@ -117,4 +117,38 @@ export async function answerQuestion(q: NlQuery): Promise<QueryAnswer> {
 export async function ask(text: string): Promise<QueryAnswer | null> {
   const q = await parseQuestion(text);
   return q ? answerQuestion(q) : null;
+}
+
+/** 接續上一個查詢的追問（「那上個月呢」「只看信用卡」「跟上個月比」）；不是追問回傳 null */
+export async function followUp(text: string, last: NlQuery): Promise<{ fu: FollowUp; answer: QueryAnswer } | null> {
+  const st = useSettings.getState();
+  const ctx = await parseContext();
+  const fu = parseFollowUp(text, last, { ...ctx, today: todayKey(), weekStart: st.weekStart, monthStartDay: st.monthStartDay });
+  if (!fu) return null;
+  return { fu, answer: fu.compare ? await compareAnswer(fu.query) : await answerQuestion(fu.query) };
+}
+
+/** 兩個期間比較：總額、差多少、哪幾個分類變最多 */
+export async function compareAnswer(q: NlQuery): Promise<QueryAnswer> {
+  const base = useSettings.getState().baseCurrency;
+  const money = (v: number) => formatMoney(v, base, { decimals: 0 });
+  const cats = new Map((await db.categories.toArray()).map((c) => [c.id, c]));
+  const match = matcher(q, cats);
+  const load = async (r: { start: string; end: string }) => (await db.transactions.where('date').between(r.start, r.end, true, true).toArray()).filter(match);
+  const [cur, prev] = [await load(q.range), await load(q.prevRange)];
+  const sum = (l: Transaction[]) => l.reduce((s, t) => s + statAmount(t), 0);
+  const [a, b] = [sum(cur), sum(prev)];
+  const what = [q.categoryLabel && `「${q.categoryLabel}」`, q.keyword && `「${q.keyword}」`].filter(Boolean).join('');
+  const verb = q.kind === 'income' ? '收入' : '支出';
+  const pad = (s: string) => (/^\d/.test(s) ? ` ${s} ` : s);
+  if (!cur.length && !prev.length) return { query: q, answer: `${q.rangeLabel}和${pad(q.prevLabel)}都沒有符合的${verb}可以比較。`, items: [] };
+  const diff = a - b;
+  const pct = pctChange(a, b);
+  const head = `${q.rangeLabel}${what}${verb} ${money(a)}，${pad(q.prevLabel)} ${money(b)}`;
+  const tail = diff === 0 ? '，一樣多。' : `，${diff > 0 ? '多' : '少'}了 ${money(Math.abs(diff))}${pct === null ? '' : `（${diff > 0 ? '+' : '-'}${Math.abs(Math.round(pct))}%）`}。`;
+  const by = (l: Transaction[]) => { const m = new Map<string, number>(); for (const t of l) { const id = cats.get(t.categoryId)?.parentId || t.categoryId; m.set(id, (m.get(id) ?? 0) + statAmount(t)); } return m; };
+  const [ma, mb] = [by(cur), by(prev)];
+  const deltas = [...new Set([...ma.keys(), ...mb.keys()])].map((id) => ({ id, d: (ma.get(id) ?? 0) - (mb.get(id) ?? 0) })).filter((x) => x.d !== 0).sort((x, y) => Math.abs(y.d) - Math.abs(x.d)).slice(0, 3);
+  const detail = !q.categoryIds.length && deltas.length ? `變動最多：${deltas.map((x) => `${cats.get(x.id)?.name ?? '其他'} ${x.d > 0 ? '+' : '-'}${money(Math.abs(x.d))}`).join('、')}` : undefined;
+  return { query: q, answer: head + tail, detail, items: cur.sort((x, y) => y.date.localeCompare(x.date) || y.ts - x.ts) };
 }

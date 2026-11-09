@@ -10,12 +10,13 @@
  */
 import { db, uid } from '@/db/schema';
 import { deleteBudget, saveBudget, saveGoal, saveRecurring, settleDebt, unsettleDebt } from '@/db/repo/plan';
-import { addTransaction, addTransfer, deleteTransactions, deleteTransfers } from '@/db/repo/ledger';
+import { addTransaction, addTransfer, deleteTransactions, deleteTransfers, restoreTransactions, updateTransaction, type TxInput } from '@/db/repo/ledger';
 import { addTrade, deleteTrade } from '@/db/repo/invest';
 import { twFeeConfig } from './portfolio';
 import { computePosition } from '@/domain/invest/position';
 import { currencyInfo } from '@/domain/money';
 import { invalidateAutocat } from './autocat';
+import type { Transaction } from '@/db/types';
 import { opsOf, resolvePlan, type AgentData, type RawStep, type ResolvedStep } from '@/domain/agent/plan';
 import { addDays, todayKey } from '@/domain/period';
 import { useSettings } from '@/stores/settings';
@@ -33,7 +34,7 @@ interface Change {
   /** 執行後的 updatedAt：還原前用來確認沒被改過 */
   stamp: number;
   /** 需要走專用流程還原的類型（帳戶餘額、關聯帳目要一起回復）；沒有值就是單純的刪除／寫回修改前的樣子 */
-  undo?: 'tx' | 'transfer' | 'settle' | 'trade';
+  undo?: 'tx' | 'transfer' | 'settle' | 'trade' | 'txedit' | 'txdel';
 }
 export interface AgentOpLog {
   id: string;
@@ -103,6 +104,24 @@ export async function applyPlan(steps: ResolvedStep[], summary: string): Promise
           log.changes.push({ table: 'transactions', id, before: { categoryId: t.categoryId }, stamp: 0 });
           await db.transactions.update(id, { categoryId: op.categoryId, updatedAt: Date.now() });
         }
+      } else if (op.kind === 'tx_edit') {
+        const t = await db.transactions.get(op.id);
+        if (!t || t.deletedAt) continue;
+        log.changes.push({ table: 'transactions', id: t.id, before: { ...t }, stamp: 0, undo: 'txedit' });
+        const next = inputOf(t);
+        if (op.set.amountMinor !== undefined) next.amountMinor = op.set.amountMinor;
+        if (op.set.categoryId) next.categoryId = op.set.categoryId;
+        if (op.set.accountId) next.accountId = op.set.accountId;
+        if (op.set.note !== undefined) next.note = op.set.note;
+        if (op.set.date) { next.date = op.set.date; next.ts = new Date(`${op.set.date}T${new Date(t.ts).toTimeString().slice(0, 8)}`).getTime(); }
+        await updateTransaction(t.id, next);
+      } else if (op.kind === 'tx_delete') {
+        for (const id of op.ids) {
+          const t = await db.transactions.get(id);
+          if (!t || t.deletedAt) continue;
+          log.changes.push({ table: 'transactions', id, stamp: 0, undo: 'txdel' });
+          await deleteTransactions([id]);
+        }
       } else if (op.kind === 'budget') {
         if (op.id) {
           const before = await db.budgets.get(op.id);
@@ -158,6 +177,15 @@ export async function applyPlan(steps: ResolvedStep[], summary: string): Promise
   return log;
 }
 
+/** 把已存在的帳目轉回輸入格式（改單筆、還原用）；updateTransaction 只覆蓋有給值的欄位，其餘關聯（週期、分期…）保留 */
+function inputOf(t: Transaction): TxInput {
+  return {
+    type: t.type, accountId: t.accountId, categoryId: t.categoryId, amountMinor: t.amountMinor, currency: t.currency, fxRateDec: t.fxRateDec, date: t.date, ts: t.ts,
+    note: t.note, merchant: t.merchant, invoiceNo: t.invoiceNo, tagIds: t.tagIds, projectId: t.projectId, attachmentIds: t.attachmentIds,
+    excludeFromBudget: t.excludeFromBudget, excludeFromStats: t.excludeFromStats, split: t.split,
+  };
+}
+
 /** 去掉資料列的 id／時間戳，剩下可以重新寫入的欄位 */
 function stripRow<T extends { id: string; createdAt: number; updatedAt: number }>(r: T): Omit<T, 'id' | 'createdAt' | 'updatedAt'> {
   const { id: _i, createdAt: _c, updatedAt: _u, ...rest } = r;
@@ -182,6 +210,8 @@ export async function undoOp(id: string): Promise<UndoResult> {
       else if (c.undo === 'transfer') await deleteTransfers([c.id]);
       else if (c.undo === 'settle') await unsettleDebt(c.id);
       else if (c.undo === 'trade') await deleteTrade(c.id);
+      else if (c.undo === 'txedit' && c.before) await updateTransaction(c.id, inputOf(c.before as unknown as Transaction));
+      else if (c.undo === 'txdel') await restoreTransactions([c.id]);
       else if (c.before === undefined) {
         if (c.table === 'budgets') await deleteBudget(c.id);
         else await db.table(c.table).delete(c.id);

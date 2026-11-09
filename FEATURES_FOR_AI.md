@@ -2,7 +2,7 @@
 
 > 目的：讓接手的 AI（或新開發者）**不用逐檔翻程式碼**就知道「這個 App 能做什麼、每個功能怎麼運作、規則是什麼、程式在哪」。
 > 與 [PROJECT_OVERVIEW_FOR_AI.md](PROJECT_OVERVIEW_FOR_AI.md)（技術棧、架構、部署、檔案地圖）互補：那份偏「怎麼建」，這份偏「做了什麼」。
-> 版本：**4.1.11**（2026-11-08）。分支 `feature/v1.2`。逐版細節見 [CHANGELOG.md](CHANGELOG.md)；設計文件見 `docs/`。
+> 版本：**4.1.12**（2026-11-09）。分支 `feature/v1.2`。逐版細節見 [CHANGELOG.md](CHANGELOG.md)；設計文件見 `docs/`。
 > 慣例：金額內部一律用**整數最小單位**（TWD 的 1 元 = 100），不要用浮點數；使用者可見文字一律**繁體中文（台灣用語）**。
 
 ---
@@ -43,7 +43,7 @@
 ### 1.2 一句話／語音記帳（`domain/nlp*.ts`、`services/voice.ts`、`features/home/VoiceSheet.tsx`）
 - **純規則解析，不經任何 AI**：金額（「兩千三」「5萬2」「1,200」）、日期（「昨天」「上週五」「10/25」）、帳戶、分類、一次多筆；電話、連續 9 碼以上數字、網址不會被當成金額。
 - 長按導覽列中間按鈕：Android／桌機「按住說話、放開入帳」；**iPhone 因 iOS 限制**改為放開後彈窗、點麥克風才開始說話。
-- **單次排程（未發佈）**：句子的日期在未來、或今天但時間還沒到（`isScheduled`），預覽卡預設「排程提醒」→ `scheduleDrafts` 建一條 `rule.count = 1`、`mode = 'confirm'`、`at = HH:MM` 的週期帳目；到期後規則結束但 `pendingDates` 留在收件匣（`loadForecast` 不再要求 `active`；`at` 當天未到不顯示）。通知：`runReminderChecks`（`once:<rule>:<date>`）＋ `upcomingPushItems`（伺服器推播，`at` 當天 HH:MM，預設 09:00）。日期另支援後天、N 天／週後、下個月 N 號、月底；`extractClock` 認 15:30、下午三點半等明確時間。
+- **單次排程（v4.1.12，可選「到時候直接記」＝`mode: 'auto'`，App 開啟時在該時間寫入並通知「已幫你記下」）**：句子的日期在未來、或今天但時間還沒到（`isScheduled`），預覽卡預設「排程提醒」→ `scheduleDrafts` 建一條 `rule.count = 1`、`mode = 'confirm'`、`at = HH:MM` 的週期帳目；到期後規則結束但 `pendingDates` 留在收件匣（`loadForecast` 不再要求 `active`；`at` 當天未到不顯示）。通知：`runReminderChecks`（`once:<rule>:<date>`）＋ `upcomingPushItems`（伺服器推播，`at` 當天 HH:MM，預設 09:00）。日期另支援後天、N 天／週後、下個月 N 號、月底；`extractClock` 認 15:30、下午三點半等明確時間。
 - 解析檔拆成 `nlp-amount.ts`、`nlp-date.ts`、`nlp-entities.ts`、`nlp.ts`。
 
 ### 1.3 首頁（`features/home/`）— 「一個畫面一個重點」
@@ -141,12 +141,12 @@
 - **一個對話框走天下**（`features/home/AiChat.tsx` 的 `ChatPanel`／`AiChatSheet`，全站唯一，`App.tsx` 的 `ChatHost` 掛在最外層；打開過一次就保持掛載，空對話關閉也有完整退場動畫）：記帳、查帳、問 AI、整理帳本、📷 拍照記帳（**可批次**：一次選最多 8 張，逐張辨識、進度顯示在泡泡裡，全部放在同一張草稿卡、每筆可取消勾選再一次記帳；超過 2 張先確認額度；某張失敗不影響其他張；`sendImages`）、🎤 語音輸入（瀏覽器 SpeechRecognition，講完填進輸入框再送）、檢視卡。入口：首頁 AI 小圓球、靈動島（任何頁面上滑／非記帳頁長按）、搜尋頁「交給 AI」、預算頁「請 AI 規劃預算」、舊連結 `/ai?q=`／`?agent=`／`?tool=budget`（`aiChatStore.ask()` 開視窗並自動送出）。
 - **路由一變動對話視窗自動收起**（`ScreenContextHost`），所以點檢視卡的「完整… →」會看到目的頁。
 - **`/ai` 頁（設定 → AI 助理）**：只剩「智慧提醒」與 AI 額度，**不再內嵌對話**。
-- **對話分流**（`respond()`，規則優先）：`localView` 短句 → 檢視卡；`looksLikeOperation` → 操作助手；規則記帳 → 草稿卡；規則查帳；問句 → `aiAsk`；口語記帳 → `draftsSmart`。
+- **對話分流**（`respond()`，規則優先，v4.1.12 重排）：`localView` 短句 → 檢視卡；`localEditPlan`（「刪掉／改剛剛那筆」，本機、不扣額度）→ 操作助手預覽；`looksLikeOperation` → AI 規劃的操作助手；`REPEAT_RE`（「再來一杯」）→ 照 `lastBooked` 再記；`accountTalk`／`budgetTalk`（`services/localTalk.ts`，帳戶餘額與預算，本機）；`followUp`（有 `lastQuery` 時的追問與比較，本機）；規則記帳 → 草稿卡（日期在未來／時間未到＝排程）；規則查帳；問自己的錢 → `aiAsk`（1 點，帶 `history`）；口語記帳 → `draftsSmart`；**其餘一律 `aiChatTalk` 閒聊（cost 0，每人每小時 40 次；盡量回答任何問題，做不到明說資料有限／權限不足／不提供）**。`history`＝`chatHistory(msgs)` 最近 8 句文字，開新對話（`clear`）清空，送出前 `sanitizeForAi`。
 - **隱私**：統計類只送整數統計與分類名稱；送出前去除網址、身分證、卡號、連續 10 碼數字；輸出驗證並純文字顯示；**AI 送出紀錄**（設定 → AI 設定）把每次送出的原文記在本機（不同步、最多 25 筆）。免費層內容可能被供應商用於改進產品。
 - 其他 AI 功能：專案／帳戶／報表的「AI 解說」卡（`features/ai/AiExplain.tsx`，與週報的白話解讀共用同一個殼）、收件匣「AI 解析」、首頁「上週重點」（選用）。
 
 ### 3.3b 操作助手（Agent）：動作圖譜（`domain/agent/`、`services/agent.ts`）
-**AI 只規劃、本機預覽、你確認才寫入、整包可還原**。`/api/ai/agent-plan`（1 點）把一句話拆成最多 **8 步**，每步是 **13 個白名單工具**之一：
+**AI 只規劃、本機預覽、你確認才寫入、整包可還原**。`/api/ai/agent-plan`（1 點）把一句話拆成最多 **8 步**，每步是 **15 個白名單工具**之一（v4.1.12 新增 `edit_transaction` 改單筆帳目、`delete_transaction` 刪帳目＝軟刪除，一次最多 20 筆，改金額／帳戶／日期必須指到一筆；「剛剛那筆」由本機 `localEditPlan` 直接產生步驟，不用 AI）：
 - 帳本整理：`reclassify` 批次改分類、`set_budget`、`add_recurring`、`add_rule`、`add_goal`、`prepayment_sim`（只試算）。
 - **跨模組動作（v4.1）**：`add_transaction` 記收支、`transfer` 帳戶間轉帳（轉進信用卡／貸款＝繳費／還款，貸款附提前還款省息試算）、`settle_debt` 結清欠款、`goal_deposit` 存入目標（同一份計畫剛建的目標可直接存入）、`buy_stock`／`sell_stock` 買賣台股（賣出檢查持股夠不夠、算手續費與證交稅、預覽實拿金額）、`show_view` 在對話嵌入檢視卡（只讀）。
 - **流程**：`resolvePlan`（純函式）在記憶體工作副本（交易、預算、**帳戶餘額、持股、目標、欠款**）依序模擬，前一步結果給後一步用，產生**複合預覽卡**（逐帳戶「餘額 A → B」、會變負數警告）；`applyPlan` 在**單一 Dexie 交易**橫跨帳目、轉帳、帳戶、欠款、股票交易、目標寫入，任何一步失敗整批回滾；每次執行記下修改前的樣子（本機 `meta` 的 `agent.ops`，7 天、20 筆），**整包一鍵還原**（記帳／轉帳／交易走各自的刪除流程帳戶餘額跟著回復；執行後被改過的略過）。

@@ -22,6 +22,12 @@ const PATTERNS: RegExp[] = [
   /(拿|用|轉|撥|匯).{0,14}還.{0,8}(信貸|房貸|車貸|學貸|貸款|卡費|信用卡)|還.{0,4}(信貸|房貸|車貸|學貸)\s*[\d,]+/,
   /(撥|存|轉|放)(進|入|到).{0,10}目標/,
   /(從|由).{0,10}(轉|匯|撥).{0,6}[\d,]+.{0,6}(到|進|給)/,
+  // v4.1.12 刪除與修改已記下的帳目：「刪掉剛剛那筆」「把昨天的午餐刪掉」「剛剛那筆改成 180」「把午餐的金額改成 150」
+  /(刪除|刪掉|刪|移除|砍掉)\s*(剛剛|剛才|上一筆|最後一筆|昨天|今天|前天|上週|這週|上個月|這個月).{0,16}/,
+  /把.{1,30}(刪掉|刪除|移除|砍掉)$/,
+  /(刪除|刪掉|移除|砍掉).{0,24}(那筆|這筆|一筆|帳目|記錄|紀錄|消費)/,
+  /(剛剛|剛才|上一筆|最後一筆|那筆|這筆).{0,14}(改成|改為|應該是|其實是|算成|歸到|換成|改)/,
+  /把.{1,30}的?(金額|備註|日期|帳戶)(改成|改為|改|換成)/,
 ];
 // 「改」需要搭配分類或歸類的語意，單純的「改成」（例如備註）不算
 const NEEDS_CATEGORY_WORD = /分類|歸類|歸到|歸入|改歸|類別|都改/;
@@ -69,4 +75,34 @@ export function localView(text: string): ViewSpec | null {
   const m = new RegExp(`^${lead}(這個月|本月|上個月|上月|今年)(?:的)?(?:花費|支出|開銷)(?:分析|狀況)?$`).exec(s);
   if (m) return { kind: 'spending', params: { range: m[1] === '今年' ? 'this_year' : m[1] === '上個月' || m[1] === '上月' ? 'last_month' : 'this_month' } };
   return null;
+}
+
+import type { RawStep } from './plan';
+import { parseCnNumber, toHalfWidth } from '../nlp-amount';
+
+const LATEST = '(?:剛剛|剛才|上一筆|最後一筆)';
+const DEL_LATEST = new RegExp(`(?:^|把)\\s*${LATEST}\\s*(?:那筆|這筆|一筆)?\\s*(?:帳|帳目|記錄|紀錄)?\\s*(?:給我)?\\s*(?:刪除|刪掉|刪|移除|砍掉)|(?:刪除|刪掉|刪|移除|砍掉)\\s*${LATEST}\\s*(?:那筆|這筆|一筆)?`);
+const EDIT_LATEST = new RegExp(`${LATEST}\\s*(?:那筆|這筆|一筆)?\\s*(?:的)?\\s*(金額|備註|分類|日期)?\\s*(?:改成|改為|應該是|其實是|算成|換成|改|歸到)\\s*(.+)$`);
+
+/**
+ * 「剛剛那筆」這類不需要 AI 就能看懂的修改／刪除：直接產生操作助手的步驟（走同一套預覽、確認、還原），不扣額度。
+ * 其他說法（「把昨天的午餐刪掉」）交給 AI 規劃。
+ */
+export function localEditPlan(text: string): { summary: string; steps: RawStep[] } | null {
+  const s = toHalfWidth(text).trim().replace(/[。.!！]+$/, '');
+  if (s.length > 40) return null;
+  if (DEL_LATEST.test(s)) return { summary: '刪除剛剛記的那一筆', steps: [{ tool: 'delete_transaction', args: { match: { latest: true } } }] };
+  const m = s.match(EDIT_LATEST);
+  if (!m) return null;
+  const field = m[1];
+  const v = m[2].trim().replace(/^(成|為)/, '').replace(/(元|塊|圓)$/, '').trim();
+  if (!v) return null;
+  const num = /^[\d,]+(?:\.\d+)?$/.test(v) ? Number(v.replace(/,/g, '')) : parseCnNumber(v);
+  const set: Record<string, unknown> = {};
+  if (field === '備註') set.note = v;
+  else if (field === '日期') { const d = v.match(/^(\d{4})-(\d{2})-(\d{2})$/); if (!d) return null; set.date = v; }
+  else if (field === '分類') set.category = v.replace(/(分類|類別)$/, '');
+  else if (field === '金額' || (!field && num !== null && num !== undefined && Number.isFinite(num))) { if (!(num && num > 0)) return null; set.amount = num; }
+  else set.category = v.replace(/(分類|類別|這一類|類)$/, '');
+  return { summary: '修改剛剛記的那一筆', steps: [{ tool: 'edit_transaction', args: { match: { latest: true }, set } }] };
 }

@@ -174,3 +174,56 @@ export function parseQuery(input: string, ctx: QueryContext): NlQuery | null {
 }
 
 export const rangeText = (r: Range) => (r.start === r.end ? fmtMD(r.start) : `${fmtMD(r.start)}～${fmtMD(r.end)}`);
+
+// ───────────── 追問與比較（接在上一個查詢後面） ─────────────
+
+const FOLLOW_START = /^(那|那麼|還有|再|換成?|改成?|只看|只算|只有|如果|若是|跟|和|比|對比|同樣)/;
+const FOLLOW_ANY = /[呢吧]\s*[?？]?$|比較|相比|對比|比起|相較/;
+
+export interface FollowUp { query: NlQuery; /** 使用者要的是「兩個期間比較」 */ compare: boolean }
+
+/**
+ * 接續上一個查詢的追問：「那上個月呢」「只看信用卡」「換成餐飲」「跟上個月比」「有比較多嗎」。
+ * 只在句子很短、而且像接續的說法時才認；沒有任何新條件、也不是比較時回傳 null（當成新問題處理）。
+ * 規則（純函式、不用 AI）：新寫的條件覆蓋上一次的對應條件，沒寫的沿用。
+ */
+export function parseFollowUp(input: string, last: NlQuery, ctx: QueryContext): FollowUp | null {
+  const text = toHalfWidth(input).trim();
+  if (!text || text.length > 24) return null;
+  if (!(FOLLOW_START.test(text) || FOLLOW_ANY.test(text))) return null;
+  const compare = /比較|相比|對比|比起|相較|比[上去前這本今昨]|比[呢吧嗎]?\s*[?？]?$|有比.*(多|少|高|低|貴|便宜)|(多|少)了嗎|變多|變少/.test(text);
+  const r = findRange(text, ctx);
+  let rest = r.match ? text.replace(r.match, ' ') : text;
+  const q: NlQuery = { ...last };
+  let changed = false;
+
+  if (r.match) {
+    if (compare) { q.prevRange = r.range; q.prevLabel = r.label; } // 「跟上個月比」：本期不動，拿它跟新期間比
+    else { q.range = r.range; q.rangeLabel = r.label; q.prevRange = r.prev; q.prevLabel = r.prevLabel; }
+    changed = true;
+  }
+  if (/全部帳戶|所有帳戶|不分帳戶/.test(text)) { q.accountIds = []; changed = true; }
+  if (/全部分類|所有分類|不分類|不分分類/.test(text)) { q.categoryIds = []; q.categoryLabel = undefined; changed = true; }
+  const accHits = findAccounts(rest, ctx.accounts);
+  if (accHits.length) { q.accountIds = accHits.map((h) => h.id); changed = true; for (const h of accHits) if (h.term) rest = rest.replace(new RegExp(h.term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), ' '); }
+  let cats: NlpCategory[] = [];
+  for (const [re, names] of SYNONYMS) {
+    const mm = rest.match(re);
+    if (!mm) continue;
+    const found = ctx.categories.filter((c) => names.includes(c.name));
+    if (!found.length) continue;
+    const main = found.filter((c) => !c.parentId);
+    cats = main.length ? main : found;
+    rest = rest.replace(mm[0], ' ');
+    break;
+  }
+  if (!cats.length) { const c = findCategory(rest, ctx.categories); if (c) cats = [c]; }
+  if (cats.length) { q.categoryIds = cats.map((c) => c.id); q.categoryLabel = cats[0].name; q.kind = cats[0].kind; q.keyword = undefined; changed = true; }
+  const metric = findMetric(text);
+  if (metric !== 'sum' && metric !== last.metric) { q.metric = metric; changed = true; }
+  if (/收入|賺/.test(text) && q.kind !== 'income') { q.kind = 'income'; q.categoryIds = []; q.categoryLabel = undefined; changed = true; }
+  if (/支出|花費|開銷|花了/.test(text) && q.kind !== 'expense') { q.kind = 'expense'; q.categoryIds = []; q.categoryLabel = undefined; changed = true; }
+  if (!changed && !compare) return null;
+  if (compare) q.metric = 'sum';
+  return { query: q, compare };
+}
