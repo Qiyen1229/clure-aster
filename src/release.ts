@@ -3,6 +3,8 @@
  * - featureRelease：目前「最新一批新功能」是哪一版推出的。只有這一批的 <NewMark since="…" /> 會亮；下次有新功能時把它改成新版本，
  *   舊功能的閃光符號就會自動全部熄掉。小修正不要改它。
  * - headline：更新提示與「有新功能可用」通知裡的一句話。
+ * - showcaseReviewed：功能介紹（首次引導，src/features/onboarding/showcase.ts）最後一次檢查是哪一版。每次改版本號都要檢查這版的新功能有沒有資格
+ *   進入功能介紹，檢查完把它改成同一版；tests/unit/showcase.test.ts 會擋住「版本號改了、這裡沒改」。
  * 建置時會另外輸出 /release.json（含 version），舊版 App 偵測到新版本時用它判斷「這次更新有沒有新功能」。
  */
 import rel from './release.json';

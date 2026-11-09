@@ -1119,6 +1119,22 @@ button.stat.clickable:active {
 .onb h1 { font-size: 1.9rem; margin: 16px 0 8px; letter-spacing: -0.02em; }
 .onb p { color: var(--text-2); line-height: 1.6; margin: 0 0 20px; }
 .onb .grow { flex: 1; }
+.showcase { margin: 0 -24px; }
+.showcase-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+.showcase-track::-webkit-scrollbar { display: none; }
+.showcase-card { flex: 0 0 100%; scroll-snap-align: center; box-sizing: border-box; padding: 0 24px; }
+.showcase-card > * { max-width: 100%; }
+.showcase-icon { width: 56px; height: 56px; border-radius: 16px; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); margin-bottom: 14px; }
+.showcase-card h2 { font-size: 1.4rem; margin: 0 0 6px; letter-spacing: -0.01em; }
+.onb .showcase-pitch { color: var(--text); font-weight: 600; margin: 0 0 12px; }
+.showcase-card ul { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 8px; }
+.showcase-card li { position: relative; padding-left: 18px; color: var(--text-2); line-height: 1.5; font-size: 0.95rem; }
+.showcase-card li::before { content: ''; position: absolute; left: 2px; top: 0.55em; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.onb .showcase-how { margin: 0; font-size: 0.85rem; color: var(--text-3); padding: 10px 12px; background: var(--surface-2); border-radius: 12px; }
+.showcase-dots { display: flex; justify-content: center; gap: 4px; margin-top: 10px; }
+.showcase-dots button { width: 28px; height: 28px; position: relative; }
+.showcase-dots button::before { content: ''; position: absolute; left: 50%; top: 50%; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%; background: var(--surface-3); transition: width 250ms var(--ease), margin 250ms var(--ease), background 250ms; }
+.showcase-dots button.on::before { width: 20px; margin-left: -10px; border-radius: 4px; background: var(--accent); }
 .steps { display: flex; gap: 6px; justify-content: center; margin-bottom: 16px; }
 .steps i { width: 6px; height: 6px; border-radius: 3px; background: var(--surface-3); transition: width 300ms var(--ease), background 300ms; }
 .steps i.on { width: 20px; background: var(--accent); }

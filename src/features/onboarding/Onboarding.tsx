@@ -1,6 +1,6 @@
 /**
- * 首次使用引導（4 步）：歡迎與主幣別 → 外觀 → 第一個帳戶 → 範例資料。
- * 功能介紹不放在這裡：新功能由設定裡的「新」標記與更新通知帶出（release.json）。
+ * 首次使用引導（5 步）：歡迎與主幣別 → 功能介紹（最強大、最新穎的 6 個功能，見 showcase.ts）→ 外觀 → 第一個帳戶 → 範例資料。
+ * 之後的新功能另外由設定裡的「新」標記與更新通知帶出（release.json）；每次發佈都要檢查有沒有資格進入功能介紹（見 showcase.ts 開頭）。
  */
 import { ICON_192 } from '@/ui/assets';
 import { useState } from 'react';
@@ -12,6 +12,7 @@ import { CURRENCIES, toMinor } from '@/domain/money';
 import { evaluate } from '@/domain/calc-expr';
 import { useSettings } from '@/stores/settings';
 import { Segmented } from '@/ui/controls';
+import { ShowcaseCarousel } from './ShowcaseCarousel';
 import { ACCENTS } from '../settings/SettingsPage';
 
 export default function Onboarding() {
@@ -22,7 +23,7 @@ export default function Onboarding() {
   const [accType, setAccType] = useState<AccountType>('cash');
   const [balance, setBalance] = useState('');
   const [busy, setBusy] = useState(false);
-  const STEPS = 4;
+  const STEPS = 5;
 
   const finish = async (withSample: boolean) => {
     setBusy(true);
@@ -72,6 +73,16 @@ export default function Onboarding() {
 
       {step === 1 && (
         <>
+          <h1>Aster 最強的 6 招</h1>
+          <p style={{ marginBottom: 12 }}>左右滑動看看。這些之後都能在 App 裡用到。</p>
+          <ShowcaseCarousel />
+          <div className="grow" />
+          <button className="btn" onClick={next}>下一步</button>
+        </>
+      )}
+
+      {step === 2 && (
+        <>
           <h1>挑一個喜歡的樣子</h1>
           <p>深色、淺色或跟隨系統，再選一個主題色。</p>
           <Segmented value={s.theme} onChange={(v) => s.set('theme', v)}
@@ -90,7 +101,7 @@ export default function Onboarding() {
         </>
       )}
 
-      {step === 2 && (
+      {step === 3 && (
         <>
           <h1>建立第一個帳戶</h1>
           <p>記帳時要選擇從哪個帳戶付款，先建一個最常用的吧。</p>
@@ -113,7 +124,7 @@ export default function Onboarding() {
         </>
       )}
 
-      {step === 3 && (
+      {step === 4 && (
         <>
           <h1>要先看看範例嗎？</h1>
           <p>載入 90 天示範帳目，體驗月曆、列表與報表。可在「設定 → 資料」一鍵清除，不影響你自己的帳。</p>
