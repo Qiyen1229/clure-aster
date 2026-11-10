@@ -120,8 +120,14 @@ def test_health_ready_and_admin_backup(admin_and_user: tuple[Api, Api]) -> None:
     r = a.get("/api/health/ready")
     body = r.json()
     assert r.status_code == 200 and body["status"] == "ready"
-    assert body["checks"]["database"]["ok"] is True
+    assert "checks" in body and body["checks"]["database"]["ok"] is True
     assert "backup" in body["checks"]
+
+    # 未授權（訪客）與一般使用者只能看到狀態，看不到內部 checks 細節
+    r_user = u.get("/api/health/ready")
+    assert r_user.status_code == 200 and r_user.json() == {"status": "ready"}
+    assert "checks" not in r_user.json()
+
     assert a.get("/api/health").json() == {"status": "ok"}
     # 備份管理：一般使用者不可；管理員可看狀態、立即備份
     assert u.get("/api/admin/backup").status_code == 403

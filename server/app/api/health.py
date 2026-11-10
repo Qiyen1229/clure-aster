@@ -5,8 +5,11 @@ import logging
 import time
 from pathlib import Path
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy import text
+
+from app.api.deps import get_optional_user
+from app.model import ROLE_ADMIN, User
 
 router = APIRouter(tags=["health"])
 log = logging.getLogger("aster.health")
@@ -37,7 +40,7 @@ def _migration_state() -> tuple[str | None, str | None]:
 
 
 @router.get("/api/health/ready", summary="就緒檢查：資料庫可讀寫、遷移為最新、備份狀態")
-def ready(response: Response) -> dict[str, object]:
+def ready(response: Response, user: User | None = Depends(get_optional_user)) -> dict[str, object]:
     from app.service import backup_service
 
     checks: dict[str, object] = {}
@@ -66,7 +69,10 @@ def ready(response: Response) -> dict[str, object]:
     checks["backup"] = {**{k: b[k] for k in ("supported", "enabled", "count", "last_at")}, "stale": stale}
     if not ok:
         response.status_code = 503
-    return {"status": "ready" if ok else "not_ready", "checks": checks}
+    res: dict[str, object] = {"status": "ready" if ok else "not_ready"}
+    if user and user.role == ROLE_ADMIN:
+        res["checks"] = checks
+    return res
 
 
 def _ts(iso: str) -> float:
