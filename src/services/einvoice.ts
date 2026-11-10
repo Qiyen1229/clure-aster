@@ -169,9 +169,10 @@ export interface InvoiceImportResult {
  * - 分類：自動分類規則與商家記憶，找不到則記「其他支出」
  */
 export async function importInvoices(list: Invoice[], opts: { defaultAccountId: string }): Promise<InvoiceImportResult> {
-  const [{ db }, { addTransaction }, { suggestAccount, suggestCategory }, { toMinor }, { getRate }] = await Promise.all([
-    import('@/db/schema'), import('@/db/repo/ledger'), import('./autocat'), import('@/domain/money'), import('./fx'),
+  const [{ db }, { addTransaction }, { suggestAccount, suggestCategory }, { toMinor, convertMinor }, { getRate }, { getSetting }] = await Promise.all([
+    import('@/db/schema'), import('@/db/repo/ledger'), import('./autocat'), import('@/domain/money'), import('./fx'), import('@/db/repo/settings'),
   ]);
+  const base = (await getSetting('baseCurrency')) || 'TWD';
   const accounts = new Map((await db.accounts.toArray()).filter((a) => !a.archived && !a.deletedAt).map((a) => [a.id, a]));
   const fallback = accounts.get(opts.defaultAccountId) ?? [...accounts.values()].find((a) => !a.isLiability) ?? [...accounts.values()][0];
   if (!fallback) throw new Error('請先新增帳戶');
@@ -188,10 +189,17 @@ export async function importInvoices(list: Invoice[], opts: { defaultAccountId: 
     if (done.has(inv.number) || isVoided(inv) || !(inv.amount > 0)) { res.skipped++; continue; }
     const note = invoiceNote(inv) || inv.sellerName;
     const text = [inv.sellerName, note].filter(Boolean).join(' ');
-    // 台灣電子發票皆為新台幣：僅比對 TWD 支出或換算後為 TWD 的帳目，避免誤配外幣交易
+    // 台灣電子發票皆為新台幣：TWD 交易比對 amountMinor；外幣交易比對換匯後本位幣 baseAmountMinor
     const invTwdMinor = toMinor(inv.amount, 'TWD');
+    let invBaseMinor: number | null = null;
+    if (base === 'TWD') {
+      invBaseMinor = invTwdMinor;
+    } else {
+      const rateTwdToBase = await getRate('TWD', base);
+      if (rateTwdToBase) invBaseMinor = convertMinor(invTwdMinor, 'TWD', base, rateTwdToBase);
+    }
     const hit = manual.find((t) => !used.has(t.id) && Math.abs(Date.parse(t.date) - Date.parse(inv.date)) <= 86400000
-      && (t.currency === 'TWD' ? t.amountMinor === invTwdMinor : t.accountAmountMinor === invTwdMinor));
+      && (t.currency === 'TWD' ? t.amountMinor === invTwdMinor : (invBaseMinor !== null && t.baseAmountMinor === invBaseMinor)));
     if (hit) {
       used.add(hit.id);
       await db.transactions.update(hit.id, { invoiceNo: inv.number, merchant: hit.merchant || inv.sellerName || undefined, note: hit.note || note, updatedAt: Date.now() });

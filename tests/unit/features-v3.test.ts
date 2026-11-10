@@ -243,4 +243,49 @@ describe('電子發票記帳：帳戶判斷與對到手動記帳', () => {
     // 再匯入一次全部略過
     expect((await importInvoices([inv('AA00000001', '全聯實業', 356, d(-2))], { defaultAccountId: cash.id })).skipped).toBe(1);
   });
+
+  it('外幣帳戶手動記帳與電子發票比對（T3）', async () => {
+    const { importInvoices } = await import('@/services/einvoice');
+    const { todayKey } = await import('@/domain/period');
+    const { saveSetting } = await import('@/db/repo/settings');
+    await db.delete();
+    await db.open();
+    await bootstrap();
+    const twdAcc = await addAccount({ name: 'TWD 帳戶', icon: '', color: '', type: 'bank', currency: 'TWD', initialBalanceMinor: 0, includeInNetWorth: true, isLiability: false });
+    const usdAcc = await addAccount({ name: 'USD 帳戶', icon: '', color: '', type: 'bank', currency: 'USD', initialBalanceMinor: 0, includeInNetWorth: true, isLiability: false });
+    const today = todayKey();
+
+    // 1. base=TWD：先存入 USD->TWD 匯率 30
+    await db.exchange_rates.put({ base: 'USD', quote: 'TWD', rateDec: '30', source: 'manual', updatedAt: Date.now() });
+    // USD 帳戶手動記帳 10 USD (amountMinor: 1000)，由 addTransaction 自動換算 baseAmountMinor 為 300_00 TWD
+    const manualUsd = await addTransaction({
+      type: 'expense', accountId: usdAcc.id, categoryId: 'exp-food', amountMinor: 1000,
+      currency: 'USD', date: today, ts: 1, note: '美金付款',
+    });
+
+    const inv = (number: string, amount: number, date: string) => ({ number, date, amount, sellerId: '', sellerName: '商店', status: '已確認', items: [] });
+
+    // 差 1 元 (301 元) 不配對
+    const rDiff = await importInvoices([inv('AB11111111', 301, today)], { defaultAccountId: twdAcc.id });
+    expect(rDiff.matched).toBe(0);
+
+    // 相同金額 300 元配對成功
+    const rMatch = await importInvoices([inv('AB22222222', 300, today)], { defaultAccountId: twdAcc.id });
+    expect(rMatch.matched).toBe(1);
+    const updated = await db.transactions.get(manualUsd.id);
+    expect(updated?.invoiceNo).toBe('AB22222222');
+
+    // 2. base=USD：設定匯率 TWD->USD = 0.03333333333333333 (1/30)
+    await saveSetting('baseCurrency', 'USD');
+    await db.exchange_rates.put({ base: 'TWD', quote: 'USD', rateDec: '0.03333333333333333', source: 'manual', updatedAt: Date.now() });
+    const manualUsd2 = await addTransaction({
+      type: 'expense', accountId: usdAcc.id, categoryId: 'exp-food', amountMinor: 1000, accountAmountMinor: 1000,
+      baseAmountMinor: 1000, currency: 'USD', date: today, ts: 2, note: '美金付款2',
+    });
+    // 300 TWD 發票，換算為 USD base 為 300 * (1/30) = 10 USD (1000 minor)
+    const rMatchUsdBase = await importInvoices([inv('AB33333333', 300, today)], { defaultAccountId: usdAcc.id });
+    expect(rMatchUsdBase.matched).toBe(1);
+    const updated2 = await db.transactions.get(manualUsd2.id);
+    expect(updated2?.invoiceNo).toBe('AB33333333');
+  });
 });
