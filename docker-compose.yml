@@ -49,7 +49,7 @@ services:
 
   # 網站：nginx 直接提供建置結果；/api 轉給後端、/proxy 轉給報價代理
   web:
-    image: nginx:1.27-alpine
+    image: nginxinc/nginx-unprivileged:1.27-alpine
     container_name: clure-web
     restart: unless-stopped
     command: ["sh", "/nginx-watch.sh"]         # 啟動 nginx，並監看設定檔：覆蓋後自動重新載入

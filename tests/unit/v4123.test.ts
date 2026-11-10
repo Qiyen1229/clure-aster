@@ -347,4 +347,15 @@ describe('v4.1.23 Phase 2 測試', () => {
       vi.restoreAllMocks();
     });
   });
+
+  describe('T17: nginx 容器降權改用 unprivileged 非 root 映像檔', () => {
+    it('Dockerfile.web 與 docker-compose.yml 採用 nginxinc/nginx-unprivileged:1.27-alpine', () => {
+      const dockerfile = fs.readFileSync('docker/Dockerfile.web', 'utf-8');
+      expect(dockerfile).toContain('FROM nginxinc/nginx-unprivileged:1.27-alpine');
+      expect(dockerfile).toContain('EXPOSE 9122');
+
+      const compose = fs.readFileSync('docker-compose.yml', 'utf-8');
+      expect(compose).toContain('image: nginxinc/nginx-unprivileged:1.27-alpine');
+    });
+  });
 });
