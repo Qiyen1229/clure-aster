@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 if (typeof window !== 'undefined' && !window.matchMedia) {
   window.matchMedia = vi.fn().mockImplementation((query: string) => ({

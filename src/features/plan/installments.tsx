@@ -9,7 +9,7 @@ import { addInstallment, deleteInstallment } from '@/db/repo/plan';
 import { buildSchedule, computeInstallmentSummary, periodTotal, remaining } from '@/domain/installment';
 import { formatMoney, toMinor } from '@/domain/money';
 import { evaluate } from '@/domain/calc-expr';
-import { addMonths, todayKey } from '@/domain/period';
+import { todayKey } from '@/domain/period';
 import { useAccounts, useCategories } from '@/app/hooks';
 import { useUI, ask } from '@/stores/ui';
 import { useSettings } from '@/stores/settings';

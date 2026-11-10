@@ -279,8 +279,8 @@ describe('電子發票記帳：帳戶判斷與對到手動記帳', () => {
     await saveSetting('baseCurrency', 'USD');
     await db.exchange_rates.put({ base: 'TWD', quote: 'USD', rateDec: '0.03333333333333333', source: 'manual', updatedAt: Date.now() });
     const manualUsd2 = await addTransaction({
-      type: 'expense', accountId: usdAcc.id, categoryId: 'exp-food', amountMinor: 1000, accountAmountMinor: 1000,
-      baseAmountMinor: 1000, currency: 'USD', date: today, ts: 2, note: '美金付款2',
+      type: 'expense', accountId: usdAcc.id, categoryId: 'exp-food', amountMinor: 1000,
+      currency: 'USD', date: today, ts: 2, note: '美金付款2',
     });
     // 300 TWD 發票，換算為 USD base 為 300 * (1/30) = 10 USD (1000 minor)
     const rMatchUsdBase = await importInvoices([inv('AB33333333', 300, today)], { defaultAccountId: usdAcc.id });

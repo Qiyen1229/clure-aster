@@ -58,7 +58,7 @@ export function FilterSheet({ open, onClose, value, onChange }: { open: boolean;
     if (currentMax !== value.maxMinor) {
       setMaxStr(value.maxMinor !== undefined ? fromMinor(value.maxMinor, base).toString() : '');
     }
-  }, [value.minMinor, value.maxMinor, base, open]);
+  }, [value.minMinor, value.maxMinor, base, open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const f = value;
   const set = (patch: Partial<TxFilter>) => onChange({ ...f, ...patch });
