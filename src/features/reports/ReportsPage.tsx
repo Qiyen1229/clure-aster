@@ -21,7 +21,7 @@ import { netWorthSeries } from '@/services/networth';
 import { useAccounts, useCategories, useProjects, useTags } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
-import { Icon } from '@/ui/Icon';
+import { CatIcon, Icon } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
 import { LedgerRow } from '../ledger/LedgerRow';
 import { chartTheme } from './chart-theme';
@@ -288,7 +288,7 @@ export default function ReportsPage() {
                     const hasSub = !drill && (a.bySub.get(id)?.size ?? 0) > 1;
                     return (
                       <button key={id} className="row" style={{ padding: '8px 0' }} onClick={() => (hasSub ? setDrill(id) : openCategory(id, !drill))}>
-                        <span className="cat-icon sm" style={{ ['--c' as string]: c?.color }} aria-hidden="true">{c?.icon}</span>
+                        <span className="cat-icon sm" style={{ ['--c' as string]: c?.color }} aria-hidden="true"><CatIcon icon={c?.icon} size={16} /></span>
                         <span className="row-main">{c?.name ?? '未分類'} <span className="muted num" style={{ fontSize: '0.8rem' }}>{((v / total) * 100).toFixed(1)}%</span></span>
                         <Amount minor={v} currency={base} tone="none" className="num" />
                         <Icon name="chevronR" className="row-chev" />

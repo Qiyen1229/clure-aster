@@ -23,7 +23,7 @@ import { useSettings } from '@/stores/settings';
 import { snackUndo, useUI, ask, askInput } from '@/stores/ui';
 import { AccountField, SwitchField } from '@/ui/form';
 import { EmptyState, SkeletonRows } from '@/ui/controls';
-import { AiMark, Icon } from '@/ui/Icon';
+import { AiMark, CatIcon, Icon } from '@/ui/Icon';
 import { ShortcutWizard } from './ShortcutWizard';
 import { bookForecast, confirmRulePending, loadForecast, registerForecast, skipForecast, skipRulePending, type ForecastData } from '@/services/forecast';
 import type { ForecastItem } from '@/domain/forecast';
@@ -232,7 +232,7 @@ export default function InboxPage() {
               const c = t.categoryId ? catMap.get(t.categoryId) : undefined;
               return (
                 <div key={it.id} className="row inbox-row">
-                  <span className="cat-icon sm" style={{ ['--c' as string]: c?.color }} aria-hidden="true">{it.rule.kind === 'subscription' ? '🔁' : c?.icon ?? '🔁'}</span>
+                  <span className="cat-icon sm" style={{ ['--c' as string]: c?.color }} aria-hidden="true"><CatIcon icon={it.rule.kind === 'subscription' ? 'repeat' : c?.icon ?? 'repeat'} size={16} /></span>
                   <span className="row-main">
                     <span className="row-title">{it.rule.name}</span>
                     <span className="row-sub">🔁 {shortDate(it.date, today)} · 週期帳目 · {accMap.get(t.accountId ?? '')?.name ?? '?'}</span>
@@ -249,7 +249,7 @@ export default function InboxPage() {
               const c = catMap.get(p.categoryId);
               return (
                 <div key={p.id} className="row inbox-row">
-                  <span className="cat-icon sm" style={{ ['--c' as string]: c?.color }} aria-hidden="true">{c?.icon ?? '🔮'}</span>
+                  <span className="cat-icon sm" style={{ ['--c' as string]: c?.color }} aria-hidden="true"><CatIcon icon={c?.icon ?? 'sparkles'} size={16} /></span>
                   <span className="row-main">
                     <span className="row-title">{p.name}</span>
                     <span className="row-sub" style={{ whiteSpace: 'normal' }}>
@@ -283,7 +283,7 @@ export default function InboxPage() {
               if (!e.drafts.length) {
                 return (
                   <div key={e.item.id} className="row inbox-row">
-                    <span className="cat-icon sm" aria-hidden="true">{src.icon}</span>
+                    <span className="cat-icon sm" aria-hidden="true"><CatIcon icon={src.icon} size={16} /></span>
                     <span className="row-main">
                       <span className="row-title">{e.item.merchant || e.item.text.slice(0, 40) || '（沒有內容）'}</span>
                       <span className="row-sub" style={{ whiteSpace: 'normal' }}>{src.label} · 看不懂金額，請手動記</span>
@@ -302,7 +302,7 @@ export default function InboxPage() {
                 const cur = d.currency ?? acc?.currency ?? 'TWD';
                 return (
                   <div key={`${e.item.id}-${i}`} className="row inbox-row">
-                    <span className="cat-icon sm" style={{ ['--c' as string]: c?.color }} aria-hidden="true">{d.kind === 'transfer' ? '🔁' : c?.icon ?? src.icon}</span>
+                    <span className="cat-icon sm" style={{ ['--c' as string]: c?.color }} aria-hidden="true"><CatIcon icon={d.kind === 'transfer' ? 'repeat' : c?.icon ?? src.icon} size={16} /></span>
                     <span className="row-main">
                       <span className="row-title">{d.note || c?.name || src.label}</span>
                       <span className="row-sub">{src.icon} {shortDate(d.date, today)} · {c?.name ?? '轉帳'} · {acc?.name ?? '?'}{e.item.card ? `（${e.item.card}）` : ''}</span>

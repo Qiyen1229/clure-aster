@@ -13,7 +13,7 @@ import { bookDrafts, draftsSmart, type ResolvedDraft } from '@/services/quickent
 import { deleteTransactions, deleteTransfers } from '@/db/repo/ledger';
 import { snackUndo, useUI } from '@/stores/ui';
 import { speechRecognition } from '@/services/voice';
-import { Icon } from '@/ui/Icon';
+import { CatIcon, Icon } from '@/ui/Icon';
 
 const EXAMPLES = ['昨天午餐 150 刷玉山卡', '早餐 60 午餐 120 飲料 55', '計程車兩百三', '領薪水 5萬2'];
 
@@ -132,7 +132,7 @@ export function QuickEntry({ initialText, accMap, catMap, onApply, onBooked }: {
               const cur = d.currency ?? acc?.currency ?? 'TWD';
               return (
                 <div key={i} className="row with-icon">
-                  <span className="cat-icon sm" style={{ ['--c' as string]: c?.color }}>{d.kind === 'transfer' ? '🔁' : c?.icon ?? '✨'}</span>
+                  <span className="cat-icon sm" style={{ ['--c' as string]: c?.color }}><CatIcon icon={d.kind === 'transfer' ? 'repeat' : c?.icon ?? 'sparkles'} size={16} /></span>
                   <span className="row-main">
                     <span className="row-title">{d.note || c?.name || (d.kind === 'transfer' ? '轉帳' : '未命名')}</span>
                     <span className="row-sub">{shortDate(d.date, today)} · {d.kind === 'transfer' ? `${acc?.name ?? '?'} → ${to?.name ?? '?'}` : `${c?.name ?? ''} · ${acc?.name ?? ''}`}</span>

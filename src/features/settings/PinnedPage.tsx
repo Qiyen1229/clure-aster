@@ -11,7 +11,7 @@ import type { Template } from '@/db/types';
 import { formatMoney, fromMinor, toMinor } from '@/domain/money';
 import { useUI, ask } from '@/stores/ui';
 import { EmptyState } from '@/ui/controls';
-import { Icon } from '@/ui/Icon';
+import { CatIcon, Icon } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
 
 export default function PinnedPage() {
@@ -51,7 +51,7 @@ export default function PinnedPage() {
             const cur = t.payload.currency ?? 'TWD';
             return (
               <div key={t.id} className="row pinned-row">
-                <span className="cat-icon sm" style={{ ['--c' as string]: c?.color }} aria-hidden="true">{c?.icon ?? '📌'}</span>
+                <span className="cat-icon sm" style={{ ['--c' as string]: c?.color }} aria-hidden="true"><CatIcon icon={c?.icon ?? 'pin'} size={16} /></span>
                 <button className="row-main" style={{ textAlign: 'left' }} onClick={() => { setEdit(t); setAmount(fromMinor(t.payload.amountMinor ?? 0, cur).toString()); }} aria-label={`編輯 ${pinNote(t)} 的金額`}>
                   <span className="row-title">{pinNote(t)}</span>
                   <span className="row-sub" style={{ whiteSpace: 'normal' }}>{t.payload.type === 'income' ? '收入' : '支出'} · {c?.name ?? '分類已刪除'} · {acc?.name ?? '帳戶已刪除'}{t.useCount ? ` · 用過 ${t.useCount} 次` : ''}</span>

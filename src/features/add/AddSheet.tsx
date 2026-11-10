@@ -26,7 +26,7 @@ import { askConfirm, snackUndo, useUI, type AddMode } from '@/stores/ui';
 import { confirmDeleteById } from '../ledger/deleteGuard';
 import { Sheet } from '@/ui/Sheet';
 import { Segmented, Switch } from '@/ui/controls';
-import { Icon } from '@/ui/Icon';
+import { CatIcon, Icon } from '@/ui/Icon';
 import { Keypad } from './Keypad';
 import { AccountPicker, CurrencyPicker, DurablePicker, ProjectPicker, TagPicker } from './pickers';
 import { computeSplit, SplitSheet, type SplitState } from './SplitSheet';
@@ -662,7 +662,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
                   return (
                     <button key={main.id} className="cat-cell" role="radio" aria-checked={active} aria-pressed={active}
                       onClick={() => { catTouched.current = true; setAutoCat(null); setCatByKind((s) => ({ ...s, [kind]: main.id })); setMainOpen(main.id); }}>
-                      <span className="cat-icon sm" style={{ ['--c' as string]: main.color }}>{main.icon}</span>
+                      <span className="cat-icon sm" style={{ ['--c' as string]: main.color }}><CatIcon icon={main.icon} size={16} /></span>
                       {main.name}
                     </button>
                   );
@@ -674,7 +674,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
                     onClick={() => { catTouched.current = true; setAutoCat(null); setCatByKind((s) => ({ ...s, [kind]: mainTree.main.id })); }}>全部{mainTree.main.name}</button>
                   {mainTree.subs.map((s) => (
                     <button key={s.id} className="pill" aria-pressed={categoryId === s.id}
-                      onClick={() => { catTouched.current = true; setAutoCat(null); setCatByKind((c) => ({ ...c, [kind]: s.id })); }}>{s.icon} {s.name}</button>
+                      onClick={() => { catTouched.current = true; setAutoCat(null); setCatByKind((c) => ({ ...c, [kind]: s.id })); }}><CatIcon icon={s.icon} size={14} style={{ verticalAlign: -2, marginRight: 4 }} />{s.name}</button>
                   ))}
                 </div>
               )}

@@ -12,7 +12,7 @@ import { shortDate } from '@/domain/nlp';
 import { todayKey } from '@/domain/period';
 import { draftsFromText, type ResolvedDraft } from '@/services/quickentry';
 import { closeVoice, setVoiceText, startListening, stopListening, submitVoice, useVoice, voiceLevel, voiceSupported } from '@/services/voice';
-import { Icon } from '@/ui/Icon';
+import { CatIcon, Icon } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
 
 const RIBBONS = [
@@ -173,7 +173,7 @@ export function VoiceSheet() {
               const cur = d.currency ?? acc?.currency ?? 'TWD';
               return (
                 <div key={i} className="row">
-                  <span className="cat-icon sm" style={{ ['--c' as string]: c?.color }} aria-hidden="true">{d.kind === 'transfer' ? '🔁' : c?.icon ?? '✨'}</span>
+                  <span className="cat-icon sm" style={{ ['--c' as string]: c?.color }} aria-hidden="true"><CatIcon icon={d.kind === 'transfer' ? 'repeat' : c?.icon ?? 'sparkles'} size={16} /></span>
                   <div className="row-main">
                     <div className="row-title">{d.note || c?.name || (d.kind === 'transfer' ? '轉帳' : '未分類')}</div>
                     <div className="row-sub">{shortDate(d.date, today)} · {d.kind === 'transfer' ? `${acc?.name ?? '?'} → ${accMap.get(d.toAccountId ?? '')?.name ?? '?'}` : `${c?.name ?? ''} · ${acc?.name ?? ''}`}</div>

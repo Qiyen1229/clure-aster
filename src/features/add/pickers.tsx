@@ -7,7 +7,7 @@ import type { Account, Project, Tag } from '@/db/types';
 import { CURRENCIES } from '@/domain/money';
 import { Sheet } from '@/ui/Sheet';
 import { Amount } from '@/ui/controls';
-import { Icon } from '@/ui/Icon';
+import { CatIcon, Icon } from '@/ui/Icon';
 import { CATEGORY_COLORS } from '@/db/seed/categories';
 import { accountTypeInfo } from '@/db/repo/accounts';
 import { lifeLabel } from '@/domain/durable';
@@ -24,7 +24,7 @@ export function AccountPicker({ open, onClose, accounts, value, onPick, title = 
         <div className="list">
           {list.map((a) => (
             <button key={a.id} className="row with-icon" onClick={() => { onPick(a.id); onClose(); }} aria-pressed={a.id === value}>
-              <span className="cat-icon sm" style={{ ['--c' as string]: a.color }} aria-hidden="true">{a.icon}</span>
+              <span className="cat-icon sm" style={{ ['--c' as string]: a.color }} aria-hidden="true"><CatIcon icon={a.icon} size={16} /></span>
               <div className="row-main">
                 <div className="row-title">{a.name}</div>
                 <div className="row-sub">{accountTypeInfo(a.type).label} · {a.currency}</div>

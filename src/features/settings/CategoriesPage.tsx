@@ -11,7 +11,7 @@ import { CATEGORY_COLORS, OTHER_SUB_NAME } from '@/db/seed/categories';
 import { useCategories } from '@/app/hooks';
 import { useUI, ask } from '@/stores/ui';
 import { Segmented } from '@/ui/controls';
-import { Icon } from '@/ui/Icon';
+import { CatIcon, Icon } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
 import { haptic } from '@/services/haptics';
 
@@ -234,7 +234,7 @@ export default function CategoriesPage() {
                   }}
                 >
                   <span className="cat-icon" style={{ ['--c' as string]: main.color }} aria-hidden="true">
-                    {main.icon}
+                    <CatIcon icon={main.icon} />
                   </span>
                   <div className="cat-card-info">
                     <span className="cat-card-title">
@@ -272,7 +272,7 @@ export default function CategoriesPage() {
                           className={`cat-chip ${s.archived ? 'archived' : ''}`}
                           onClick={() => setEdit({ cat: s, parentId: s.parentId, kind })}
                         >
-                          <span className="cat-chip-icon">{s.icon}</span>
+                          <span className="cat-chip-icon"><CatIcon icon={s.icon} size={13} /></span>
                           <span className="cat-chip-name">{s.name}{s.archived ? ' (封存)' : ''}</span>
                         </button>
                       </div>
@@ -319,13 +319,18 @@ function EditorBody({ edit, onClose }: { edit: NonNullable<Edit>; onClose: () =>
   };
   return (
     <>
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+        <span className="cat-icon" style={{ ['--c' as string]: color }}>
+          <CatIcon icon={icon || '🏷️'} />
+        </span>
+      </div>
       <div className="list">
         <div className="field">
           <label htmlFor="c-name">名稱</label>
           <input id="c-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={12} placeholder="分類名稱" />
         </div>
         <div className="field">
-          <label htmlFor="c-icon">圖示 emoji</label>
+          <label htmlFor="c-icon">圖示</label>
           <input id="c-icon" value={icon} onChange={(e) => setIcon([...e.target.value].slice(-2).join(''))} placeholder="🏷️" />
         </div>
       </div>

@@ -15,6 +15,7 @@ import { useSettings } from '@/stores/settings';
 import { useUI, ask } from '@/stores/ui';
 import { Sheet } from '@/ui/Sheet';
 import { Switch } from '@/ui/controls';
+import { CatIcon } from '@/ui/Icon';
 
 export function AccountSheet({ open, onClose, account }: { open: boolean; onClose: () => void; account?: Account }) {
   return open ? <Inner key={account?.id ?? 'new'} onClose={onClose} account={account} /> : <Sheet open={false} onClose={onClose}>{null}</Sheet>;
@@ -86,8 +87,15 @@ function Inner({ onClose, account }: { onClose: () => void; account?: Account })
         {ACCOUNT_TYPES.map((t) => (
           <button key={t.type} className="pill" role="radio" aria-checked={type === t.type} aria-pressed={type === t.type}
             disabled={!!account && account.type !== t.type && (t.liability !== info.liability)}
-            onClick={() => setType(t.type)}>{t.icon} {t.label}</button>
+            onClick={() => setType(t.type)}>
+            <CatIcon icon={t.icon} size={16} style={{ verticalAlign: -2, marginRight: 4 }} />{t.label}
+          </button>
         ))}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+        <span className="cat-icon" style={{ ['--c' as string]: color }}>
+          <CatIcon icon={icon || info.icon} />
+        </span>
       </div>
       <div className="list">
         <div className="field"><label htmlFor="acc-name">名稱</label><input id="acc-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={`例如：${info.label === '信用卡' ? '國泰 CUBE 卡' : info.label === '銀行' ? '台新 Richart' : info.label}`} maxLength={30} /></div>

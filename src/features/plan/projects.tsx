@@ -15,7 +15,7 @@ import { useSettings } from '@/stores/settings';
 import { useUI, ask } from '@/stores/ui';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { AmountField, CurrencyField, DateField, TextField } from '@/ui/form';
-import { Icon } from '@/ui/Icon';
+import { CatIcon, Icon } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
 import { LedgerRow } from '../ledger/LedgerRow';
 import { SectionHead } from './PlanPage';
@@ -47,7 +47,7 @@ export default function ProjectSection() {
             const pct = p.budgetMinor ? (spent / p.budgetMinor) * 100 : 0;
             return (
               <button key={p.id} className="row with-icon" onClick={() => navigate(`/plan/projects/${p.id}`)}>
-                <span className="cat-icon" style={{ ['--c' as string]: p.color }} aria-hidden="true">{p.icon}</span>
+                <span className="cat-icon" style={{ ['--c' as string]: p.color }} aria-hidden="true"><CatIcon icon={p.icon} /></span>
                 <div className="row-main">
                   <div className="row-title">{p.name}</div>
                   <div className="row-sub">{p.start.replace(/-/g, '/')}{p.end ? ` – ${p.end.slice(5).replace('-', '/')}` : ' 起'} · {p.currency}</div>
@@ -201,7 +201,7 @@ export function ProjectDetailPage() {
             const p = stats!.expense ? (v / stats!.expense) * 100 : 0;
             return (
               <div key={cid} className="row with-icon">
-                <span className="cat-icon sm" style={{ ['--c' as string]: c?.color }} aria-hidden="true">{c?.icon}</span>
+                <span className="cat-icon sm" style={{ ['--c' as string]: c?.color }} aria-hidden="true"><CatIcon icon={c?.icon} size={16} /></span>
                 <div className="row-main">
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                     <span>{c?.name} <span className="muted num" style={{ fontSize: '0.8rem' }}>{p.toFixed(1)}%</span></span>

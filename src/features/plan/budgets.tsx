@@ -18,6 +18,7 @@ import { snackUndo, useUI, ask } from '@/stores/ui';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { AmountField, CategoryField, DateField, SelectField, SwitchField, TextField } from '@/ui/form';
 import { Sheet } from '@/ui/Sheet';
+import { CatIcon } from '@/ui/Icon';
 import { SectionHead } from './PlanPage';
 import { useScreenDetail } from '@/stores/screenContext';
 
@@ -95,7 +96,7 @@ function BudgetCard({ v, onEdit }: { v: BudgetView; onEdit: () => void }) {
   return (
     <button className="card" style={{ display: 'block', width: '100%', textAlign: 'left' }} onClick={onEdit}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-        <span className="cat-icon sm" style={{ ['--c' as string]: cat?.color }} aria-hidden="true">{cat?.icon ?? '🎯'}</span>
+        <span className="cat-icon sm" style={{ ['--c' as string]: cat?.color }} aria-hidden="true"><CatIcon icon={cat?.icon ?? 'target'} size={16} /></span>
         <div className="row-main">
           <div style={{ fontWeight: 600 }}>{b.name}</div>
           <div className="row-sub">{v.period.start.slice(5).replace('-', '/')} – {v.period.end.slice(5).replace('-', '/')} · 剩 {s.daysLeft} 天{b.rollover && v.carryIn ? ` · 結轉 ${v.carryIn > 0 ? '+' : ''}${fromMinor(v.carryIn, b.currency).toFixed(0)}` : ''}</div>

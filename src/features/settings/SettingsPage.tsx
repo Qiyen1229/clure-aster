@@ -19,6 +19,7 @@ import { Segmented, Switch } from '@/ui/controls';
 import { Icon, type IconName } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
 import { NewMark } from '@/ui/NewMark';
+import { openWhatsNew } from '@/features/whatsnew/WhatsNew';
 import { AUTH_ENABLED, useAuth } from '@/stores/auth';
 import { ChangePasswordForm } from '../auth/AuthPages';
 import { setEncryption, syncNow, unlockEncryption, useSync } from '@/services/sync';
@@ -366,12 +367,14 @@ function AboutHubSheet({ open, onClose }: { open: boolean; onClose: () => void }
             } catch { snack('無法連線到伺服器，請稍後再試'); } finally { setChecking(false); }
           }}>{checking ? '檢查中…' : '檢查更新'}</button>
         </Row>
+        <Row icon="sparkles" tint="#0A84FF" label="新功能介紹" sub="瀏覽各版本重點新功能與操作導引" onClick={() => { onClose(); openWhatsNew(); }} />
         <Row icon="template" tint="#FF9F0A" label="重新執行首次引導" sub="再次瀏覽 Aster 最強功能特色與基礎設定" onClick={() => { s.set('onboarded', false); navTo('/onboarding'); }} />
         <Row icon="lock" tint="#30B0C7" label="隱私權政策" onClick={() => navTo('/privacy')} />
-        <Row icon="note" tint="#8E8E93" label="服務條款" onClick={() => navTo('/terms')} />
+        <Row icon="note" tint="#8E8E93" label="服務條款與授權" onClick={() => navTo('/terms')} />
         <details className="set-details" style={{ margin: '8px 4px 4px' }}>
-          <summary>資料隱私說明</summary>
+          <summary>資料隱私與開源授權說明</summary>
           <p>記帳資料存在本機，並同步到你的伺服器，各裝置看到同一份；未啟用端對端加密時，伺服器上是明文。收據照片只留在拍照的裝置，App 鎖 PIN 與通知設定不同步。匯率與股價查詢只送出幣別或股票代號。</p>
+          <p style={{ marginTop: 6 }}>圖示集源自 Lucide Icons，採 ISC 開源授權（相容 MIT、可商用）。</p>
         </details>
       </div>
     </Sheet>
@@ -577,7 +580,7 @@ export default function SettingsPage() {
           <Row icon="lock" tint="#5E5CE6" label="帳號安全與隱私" sub="端對端加密、App 鎖 PIN/Face ID、變更密碼" onClick={() => setSecOpen(true)} />
         )}
         <Row icon="folder" tint="#0A84FF" label="資料備份與維護" sub="備份還原、匯出入、資料庫健康檢查、範例帳目" onClick={() => setDataOpen(true)} />
-        <Row icon="info" tint="#8E8E93" label="關於 Aster" sub={`v${__APP_VERSION__} · 檢查更新、首次引導、條款政策`} onClick={() => setAboutOpen(true)} />
+        <Row icon="info" tint="#8E8E93" label="關於 Aster" sub={`v${__APP_VERSION__} · 檢查更新、新功能介紹、條款政策`} onClick={() => setAboutOpen(true)} />
       </Group>
 
       {/* 危險操作區 */}

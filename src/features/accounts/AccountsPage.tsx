@@ -20,7 +20,7 @@ import { useSettings } from '@/stores/settings';
 import { useUI, ask } from '@/stores/ui';
 import { ExplainButton } from '@/ui/Explain';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
-import { Icon } from '@/ui/Icon';
+import { CatIcon, Icon } from '@/ui/Icon';
 import { AccountSheet } from './AccountSheet';
 import { lazy, Suspense } from 'react';
 import { usePortfolio } from '@/services/portfolio';
@@ -105,12 +105,12 @@ export default function AccountsPage() {
           ) : (
             groups.map((g) => (
               <section key={g.type}>
-                <div className="section-title">{g.icon} {g.label}</div>
+                <div className="section-title"><CatIcon icon={g.icon} size={18} style={{ verticalAlign: -3, marginRight: 6 }} />{g.label}</div>
                 <div className="list">
                   {g.items.map((a) => (
                     <div key={a.id} style={{ position: 'relative' }}>
                       <button className="row with-icon" onClick={() => (sorting ? undefined : navigate(`/accounts/${a.id}`))}>
-                        <span className="cat-icon" style={{ ['--c' as string]: a.color }} aria-hidden="true">{a.icon}</span>
+                        <span className="cat-icon" style={{ ['--c' as string]: a.color }} aria-hidden="true"><CatIcon icon={a.icon} /></span>
                         <div className="row-main">
                           <div className="row-title">{a.name}{a.archived ? '（已封存）' : ''}</div>
                           <div className="row-sub">{a.currency}{!a.includeInNetWorth ? ' · 不計入淨資產' : ''}{a.type === 'credit' && a.credit ? <CreditSub account={a} /> : null}</div>
@@ -238,7 +238,7 @@ export function AccountDetailPage() {
         <button className="icon-btn" aria-label="編輯帳戶" onClick={() => setEditing(true)}><Icon name="edit" /></button>
       </header>
       <section className="card glass" style={{ textAlign: 'center' }}>
-        <span className="cat-icon lg" style={{ ['--c' as string]: account.color, margin: '0 auto 8px' }}>{account.icon}</span>
+        <span className="cat-icon lg" style={{ ['--c' as string]: account.color, margin: '0 auto 8px' }}><CatIcon icon={account.icon} size={28} /></span>
         <div className="muted" style={{ fontSize: '0.8rem' }}>{account.type === 'credit' || account.loan ? '目前欠款' : '目前餘額'}</div>
         <div className="hero-num num"><Amount minor={account.type === 'credit' || account.loan ? -account.balanceMinor : account.balanceMinor} currency={account.currency} tone="none" animate /></div>
         {account.credit && st && avail && (

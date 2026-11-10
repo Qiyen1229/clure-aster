@@ -15,7 +15,7 @@ import { db } from '@/db/schema';
 import type { Transaction } from '@/db/types';
 import { countsInStats } from '@/domain/ledger';
 import { EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
-import { Icon } from '@/ui/Icon';
+import { CatIcon, Icon } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
 import { LedgerRow } from '../ledger/LedgerRow';
 import { AiInsightsCard } from '../ai/AiExplain';
@@ -120,7 +120,7 @@ export default function SummaryPage() {
                   const cat = cats.get(c.id);
                   return (
                     <div key={c.id} className="row with-icon">
-                      <span className="cat-icon sm" style={{ ['--c' as string]: cat?.color }} aria-hidden="true">{cat?.icon ?? '✨'}</span>
+                      <span className="cat-icon sm" style={{ ['--c' as string]: cat?.color }} aria-hidden="true"><CatIcon icon={cat?.icon ?? 'sparkles'} size={16} /></span>
                       <span className="row-main">
                         <span className="row-title" style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                           <span>{cat?.name ?? '其他'}</span><span className="num">{money(c.amount)}</span>
@@ -142,7 +142,7 @@ export default function SummaryPage() {
               <div className="section-title">最大一筆</div>
               <div className="list">
                 <button className="row with-icon" onClick={() => useUI.getState().editTx(sum.biggest!.id)}>
-                  <span className="cat-icon sm" style={{ ['--c' as string]: cats.get(sum.biggest.categoryId)?.color }} aria-hidden="true">{cats.get(sum.biggest.categoryId)?.icon ?? '✨'}</span>
+                  <span className="cat-icon sm" style={{ ['--c' as string]: cats.get(sum.biggest.categoryId)?.color }} aria-hidden="true"><CatIcon icon={cats.get(sum.biggest.categoryId)?.icon ?? 'sparkles'} size={16} /></span>
                   <span className="row-main"><span className="row-title">{sum.biggest.note || cats.get(sum.biggest.categoryId)?.name}</span><span className="row-sub">{sum.biggest.date}</span></span>
                   <span className="num neg">{formatMoney(sum.biggest.amountMinor, sum.biggest.currency)}</span>
                 </button>

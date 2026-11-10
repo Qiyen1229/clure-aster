@@ -13,7 +13,7 @@ import { snackUndo, useUI } from '@/stores/ui';
 import { confirmDelete, withTransferBase } from './deleteGuard';
 import { categoryLabel } from '@/app/hooks';
 import { fromMinor } from '@/domain/money';
-import { Icon } from '@/ui/Icon';
+import { CatIcon, Icon } from '@/ui/Icon';
 import { todayKey } from '@/domain/period';
 
 interface Props {
@@ -97,7 +97,7 @@ function LedgerRowImpl({ item, cats, accounts, tags, showDate, selectMode, selec
   const body = (
     <div className={`row tx-row${selectMode ? ' selectable' : ''}`} aria-selected={selectMode ? selected : undefined}>
       {selectMode && <span className="check" aria-hidden="true">{selected && <Icon name="check" size={14} stroke={3} />}</span>}
-      <span className="cat-icon" style={{ ['--c' as string]: color }} aria-hidden="true">{icon}</span>
+      <span className="cat-icon" style={{ ['--c' as string]: color }} aria-hidden="true"><CatIcon icon={icon} /></span>
       <div className="row-main">
         <div className="row-title">{title}</div>
         <div className="row-sub">{showDate ? `${item.date.slice(5).replace('-', '/')} · ` : ''}{sub}</div>

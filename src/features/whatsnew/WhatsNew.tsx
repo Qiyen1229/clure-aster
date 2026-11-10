@@ -5,14 +5,46 @@
  * 全新安裝（還沒做完首次引導）不跳；更新沒有新功能（只有小修正）就靜默記下版本。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { create } from 'zustand';
 import { useSettings } from '@/stores/settings';
 import { haptic } from '@/services/haptics';
 import { Icon } from '@/ui/Icon';
-import { featuresBetween, type WhatsNewItem } from './releaseNotes';
+import { RELEASE_NOTES, featuresBetween, type ReleaseNote, type WhatsNewItem } from './releaseNotes';
 
 const KEY = 'aster.seenVersion';
 /** 這個機制上線前的最後一版：已經在用、但還沒有紀錄的使用者，視為從這一版更新上來 */
 export const LEGACY_BASELINE = '4.1.13';
+
+interface WhatsNewStore {
+  manualSeq: number;
+  manualItems: WhatsNewItem[] | null;
+  open: (items?: WhatsNewItem[]) => void;
+  close: () => void;
+}
+
+export const useWhatsNewStore = create<WhatsNewStore>((set) => ({
+  manualSeq: 0,
+  manualItems: null,
+  open: (items) => set((s) => ({ manualSeq: s.manualSeq + 1, manualItems: items ?? null })),
+  close: () => set({ manualItems: null }),
+}));
+
+/** 主動叫出新功能介紹彈窗 */
+export function openWhatsNew(items?: WhatsNewItem[]) {
+  useWhatsNewStore.getState().open(items);
+}
+
+/** 取得最近版本重點新功能（若主動開啟時無未讀新功能，則展示最近版本的項目供瀏覽） */
+export function getRecentFeatures(notes: readonly ReleaseNote[] = RELEASE_NOTES): WhatsNewItem[] {
+  const list: WhatsNewItem[] = [];
+  for (const n of notes) {
+    for (const f of n.features) {
+      list.push({ ...f, version: n.version, date: n.date });
+    }
+    if (list.length >= 3) break;
+  }
+  return list;
+}
 
 /** 決定要不要跳出視窗，並記下目前版本（純邏輯，方便測試）。storage 讀寫失敗就當作沒有紀錄 */
 export function planWhatsNew(opts: { current: string; onboarded: boolean; read: () => string | null; write: (v: string) => void }): { seen: string; items: WhatsNewItem[] } | null {
@@ -31,9 +63,25 @@ export function WhatsNewHost() {
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState(0);
 
+  const manualSeq = useWhatsNewStore((s) => s.manualSeq);
+  const manualItems = useWhatsNewStore((s) => s.manualItems);
+
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const sliderRef = useRef<HTMLDivElement | null>(null);
   const prevFocus = useRef<HTMLElement | null>(null);
+
+  // 主動開啟新功能介紹（例如從「設定 → 關於 Aster」）
+  useEffect(() => {
+    if (manualSeq === 0) return;
+    const items = manualItems && manualItems.length > 0 ? manualItems : getRecentFeatures();
+    if (!items.length) return;
+    setState({ seen: '', items });
+    setPage(0);
+    setOpen(true);
+    requestAnimationFrame(() => {
+      sliderRef.current?.scrollTo({ left: 0, behavior: 'instant' });
+    });
+  }, [manualSeq, manualItems]);
 
   useEffect(() => {
     if (!onboarded) return;
@@ -117,6 +165,7 @@ export function WhatsNewHost() {
 
   const close = () => {
     setOpen(false);
+    useWhatsNewStore.getState().close();
     try { localStorage.setItem(KEY, __APP_VERSION__); } catch { /* 忽略 */ }
   };
 

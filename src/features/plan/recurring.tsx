@@ -17,6 +17,7 @@ import { useUI, ask } from '@/stores/ui';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { AccountField, AmountField, CategoryField, DateField, SelectField, TextField } from '@/ui/form';
 import { Sheet } from '@/ui/Sheet';
+import { CatIcon } from '@/ui/Icon';
 import { SectionHead } from './PlanPage';
 
 const PRESETS: { name: string; amount: string; currency: string; cat: string }[] = [
@@ -92,7 +93,7 @@ export default function RecurringSection() {
             const soon = r.active && r.nextDue <= todayKey().slice(0, 8) + '31' && r.nextDue >= todayKey();
             return (
               <button key={r.id} className="row with-icon" onClick={() => setEdit(r)} style={{ opacity: r.active ? 1 : 0.5 }}>
-                <span className="cat-icon sm" style={{ ['--c' as string]: c?.color }} aria-hidden="true">{r.kind === 'subscription' ? '📺' : c?.icon ?? '🔁'}</span>
+                <span className="cat-icon sm" style={{ ['--c' as string]: c?.color }} aria-hidden="true"><CatIcon icon={r.kind === 'subscription' ? 'tv' : c?.icon ?? 'repeat'} size={16} /></span>
                 <div className="row-main">
                   <div className="row-title">{r.name}{r.kind === 'subscription' && <span className="chip" style={{ marginLeft: 6 }}>訂閱</span>}</div>
                   <div className="row-sub">{describeRule(r.rule)} · {r.mode === 'auto' ? '自動入帳' : '需確認'} · {accounts.map.get(r.template.accountId ?? '')?.name ?? '帳戶已刪除'}</div>

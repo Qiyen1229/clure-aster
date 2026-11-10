@@ -9,7 +9,7 @@ import { shortDate } from '@/domain/nlp';
 import { todayKey } from '@/domain/period';
 import { buildCashflow, type CashflowData } from '@/services/cashflow';
 import { Segmented, SkeletonRows, Switch } from '@/ui/controls';
-import { Icon } from '@/ui/Icon';
+import { CatIcon, Icon } from '@/ui/Icon';
 import { chartTheme } from './chart-theme';
 
 const EChart = lazy(() => import('./EChart'));
@@ -114,7 +114,7 @@ export default function CashflowPage() {
                 const a = accName.get(e.accountId);
                 return (
                   <div key={i} className="row with-icon">
-                    <span className="cat-icon sm" aria-hidden="true">{KIND_ICON[e.kind]}</span>
+                    <span className="cat-icon sm" aria-hidden="true"><CatIcon icon={KIND_ICON[e.kind]} size={16} /></span>
                     <span className="row-main">
                       <span className="row-title">{e.label}</span>
                       <span className="row-sub" style={{ display: 'block' }}>{shortDate(e.date, today)} · {a?.name}{e.assumed ? '（假設）' : ''}</span>
