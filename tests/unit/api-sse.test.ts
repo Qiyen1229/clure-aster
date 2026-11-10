@@ -55,4 +55,28 @@ describe('讀取 SSE 事件流', () => {
     expect(r.answer).toBe('ok');
     expect(f.mock.calls.filter((c) => String(c[0]).endsWith('/ai/ask/stream')).length).toBe(2);
   });
+  it('串流本體傳輸停發事件（idle）超過逾時時間 → abort 並丟出連線逾時 ApiError', async () => {
+    let enqueueFn: ((chunk: Uint8Array) => void) | undefined;
+    const stream = new ReadableStream<Uint8Array>({
+      start(c) {
+        enqueueFn = (chunk) => c.enqueue(chunk);
+        enqueueFn(enc.encode(ev('delta', { t: '第一段' })));
+      },
+      cancel() {
+        // cancel handler
+      },
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(stream, { headers: { 'content-type': 'text/event-stream' } })));
+    const seen: string[] = [];
+    await expect(
+      apiSse<{ answer: string }>(
+        '/ai/ask/stream',
+        {},
+        (n, d) => { if (n === 'delta') seen.push((d as { t: string }).t); },
+        true,
+        30,
+      ),
+    ).rejects.toThrow('連線逾時，請檢查網路後重試');
+    expect(seen).toEqual(['第一段']);
+  });
 });

@@ -109,10 +109,21 @@ export class StreamUnsupported extends Error {}
  * 回傳 `done` 事件的資料；收到 `error` 事件、或串流沒有以 done 結束，會丟出 ApiError。
  * 開始串流之前的錯誤（沒登入、額度用完、格式錯誤）是一般的 JSON 錯誤回應，處理方式和 api() 一樣（含自動刷新登入）。
  */
-export async function apiSse<T>(path: string, body: unknown, onEvent: (name: string, data: any) => void, retry = true): Promise<T> {
+export async function apiSse<T>(
+  path: string,
+  body: unknown,
+  onEvent: (name: string, data: any) => void,
+  retry = true,
+  idleTimeoutMs = 120000,
+): Promise<T> {
   await ensureCsrf();
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 120000);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const resetTimer = () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => controller.abort(), idleTimeoutMs);
+  };
+  resetTimer();
   let res: Response;
   try {
     res = await fetch(`${BASE}${path}`, {
@@ -122,27 +133,35 @@ export async function apiSse<T>(path: string, body: unknown, onEvent: (name: str
       body: JSON.stringify(body),
     });
   } catch {
+    if (timer) clearTimeout(timer);
     if (controller.signal.aborted) throw new ApiError(0, '連線逾時，請檢查網路後重試');
     throw new ApiError(0, '無法連線到伺服器，請檢查網路');
-  } finally {
-    clearTimeout(timer);
   }
   if (res.status === 401 && retry) {
-    if (await refreshOnce()) return apiSse<T>(path, body, onEvent, false);
+    if (timer) clearTimeout(timer);
+    if (await refreshOnce()) return apiSse<T>(path, body, onEvent, false, idleTimeoutMs);
     onUnauthorized?.();
   }
   if (!res.ok) {
+    if (timer) clearTimeout(timer);
     const data = await res.json().catch(() => null);
     if (res.status === 403 && retry && typeof data?.detail === 'string' && data.detail.includes('安全驗證')) {
       document.cookie = 'csrf_token=; Max-Age=0; path=/';
       document.cookie = '__Host-csrf_token=; Max-Age=0; path=/; Secure';
       await ensureCsrf();
-      return apiSse<T>(path, body, onEvent, false);
+      return apiSse<T>(path, body, onEvent, false, idleTimeoutMs);
     }
     throw new ApiError(res.status, typeof data?.detail === 'string' ? data.detail : res.status >= 500 ? `伺服器暫時沒有回應（${res.status}），請稍後再試` : `發生錯誤（${res.status}），請稍後再試`);
   }
-  if (!res.body) throw new StreamUnsupported();
+  if (!res.body) {
+    if (timer) clearTimeout(timer);
+    throw new StreamUnsupported();
+  }
   const reader = res.body.getReader();
+  const onAbort = () => {
+    try { reader.cancel(); } catch { /* ignore */ }
+  };
+  controller.signal.addEventListener('abort', onAbort, { once: true });
   const decoder = new TextDecoder();
   let buf = '';
   let result: T | undefined;
@@ -165,8 +184,10 @@ export async function apiSse<T>(path: string, body: unknown, onEvent: (name: str
   };
   try {
     for (;;) {
+      resetTimer();
       const { done, value } = await reader.read();
       if (done) break;
+      resetTimer();
       buf += decoder.decode(value, { stream: true });
       let i: number;
       while ((i = buf.indexOf('\n\n')) !== -1) { handle(buf.slice(0, i)); buf = buf.slice(i + 2); }
@@ -174,8 +195,13 @@ export async function apiSse<T>(path: string, body: unknown, onEvent: (name: str
     if (buf.trim()) handle(buf);
   } catch (e) {
     if (e instanceof ApiError) throw e;
+    if (controller.signal.aborted) throw new ApiError(0, '連線逾時，請檢查網路後重試');
     throw new ApiError(0, '連線中斷了，請檢查網路後再試一次');
+  } finally {
+    if (timer) clearTimeout(timer);
+    controller.signal.removeEventListener('abort', onAbort);
   }
+  if (controller.signal.aborted) throw new ApiError(0, '連線逾時，請檢查網路後重試');
   if (result === undefined) throw new ApiError(502, '回答中斷了，請再試一次');
   return result;
 }
