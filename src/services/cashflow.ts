@@ -65,10 +65,14 @@ export async function buildCashflow(days: number, includeSpend: boolean, today =
   const events: CashEvent[] = [];
   /** 信用卡上未來的消費（週期、分期）：卡 id → [{date, amount}] */
   const cardCharges = new Map<string, { date: DateKey; amountMinor: number }[]>();
-  const toAccountCurrency = async (amountMinor: number, from: string, acc: Account) => {
+  const toAccountCurrency = async (amountMinor: number, from: string, acc: Account): Promise<number | null> => {
     if (from === acc.currency) return amountMinor;
     const rate = await rateOrNull(from, acc.currency);
-    return rate !== null ? convertMinor(amountMinor, from, acc.currency, rate) : amountMinor;
+    if (rate === null) {
+      missingCurrencies.add(from);
+      return null;
+    }
+    return convertMinor(amountMinor, from, acc.currency, rate);
   };
 
   // 週期帳目（含待確認的日期）
@@ -80,6 +84,7 @@ export async function buildCashflow(days: number, includeSpend: boolean, today =
     if (!acc || !t.amountMinor || (t.type !== 'expense' && t.type !== 'income')) continue;
     const dates = [...r.pendingDates, ...occurrences(r.rule, r.startDate, addDays(today, 1), end, 400).filter((d) => d >= r.nextDue)];
     const amt = await toAccountCurrency(t.amountMinor, t.currency ?? acc.currency, acc);
+    if (amt === null) continue;
     if (t.type === 'income') hasIncome = true;
     for (const d of dates) {
       if (liquidIds.has(acc.id)) events.push({ date: d, accountId: acc.id, amountMinor: t.type === 'income' ? amt : -amt, label: r.name, kind: 'recurring' });
@@ -94,6 +99,7 @@ export async function buildCashflow(days: number, includeSpend: boolean, today =
     for (const s of inst.schedule) {
       if (s.transactionId || s.date <= today || s.date > end) continue;
       const amt = await toAccountCurrency(periodTotal(s), inst.currency, acc);
+      if (amt === null) continue;
       if (liquidIds.has(acc.id)) events.push({ date: s.date, accountId: acc.id, amountMinor: -amt, label: `${inst.name}（分期 ${s.no}/${inst.periods}）`, kind: 'installment' });
       else if (acc.type === 'credit') cardCharges.set(acc.id, [...(cardCharges.get(acc.id) ?? []), { date: s.date, amountMinor: amt }]);
     }

@@ -116,6 +116,8 @@ class PushService:
         return self.send_detailed(user_id, message).ok
 
     def send_detailed(self, user_id: int, message: dict) -> SendReport:
+        if "db" not in message:
+            message["db"] = f"clure-u{user_id}"
         rep = SendReport()
         for sub in self.db.scalars(select(PushSubscription).where(PushSubscription.user_id == user_id)).all():
             rep.devices += 1
@@ -155,7 +157,7 @@ class PushService:
                     chan = NotifyService(self.db).fan_out(item.user_id, schedule_notice(item.item_id, item.title, item.body, item.url))
                 except Exception:  # noqa: BLE001 — 對外通知出錯不能影響網頁推播
                     log.exception("對外通知轉送失敗")
-            rep = self.send_detailed(item.user_id, {"title": item.title, "body": item.body, "url": item.url, "tag": item.item_id})
+            rep = self.send_detailed(item.user_id, {"title": item.title, "body": item.body, "url": item.url, "tag": item.item_id, "db": f"clure-u{item.user_id}"})
             if rep.ok or (chan and chan.sent):
                 sent += 1
                 _attempts.pop(item.id, None)

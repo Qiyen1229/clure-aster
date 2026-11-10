@@ -8,6 +8,7 @@ import Decimal from 'decimal.js';
 import type { Market } from '@/db/types';
 import { useSettings } from '@/stores/settings';
 import { getJson } from './http';
+import { TW_HOLIDAYS } from '@/domain/invest/market-hours';
 
 export interface StockRef { market: Market; symbol: string }
 export interface Quote {
@@ -128,12 +129,18 @@ export function parseTwMarketTime(rawDate?: unknown): number {
   const utc = now.getTime() + now.getTimezoneOffset() * 60000;
   const twNow = new Date(utc + 8 * 3600000);
   twNow.setDate(twNow.getDate() - 1);
-  if (twNow.getDay() === 0) twNow.setDate(twNow.getDate() - 2);
-  else if (twNow.getDay() === 6) twNow.setDate(twNow.getDate() - 1);
-  const yr = twNow.getFullYear();
-  const mo = String(twNow.getMonth() + 1).padStart(2, '0');
-  const da = String(twNow.getDate()).padStart(2, '0');
-  return Date.parse(`${yr}-${mo}-${da}T13:30:00+08:00`);
+  for (let i = 0; i < 14; i++) {
+    const yr = twNow.getFullYear();
+    const mo = String(twNow.getMonth() + 1).padStart(2, '0');
+    const da = String(twNow.getDate()).padStart(2, '0');
+    const key = `${yr}-${mo}-${da}`;
+    if (twNow.getDay() !== 0 && twNow.getDay() !== 6 && !TW_HOLIDAYS.has(key)) {
+      return Date.parse(`${key}T13:30:00+08:00`);
+    }
+    twNow.setDate(twNow.getDate() - 1);
+  }
+  const fallbackKey = `${twNow.getFullYear()}-${String(twNow.getMonth() + 1).padStart(2, '0')}-${String(twNow.getDate()).padStart(2, '0')}`;
+  return Date.parse(`${fallbackKey}T13:30:00+08:00`);
 }
 
 // ───── 證交所／櫃買 OpenAPI（每日收盤）─────

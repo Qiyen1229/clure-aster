@@ -19,8 +19,8 @@ import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { cleanDecimalInput, FilterSheet } from '@/features/ledger/FilterSheet';
 import type { TxFilter } from '@/db/types';
-import { db } from '@/db/schema';
-import { processPushNotification } from '@/services/pushDedupe';
+import { db, openUserDatabase } from '@/db/schema';
+import { processPushNotification, tagToKind } from '@/services/pushDedupe';
 import { notify } from '@/services/notifications';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -31,6 +31,7 @@ import { marketState } from '@/domain/invest/market-hours';
 import { AgentBubble } from '@/features/home/AiChat';
 import { parseTwMarketTime, providerById } from '@/services/quotes/providers';
 import { buildPortfolio } from '@/services/portfolio';
+import { buildCashflow } from '@/services/cashflow';
 import { cooldownRemaining, refreshQuotes, resetBreaker } from '@/services/quotes/registry';
 import { exportErrorLogs, getRecentErrors, initGlobalErrorLogging, logAppError, MAX_ERROR_LOGS } from '@/services/errorLog';
 
@@ -104,10 +105,22 @@ describe('v4.1.23 Phase 1 測試', () => {
 
 describe('v4.1.23 Phase 2 測試', () => {
   describe('T5: sw push 與本機排程重複通知去重', () => {
-    it('本機已排程 + 伺服器 push 同一提醒只產生一次通知', async () => {
+    it('tagToKind 精確映射通知類別', () => {
+      expect(tagToKind('daily:2026-11-10')).toBe('daily_log');
+      expect(tagToKind('daily_log:1')).toBe('daily_log');
+      expect(tagToKind('card:acc1:2026-11-15')).toBe('card_due');
+      expect(tagToKind('card_due:acc1')).toBe('card_due');
+      expect(tagToKind('budget:cat1')).toBe('budget');
+      expect(tagToKind('sub:netflix')).toBe('subscription');
+      expect(tagToKind('price:2330')).toBe('price_alert');
+      expect(tagToKind('unknown:123')).toBe('daily_log');
+    });
+
+    it('登入後每人專屬 DB clure-u{userId} 與 sw push 帶 dbName 正常去重，且寫入合法 kind', async () => {
+      await openUserDatabase(42);
       await db.reminders.clear();
 
-      // 1. 本機排程先觸發：寫入 reminders
+      // 1. 本機在使用者 DB (clure-u42) 記錄提醒
       await db.reminders.put({
         id: 'daily:2026-11-10',
         kind: 'daily_log',
@@ -119,27 +132,29 @@ describe('v4.1.23 Phase 2 測試', () => {
         body: '花 10 秒記下今天的花費吧',
       });
 
-      // 2. 伺服器 push 隨後送達同一 tag
+      // 2. 伺服器 push 帶上該使用者的 db: 'clure-u42'
       const notifySpy = vi.fn();
       const handled = await processPushNotification(
-        { title: '今天還沒記帳喔 ✍️', body: '花 10 秒記下今天的花費吧', tag: 'daily:2026-11-10' },
+        { title: '今天還沒記帳喔 ✍️', body: '花 10 秒記下今天的花費吧', tag: 'daily:2026-11-10', db: 'clure-u42' },
         notifySpy,
       );
 
-      // 由於本機已記錄，push 被去重跳過，不重複呼叫 showNotification
+      // 驗證：正確在 clure-u42 查到本機提醒，去重跳過不重複推播
       expect(handled).toBe(false);
       expect(notifySpy).not.toHaveBeenCalled();
 
-      // 3. 反向情境：伺服器 push 先到，本機提醒後到
+      // 3. 反向情境：伺服器 push 先到，寫入 clure-u42
       const handledNew = await processPushNotification(
-        { title: '💳 信用卡繳款提醒', body: '本期應繳 1000', tag: 'card:acc1:2026-11-15' },
+        { title: '💳 信用卡繳款提醒', body: '本期應繳 1000', tag: 'card:acc1:2026-11-15', db: 'clure-u42' },
         notifySpy,
       );
       expect(handledNew).toBe(true);
       expect(notifySpy).toHaveBeenCalledTimes(1);
 
-      // SW 已將其寫入本機 reminders
-      expect(await db.reminders.get('card:acc1:2026-11-15')).toBeDefined();
+      // SW 已寫入 clure-u42，且 kind 正確映射為 'card_due'（而非無效的 'card'）
+      const saved = await db.reminders.get('card:acc1:2026-11-15');
+      expect(saved).toBeDefined();
+      expect(saved?.kind).toBe('card_due');
 
       // 本機排程後續檢查到期時呼叫 notify()
       const regSpy = vi.fn();
@@ -150,7 +165,6 @@ describe('v4.1.23 Phase 2 測試', () => {
       });
 
       await notify('💳 信用卡繳款提醒', '本期應繳 1000', '/accounts/acc1', 'card_due', 'card:acc1:2026-11-15');
-      // 本機 notify() 因 reminders 已存在該 id 而直接 return，不再重響
       expect(regSpy).not.toHaveBeenCalled();
 
       Object.defineProperty(navigator, 'serviceWorker', { value: origSW, configurable: true });
@@ -349,6 +363,25 @@ describe('v4.1.23 Phase 2 測試', () => {
 
       vi.restoreAllMocks();
     });
+
+    it('parseTwMarketTime 未提供日期時，fallback 避開週末與國定假日', () => {
+      // 模擬 2026-01-02（五）盤中，前一日為 2026-01-01（國定假日）
+      const mockDate = new Date('2026-01-02T10:00:00+08:00');
+      vi.useFakeTimers();
+      vi.setSystemTime(mockDate);
+      try {
+        const ts = parseTwMarketTime(undefined);
+        const d = new Date(ts);
+        // 2026-01-01 是 TW_HOLIDAYS，應退到 2025-12-31（三）
+        expect(d.getFullYear()).toBe(2025);
+        expect(d.getMonth() + 1).toBe(12);
+        expect(d.getDate()).toBe(31);
+        expect(d.getHours()).toBe(13);
+        expect(d.getMinutes()).toBe(30);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   describe('T17: nginx 容器降權改用 unprivileged 非 root 映像檔', () => {
@@ -466,6 +499,51 @@ describe('v4.1.23 Phase 2 測試', () => {
       // 驗證：正確回傳缺失 JPY 幣別，且市值不以 1:1 灌入 TWD 主幣別
       expect(summary.missingCurrencies).toContain('JPY');
       expect(summary.marketValueBase).toBe(0);
+    });
+
+    it('buildCashflow 週期帳目缺匯率時不以 1:1 混入，回傳 missingCurrencies 且跳過事件', async () => {
+      await db.accounts.clear();
+      await db.recurring_rules.clear();
+      await db.exchange_rates.clear();
+
+      await db.accounts.add({
+        id: 'acc_main',
+        name: '台幣錢包',
+        currency: 'TWD',
+        type: 'cash',
+        balanceMinor: 100000,
+        initialBalanceMinor: 0,
+        includeInNetWorth: true,
+        isLiability: false,
+        sort: 0,
+        archived: 0,
+        createdAt: 0,
+        updatedAt: 0,
+      } as any);
+
+      await db.recurring_rules.add({
+        id: 'r_jpy',
+        name: '日本訂閱',
+        kind: 'subscription',
+        active: 1,
+        startDate: '2026-11-01',
+        nextDue: '2026-11-15',
+        rule: { freq: 'monthly', interval: 1 },
+        pendingDates: [],
+        template: {
+          accountId: 'acc_main',
+          amountMinor: 500000,
+          currency: 'JPY',
+          type: 'expense',
+        },
+        createdAt: 0,
+        updatedAt: 0,
+      } as any);
+
+      const cf = await buildCashflow(30, false, '2026-11-10');
+      expect(cf.missingCurrencies).toContain('JPY');
+      const jpyEvent = cf.events.find((e) => e.label === '日本訂閱');
+      expect(jpyEvent).toBeUndefined();
     });
   });
 

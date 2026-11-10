@@ -72,7 +72,13 @@ class SyncRepository:
         return int(self.db.scalar(select(func.count(SyncRecord.id)).where(SyncRecord.user_id == user_id)) or 0)
 
     def total_bytes(self, user_id: int) -> int:
-        stmt = select(func.coalesce(func.sum(func.length(SyncRecord.payload)), 0)).where(
+        dialect = self.db.bind.dialect.name if self.db.bind else ""
+        if dialect == "postgresql":
+            byte_len = func.octet_length(SyncRecord.payload)
+        else:
+            from sqlalchemy import LargeBinary
+            byte_len = func.length(func.cast(SyncRecord.payload, LargeBinary))
+        stmt = select(func.coalesce(func.sum(byte_len), 0)).where(
             SyncRecord.user_id == user_id,
             SyncRecord.deleted.is_(False),
             SyncRecord.payload.is_not(None),

@@ -35,9 +35,9 @@ self.addEventListener('message', (event) => {
 });
 
 self.addEventListener('push', (event) => {
-  let msg: { title?: string; body?: string; url?: string; tag?: string } = {};
+  let msg: { title?: string; body?: string; url?: string; tag?: string; db?: string } = {};
   try { msg = event.data?.json() ?? {}; } catch { msg = { body: event.data?.text() }; }
-  event.waitUntil(processPushNotification(msg, (t, opt) => self.registration.showNotification(t, opt)));
+  event.waitUntil(processPushNotification(msg, (t, opt) => self.registration.showNotification(t, opt), msg.db));
 });
 
 self.addEventListener('notificationclick', (event) => {

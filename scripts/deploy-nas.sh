@@ -29,6 +29,7 @@ ssh -t "$HOST" "set -e; cd '$DIR';
   if command -v rsync >/dev/null 2>&1; then
     rsync -a --delete --exclude='.env' --exclude='data/' --exclude='server/data/' --exclude='server/.venv/' --exclude='aster-nas.zip' --exclude='.deploy-tmp' .deploy-tmp/ ./;
   else
+    echo '⚠️ 警告：NAS 缺少 rsync，退回 cp -rf 模式（不會自動刪除舊版殘留檔案，建議在 NAS 安裝 rsync）';
     cp -rf .deploy-tmp/* ./;
   fi;
   rm -rf .deploy-tmp aster-nas.zip;
