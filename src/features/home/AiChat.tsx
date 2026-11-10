@@ -219,12 +219,13 @@ async function sendImages(files: File[]) {
 
 // ───────────── 對話彈窗 ─────
 
-function AgentBubble({ m }: { m: Extract<Msg, { kind: 'agent' }> }) {
+export function AgentBubble({ m }: { m: Extract<Msg, { kind: 'agent' }> }) {
   const [busy, setBusy] = useState(false);
   const [recomputing, setRecomputing] = useState(false);
   // 單步勾選／略過：略過的步驟用 AI 規劃的原始步驟在本機重新預覽（後面步驟的餘額與持股模擬會跟著變），不必再問 AI、不扣額度
   const [off, setOff] = useState<Set<number>>(new Set());
   const [live, setLive] = useState<ResolvedStep[]>(m.steps);
+  const seqRef = useRef(0);
   const patch = (p: Partial<Extract<Msg, { kind: 'agent' }>>) => useChat.getState().patch(m.id, p as Partial<Msg>);
   const diff = summarizePlan(live);
   let j = 0;
@@ -234,11 +235,16 @@ function AgentBubble({ m }: { m: Extract<Msg, { kind: 'agent' }> }) {
     if (next.has(i)) next.delete(i); else next.add(i);
     setOff(next);
     setRecomputing(true);
+    const seq = ++seqRef.current;
     try {
       const { previewPlan } = await import('@/services/agent');
-      setLive(await previewPlan(m.raw.filter((_, k) => !next.has(k))));
+      const res = await previewPlan(m.raw.filter((_, k) => !next.has(k)));
+      if (seq !== seqRef.current) return;
+      setLive(res);
     } finally {
-      setRecomputing(false);
+      if (seq === seqRef.current) {
+        setRecomputing(false);
+      }
     }
   };
   const run = async () => {

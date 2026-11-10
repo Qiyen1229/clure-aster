@@ -28,6 +28,19 @@ import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { DAY_TRADE_TAX_SUNSET, DEFAULT_TW_FEES, twTaxRate } from '@/domain/invest/fees-tw';
 import { marketState } from '@/domain/invest/market-hours';
+import { AgentBubble } from '@/features/home/AiChat';
+
+const previewResolvers: Array<(steps: any[]) => void> = [];
+
+vi.mock('@/services/agent', () => ({
+  previewPlan: vi.fn(() => {
+    return new Promise((resolve) => {
+      previewResolvers.push(resolve);
+    });
+  }),
+  applyPlan: vi.fn(),
+  undoOp: vi.fn(),
+}));
 
 describe('v4.1.23 Phase 1 測試', () => {
   describe('T4: FilterSheet 多小數點防護與狀態同步', () => {
@@ -211,6 +224,73 @@ describe('v4.1.23 Phase 2 測試', () => {
 
       // 2027-07-03: 為週六，正常週末休市
       expect(marketState('US', new Date('2027-07-03T16:00:00Z'))).toBe('holiday');
+    });
+  });
+
+  describe('T12: AgentBubble 快速切換 preview 亂序防護', () => {
+    it('快速切換步驟時，較慢返回的過期預覽不會覆蓋較新的預覽結果', async () => {
+      previewResolvers.length = 0;
+
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const root = createRoot(container);
+
+      const msg = {
+        id: 1,
+        role: 'ai' as const,
+        kind: 'agent' as const,
+        summary: '測試操作',
+        raw: [
+          { op: 'create_tx', amountMinor: 100 },
+          { op: 'create_tx', amountMinor: 200 },
+        ] as any[],
+        steps: [
+          { op: 'create_tx', preview: { title: '初始步驟一', lines: [], warnings: [] } },
+          { op: 'create_tx', preview: { title: '初始步驟二', lines: [], warnings: [] } },
+        ] as any[],
+      };
+
+      await act(async () => {
+        root.render(React.createElement(AgentBubble, { m: msg }));
+      });
+
+      const buttons = container.querySelectorAll<HTMLButtonElement>('button.agent-toggle');
+      expect(buttons.length).toBe(2);
+
+      // 連續快速點擊同一 toggle 兩次（先略過、再切回執行）
+      await act(async () => {
+        buttons[0].click(); // 觸發第 1 次 preview (seq = 1)
+      });
+      await act(async () => {
+        buttons[0].click(); // 觸發第 2 次 preview (seq = 2)
+      });
+
+      expect(previewResolvers.length).toBe(2);
+
+      // 第 2 次預覽（最新）先完成返回
+      await act(async () => {
+        previewResolvers[1]([
+          { op: 'create_tx', preview: { title: '第二次結果（最新）', lines: [], warnings: [] } },
+          { op: 'create_tx', preview: { title: '初始步驟二', lines: [], warnings: [] } },
+        ]);
+      });
+
+      // 確認畫面上出現最新結果
+      expect(container.textContent).toContain('第二次結果（最新）');
+
+      // 第 1 次預覽（過期）較慢返回
+      await act(async () => {
+        previewResolvers[0]([
+          { op: 'create_tx', preview: { title: '第一次結果（過期）', lines: [], warnings: [] } },
+        ]);
+      });
+
+      // 驗證：過期的第一次結果被丟棄，不會覆蓋最新結果
+      expect(container.textContent).toContain('第二次結果（最新）');
+      expect(container.textContent).not.toContain('第一次結果（過期）');
+
+      root.unmount();
+      container.remove();
     });
   });
 });
