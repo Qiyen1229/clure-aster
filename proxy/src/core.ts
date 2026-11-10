@@ -37,6 +37,52 @@ export const ALLOWED_HOSTS = [
   'invoice.etax.nat.gov.tw', // 財政部統一發票中獎號碼 RSS
 ];
 
+export function isLoopbackOrPrivate(addr: string): boolean {
+  const clean = addr.replace(/^::ffff:/, '').trim();
+  if (clean === '127.0.0.1' || clean === '::1' || clean === 'localhost') return true;
+  if (/^10\./.test(clean)) return true;
+  if (/^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(clean)) return true;
+  if (/^192\.168\./.test(clean)) return true;
+  if (/^(fc|fd)/i.test(clean)) return true;
+  return false;
+}
+
+export function resolveClientIp(
+  remoteAddress: string | undefined,
+  headers: Record<string, string | string[] | undefined>,
+  trustProxyEnv = typeof process !== 'undefined' ? process.env?.TRUST_PROXY : undefined,
+): string {
+  const socketIp = remoteAddress ?? 'anon';
+  const cleanSocket = socketIp.replace(/^::ffff:/, '').trim();
+
+  let isTrusted = isLoopbackOrPrivate(cleanSocket);
+  if (trustProxyEnv !== undefined && trustProxyEnv !== '') {
+    if (trustProxyEnv === 'true' || trustProxyEnv === '1') {
+      isTrusted = true;
+    } else if (trustProxyEnv === 'false' || trustProxyEnv === '0') {
+      isTrusted = false;
+    } else {
+      const allowed = trustProxyEnv.split(',').map((s) => s.trim().replace(/^::ffff:/, ''));
+      isTrusted = allowed.includes(cleanSocket);
+    }
+  }
+
+  if (isTrusted) {
+    const rawReal = headers['x-real-ip'];
+    const realIp = typeof rawReal === 'string' ? rawReal.trim() : Array.isArray(rawReal) ? rawReal[0]?.trim() : undefined;
+    if (realIp) return realIp;
+
+    const rawForwarded = headers['x-forwarded-for'];
+    const forwarded = typeof rawForwarded === 'string' ? rawForwarded : Array.isArray(rawForwarded) ? rawForwarded[0] : undefined;
+    if (forwarded) {
+      const first = forwarded.split(',')[0]?.trim();
+      if (first) return first;
+    }
+  }
+
+  return cleanSocket;
+}
+
 /** 不同來源的快取秒數（盤中即時報價短、名單長） */
 function ttlFor(url: URL): number {
   if (url.host === 'mis.twse.com.tw') return 10;
