@@ -118,7 +118,13 @@ export function marketState(m: Market, now = new Date()): MarketState {
     const d = new Date(Date.parse(`${thanksGiving}T12:00:00Z`));
     d.setUTCDate(d.getUTCDate() + 1);
     const blackFriday = key(d);
-    if (p.date === blackFriday || (p.date === `${y}-12-24` && p.weekday >= 1 && p.weekday <= 5)) {
+    const jul4Day = new Date(Date.UTC(y, 6, 4)).getUTCDay();
+    const isJul3EarlyClose = p.date === `${y}-07-03` && jul4Day >= 2 && jul4Day <= 5;
+    if (
+      p.date === blackFriday ||
+      (p.date === `${y}-12-24` && p.weekday >= 1 && p.weekday <= 5) ||
+      isJul3EarlyClose
+    ) {
       closeMin = 13 * 60;
     }
   }

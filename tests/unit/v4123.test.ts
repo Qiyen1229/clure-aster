@@ -27,6 +27,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { DAY_TRADE_TAX_SUNSET, DEFAULT_TW_FEES, twTaxRate } from '@/domain/invest/fees-tw';
+import { marketState } from '@/domain/invest/market-hours';
 
 describe('v4.1.23 Phase 1 測試', () => {
   describe('T4: FilterSheet 多小數點防護與狀態同步', () => {
@@ -190,6 +191,26 @@ describe('v4.1.23 Phase 2 測試', () => {
       // ETF 與債券 ETF 不受影響
       expect(twTaxRate('etf', DEFAULT_TW_FEES, undefined, true, '2026-12-31')).toBe('0.001');
       expect(twTaxRate('bond_etf', DEFAULT_TW_FEES, undefined, true, '2027-01-01')).toBe('0');
+    });
+  });
+
+  describe('T11: 美股獨立日前夕 7/3 早收與休市', () => {
+    it('2025-07-03（7/4 週五）13:00 收盤；2026-07-03（7/4 週六）全日休市；2027-07-03 週六休市', () => {
+      // 2025-07-03: 7/4 為週五，7/3 正常開盤但提前於 13:00 EDT (17:00 UTC) 收盤
+      // 12:00 EDT (16:00 UTC) 盤中開盤
+      expect(marketState('US', new Date('2025-07-03T16:00:00Z'))).toBe('open');
+      // 13:00 EDT (17:00 UTC) 早收已關閉（若為一般日，17:00 UTC 為開盤中）
+      expect(marketState('US', new Date('2025-07-03T17:00:00Z'))).toBe('closed');
+      expect(marketState('US', new Date('2025-07-03T18:00:00Z'))).toBe('closed');
+
+      // 對照：一般交易日（例如 2025-07-02 週三）14:00 EDT (18:00 UTC) 仍為開盤中
+      expect(marketState('US', new Date('2025-07-02T18:00:00Z'))).toBe('open');
+
+      // 2026-07-03: 7/4 為週六，7/3 為獨立日補休（observed holiday），全日休市
+      expect(marketState('US', new Date('2026-07-03T16:00:00Z'))).toBe('holiday');
+
+      // 2027-07-03: 為週六，正常週末休市
+      expect(marketState('US', new Date('2027-07-03T16:00:00Z'))).toBe('holiday');
     });
   });
 });
