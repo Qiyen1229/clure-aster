@@ -37,6 +37,11 @@ export default function TaxPage() {
         <p className="muted" style={{ fontSize: '0.8rem', margin: '6px 8px 0' }}>{Number(year) - 1911} 年度所得，{Number(year) - 1910} 年 5 月申報</p>
       </div>
       {base !== 'TWD' && <p className="card" style={{ fontSize: '0.85rem' }}>⚠️ 主幣別不是新台幣，金額以 {base} 計算，與台灣稅務級距比較時請自行換算。</p>}
+      {data?.missingCurrencies && data.missingCurrencies.length > 0 && (
+        <p className="card" style={{ fontSize: '0.85rem', color: 'var(--warning)' }}>
+          ⚠️ 部分幣別（{data.missingCurrencies.join('、')}）缺匯率未計入稅務彙總。
+        </p>
+      )}
       {!data || !sum ? <SkeletonRows n={4} /> : (
         <>
           <div className="list">

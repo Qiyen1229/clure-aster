@@ -132,6 +132,7 @@ export default function InvestTab() {
               </p>
             )}
             {pf.missingPrice > 0 && <p style={{ fontSize: '0.8rem', color: 'var(--warning)', margin: '8px 0 0' }}>⚠️ {pf.missingPrice} 檔沒有報價，以成本計算市值。可進入個股手動輸入現價。</p>}
+            {pf.missingCurrencies && pf.missingCurrencies.length > 0 && <p style={{ fontSize: '0.8rem', color: 'var(--warning)', margin: '8px 0 0' }}>⚠️ 部分幣別（{pf.missingCurrencies.join('、')}）缺匯率未計入市值與損益。</p>}
           </section>
 
           <div className="btn-row" style={{ marginBottom: 12 }}>

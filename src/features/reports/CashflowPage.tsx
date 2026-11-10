@@ -84,6 +84,12 @@ export default function CashflowPage() {
             </label>
           </section>
 
+          {data.missingCurrencies?.length > 0 && (
+            <p className="card" style={{ fontSize: '0.85rem', color: 'var(--warning)', marginTop: 8 }}>
+              ⚠️ 部分幣別（{data.missingCurrencies.join('、')}）缺匯率未計入現金流預測。
+            </p>
+          )}
+
           {data.shortfalls.length > 0 && (
             <section className="card cash-warn" role="alert">
               <b>⚠️ 這些帳戶會不夠付</b>

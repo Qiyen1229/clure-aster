@@ -30,6 +30,7 @@ import { DAY_TRADE_TAX_SUNSET, DEFAULT_TW_FEES, twTaxRate } from '@/domain/inves
 import { marketState } from '@/domain/invest/market-hours';
 import { AgentBubble } from '@/features/home/AiChat';
 import { parseTwMarketTime, providerById } from '@/services/quotes/providers';
+import { buildPortfolio } from '@/services/portfolio';
 
 const previewResolvers: Array<(steps: any[]) => void> = [];
 
@@ -412,6 +413,57 @@ describe('v4.1.23 Phase 2 測試', () => {
       } finally {
         fs.rmSync(testOut, { recursive: true, force: true });
       }
+    });
+  });
+
+  describe('T21: 統計與投資計算缺匯率防範 1:1 混入', () => {
+    it('buildPortfolio 缺少 JPY 匯率時不以 1:1 混入主幣別 TWD，回傳缺匯率標記', () => {
+      const jpyStock = {
+        id: 's_sony',
+        symbol: '6758',
+        name: 'Sony',
+        market: 'OTHER' as const,
+        currency: 'JPY',
+        lotSize: 100,
+        assetType: 'stock' as const,
+      };
+      const trade = {
+        id: 'tr_1',
+        stockId: 's_sony',
+        type: 'buy' as const,
+        date: '2026-01-01',
+        sharesDec: '100',
+        priceDec: '3000',
+        feeMinor: 0,
+        taxMinor: 0,
+        accountId: 'acc_1',
+        cashAccountId: 'acc_1',
+        currency: 'JPY',
+        fxRateDec: '1',
+      };
+      const price = {
+        stockId: 's_sony',
+        priceDec: '3200',
+        prevCloseDec: '3100',
+        updatedAt: Date.now(),
+        isManual: false,
+      };
+
+      // rates 為空，缺少 JPY -> TWD 匯率
+      const summary = buildPortfolio({
+        stocks: [jpyStock],
+        trades: [trade],
+        prices: [price],
+        dividends: [],
+        rates: [],
+        base: 'TWD',
+        method: 'avg',
+        feeEstimate: () => ({ fee: 0, tax: 0 }),
+      });
+
+      // 驗證：正確回傳缺失 JPY 幣別，且市值不以 1:1 灌入 TWD 主幣別
+      expect(summary.missingCurrencies).toContain('JPY');
+      expect(summary.marketValueBase).toBe(0);
     });
   });
 });

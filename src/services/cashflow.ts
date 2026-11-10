@@ -29,12 +29,13 @@ export interface CashflowData extends Forecast {
   dailySpend: number;
   hasIncome: boolean;
   base: string;
+  missingCurrencies: string[];
 }
 
-async function rateOrOne(from: string, to: string): Promise<number> {
+async function rateOrNull(from: string, to: string): Promise<number | null> {
   if (from === to) return 1;
   const r = await getRate(from, to).catch(() => null);
-  return r ? r.toNumber() : 1;
+  return r ? r.toNumber() : null;
 }
 
 export async function buildCashflow(days: number, includeSpend: boolean, today = todayKey()): Promise<CashflowData> {
@@ -43,8 +44,13 @@ export async function buildCashflow(days: number, includeSpend: boolean, today =
   const all = (await db.accounts.toArray()).filter((a) => !a.archived && !a.deletedAt);
   const liquid = all.filter((a) => LIQUID.has(a.type));
   const accounts: CashAccount[] = [];
+  const missingCurrencies = new Set<string>();
   for (const a of liquid) {
-    const r = await rateOrOne(a.currency, base);
+    const r = await rateOrNull(a.currency, base);
+    if (r === null) {
+      missingCurrencies.add(a.currency);
+      continue;
+    }
     // 最小單位的小數位數可能不同（JPY 0 位、TWD 2 位）
     accounts.push({ id: a.id, name: a.name, currency: a.currency, balanceMinor: a.balanceMinor, toBase: convertMinor(1_000_000, a.currency, base, r) / 1_000_000 });
   }
@@ -139,5 +145,5 @@ export async function buildCashflow(days: number, includeSpend: boolean, today =
   const dailySpend = dailyVariableSpend(recent, SPEND_WINDOW);
   events.sort((a, b) => a.date.localeCompare(b.date) || a.amountMinor - b.amountMinor);
   const f = forecast({ today, days, accounts, events, dailySpendBase: includeSpend ? dailySpend : 0 });
-  return { ...f, accounts, events, dailySpend, hasIncome, base };
+  return { ...f, accounts, events, dailySpend, hasIncome, base, missingCurrencies: Array.from(missingCurrencies) };
 }

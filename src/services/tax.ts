@@ -12,19 +12,41 @@ const DOMESTIC: Market[] = ['TWSE', 'TPEX', 'EMERGING'];
 
 export interface TaxDetailRow { stockId: string; symbol: string; name: string; market: Market; dividend: number; withholding: number; nhi: number; realized: number }
 
-export async function investIncomeForYear(year: string, base: string, method: 'avg' | 'fifo'): Promise<{ income: InvestIncome; rows: TaxDetailRow[] }> {
+export async function investIncomeForYear(year: string, base: string, method: 'avg' | 'fifo'): Promise<{ income: InvestIncome; rows: TaxDetailRow[]; missingCurrencies: string[] }> {
   const [stocks, trades, dividends, rates] = await Promise.all([db.stocks.toArray(), db.stock_trades.toArray(), db.dividends.toArray(), db.exchange_rates.toArray()]);
   const rateMap = new Map(rates.map((r) => [`${r.base}>${r.quote}`, r]));
-  const fx = (cur: string) => (cur === base ? '1' : resolveRate(rateMap, cur, base)?.toString() ?? '1');
-  const toBase = (minor: number, cur: string) => fromMinor(convertMinor(minor, cur, base, fx(cur)), base).toNumber();
+  const missingCurrencies = new Set<string>();
+  const fx = (cur: string): string | null => {
+    if (cur === base) return '1';
+    const r = resolveRate(rateMap, cur, base);
+    if (!r) {
+      missingCurrencies.add(cur);
+      return null;
+    }
+    return r.toString();
+  };
+  const toBase = (minor: number, cur: string): number | null => {
+    const rate = fx(cur);
+    if (!rate) return null;
+    return fromMinor(convertMinor(minor, cur, base, rate), base).toNumber();
+  };
   const income: InvestIncome = { domesticDividend: 0, nhi: 0, foreignDividend: 0, foreignWithholding: 0, foreignRealized: 0, domesticRealized: 0 };
   const rows: TaxDetailRow[] = [];
   for (const s of stocks) {
     const domestic = DOMESTIC.includes(s.market);
     const divs = dividends.filter((d) => d.stockId === s.id && d.kind === 'cash' && d.status === 'paid' && d.payDate.startsWith(year) && !d.deletedAt);
-    const dividend = divs.reduce((a, d) => a + toBase(d.grossMinor, d.currency), 0);
-    const withholding = divs.reduce((a, d) => a + toBase(d.withholdingTaxMinor, d.currency), 0);
-    const nhi = divs.reduce((a, d) => a + toBase(d.nhiSupplementMinor, d.currency), 0);
+    const dividend = divs.reduce((a, d) => {
+      const b = toBase(d.grossMinor, d.currency);
+      return b !== null ? a + b : a;
+    }, 0);
+    const withholding = divs.reduce((a, d) => {
+      const b = toBase(d.withholdingTaxMinor, d.currency);
+      return b !== null ? a + b : a;
+    }, 0);
+    const nhi = divs.reduce((a, d) => {
+      const b = toBase(d.nhiSupplementMinor, d.currency);
+      return b !== null ? a + b : a;
+    }, 0);
     const st = trades.filter((t) => t.stockId === s.id && !t.deletedAt);
     const pos = st.length ? computePosition(st, method, currencyInfo(s.currency).exp) : null;
     // 已實現損益以主幣別（含匯差）計
@@ -45,5 +67,6 @@ export async function investIncomeForYear(year: string, base: string, method: 'a
   return {
     income: Object.fromEntries(Object.entries(income).map(([k, v]) => [k, r(v)])) as unknown as InvestIncome,
     rows: rows.sort((a, b) => b.dividend + Math.abs(b.realized) - a.dividend - Math.abs(a.realized)),
+    missingCurrencies: Array.from(missingCurrencies),
   };
 }

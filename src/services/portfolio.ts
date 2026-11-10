@@ -50,6 +50,7 @@ export interface PortfolioSummary {
   fxPnlBase: number;
   lastUpdated: number | null;
   missingPrice: number;
+  missingCurrencies: string[];
 }
 
 const STALE_MS = 30 * 60 * 1000;
@@ -60,7 +61,16 @@ export function buildPortfolio(params: {
 }): PortfolioSummary {
   const { stocks, trades, prices, dividends, base, method } = params;
   const rateMap = new Map(params.rates.map((r) => [`${r.base}>${r.quote}`, r]));
-  const fxOf = (cur: string) => (cur === base ? '1' : resolveRate(rateMap, cur, base)?.toString() ?? '1');
+  const missingCurrencies = new Set<string>();
+  const fxOf = (cur: string): string => {
+    if (cur === base) return '1';
+    const r = resolveRate(rateMap, cur, base);
+    if (!r) {
+      missingCurrencies.add(cur);
+      return '';
+    }
+    return r.toString();
+  };
   const priceMap = new Map(prices.map((p) => [p.stockId, p]));
   const yearAgo = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10);
   const thisYear = todayKey().slice(0, 4);
@@ -75,9 +85,12 @@ export function buildPortfolio(params: {
     const pos = computePosition(st, method, exp);
     const price = priceMap.get(stock.id);
     const fxNow = fxOf(stock.currency);
-    const val = price ? valuate(pos, price.priceDec, price.prevCloseDec, fxNow, exp) : undefined;
+    const val = price && fxNow ? valuate(pos, price.priceDec, price.prevCloseDec, fxNow, exp) : undefined;
     const divs = dividends.filter((d) => d.stockId === stock.id && d.kind === 'cash' && d.status === 'paid');
-    const dividendsBaseMinor = divs.reduce((a, d) => a + convertMinor(d.netMinor, d.currency, base, fxOf(d.currency)), 0);
+    const dividendsBaseMinor = divs.reduce((a, d) => {
+      const rate = fxOf(d.currency);
+      return rate ? a + convertMinor(d.netMinor, d.currency, base, rate) : a;
+    }, 0);
     const dividendsYearMinor = divs.filter((d) => d.payDate >= yearAgo).reduce((a, d) => a + d.grossMinor, 0);
     // 近 12 個月每股股利（以發放時持股計）
     const dps = divs.filter((d) => d.payDate >= yearAgo).reduce((a, d) => a.plus(d.perShareDec || 0), new Decimal(0));
@@ -85,7 +98,7 @@ export function buildPortfolio(params: {
     let sellNowNetMinor: number | undefined;
     if (price && pos.shares.gt(0)) {
       const { fee, tax } = params.feeEstimate(stock, price.priceDec, pos.shares.toString());
-      sellNowNetMinor = val!.marketValueMinor - fee - tax - pos.costMinor;
+      sellNowNetMinor = val ? val.marketValueMinor - fee - tax - pos.costMinor : undefined;
     }
     // 現金流（主幣別）：買進為負、賣出與股利為正，期末市值為正
     const unit = Decimal.pow(10, exp);
@@ -101,7 +114,10 @@ export function buildPortfolio(params: {
         hf.push({ date: t.date, amount: gross.minus(t.feeMinor).minus(t.taxMinor).mul(fx).toNumber() });
       }
     }
-    for (const d of divs) hf.push({ date: d.payDate, amount: convertMinor(d.netMinor, d.currency, base, fxOf(d.currency)) });
+    for (const d of divs) {
+      const rate = fxOf(d.currency);
+      if (rate) hf.push({ date: d.payDate, amount: convertMinor(d.netMinor, d.currency, base, rate) });
+    }
     if (val && pos.shares.gt(0)) hf.push({ date: todayKey(), amount: val.marketValueBaseMinor });
     flows.push(...hf);
     all.push({
@@ -113,14 +129,17 @@ export function buildPortfolio(params: {
   const holdings = all.filter((h) => h.pos.shares.gt(0));
   const closed = all.filter((h) => h.pos.shares.lte(0));
   const sum = (f: (h: Holding) => number, list = holdings) => list.reduce((a, h) => a + f(h), 0);
-  const costBase = sum((h) => h.pos.costBaseMinor);
-  const marketValueBase = sum((h) => h.val?.marketValueBaseMinor ?? Math.round(h.pos.costBaseMinor));
-  const unrealizedBase = sum((h) => h.val?.unrealizedBaseMinor ?? 0);
-  const realizedBase = sum((h) => h.pos.realizedBaseMinor, all);
+  const costBase = sum((h) => (h.fxNow ? h.pos.costBaseMinor : 0));
+  const marketValueBase = sum((h) => (h.val?.marketValueBaseMinor ? h.val.marketValueBaseMinor : h.fxNow ? Math.round(h.pos.costBaseMinor) : 0));
+  const unrealizedBase = sum((h) => (h.val?.unrealizedBaseMinor ?? 0));
+  const realizedBase = sum((h) => (h.fxNow ? h.pos.realizedBaseMinor : 0), all);
   const dividendsBase = sum((h) => h.dividendsBaseMinor, all);
   const dividendsThisYearBase = dividends.filter((d) => d.kind === 'cash' && d.status === 'paid' && d.payDate.startsWith(thisYear))
-    .reduce((a, d) => a + convertMinor(d.netMinor, d.currency, base, fxOf(d.currency)), 0);
-  const todayBase = sum((h) => (h.val ? convertMinor(h.val.todayChangeMinor, h.stock.currency, base, h.fxNow) : 0));
+    .reduce((a, d) => {
+      const rate = fxOf(d.currency);
+      return rate ? a + convertMinor(d.netMinor, d.currency, base, rate) : a;
+    }, 0);
+  const todayBase = sum((h) => (h.val && h.fxNow ? convertMinor(h.val.todayChangeMinor, h.stock.currency, base, h.fxNow) : 0));
   const lastUpdated = prices.length ? Math.max(...prices.map((p) => p.updatedAt)) : null;
   return {
     holdings: holdings.sort((a, b) => (b.val?.marketValueBaseMinor ?? 0) - (a.val?.marketValueBaseMinor ?? 0)),
@@ -132,6 +151,7 @@ export function buildPortfolio(params: {
     fxPnlBase: sum((h) => h.val?.fxPnlBaseMinor ?? 0),
     lastUpdated,
     missingPrice: holdings.filter((h) => !h.price).length,
+    missingCurrencies: Array.from(missingCurrencies),
   };
 }
 
