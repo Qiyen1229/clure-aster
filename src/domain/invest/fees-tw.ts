@@ -37,9 +37,18 @@ export function twFee(priceDec: Decimal.Value, sharesDec: Decimal.Value, cfg: Tw
   return Decimal.max(raw, min).toNumber() * 100;
 }
 
-export function twTaxRate(assetType: 'stock' | 'etf' | 'bond_etf', cfg: TwFeeConfig = DEFAULT_TW_FEES, override?: string, isDayTrade = false): string {
+/** 依證券交易稅條例第 2 條之 2，現行現股當沖證交稅減半優惠（0.15%）實施至 2026-12-31 止 */
+export const DAY_TRADE_TAX_SUNSET = '2026-12-31';
+
+export function twTaxRate(
+  assetType: 'stock' | 'etf' | 'bond_etf',
+  cfg: TwFeeConfig = DEFAULT_TW_FEES,
+  override?: string,
+  isDayTrade = false,
+  tradeDate?: string,
+): string {
   if (override) return override;
-  if (isDayTrade && assetType === 'stock') {
+  if (isDayTrade && assetType === 'stock' && (!tradeDate || tradeDate <= DAY_TRADE_TAX_SUNSET)) {
     return new Decimal(cfg.taxStockDec).div(2).toString();
   }
   return assetType === 'etf' ? cfg.taxEtfDec : assetType === 'bond_etf' ? cfg.taxBondEtfDec ?? '0' : cfg.taxStockDec;

@@ -26,6 +26,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
+import { DAY_TRADE_TAX_SUNSET, DEFAULT_TW_FEES, twTaxRate } from '@/domain/invest/fees-tw';
 
 describe('v4.1.23 Phase 1 測試', () => {
   describe('T4: FilterSheet 多小數點防護與狀態同步', () => {
@@ -167,6 +168,28 @@ describe('v4.1.23 Phase 2 測試', () => {
       } finally {
         fs.rmSync(testDir, { recursive: true, force: true });
       }
+    });
+  });
+
+  describe('T7: 當沖稅減半落日條款', () => {
+    it('2026-12-31（含）前當沖賣出 0.15%；2027-01-01 起恢復 0.3%；非當沖不受影響', () => {
+      expect(DAY_TRADE_TAX_SUNSET).toBe('2026-12-31');
+
+      // 2026-12-31（含）前當沖賣出為 0.0015 (0.15%)
+      expect(twTaxRate('stock', DEFAULT_TW_FEES, undefined, true, '2026-12-31')).toBe('0.0015');
+      expect(twTaxRate('stock', DEFAULT_TW_FEES, undefined, true, '2026-06-15')).toBe('0.0015');
+
+      // 2027-01-01 起當沖落日，恢復一般股票證交稅率 0.003 (0.3%)
+      expect(twTaxRate('stock', DEFAULT_TW_FEES, undefined, true, '2027-01-01')).toBe('0.003');
+      expect(twTaxRate('stock', DEFAULT_TW_FEES, undefined, true, '2027-05-20')).toBe('0.003');
+
+      // 非當沖交易一律不受影響
+      expect(twTaxRate('stock', DEFAULT_TW_FEES, undefined, false, '2026-12-31')).toBe('0.003');
+      expect(twTaxRate('stock', DEFAULT_TW_FEES, undefined, false, '2027-01-01')).toBe('0.003');
+
+      // ETF 與債券 ETF 不受影響
+      expect(twTaxRate('etf', DEFAULT_TW_FEES, undefined, true, '2026-12-31')).toBe('0.001');
+      expect(twTaxRate('bond_etf', DEFAULT_TW_FEES, undefined, true, '2027-01-01')).toBe('0');
     });
   });
 });

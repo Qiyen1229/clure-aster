@@ -93,9 +93,9 @@ function TradeForm({ stockId, trade, initialType, onClose }: { stockId?: string;
     if ((type === 'buy' || type === 'sell') && price && shares.gt(0)) {
       const cfg = twFeeConfig(inv);
       setFee(String(twFee(price, shares, cfg, lot) / 100));
-      setTax(type === 'sell' ? String(twSellTax(price, shares, twTaxRate(stock.assetType, cfg, stock.taxRateDec, isDayTrade)) / 100) : '0');
+      setTax(type === 'sell' ? String(twSellTax(price, shares, twTaxRate(stock.assetType, cfg, stock.taxRateDec, isDayTrade, date)) / 100) : '0');
     } else { setFee('0'); setTax('0'); }
-  }, [price, shares, type, stock, feeEdited, isDayTrade]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [price, shares, type, stock, feeEdited, isDayTrade, date]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const tryDec = (v: Decimal.Value | undefined | null, fallback = new Decimal(0)): Decimal => {
     try {
