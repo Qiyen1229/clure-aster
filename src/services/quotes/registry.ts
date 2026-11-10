@@ -11,6 +11,17 @@ import { PROVIDERS, providerById, type Bar, type HistoryRange, type Quote, type 
 const breaker = new Map<string, { fails: number; until: number }>();
 const COOLDOWN = 5 * 60 * 1000;
 
+export function cooldownRemaining(id: string): number {
+  const b = breaker.get(id);
+  if (!b || b.until <= Date.now()) return 0;
+  return Math.ceil((b.until - Date.now()) / 1000);
+}
+
+export function resetBreaker(id?: string): void {
+  if (id) breaker.delete(id);
+  else breaker.clear();
+}
+
 function available(id: string) {
   const b = breaker.get(id);
   return !b || b.until < Date.now();
@@ -57,7 +68,12 @@ async function doRefresh(stocks: Stock[]): Promise<RefreshResult> {
     for (const pid of order) {
       if (!remaining.length) break;
       const p = providerById(pid);
-      if (!p || !available(pid)) continue;
+      if (!p) continue;
+      const remainingSec = cooldownRemaining(pid);
+      if (remainingSec > 0) {
+        result.errors.push(`${p.label}：連續失敗冷卻中，剩餘 ${remainingSec} 秒`);
+        continue;
+      }
       try {
         const quotes = await p.quote(remaining.map((s) => ({ market: s.market, symbol: s.symbol })));
         if (quotes.length) ok(pid);

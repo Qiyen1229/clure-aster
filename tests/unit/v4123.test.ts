@@ -31,6 +31,7 @@ import { marketState } from '@/domain/invest/market-hours';
 import { AgentBubble } from '@/features/home/AiChat';
 import { parseTwMarketTime, providerById } from '@/services/quotes/providers';
 import { buildPortfolio } from '@/services/portfolio';
+import { cooldownRemaining, refreshQuotes, resetBreaker } from '@/services/quotes/registry';
 
 const previewResolvers: Array<(steps: any[]) => void> = [];
 
@@ -464,6 +465,45 @@ describe('v4.1.23 Phase 2 測試', () => {
       // 驗證：正確回傳缺失 JPY 幣別，且市值不以 1:1 灌入 TWD 主幣別
       expect(summary.missingCurrencies).toContain('JPY');
       expect(summary.marketValueBase).toBe(0);
+    });
+  });
+
+  describe('T22: 報價熔斷中回傳剩餘冷卻秒數提示', () => {
+    it('資料源連續失敗 3 次觸發熔斷後，第 4 次呼叫回傳包含冷卻剩餘秒數的 error 提示', async () => {
+      resetBreaker();
+      const stock = {
+        id: 's_2330',
+        symbol: '2330',
+        market: 'TWSE' as const,
+        name: '台積電',
+        currency: 'TWD',
+        lotSize: 1000,
+        assetType: 'stock' as const,
+      };
+
+      const misProvider = providerById('twse-mis')!;
+      const spy = vi.spyOn(misProvider, 'quote').mockRejectedValue(new Error('MIS network error'));
+
+      try {
+        // 前 3 次呼叫累積失敗
+        await refreshQuotes([stock]);
+        await refreshQuotes([stock]);
+        await refreshQuotes([stock]);
+
+        // 確認熔斷器已被觸發，冷卻中
+        expect(cooldownRemaining('twse-mis')).toBeGreaterThan(0);
+
+        // 第 4 次呼叫：命中熔斷器
+        const res = await refreshQuotes([stock]);
+
+        // 驗證：errors 包含該資料源冷卻中與剩餘秒數提示
+        const cooldownError = res.errors.find((e) => e.includes('連續失敗冷卻中') && /剩餘 \d+ 秒/.test(e));
+        expect(cooldownError).toBeDefined();
+        expect(cooldownError).toContain('證交所即時（MIS）');
+      } finally {
+        spy.mockRestore();
+        resetBreaker();
+      }
     });
   });
 });
