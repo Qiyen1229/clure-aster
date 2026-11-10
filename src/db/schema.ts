@@ -4,7 +4,7 @@
  */
 import Dexie, { type Table } from 'dexie';
 import type {
-  Account, Attachment, Budget, CategoryRule, BudgetPeriod, Category, Debt, Dividend, Durable, ExchangeRate, Goal,
+  Account, AppErrorLog, Attachment, Budget, CategoryRule, BudgetPeriod, Category, Debt, Dividend, Durable, ExchangeRate, Goal,
   Installment, Person, PortfolioSnapshot, PriceCache, PriceHistory, Project, RecurringRule,
   Reminder, SavedFilter, SettingRow, Stock, StockTrade, Tag, Template, Transaction, Transfer, WatchItem, Wish,
 } from './types';
@@ -42,6 +42,7 @@ export class AsterDB extends Dexie {
   durables!: Table<Durable, string>;
   sync_outbox!: Table<OutboxEntry, string>;
   rules!: Table<CategoryRule, string>;
+  errors!: Table<AppErrorLog, number>;
 
   constructor(name = 'clure') {
     super(name);
@@ -106,6 +107,10 @@ export class AsterDB extends Dexie {
     this.version(6).stores({
       durables: 'id, status, purchaseDate, txId',
     });
+    // v7：本機錯誤日誌（非同步寫入 IndexedDB，僅保存在本機）
+    this.version(7).stores({
+      errors: '++id, ts, type',
+    });
     this.use(syncTracking);
   }
 }
@@ -154,7 +159,7 @@ export async function adoptLegacyData(): Promise<number> {
   let rows = 0;
   try {
     for (const t of legacy.tables) {
-      if (t.name === 'meta' || t.name === 'sync_outbox') continue;
+      if (t.name === 'meta' || t.name === 'sync_outbox' || t.name === 'errors') continue;
       const all = await t.toArray();
       if (all.length) await db.table(t.name).bulkPut(all);
       rows += all.length;

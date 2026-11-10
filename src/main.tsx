@@ -7,6 +7,10 @@ import './theme/app.css';
 import { applyTheme } from './stores/settings';
 import { DEFAULT_SETTINGS } from './db/repo/settings';
 import { installViewportTracking } from './app/viewport';
+import { initGlobalErrorLogging } from './services/errorLog';
+
+// 啟動全域錯誤捕捉與本機錯誤日誌記錄
+initGlobalErrorLogging();
 
 // 先套用預設主題（跟隨系統），避免登入與資料庫讀取期間閃白
 applyTheme(DEFAULT_SETTINGS);

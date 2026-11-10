@@ -20,8 +20,9 @@ const BACKUP_FORMAT = 1;
  * 不放進備份、也不從備份還原的資料表：
  * - meta：裝置 id、同步游標、資料庫擁有者等「這台裝置」的狀態；還原到別台裝置會讓同步漏資料或互相略過
  * - sync_outbox：待上傳佇列，屬於產生它的那台裝置
+ * - errors：本機未捕捉錯誤日誌，僅保存在發生問題的裝置
  */
-const DEVICE_STATE_TABLES = new Set(['meta', OUTBOX]);
+const DEVICE_STATE_TABLES = new Set(['meta', OUTBOX, 'errors']);
 
 async function blobToB64(b: Blob): Promise<string> {
   const buf = new Uint8Array(await b.arrayBuffer());

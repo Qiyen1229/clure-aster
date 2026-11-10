@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 if (typeof window !== 'undefined' && !window.matchMedia) {
   window.matchMedia = vi.fn().mockImplementation((query: string) => ({
@@ -32,6 +32,8 @@ import { AgentBubble } from '@/features/home/AiChat';
 import { parseTwMarketTime, providerById } from '@/services/quotes/providers';
 import { buildPortfolio } from '@/services/portfolio';
 import { cooldownRemaining, refreshQuotes, resetBreaker } from '@/services/quotes/registry';
+import { db } from '@/db/schema';
+import { exportErrorLogs, getRecentErrors, initGlobalErrorLogging, logAppError, MAX_ERROR_LOGS } from '@/services/errorLog';
 
 const previewResolvers: Array<(steps: any[]) => void> = [];
 
@@ -504,6 +506,86 @@ describe('v4.1.23 Phase 2 測試', () => {
         spy.mockRestore();
         resetBreaker();
       }
+    });
+  });
+
+  describe('T23: 輕量本機錯誤日誌', () => {
+    beforeEach(async () => {
+      await db.errors.clear();
+    });
+
+    it('logAppError 正常寫入與 getRecentErrors 倒序查詢', async () => {
+      await logAppError({
+        ts: 1000,
+        type: 'error',
+        message: '第一個錯誤',
+        stack: 'Error at foo.ts:10',
+      });
+      await logAppError({
+        ts: 2000,
+        type: 'unhandledrejection',
+        message: '未捕捉 Promise 拒絕',
+      });
+
+      const recent = await getRecentErrors(10);
+      expect(recent).toHaveLength(2);
+      expect(recent[0].message).toBe('未捕捉 Promise 拒絕');
+      expect(recent[1].message).toBe('第一個錯誤');
+    });
+
+    it('exportErrorLogs 包含應用程式版本、環境資訊與結構化錯誤清單', async () => {
+      await logAppError({
+        ts: Date.now(),
+        type: 'error',
+        message: '診斷測試錯誤',
+      });
+
+      const raw = await exportErrorLogs();
+      const parsed = JSON.parse(raw);
+      expect(parsed.app).toBe('aster');
+      expect(parsed.count).toBe(1);
+      expect(parsed.errors[0].message).toBe('診斷測試錯誤');
+      expect(parsed.exportedAt).toBeDefined();
+    });
+
+    it('日誌筆數超過 50 筆時，自動修剪最舊紀錄維持 MAX_ERROR_LOGS', async () => {
+      for (let i = 1; i <= 55; i++) {
+        await logAppError({
+          ts: i * 100,
+          type: 'error',
+          message: `錯誤 #${i}`,
+        });
+      }
+
+      const total = await db.errors.count();
+      expect(total).toBe(MAX_ERROR_LOGS);
+
+      const all = await db.errors.orderBy('ts').toArray();
+      // 最舊的 5 筆（1~5）應被修剪，保留 6~55
+      expect(all[0].message).toBe('錯誤 #6');
+      expect(all[all.length - 1].message).toBe('錯誤 #55');
+    });
+
+    it('initGlobalErrorLogging 捕捉全域 error 與 unhandledrejection', async () => {
+      initGlobalErrorLogging();
+
+      window.dispatchEvent(
+        new ErrorEvent('error', {
+          message: '全域拋出例外',
+          filename: 'test.ts',
+          lineno: 42,
+          colno: 1,
+          error: new Error('全域拋出例外'),
+        }),
+      );
+
+      // 等候非同步 IndexedDB 寫入
+      await new Promise((r) => setTimeout(r, 50));
+
+      const logs = await getRecentErrors();
+      const found = logs.find((l) => l.message.includes('全域拋出例外'));
+      expect(found).toBeDefined();
+      expect(found?.type).toBe('error');
     });
   });
 });

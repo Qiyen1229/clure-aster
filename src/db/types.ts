@@ -483,3 +483,14 @@ export interface Wish extends BaseRow {
   note?: string;
   url?: string;
 }
+
+/** 本機未捕捉錯誤日誌（非同步寫入 IndexedDB，僅保存在本機） */
+export interface AppErrorLog {
+  id?: number;
+  ts: number;
+  type: 'error' | 'unhandledrejection';
+  message: string;
+  stack?: string;
+  url?: string;
+}
+
