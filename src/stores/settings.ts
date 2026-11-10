@@ -28,7 +28,7 @@ export const useSettings = create<SettingsState>((set) => ({
   },
 }));
 
-const media = typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+const media = typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 media?.addEventListener('change', () => applyTheme(useSettings.getState()));
 
 export function applyTheme(s: Pick<Settings, 'theme' | 'accent' | 'upColor'>) {

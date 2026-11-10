@@ -1,13 +1,13 @@
 /**
  * 進階篩選：類型、帳戶、分類（主分類含子分類）、專案、標籤（任一／全部）、金額區間、關鍵字；可儲存成常用篩選。
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
 import type { TxFilter, TxType } from '@/db/types';
 import { saveFilter } from '@/db/repo/plan';
 import { buildTree } from '@/db/repo/categories';
-import { fromMinor, toMinor } from '@/domain/money';
+import { fromMinor, safeToMinor, toMinor } from '@/domain/money';
 import { useAccounts, useCategories, useProjects, useTags } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
 import { askInput, useUI } from '@/stores/ui';
@@ -18,6 +18,13 @@ import { Icon } from '@/ui/Icon';
 export function filterCount(f: TxFilter): number {
   return (f.types?.length ? 1 : 0) + (f.accountIds?.length ? 1 : 0) + (f.categoryIds?.length ? 1 : 0) + (f.projectIds?.length ? 1 : 0)
     + (f.tagIds?.length ? 1 : 0) + (f.minMinor !== undefined || f.maxMinor !== undefined ? 1 : 0) + (f.keyword ? 1 : 0);
+}
+
+export function cleanDecimalInput(v: string): string {
+  const numOnly = v.replace(/[^0-9.]/g, '');
+  const firstDot = numOnly.indexOf('.');
+  if (firstDot === -1) return numOnly;
+  return numOnly.slice(0, firstDot + 1) + numOnly.slice(firstDot + 1).replace(/\./g, '');
 }
 
 function Chips<T extends string>({ items, value, onChange }: { items: { id: T; label: string }[]; value: T[] | undefined; onChange: (v: T[]) => void }) {
@@ -41,17 +48,45 @@ export function FilterSheet({ open, onClose, value, onChange }: { open: boolean;
   const [catKind, setCatKind] = useState<'expense' | 'income'>('expense');
   const [minStr, setMinStr] = useState(value.minMinor !== undefined ? fromMinor(value.minMinor, base).toString() : '');
   const [maxStr, setMaxStr] = useState(value.maxMinor !== undefined ? fromMinor(value.maxMinor, base).toString() : '');
+
+  useEffect(() => {
+    const currentMin = minStr && minStr !== '.' ? safeToMinor(minStr, base, undefined) : undefined;
+    if (currentMin !== value.minMinor) {
+      setMinStr(value.minMinor !== undefined ? fromMinor(value.minMinor, base).toString() : '');
+    }
+    const currentMax = maxStr && maxStr !== '.' ? safeToMinor(maxStr, base, undefined) : undefined;
+    if (currentMax !== value.maxMinor) {
+      setMaxStr(value.maxMinor !== undefined ? fromMinor(value.maxMinor, base).toString() : '');
+    }
+  }, [value.minMinor, value.maxMinor, base, open]);
+
   const f = value;
   const set = (patch: Partial<TxFilter>) => onChange({ ...f, ...patch });
   const onMinChange = (v: string) => {
-    const clean = v.replace(/[^0-9.]/g, '');
+    const clean = cleanDecimalInput(v);
     setMinStr(clean);
-    set({ minMinor: clean && clean !== '.' ? toMinor(clean, base) : undefined });
+    if (!clean || clean === '.') {
+      set({ minMinor: undefined });
+    } else {
+      try {
+        set({ minMinor: toMinor(clean, base) });
+      } catch {
+        set({ minMinor: undefined });
+      }
+    }
   };
   const onMaxChange = (v: string) => {
-    const clean = v.replace(/[^0-9.]/g, '');
+    const clean = cleanDecimalInput(v);
     setMaxStr(clean);
-    set({ maxMinor: clean && clean !== '.' ? toMinor(clean, base) : undefined });
+    if (!clean || clean === '.') {
+      set({ maxMinor: undefined });
+    } else {
+      try {
+        set({ maxMinor: toMinor(clean, base) });
+      } catch {
+        set({ maxMinor: undefined });
+      }
+    }
   };
   const TYPES: { id: TxType; label: string }[] = [{ id: 'expense', label: '支出' }, { id: 'income', label: '收入' }, { id: 'adjust', label: '餘額調整' }];
   const tree = buildTree(cats.all, catKind);
