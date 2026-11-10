@@ -97,6 +97,45 @@ const twseMis: QuoteProvider = {
   },
 };
 
+export function parseTwMarketTime(rawDate?: unknown): number {
+  if (typeof rawDate === 'string' && rawDate.trim()) {
+    const s = rawDate.trim();
+    const m = s.match(/^(\d{2,4})[/-](\d{1,2})[/-](\d{1,2})$/);
+    if (m) {
+      let yr = Number(m[1]);
+      if (yr < 1900) yr += 1911;
+      const mo = m[2].padStart(2, '0');
+      const da = m[3].padStart(2, '0');
+      const ts = Date.parse(`${yr}-${mo}-${da}T13:30:00+08:00`);
+      if (!Number.isNaN(ts)) return ts;
+    }
+    const digits = s.replace(/\D/g, '');
+    if (digits.length === 7) {
+      const yr = Number(digits.slice(0, 3)) + 1911;
+      const mo = digits.slice(3, 5);
+      const da = digits.slice(5, 7);
+      const ts = Date.parse(`${yr}-${mo}-${da}T13:30:00+08:00`);
+      if (!Number.isNaN(ts)) return ts;
+    } else if (digits.length === 8) {
+      const yr = Number(digits.slice(0, 4));
+      const mo = digits.slice(4, 6);
+      const da = digits.slice(6, 8);
+      const ts = Date.parse(`${yr}-${mo}-${da}T13:30:00+08:00`);
+      if (!Number.isNaN(ts)) return ts;
+    }
+  }
+  const now = new Date();
+  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+  const twNow = new Date(utc + 8 * 3600000);
+  twNow.setDate(twNow.getDate() - 1);
+  if (twNow.getDay() === 0) twNow.setDate(twNow.getDate() - 2);
+  else if (twNow.getDay() === 6) twNow.setDate(twNow.getDate() - 1);
+  const yr = twNow.getFullYear();
+  const mo = String(twNow.getMonth() + 1).padStart(2, '0');
+  const da = String(twNow.getDate()).padStart(2, '0');
+  return Date.parse(`${yr}-${mo}-${da}T13:30:00+08:00`);
+}
+
 // ───── 證交所／櫃買 OpenAPI（每日收盤）─────
 const twseOpenApi: QuoteProvider = {
   id: 'twse-openapi', label: '證交所／櫃買 OpenAPI（收盤）', group: 'TW',
@@ -113,7 +152,7 @@ const twseOpenApi: QuoteProvider = {
         out.push({
           market: 'TWSE', symbol: x.Code, name: x.Name, priceDec: close, prevCloseDec: new Decimal(close).minus(chg).toString(),
           openDec: num(x.OpeningPrice) ?? undefined, highDec: num(x.HighestPrice) ?? undefined, lowDec: num(x.LowestPrice) ?? undefined,
-          volume: Number(x.TradeVolume) || undefined, marketTime: Date.now(), source: 'twse-openapi',
+          volume: Number(x.TradeVolume) || undefined, marketTime: parseTwMarketTime(x.Date), source: 'twse-openapi',
         });
       }
     }
@@ -127,7 +166,7 @@ const twseOpenApi: QuoteProvider = {
         out.push({
           market: 'TPEX', symbol: x.SecuritiesCompanyCode, name: x.CompanyName, priceDec: close,
           prevCloseDec: new Decimal(close).minus(chg).toString(), openDec: num(x.Open) ?? undefined,
-          highDec: num(x.High) ?? undefined, lowDec: num(x.Low) ?? undefined, marketTime: Date.now(), source: 'tpex-openapi',
+          highDec: num(x.High) ?? undefined, lowDec: num(x.Low) ?? undefined, marketTime: parseTwMarketTime(x.Date), source: 'tpex-openapi',
         });
       }
     }

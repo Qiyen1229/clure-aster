@@ -29,6 +29,7 @@ import { execSync } from 'node:child_process';
 import { DAY_TRADE_TAX_SUNSET, DEFAULT_TW_FEES, twTaxRate } from '@/domain/invest/fees-tw';
 import { marketState } from '@/domain/invest/market-hours';
 import { AgentBubble } from '@/features/home/AiChat';
+import { parseTwMarketTime, providerById } from '@/services/quotes/providers';
 
 const previewResolvers: Array<(steps: any[]) => void> = [];
 
@@ -291,6 +292,58 @@ describe('v4.1.23 Phase 2 測試', () => {
 
       root.unmount();
       container.remove();
+    });
+  });
+
+  describe('T13: twseOpenApi 收盤資料時間戳修正', () => {
+    it('parseTwMarketTime 正確解析民國年與西元年為交易日 13:30', () => {
+      // 7 位數字格式（TWSE 民國年月日）
+      expect(parseTwMarketTime('1131108')).toBe(Date.parse('2024-11-08T13:30:00+08:00'));
+      // 斜線格式
+      expect(parseTwMarketTime('113/11/08')).toBe(Date.parse('2024-11-08T13:30:00+08:00'));
+      // 8 位西元年純數字或破折號
+      expect(parseTwMarketTime('20241108')).toBe(Date.parse('2024-11-08T13:30:00+08:00'));
+      expect(parseTwMarketTime('2024-11-08')).toBe(Date.parse('2024-11-08T13:30:00+08:00'));
+    });
+
+    it('盤中呼叫 twse-openapi 時回傳的 marketTime 為收盤 13:30 而非盤中目前時間', async () => {
+      const p = providerById('twse-openapi')!;
+      expect(p).toBeDefined();
+
+      // 模擬盤中上午 10:00
+      const intradayNow = Date.parse('2024-11-08T10:00:00+08:00');
+      const expectedClose = Date.parse('2024-11-08T13:30:00+08:00');
+
+      vi.spyOn(Date, 'now').mockReturnValue(intradayNow);
+
+      const mockTwseData = [
+        {
+          Code: '2330',
+          Name: '台積電',
+          TradeVolume: '20000000',
+          OpeningPrice: '1000',
+          HighestPrice: '1010',
+          LowestPrice: '995',
+          ClosingPrice: '1005',
+          Change: '15',
+          Date: '1131108',
+        },
+      ];
+
+      vi.stubGlobal('fetch', vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: async () => JSON.stringify(mockTwseData),
+        json: async () => mockTwseData,
+      })));
+
+      const quotes = await p.quote([{ market: 'TWSE', symbol: '2330' }]);
+      expect(quotes.length).toBe(1);
+      expect(quotes[0].marketTime).toBe(expectedClose);
+      expect(quotes[0].marketTime).not.toBe(intradayNow);
+
+      vi.restoreAllMocks();
     });
   });
 });
