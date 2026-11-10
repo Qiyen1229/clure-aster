@@ -25,6 +25,21 @@ export interface ReleaseNote {
 /** 新的在前 */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '4.1.21', date: '2026-11-10',
+    features: [
+      {
+        title: '資安架構深度加固',
+        intro: '全面強化代理同源防護、防範 SSRF 與公式注入，並強制雙因素驗證與臨時密碼安全檢查。',
+        howto: '系統自動於背景守護資料與工作階段安全，無須手動設定。',
+      },
+      {
+        title: '資料同步完整修復',
+        intro: '優化收件匣入帳與備份還原邏輯，杜絕大筆資料阻塞同步佇列與多裝置重複扣款問題。',
+        howto: '所有帳目入帳與還原作業皆具備自動回滾與防死鎖保護。',
+      },
+    ],
+  },
+  {
     version: '4.1.20', date: '2026-11-10',
     features: [
       {

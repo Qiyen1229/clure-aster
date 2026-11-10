@@ -11,6 +11,7 @@ import { getRate } from '@/services/fx';
 import { getSetting } from './settings';
 
 export interface TxInput {
+  id?: string;
   type: TxType;
   accountId: string;
   categoryId: string;
@@ -112,14 +113,20 @@ function toRow(id: string, input: TxInput, amounts: Awaited<ReturnType<typeof re
 }
 
 export async function addTransaction(input: TxInput): Promise<Transaction> {
+  const targetId = input.id || uid();
   const amounts = await resolveAmounts(input);
-  const row = toRow(uid(), input, amounts, Date.now());
+  const row = toRow(targetId, input, amounts, Date.now());
   await db.transaction('rw', db.transactions, db.accounts, db.attachments, async () => {
+    // 冪等性檢查：若指定 ID 且該帳目已存在（例如週期排程已在其他裝置入帳並同步過來），不重複寫入與扣款
+    if (input.id) {
+      const existing = await db.transactions.get(input.id);
+      if (existing) return;
+    }
     await db.transactions.add(row);
     await bump(row.accountId, txEffect(row));
     for (const aid of row.attachmentIds) await db.attachments.update(aid, { transactionId: row.id });
   });
-  return row;
+  return (await db.transactions.get(targetId)) ?? row;
 }
 
 export async function updateTransaction(id: string, input: TxInput): Promise<Transaction> {
@@ -131,9 +138,12 @@ export async function updateTransaction(id: string, input: TxInput): Promise<Tra
     // 只覆蓋有給值的欄位，保留週期／分期／股票等來源關聯；專案可被清除
     const row = Object.fromEntries(Object.entries(toRow(id, input, amounts, old.createdAt)).filter(([, v]) => v !== undefined));
     saved = { ...old, ...row, projectId: input.projectId || undefined, fxRateDec: amounts.fxRateDec } as Transaction;
-    if (!old.deletedAt) await bump(old.accountId, -txEffect(old));
+    // 已軟刪除的帳目在修改時不可再次計入帳戶餘額，避免餘額被重複虛增
+    if (!old.deletedAt) {
+      await bump(old.accountId, -txEffect(old));
+      await bump(saved.accountId, txEffect(saved));
+    }
     await db.transactions.put(saved);
-    await bump(saved.accountId, txEffect(saved));
     // 移除的附件一併刪除
     const removed = old.attachmentIds.filter((a) => !saved.attachmentIds.includes(a));
     if (removed.length) await db.attachments.bulkDelete(removed);

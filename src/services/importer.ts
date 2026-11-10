@@ -98,13 +98,24 @@ function validYMD(y: number, m: number, d: number): boolean {
  * 前兩段都 ≤ 12 時無法分辨，依美式 MM/DD/YYYY；第一段 > 12 則判定為 DD/MM/YYYY。不存在的日期回傳 null。
  */
 export function normDate(s: string): string | null {
+  const isExplicitRoc = /^民國/.test(s.trim());
   const t = s.trim().replace(/[年月]/g, '/').replace(/日/, '').replace(/^民國/, '');
   const fmt = (y: number, m: number, d: number) => (validYMD(y, m, d) ? `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` : null);
   const m = t.match(/^(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})/);
   if (m) return fmt(+m[1], +m[2], +m[3]);
-  // 民國年：113/10/01、113.10.1
+  // 民國年或西元兩位數年：
+  // 1) 明確標記民國（如 民國113/10/01、民國24/10/01）或 3 位數（如 113/10/01）：+1911
+  // 2) 2 位數無民國標記（如 24/10/01）：視為西元 YY/MM/DD（2024-10-01），避免 24+1911=1935 誤判
   const roc = t.match(/^(\d{2,3})[/.-](\d{1,2})[/.-](\d{1,2})(?!\d)/);
-  if (roc && +roc[1] < 200) return fmt(+roc[1] + 1911, +roc[2], +roc[3]);
+  if (roc) {
+    const yr = +roc[1];
+    if (isExplicitRoc || yr >= 100) {
+      if (yr < 200) return fmt(yr + 1911, +roc[2], +roc[3]);
+    } else {
+      const ceYear = yr < 70 ? yr + 2000 : yr + 1900;
+      return fmt(ceYear, +roc[2], +roc[3]);
+    }
+  }
   // 連續數字：20241001、1131001（民國）
   const compact = t.match(/^(\d{7,8})(?!\d)/);
   if (compact) {
@@ -132,9 +143,35 @@ function normType(s: string, signed: Decimal): ParsedRow['kind'] {
 }
 
 const num = (raw: string): Decimal | null => {
-  const t = raw.replace(/[,\s$NT＄元]/g, '').replace(/^\((.*)\)$/, '-$1');
-  if (!t) return null;
-  try { const d = new Decimal(t); return d.isNaN() ? null : d; } catch { return null; }
+  let s = raw.trim().replace(/[\s$NT＄元]/g, '').replace(/^\((.*)\)$/, '-$1');
+  if (!s) return null;
+  const lastDot = s.lastIndexOf('.');
+  const lastComma = s.lastIndexOf(',');
+
+  if (lastDot !== -1 && lastComma !== -1) {
+    if (lastComma > lastDot) {
+      // 歐式格式：1.000,50 或 1.234.567,89 -> 點是千分位，逗號是小數點
+      s = s.replace(/\./g, '').replace(',', '.');
+    } else {
+      // 美式/標準：1,000.50 -> 逗號是千分位
+      s = s.replace(/,/g, '');
+    }
+  } else if (lastComma !== -1 && lastDot === -1) {
+    // 只有逗號：若逗號後恰好有 1 或 2 位數且只有一個逗號（如 12,50），為歐式小數點；
+    // 若為 1,000（3 位數千分位）或多個逗號（1,000,000），則為千分位
+    if (/^[+-]?\d+,\d{1,2}$/.test(s)) {
+      s = s.replace(',', '.');
+    } else {
+      s = s.replace(/,/g, '');
+    }
+  } else if (lastDot !== -1 && lastComma === -1) {
+    // 只有點號：若有多個點號（如歐式千分位整數 1.000.000），則是千分位
+    if ((s.match(/\./g) || []).length > 1) {
+      s = s.replace(/\./g, '');
+    }
+  }
+
+  try { const d = new Decimal(s); return d.isNaN() ? null : d; } catch { return null; }
 };
 
 export interface ParseOptions {
@@ -282,8 +319,14 @@ export async function runImport(rows: ParsedRow[], base: string): Promise<{ txs:
   const projectId = (name: string) => (name ? projects.find((p) => p.name === name)?.id : undefined);
   const amounts = (amountMinor: number, cur: string, acc: Account) => {
     const r1 = cur === acc.currency ? '1' : resolveRate(rates, cur, acc.currency);
+    if (cur !== acc.currency && !r1) {
+      throw new Error(`缺少匯率：找不到 ${cur} 兌換至帳戶幣別 ${acc.currency} 的匯率，請先在「設定 > 匯率」新增匯率`);
+    }
     const accountAmountMinor = convertMinor(amountMinor, cur, acc.currency, r1 ?? 1);
     const r2 = acc.currency === base ? '1' : resolveRate(rates, acc.currency, base);
+    if (acc.currency !== base && !r2) {
+      throw new Error(`缺少匯率：找不到帳戶幣別 ${acc.currency} 兌換至本位幣 ${base} 的匯率，請先在「設定 > 匯率」新增匯率`);
+    }
     return { accountAmountMinor, baseAmountMinor: convertMinor(accountAmountMinor, acc.currency, base, r2 ?? 1), fxRateDec: cur === acc.currency ? undefined : r1?.toString() };
   };
 

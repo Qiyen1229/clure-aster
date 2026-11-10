@@ -187,6 +187,7 @@ export async function saveRecurring(input: RecurringInput, id?: string): Promise
 function templateToInput(r: RecurringRule, date: string): TxInput {
   const t = r.template;
   return {
+    id: `rec-${r.id}-${date}`,
     type: (t.type as TxInput['type']) ?? 'expense',
     accountId: t.accountId!, categoryId: t.categoryId!, amountMinor: t.amountMinor!, currency: t.currency!,
     date, ts: new Date(`${date}T${r.rule.count === 1 && r.at ? r.at : '09:00'}:00`).getTime(), note: t.note || r.name, tagIds: t.tagIds ?? [], projectId: t.projectId,
@@ -283,6 +284,7 @@ export async function processInstallments(today = todayKey()): Promise<number> {
       if (item.transactionId || item.date > today) continue;
       if (!(await db.accounts.get(inst.accountId))) break;
       const tx = await addTransaction({
+        id: `inst-${inst.id}-${item.no}`,
         type: 'expense', accountId: inst.accountId, categoryId: inst.categoryId, amountMinor: periodTotal(item),
         currency: inst.currency, date: item.date, ts: new Date(`${item.date}T08:00:00`).getTime(),
         note: `${inst.name}（分期 ${item.no}/${inst.periods}）`, installmentId: inst.id, installmentNo: item.no,

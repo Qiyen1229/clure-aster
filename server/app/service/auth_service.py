@@ -164,17 +164,22 @@ class AuthService:
     def _check_second_factor(self, user: User, code: str) -> bool:
         """6 位數驗證碼（同一個 30 秒週期不能用兩次），或一次性備援碼（用掉就作廢）。"""
         secret = self._secret(user)
-        if secret and len(code.strip().replace(" ", "")) == totp.DIGITS and code.strip().replace(" ", "").isdigit():
-            step = totp.verify(secret, code, last_step=user.totp_last_step)
+        clean = code.strip().replace(" ", "")
+        if secret and len(clean) == totp.DIGITS and clean.isdigit():
+            self.db.refresh(user)
+            step = totp.verify(secret, clean, last_step=user.totp_last_step)
             if step is not None:
                 user.totp_last_step = step
+                self.db.flush()
                 return True
             return False
         norm = totp.normalize_recovery(code)
+        self.db.refresh(user)
         hashes = [h for h in (user.totp_recovery or "").split(",") if h]
         if norm and totp.hash_recovery(norm) in hashes:
             hashes.remove(totp.hash_recovery(norm))
             user.totp_recovery = ",".join(hashes)
+            self.db.flush()
             return True
         return False
 
@@ -278,8 +283,10 @@ class AuthService:
         if not row or str(row.user_id) != payload["sub"]:
             raise ServiceError(401, "登入已過期，請重新登入")
         if row.revoked_at:
-            if row.replaced_by and now - row.revoked_at <= REFRESH_REUSE_GRACE:
-                pass  # 同時刷新的良性重複請求
+            same_client = (row.ip == client.ip and row.user_agent == (client.user_agent or "")[:512])
+            if row.replaced_by and now - row.revoked_at <= REFRESH_REUSE_GRACE and same_client:
+                # 良性重複刷新：撤銷先前發出的 replacement，避免多重有效分支
+                self.tokens.revoke_token(row.replaced_by, now)
             else:
                 self.tokens.revoke_family(row.family_id, now)
                 self.audit.record("auth.refresh_reuse", client, success=False, user_id=row.user_id, detail={"family": row.family_id[:8]})
@@ -294,9 +301,8 @@ class AuthService:
             self.db.commit()
             raise ServiceError(401, "登入已失效，請重新登入")
         tokens = self.issue_tokens(user, client, family_id=row.family_id)
-        if not row.revoked_at:
-            row.revoked_at = now
-            row.replaced_by = decode_token(tokens.refresh_token, "refresh")["jti"]  # type: ignore[index]
+        row.revoked_at = now
+        row.replaced_by = decode_token(tokens.refresh_token, "refresh")["jti"]  # type: ignore[index]
         user.last_seen_at = now
         self.db.commit()
         return user, tokens
@@ -313,10 +319,8 @@ class AuthService:
 
     # ───── 變更密碼 ─────
     def change_password(self, user: User, req: ChangePasswordRequest, client: ClientInfo) -> IssuedTokens:
-        if not verify_password(req.current_password, user.password_hash):
-            self.audit.record("auth.password_change", client, success=False, user_id=user.id, detail={"reason": "bad_current"})
-            self.db.commit()
-            raise ServiceError(400, "目前密碼不正確")
+        # 有啟用雙因素驗證時，變更密碼亦須驗證 TOTP，防範 Session 被劫持時遭更換密碼
+        self.confirm_identity(user, req.current_password, req.totp, client, "auth.password_change")
         if req.new_password == req.current_password:
             raise ServiceError(400, "新密碼不可與目前密碼相同")
         if req.new_password.lower() == user.username.lower():

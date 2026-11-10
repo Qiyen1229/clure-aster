@@ -40,9 +40,13 @@ def get_optional_user(request: Request, db: Session = Depends(get_db)) -> User |
     return AuthService(db).authenticate_access(read_access(request))
 
 
-def get_current_user(user: User | None = Depends(get_optional_user)) -> User:
+def get_current_user(request: Request, user: User | None = Depends(get_optional_user)) -> User:
     if not user:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "請先登入")
+    if user.must_change_password:
+        path = request.url.path
+        if not (path.endswith("/auth/change-password") or path.endswith("/auth/logout") or path.endswith("/auth/me") or path.endswith("/auth/check")):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "首次登入或密碼已被重設，請先變更密碼")
     return user
 
 

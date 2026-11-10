@@ -3,7 +3,11 @@ from __future__ import annotations
 
 import os
 import tempfile
+import warnings
 from collections.abc import Iterator
+
+warnings.filterwarnings("ignore", message=".*starlette.testclient.*")
+warnings.filterwarnings("ignore", message=".*Using `httpx` with `starlette.testclient`.*")
 
 import pytest
 

@@ -49,7 +49,7 @@ interface AuthState {
   login: (identifier: string, password: string, totp?: string) => Promise<AuthUser>;
   register: (username: string, email: string, password: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
-  changePassword: (current: string, next: string) => Promise<void>;
+  changePassword: (current: string, next: string, totp?: string) => Promise<void>;
 }
 
 // 這台裝置曾登入過就先當作已登入，直接開啟本機資料庫；/auth/me 在背景確認，過期再導向登入頁。
@@ -106,8 +106,8 @@ export const useAuth = create<AuthState>((set, get) => ({
     location.replace('/login');
   },
 
-  changePassword: async (current, next) => {
-    const user = await api<AuthUser>('/auth/change-password', { method: 'POST', body: { current_password: current, new_password: next } });
+  changePassword: async (current, next, totp) => {
+    const user = await api<AuthUser>('/auth/change-password', { method: 'POST', body: { current_password: current, new_password: next, totp: totp || undefined } });
     saveSession(user);
     set({ user });
   },

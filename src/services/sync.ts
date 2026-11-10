@@ -63,6 +63,7 @@ const CLOCK_TOLERANCE = 2000;
 /** 每批上傳的上限（筆數、約略位元組），避免超過 nginx 的請求大小限制 */
 const PUSH_BATCH = 400;
 const PUSH_BYTES = 1_500_000;
+const MAX_SINGLE_PAYLOAD = 250 * 1024; // 250KB 安全閾值（伺服器單筆上限 256KB）
 const BALANCE_TABLES = new Set(['accounts', 'transactions', 'transfers']);
 
 async function getMeta<T>(key: string): Promise<T | undefined> {
@@ -180,17 +181,39 @@ async function pushPending(device: string, key: CryptoKey | null): Promise<void>
       const got = await db.table(name).bulkGet(list.map((e) => e.key as string));
       list.forEach((e, i) => rows.set(e.id, got[i] as Record<string, unknown> | undefined));
     }
+    const oversizedEntries: string[] = [];
     for (const e of entries) {
       const row = rows.get(e.id);
       const payload = row ? (key ? (await encryptJson(key, row)) as unknown as Record<string, unknown> : row) : null;
       const change: SyncChange = { table: e.table, key: JSON.stringify(e.key), updated_at: e.at, deleted: !row, payload };
       const size = JSON.stringify(change).length;
+      if (size > MAX_SINGLE_PAYLOAD) {
+        console.error(`[sync] 單筆資料過大 (${size} bytes > 250KB)，剔除佇列避免同步卡死：${e.table}|${String(e.key)}`);
+        oversizedEntries.push(e.id);
+        continue;
+      }
       if (sent.length && bytes + size > PUSH_BYTES) break;
       bytes += size;
       changes.push(change);
       sent.push(e);
     }
-    const res = await api<PushResponse>('/sync/push', { method: 'POST', body: { device_id: device, changes } });
+    if (oversizedEntries.length) {
+      await db.sync_outbox.bulkDelete(oversizedEntries);
+    }
+    if (!changes.length) continue;
+
+    let res: PushResponse;
+    try {
+      res = await api<PushResponse>('/sync/push', { method: 'POST', body: { device_id: device, changes } });
+    } catch (err: unknown) {
+      const errWithStatus = err as { status?: number };
+      if (errWithStatus?.status === 413 && sent.length === 1) {
+        console.error(`[sync] 伺服器回傳 413（單筆過大），剔除佇列避免死鎖：${sent[0].table}|${String(sent[0].key)}`);
+        await db.sync_outbox.delete(sent[0].id);
+        continue;
+      }
+      throw err;
+    }
     // 移除已上傳的；上傳期間又被修改的（at 不同）保留到下一輪
     await db.transaction('rw', db.sync_outbox, async () => {
       const cur = await db.sync_outbox.bulkGet(sent.map((e) => e.id));

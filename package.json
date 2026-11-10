@@ -1,14 +1,14 @@
 {
   "name": "aster",
   "private": true,
-  "version": "4.1.20",
+  "version": "4.1.21",
   "type": "module",
   "scripts": {
     "dev": "vite --port 9122 --host",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --port 9122 --host",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "NODE_OPTIONS='--no-warnings' vitest run",
+    "test:watch": "NODE_OPTIONS='--no-warnings' vitest",
     "typecheck": "tsc --noEmit",
     "icons": "node scripts/gen-icons.mjs",
     "pack:nas": "sh scripts/pack-nas.sh",
@@ -17,7 +17,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\"",
     "format:write": "prettier --write \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\"",
-    "check": "tsc --noEmit && eslint . && vitest run"
+    "check": "tsc --noEmit && eslint . && NODE_OPTIONS='--no-warnings' vitest run"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.14.14",

@@ -38,6 +38,7 @@ export const outboxId = (table: string, key: unknown) => `${table}|${JSON.string
 
 const remoteTrans = new WeakSet<object>();
 const baselineTrans = new WeakSet<object>();
+const restoreTrans = new WeakSet<object>();
 const coreTrans = (tx: Transaction) => (tx as unknown as { idbtrans: object }).idbtrans;
 
 /** 把交易標記為「套用遠端變更」：其中的寫入不會進入待上傳佇列 */
@@ -48,6 +49,11 @@ export function markRemote(tx: Transaction): void {
 /** 把交易標記為「預設資料」：仍會上傳，但優先順序最低（變更時間 0） */
 export function markBaseline(tx: Transaction): void {
   baselineTrans.add(coreTrans(tx));
+}
+
+/** 把交易標記為「備份還原」：以上傳前既有的修改時間（updatedAt 或 createdAt）為準，避免舊備份覆蓋伺服器較新的變更 */
+export function markRestore(tx: Transaction): void {
+  restoreTrans.add(coreTrans(tx));
 }
 
 /** 本機時鐘與伺服器時鐘的差（ms）；由同步引擎在每次同步時校正，避免裝置時間不準造成「最後寫入者勝」誤判 */
@@ -103,11 +109,17 @@ export const syncTracking: Middleware<DBCore> = {
             }
             const res = await table.mutate(req);
             const keys = req.type === 'deleteRange' ? rangeKeys : keysOf(table, req, res.results);
-            const at = baselineTrans.has(req.trans) ? 0 : syncClock();
+            const isRestore = restoreTrans.has(req.trans);
+            const defaultAt = baselineTrans.has(req.trans) ? 0 : syncClock();
             const entries: OutboxEntry[] = [];
             keys.forEach((key, i) => {
               if (key === undefined || key === null || res.failures?.[i]) return;
               if (name === 'settings' && DEVICE_ONLY_SETTINGS.has(String(key))) return;
+              let at = defaultAt;
+              if (isRestore && 'values' in req && req.values) {
+                const row = (req.values as unknown[])[i] as Record<string, unknown> | undefined;
+                at = typeof row?.updatedAt === 'number' ? row.updatedAt : (typeof row?.createdAt === 'number' ? row.createdAt : 0);
+              }
               entries.push({ id: outboxId(name, key), table: name as SyncedTable, key, at });
             });
             if (entries.length) {

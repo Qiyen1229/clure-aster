@@ -24,7 +24,7 @@ describe('v4.1.20 新功能彈窗與標題精簡', () => {
   it('getRecentFeatures 能夠取得最新版本的重點功能清單', () => {
     const items = getRecentFeatures();
     expect(items.length).toBeGreaterThanOrEqual(3);
-    expect(items[0].version).toBe('4.1.20');
+    expect(items[0].version).toBe(RELEASE_NOTES[0].version);
   });
 
   it('openWhatsNew 能夠主動觸發新功能彈窗狀態', () => {

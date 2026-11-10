@@ -61,7 +61,11 @@ function rateLimited(ip: string, limit = 120): boolean {
   const h = hits.get(ip);
   if (!h || h.reset < now) { hits.set(ip, { n: 1, reset: now + 60000 }); return false; }
   h.n++;
-  if (hits.size > 5000) hits.clear();
+  if (hits.size > 5000) {
+    for (const [k, v] of hits) {
+      if (v.reset < now) hits.delete(k);
+    }
+  }
   return h.n > limit;
 }
 
@@ -116,21 +120,42 @@ export async function handle(req: Request, env: ProxyEnv, opts: { ip?: string; c
     if (cookie) headers.cookie = cookie;
   }
 
-  let upstream: Response;
-  try {
+  let currentTarget = target.toString();
+  let upstream!: Response;
+  for (let hop = 0; hop < 4; hop++) {
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), 12000);
-    upstream = await fetch(target.toString(), { headers, signal: ctl.signal, redirect: 'follow' });
+    try {
+      upstream = await fetch(currentTarget, { headers, signal: ctl.signal, redirect: 'manual' });
+    } catch (e) {
+      clearTimeout(timer);
+      const err = e as Error & { cause?: { code?: string; message?: string } };
+      const reason = [err.name === 'AbortError' ? '逾時（12 秒內沒有回應）' : err.message, err.cause?.code ?? err.cause?.message].filter(Boolean).join(' / ');
+      console.warn(`[proxy] 連不上 ${new URL(currentTarget).host}：${reason}`);
+      return json(502, { error: 'upstream fetch failed', detail: `${new URL(currentTarget).host}：${reason}` }, env);
+    }
     clearTimeout(timer);
-  } catch (e) {
-    // 連不上外網（DNS、IPv6、防火牆、逾時）時，把原因帶回去並寫進容器日誌；只記網域，不記查詢字串（可能含 API Key）
-    const err = e as Error & { cause?: { code?: string; message?: string } };
-    const reason = [err.name === 'AbortError' ? '逾時（12 秒內沒有回應）' : err.message, err.cause?.code ?? err.cause?.message].filter(Boolean).join(' / ');
-    console.warn(`[proxy] 連不上 ${target.host}：${reason}`);
-    return json(502, { error: 'upstream fetch failed', detail: `${target.host}：${reason}` }, env);
+
+    if ([301, 302, 303, 307, 308].includes(upstream.status)) {
+      const loc = upstream.headers.get('location');
+      if (!loc) break;
+      let nextUrl: URL;
+      try {
+        nextUrl = new URL(loc, currentTarget);
+      } catch {
+        return json(403, { error: 'invalid upstream redirected url' }, env);
+      }
+      if (nextUrl.protocol !== 'https:' || !ALLOWED_HOSTS.includes(nextUrl.host)) {
+        console.warn(`[proxy] 阻擋未授權跳轉 SSRF：${nextUrl.host}`);
+        return json(403, { error: `redirect to unallowed host: ${nextUrl.host}` }, env);
+      }
+      currentTarget = nextUrl.toString();
+      continue;
+    }
+    break;
   }
 
-  // 防禦 SSRF：若目標伺服器發生跳轉，嚴格檢驗最終重定向目標的協定與網域必須在白名單內！
+  // 雙重防禦 SSRF：若目標伺服器發生跳轉，嚴格檢驗最終重定向目標的協定與網域必須在白名單內！
   if (upstream.url) {
     try {
       const finalUrl = new URL(upstream.url);
@@ -145,8 +170,21 @@ export async function handle(req: Request, env: ProxyEnv, opts: { ip?: string; c
 
   const status = upstream.status >= 200 && upstream.status < 600 ? upstream.status : 200;
   const body = await upstream.arrayBuffer();
-  const ct = upstream.headers.get('content-type') ?? 'application/json';
-  const res = new Response(body, { status, headers: cors(env, { 'content-type': ct, 'cache-control': `public, max-age=${ttlFor(target)}`, 'x-cache': 'MISS' }) });
+  // 安全防護：禁止將上游回應當作同源 HTML 渲染（防範同源 XSS 破口）
+  let ct = upstream.headers.get('content-type') ?? 'application/json';
+  if (/text\/html/i.test(ct)) {
+    ct = 'text/plain; charset=utf-8';
+  }
+  const res = new Response(body, {
+    status,
+    headers: cors(env, {
+      'content-type': ct,
+      'x-content-type-options': 'nosniff',
+      'content-security-policy': "default-src 'none'; sandbox",
+      'cache-control': upstream.ok ? `public, max-age=${ttlFor(target)}` : 'no-store, no-cache, must-revalidate',
+      'x-cache': 'MISS',
+    }),
+  });
   if (opts.cache && upstream.ok) await opts.cache.put(cacheKey, new Response(body, { status: upstream.status, headers: { 'content-type': ct } }), ttlFor(target));
   return res;
 }

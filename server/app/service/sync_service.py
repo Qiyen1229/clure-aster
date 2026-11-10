@@ -26,7 +26,7 @@ from app.service.errors import ServiceError
 log = logging.getLogger("aster.sync")
 
 MAX_PAYLOAD_BYTES = 256 * 1024
-MAX_RECORDS_PER_USER = 500_000
+MAX_RECORDS_PER_USER = 100_000
 PROTOCOL_VERSION = 3
 MAX_CLOCK_AHEAD_MS = 5 * 60 * 1000
 TOMBSTONE_DAYS = 90

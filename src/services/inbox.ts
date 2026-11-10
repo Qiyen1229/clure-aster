@@ -309,14 +309,42 @@ export function learnCard(card: string | undefined, accountId: string | undefine
   s.set('inbox', { ...s.inbox, cardMap: { ...s.inbox.cardMap, [card]: accountId } });
 }
 
-/** 一次記下多則；先認領再記帳，回傳記了幾筆與「復原」用的 id。skipDuplicates：很可能重複的留在收件匣等你確認 */
+/** 一次記下多則；先寫入本機資料庫，入帳成功後才向伺服器認領刪除（避免入帳中途失敗導致伺服器資料永久遺失）。skipDuplicates：很可能重複的留在收件匣等你確認 */
 export async function bookInboxEntries(entries: InboxEntry[], opts: { skipDuplicates?: boolean } = {}) {
   const ok = entries.filter((e) => e.drafts.length && !(opts.skipDuplicates && e.dup?.level === 'strong'));
-  const claimed = new Set(await ackInbox(ok.map((e) => e.item.id)));
-  const mine = ok.filter((e) => claimed.has(e.item.id));
-  const res = await bookDrafts(mine.flatMap((e) => e.drafts));
-  for (const e of mine) learnCard(e.item.card, e.drafts[0].accountId);
-  return { count: res.txIds.length + res.transferIds.length, skipped: ok.length - mine.length, ...res };
+  if (!ok.length) return { count: 0, skipped: 0, txIds: [], transferIds: [] };
+
+  const txIds: string[] = [];
+  const transferIds: string[] = [];
+  const bookedItemIds: number[] = [];
+
+  for (const e of ok) {
+    try {
+      const res = await bookDrafts(e.drafts);
+      txIds.push(...res.txIds);
+      transferIds.push(...res.transferIds);
+      bookedItemIds.push(e.item.id);
+      learnCard(e.item.card, e.drafts[0]?.accountId);
+    } catch (err) {
+      console.warn(`[inbox] 入帳失敗，保留於收件匣：item ${e.item.id}`, err);
+    }
+  }
+
+  // 只有成功寫入本機資料庫的項目才發送 ack 從伺服器移除
+  if (bookedItemIds.length > 0) {
+    try {
+      await ackInbox(bookedItemIds);
+    } catch (err) {
+      console.warn('[inbox] ackInbox 失敗，伺服器可能保留待下次同步', err);
+    }
+  }
+
+  return {
+    count: txIds.length + transferIds.length,
+    skipped: ok.length - bookedItemIds.length,
+    txIds,
+    transferIds,
+  };
 }
 
 /** 在記帳面板手動記好後呼叫：從收件匣移除並學習卡片 */

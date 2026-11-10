@@ -36,7 +36,13 @@ export function parseCSV(input: string, delimiter?: string): string[][] {
 
 export function toCSV(rows: (string | number | null | undefined)[][]): string {
   const esc = (v: string | number | null | undefined) => {
-    const s = v === null || v === undefined ? '' : String(v);
+    let s = v === null || v === undefined ? '' : String(v);
+    // CSV 公式注入防護（Formula / DDE Injection）：
+    // 若儲存格開頭為 =、+、-、@、\t、\r，Excel 等試算表軟體會將其當作公式或指令執行。
+    // 純數字（如 -120 或 +50）保持原樣，其餘前綴單引號 ' 進行轉義。
+    if (typeof v !== 'number' && /^[+=@\t\r-]/.test(s) && !/^[+-]?\d+(\.\d+)?$/.test(s.trim())) {
+      s = `'${s}`;
+    }
     return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   // 加 BOM，Excel 開啟中文才不會亂碼

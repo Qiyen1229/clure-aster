@@ -291,6 +291,7 @@ export function ChangePasswordForm({ onDone }: { onDone?: () => void }) {
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [totp, setTotp] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const issues = passwordIssues(next, user?.username);
@@ -298,10 +299,11 @@ export function ChangePasswordForm({ onDone }: { onDone?: () => void }) {
     e.preventDefault();
     if (issues.length) return setError(`新密碼${issues.join('、')}`);
     if (next !== confirm) return setError('兩次輸入的新密碼不一致');
+    if (user?.totp_enabled && !totp.trim()) return setError('請輸入 6 位數雙因素驗證碼');
     setBusy(true);
     setError('');
     try {
-      await changePassword(current, next);
+      await changePassword(current, next, totp || undefined);
       onDone?.();
     } catch (err) {
       setError(errorText(err));
@@ -318,8 +320,15 @@ export function ChangePasswordForm({ onDone }: { onDone?: () => void }) {
       <PasswordInput id="cp-new" value={next} onChange={setNext} autoComplete="new-password" placeholder="至少 8 字元，含英文與數字" />
       <label htmlFor="cp-new2">確認新密碼</label>
       <PasswordInput id="cp-new2" value={confirm} onChange={setConfirm} autoComplete="new-password" />
+      {user?.totp_enabled && (
+        <>
+          <label htmlFor="cp-totp">雙因素驗證碼</label>
+          <input id="cp-totp" className="input" type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6}
+            placeholder="請輸入 6 位數驗證碼" value={totp} onChange={(e) => setTotp(e.target.value.replace(/\D/g, ''))} />
+        </>
+      )}
       {error && <p className="auth-error" role="alert">{error}</p>}
-      <button className="btn" type="submit" disabled={busy || !current || !next}>{busy ? '變更中…' : '變更密碼'}</button>
+      <button className="btn" type="submit" disabled={busy || !current || !next || (!!user?.totp_enabled && !totp)}>{busy ? '變更中…' : '變更密碼'}</button>
       <p className="muted" style={{ fontSize: '0.8rem', margin: 0 }}>變更後，其他裝置上的登入會被登出。</p>
     </form>
   );

@@ -4,13 +4,16 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_client, get_current_user, get_db
+from app.api.deps import get_client, get_current_user, get_db, rate_limit
+from app.core.rate_limit import RateLimiter
 from app.core.request_info import ClientInfo
 from app.model import User
 from app.schema.sync import DEVICE_ID_PATTERN, E2EEConfig, E2EEUpdate, SyncPullResponse, SyncPushRequest, SyncPushResponse, SyncStatus
 from app.service.sync_service import SyncService
 
 router = APIRouter(prefix="/api/sync", tags=["sync"])
+
+sync_push_limiter = RateLimiter(60, window_seconds=60, name="sync-push")
 
 
 @router.get("/status", response_model=SyncStatus, summary="同步狀態")
@@ -20,6 +23,7 @@ def sync_status(user: User = Depends(get_current_user), db: Session = Depends(ge
 
 @router.post("/push", response_model=SyncPushResponse, summary="上傳本機變更")
 def push(body: SyncPushRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> SyncPushResponse:
+    rate_limit(sync_push_limiter, f"push:{user.id}")
     return SyncService(db).push(user, body.device_id, body.changes)
 
 

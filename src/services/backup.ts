@@ -12,7 +12,7 @@ import { fromMinor } from '@/domain/money';
 import { toCSV } from './csv';
 import { getSetting } from '@/db/repo/settings';
 import { buildXlsx } from './xlsx';
-import { DEVICE_ONLY_SETTINGS, OUTBOX } from '@/db/sync-tracking';
+import { DEVICE_ONLY_SETTINGS, OUTBOX, markRestore } from '@/db/sync-tracking';
 import { E2EE_ITERATIONS, deriveKey } from './e2ee';
 
 const BACKUP_FORMAT = 1;
@@ -107,11 +107,13 @@ export async function restoreBackup(file: File, mode: 'replace' | 'merge', passp
   const names = db.tables.map((t) => t.name).filter((n) => !DEVICE_STATE_TABLES.has(n));
   // 這台裝置專屬的設定（App 鎖、Face ID 憑證、通知）維持現狀，不被備份檔覆蓋
   const deviceSettings = await db.settings.bulkGet([...DEVICE_ONLY_SETTINGS]);
-  await db.transaction('rw', names.map((n) => db.table(n)), async () => {
+  await db.transaction('rw', names.map((n) => db.table(n)), async (tx) => {
+    markRestore(tx);
     for (const name of names) {
       const list = json.data[name] as any[] | undefined;
       const table = db.table(name);
-      if (mode === 'replace') await table.clear();
+      // 舊版備份檔案中沒有的資料表（例如新版新增的 durables），取代還原時不清空，避免新資料表被永久抹除
+      if (mode === 'replace' && name in json.data) await table.clear();
       if (!list?.length) continue;
       const fixed = name === 'attachments'
         ? list.map((a) => ({ ...a, blob: b64ToBlob(a.blob, a.mime || 'image/jpeg'), thumb: b64ToBlob(a.thumb, 'image/jpeg') }))

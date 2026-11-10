@@ -10,7 +10,7 @@ set -eu
 
 HOST="${NAS_HOST:-nas}"
 DIR="${NAS_DIR:-/volume1/docker/Aster}"
-PROJECT="${NAS_PROJECT:-aster}"
+PROJECT="${NAS_PROJECT:-clure}"
 cd "$(dirname "$0")/.."
 
 echo "▶ 打包…"

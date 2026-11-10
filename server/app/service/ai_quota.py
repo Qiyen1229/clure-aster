@@ -21,7 +21,7 @@ from app.schema.ai import AiQuota, QuotaWindow
 from app.service.errors import ServiceError
 
 KEYS = ("ai_enabled", "ai_user_daily", "ai_user_weekly", "ai_user_monthly", "ai_global_daily", "ai_admin_daily", "ai_admin_weekly", "ai_admin_monthly")
-PENDING_TTL = timedelta(minutes=2)  # 預留後超過這個時間仍未完成（例如程序中斷）就不再計入
+PENDING_TTL = timedelta(minutes=15)  # 預留後超過這個時間仍未完成（例如程序中斷）就不再計入，放寬為 15 分鐘避免長串流被誤判過期規避配額
 WINDOW_NAMES = {"daily": "今日", "weekly": "本週", "monthly": "本月"}
 
 

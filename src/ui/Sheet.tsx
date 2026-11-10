@@ -9,6 +9,8 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import { createPortal } from 'react-dom';
 import { Icon } from './Icon';
 
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -48,7 +50,7 @@ export function Sheet({ open, onClose, title, left, right, full, variant, childr
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 拖曳過程中為了跟手把進場動畫設成 none；退出動畫的 class 套上去的同一個畫面，才把動畫還給樣式表（不會有進場動畫閃一格）
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     if (!closing) return;
     if (sheetRef.current) sheetRef.current.style.animation = '';
     if (backdropRef.current) backdropRef.current.style.animation = '';
