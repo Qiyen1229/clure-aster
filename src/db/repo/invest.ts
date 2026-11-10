@@ -60,14 +60,18 @@ async function ledgerFor(t: TradeInput & { id: string }, stock: Stock) {
   return { transactionId: main.id, feeTransactionId: feeId };
 }
 
+const TRADE_TABLES = [db.stock_trades, db.transactions, db.transfers, db.accounts, db.attachments, db.durables];
+
 export async function addTrade(input: TradeInput): Promise<StockTrade> {
   const stock = await db.stocks.get(input.stockId);
   if (!stock) throw new Error('標的不存在');
-  const id = uid();
-  const links = await ledgerFor({ ...input, id }, stock);
-  const row: StockTrade = { ...input, id, ...links, createdAt: now(), updatedAt: now() };
-  await db.stock_trades.add(row);
-  return row;
+  return db.transaction('rw', TRADE_TABLES, async () => {
+    const id = uid();
+    const links = await ledgerFor({ ...input, id }, stock);
+    const row: StockTrade = { ...input, id, ...links, createdAt: now(), updatedAt: now() };
+    await db.stock_trades.add(row);
+    return row;
+  });
 }
 
 export async function updateTrade(id: string, input: TradeInput): Promise<void> {
@@ -75,57 +79,67 @@ export async function updateTrade(id: string, input: TradeInput): Promise<void> 
   if (!old) throw new Error('交易不存在');
   const stock = await db.stocks.get(input.stockId);
   if (!stock) throw new Error('標的不存在');
-  await deleteTransactions([old.transactionId, old.feeTransactionId].filter(Boolean) as string[]);
-  const links = await ledgerFor({ ...input, id }, stock);
-  await db.stock_trades.put({ ...old, ...input, transactionId: links.transactionId, feeTransactionId: links.feeTransactionId, updatedAt: now() });
+  await db.transaction('rw', TRADE_TABLES, async () => {
+    await deleteTransactions([old.transactionId, old.feeTransactionId].filter(Boolean) as string[]);
+    const links = await ledgerFor({ ...input, id }, stock);
+    await db.stock_trades.put({ ...old, ...input, transactionId: links.transactionId, feeTransactionId: links.feeTransactionId, updatedAt: now() });
+  });
 }
 
 export async function deleteTrade(id: string): Promise<void> {
   const t = await db.stock_trades.get(id);
   if (!t) return;
-  await deleteTransactions([t.transactionId, t.feeTransactionId].filter(Boolean) as string[]);
-  await db.stock_trades.update(id, { deletedAt: now() });
+  await db.transaction('rw', TRADE_TABLES, async () => {
+    await deleteTransactions([t.transactionId, t.feeTransactionId].filter(Boolean) as string[]);
+    await db.stock_trades.update(id, { deletedAt: now() });
+  });
 }
 
 export async function restoreTrade(id: string): Promise<void> {
   const t = await db.stock_trades.get(id);
   if (!t) return;
-  await restoreTransactions([t.transactionId, t.feeTransactionId].filter(Boolean) as string[]);
-  await db.stock_trades.update(id, { deletedAt: null });
+  await db.transaction('rw', TRADE_TABLES, async () => {
+    await restoreTransactions([t.transactionId, t.feeTransactionId].filter(Boolean) as string[]);
+    await db.stock_trades.update(id, { deletedAt: null });
+  });
 }
 
 // ───── 股利 ─────
 
 export type DividendInput = Omit<Dividend, 'id' | 'createdAt' | 'updatedAt' | 'transactionId' | 'stockTradeId'> & { syncToLedger: boolean };
 
+const DIVIDEND_TABLES = [db.dividends, db.stock_trades, db.transactions, db.transfers, db.accounts, db.attachments, db.durables];
+
 export async function saveDividend(input: DividendInput, id?: string): Promise<string> {
   const { syncToLedger, ...data } = input;
   const stock = await db.stocks.get(data.stockId);
   if (!stock) throw new Error('標的不存在');
-  const did = id ?? uid();
-  if (id) await removeDividendLinks(id);
-  let transactionId: string | undefined;
-  let stockTradeId: string | undefined;
-  if (data.kind === 'cash' && data.status === 'paid' && syncToLedger && data.accountId && data.netMinor > 0) {
-    const tx = await addTransaction({
-      type: 'income', accountId: data.accountId, categoryId: 'inc-dividend', amountMinor: data.netMinor, currency: data.currency,
-      date: data.payDate, ts: new Date(`${data.payDate}T09:00:00`).getTime(), note: `${stock.name}（${stock.symbol}）現金股利`, dividendId: did,
-    });
-    transactionId = tx.id;
-  }
-  if (data.kind === 'stock' && data.status === 'paid') {
-    const shares = new Decimal(data.sharesHeldDec).mul(data.perShareDec).floor(); // 配股不足 1 股的部分通常以現金發放
-    if (shares.gt(0)) {
-      const t = await addTrade({
-        stockId: stock.id, accountId: data.accountId, type: 'stock_dividend', date: data.payDate, ts: new Date(`${data.payDate}T09:00:00`).getTime(),
-        sharesDec: shares.toString(), priceDec: '0', feeMinor: 0, taxMinor: 0, fxRateDec: '1', isDCA: false, syncToLedger: false, note: '股票股利',
+  return db.transaction('rw', DIVIDEND_TABLES, async () => {
+    const did = id ?? uid();
+    if (id) await removeDividendLinks(id);
+    let transactionId: string | undefined;
+    let stockTradeId: string | undefined;
+    if (data.kind === 'cash' && data.status === 'paid' && syncToLedger && data.accountId && data.netMinor > 0) {
+      const tx = await addTransaction({
+        type: 'income', accountId: data.accountId, categoryId: 'inc-dividend', amountMinor: data.netMinor, currency: data.currency,
+        date: data.payDate, ts: new Date(`${data.payDate}T09:00:00`).getTime(), note: `${stock.name}（${stock.symbol}）現金股利`, dividendId: did,
       });
-      stockTradeId = t.id;
+      transactionId = tx.id;
     }
-  }
-  const row: Dividend = { ...data, id: did, transactionId, stockTradeId, createdAt: now(), updatedAt: now() };
-  await db.dividends.put(row);
-  return did;
+    if (data.kind === 'stock' && data.status === 'paid') {
+      const shares = new Decimal(data.sharesHeldDec).mul(data.perShareDec).floor(); // 配股不足 1 股的部分通常以現金發放
+      if (shares.gt(0)) {
+        const t = await addTrade({
+          stockId: stock.id, accountId: data.accountId, type: 'stock_dividend', date: data.payDate, ts: new Date(`${data.payDate}T09:00:00`).getTime(),
+          sharesDec: shares.toString(), priceDec: '0', feeMinor: 0, taxMinor: 0, fxRateDec: '1', isDCA: false, syncToLedger: false, note: '股票股利',
+        });
+        stockTradeId = t.id;
+      }
+    }
+    const row: Dividend = { ...data, id: did, transactionId, stockTradeId, createdAt: now(), updatedAt: now() };
+    await db.dividends.put(row);
+    return did;
+  });
 }
 
 async function removeDividendLinks(id: string) {
@@ -136,8 +150,10 @@ async function removeDividendLinks(id: string) {
 }
 
 export async function deleteDividend(id: string) {
-  await removeDividendLinks(id);
-  await db.dividends.delete(id);
+  await db.transaction('rw', DIVIDEND_TABLES, async () => {
+    await removeDividendLinks(id);
+    await db.dividends.delete(id);
+  });
 }
 
 /** 台股二代健保補充保費：單次股利 ≥ 20,000 元時扣 2.11% */

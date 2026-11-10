@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
 import { splitEqually } from '@/domain/debt';
-import { formatMoney, fromMinor, toMinor } from '@/domain/money';
+import { formatMoney, fromMinor, safeToMinor } from '@/domain/money';
 import { Sheet } from '@/ui/Sheet';
 import { Segmented } from '@/ui/controls';
 
@@ -27,7 +27,7 @@ export function computeSplit(totalMinor: number, s: SplitState, currency: string
     const parts = splitEqually(totalMinor, s.people.length + 1);
     return { myShare: parts[0], shares: s.people.map((p, i) => ({ name: p.name, minor: parts[i + 1] })) };
   }
-  const shares = s.people.map((p) => ({ name: p.name, minor: p.amount ? toMinor(p.amount, currency) : 0 }));
+  const shares = s.people.map((p) => ({ name: p.name, minor: p.amount ? safeToMinor(p.amount, currency) : 0 }));
   const others = shares.reduce((a, x) => a + x.minor, 0);
   if (others > totalMinor) return { myShare: 0, shares, error: '分攤金額超過總額' };
   return { myShare: totalMinor - others, shares };
@@ -78,7 +78,7 @@ export function SplitSheet({ open, onClose, value, onChange, totalMinor, currenc
             </span>
             {value.mode === 'custom' ? (
               <input className="input num" style={{ width: 110, textAlign: 'right' }} inputMode="decimal" value={p.amount} placeholder="0"
-                onChange={(e) => onChange({ ...value, people: value.people.map((x, j) => (j === i ? { ...x, amount: e.target.value.replace(/[^0-9.]/g, '') } : x)) })} />
+                onChange={(e) => onChange({ ...value, people: value.people.map((x, j) => (j === i ? { ...x, amount: e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1') } : x)) })} />
             ) : <span className="num">{formatMoney(r.shares[i]?.minor ?? 0, currency)}</span>}
             <button className="icon-btn plain" aria-label={`移除 ${p.name}`}
               onClick={() => onChange({ ...value, people: value.people.filter((_, j) => j !== i), payer: value.payer === p.name ? '' : value.payer })}>✕</button>

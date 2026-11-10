@@ -12,15 +12,19 @@ export async function bootstrap() {
   await db.open();
   // 預設分類：全新資料庫才建立全部；之後只補上程式需要的系統分類（避免使用者刪掉的預設分類又跑回來，
   // 也避免新裝置的預設值經同步覆蓋其他裝置的修改）
+  let isFresh = false;
   await db.transaction('rw', db.categories, async (tx) => {
     markBaseline(tx);
     const existing = new Set(await db.categories.toCollection().primaryKeys());
+    isFresh = existing.size === 0;
     const defaults = buildDefaultCategories();
-    const missing = existing.size === 0 ? defaults : defaults.filter((c) => c.id.startsWith('sys-') && !existing.has(c.id));
+    const missing = isFresh ? defaults : defaults.filter((c) => c.id.startsWith('sys-') && !existing.has(c.id));
     if (missing.length) await db.categories.bulkAdd(missing);
   });
-  // 每個主分類都要有「其他」子分類
-  await ensureOtherSubcategories();
+  // 全新資料庫才補齊預設「其他」子分類，避免使用者刪除或封存後每次啟動又復活
+  if (isFresh) {
+    await ensureOtherSubcategories();
+  }
   // 要求瀏覽器將資料標記為「持久化」，降低 iOS／Safari 在空間不足時清除資料的機率
   try {
     if (navigator.storage?.persist && !(await navigator.storage.persisted())) await navigator.storage.persist();

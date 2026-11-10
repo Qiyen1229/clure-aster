@@ -12,7 +12,7 @@
  */
 import type { Transaction } from '@/db/types';
 import { countsInStats, statAmount } from './ledger';
-import { addDays, type DateKey, type Range } from './period';
+import { addDays, addMonths, type DateKey, type Range } from './period';
 import { median, quantile } from './anomaly-stats';
 import { judgeExpense, type Judgment } from './pricing';
 
@@ -171,7 +171,9 @@ function detectRecurring(input: DetectInput, pool: Transaction[]): Finding[] {
     const med = Math.round(median(amounts));
     const kind = (input.isSubscriptionCat ?? (() => true))(last.categoryId) ? 'subscription' : 'normal';
     const noun = kind === 'subscription' ? '訂閱' : '固定扣款';
-    const nextDate = addDays(last.date, PERIOD_DAYS[period] === 30 ? 30 : PERIOD_DAYS[period]);
+    const nextDate = period === 'week' ? addDays(last.date, 7)
+      : period === 'month' ? addMonths(last.date, 1)
+      : addMonths(last.date, 12);
     out.push({
       id: `subscription:${g.key}`, kind: 'subscription', severity: 'info',
       title: `${g.label} 看起來是${PERIOD_TEXT[period]}${noun}（約 ${input.fmt(med)}）`,
@@ -302,7 +304,11 @@ export function surgeWindows(monthRange: Range, today: DateKey, prevMonthStarts:
   const elapsed = Math.max(1, daysBetween(monthRange.start, today) + 1);
   return {
     current: { start: monthRange.start, end: today },
-    prev: prevMonthStarts.map((s) => ({ start: s, end: addDays(s, elapsed - 1) })),
+    prev: prevMonthStarts.map((s) => {
+      const target = addDays(s, elapsed - 1);
+      const mEnd = addDays(addMonths(s, 1), -1);
+      return { start: s, end: target > mEnd ? mEnd : target };
+    }),
   };
 }
 

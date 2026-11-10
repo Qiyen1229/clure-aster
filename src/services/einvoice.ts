@@ -169,8 +169,8 @@ export interface InvoiceImportResult {
  * - 分類：自動分類規則與商家記憶，找不到則記「其他支出」
  */
 export async function importInvoices(list: Invoice[], opts: { defaultAccountId: string }): Promise<InvoiceImportResult> {
-  const [{ db }, { addTransaction }, { suggestAccount, suggestCategory }, { toMinor }] = await Promise.all([
-    import('@/db/schema'), import('@/db/repo/ledger'), import('./autocat'), import('@/domain/money'),
+  const [{ db }, { addTransaction }, { suggestAccount, suggestCategory }, { toMinor }, { getRate }] = await Promise.all([
+    import('@/db/schema'), import('@/db/repo/ledger'), import('./autocat'), import('@/domain/money'), import('./fx'),
   ]);
   const accounts = new Map((await db.accounts.toArray()).filter((a) => !a.archived && !a.deletedAt).map((a) => [a.id, a]));
   const fallback = accounts.get(opts.defaultAccountId) ?? [...accounts.values()].find((a) => !a.isLiability) ?? [...accounts.values()][0];
@@ -188,9 +188,10 @@ export async function importInvoices(list: Invoice[], opts: { defaultAccountId: 
     if (done.has(inv.number) || isVoided(inv) || !(inv.amount > 0)) { res.skipped++; continue; }
     const note = invoiceNote(inv) || inv.sellerName;
     const text = [inv.sellerName, note].filter(Boolean).join(' ');
-    // 已手動記過：同金額（任一帳戶幣別相同）、日期相差 1 天內
+    // 台灣電子發票皆為新台幣：僅比對 TWD 支出或換算後為 TWD 的帳目，避免誤配外幣交易
+    const invTwdMinor = toMinor(inv.amount, 'TWD');
     const hit = manual.find((t) => !used.has(t.id) && Math.abs(Date.parse(t.date) - Date.parse(inv.date)) <= 86400000
-      && t.amountMinor === toMinor(inv.amount, t.currency));
+      && (t.currency === 'TWD' ? t.amountMinor === invTwdMinor : t.accountAmountMinor === invTwdMinor));
     if (hit) {
       used.add(hit.id);
       await db.transactions.update(hit.id, { invoiceNo: inv.number, merchant: hit.merchant || inv.sellerName || undefined, note: hit.note || note, updatedAt: Date.now() });
@@ -202,10 +203,16 @@ export async function importInvoices(list: Invoice[], opts: { defaultAccountId: 
     const account = (acc && accounts.get(acc.accountId)) || fallback;
     if (account === fallback && !(acc && accounts.has(acc.accountId))) res.usedDefault++;
     const sug = await suggestCategory(text, 'expense');
+    let fxRateDec: string | undefined;
+    if (account.currency !== 'TWD') {
+      const rate = await getRate('TWD', account.currency);
+      if (rate) fxRateDec = rate.toString();
+    }
     await addTransaction({
-      type: 'expense', accountId: account.id, categoryId: sug?.categoryId ?? 'exp-other_exp', amountMinor: toMinor(inv.amount, account.currency),
-      currency: account.currency, date: inv.date, ts: new Date(`${inv.date}T${/^\d{2}:\d{2}/.test(inv.time ?? '') ? inv.time!.slice(0, 5) : '12:00'}:00`).getTime(),
+      type: 'expense', accountId: account.id, categoryId: sug?.categoryId ?? 'exp-other_exp', amountMinor: invTwdMinor,
+      currency: 'TWD', date: inv.date, ts: new Date(`${inv.date}T${/^\d{2}:\d{2}/.test(inv.time ?? '') ? inv.time!.slice(0, 5) : '12:00'}:00`).getTime(),
       note, merchant: inv.sellerName || undefined, invoiceNo: inv.number, tagIds: sug?.tagIds ?? [],
+      fxRateDec,
     });
     done.add(inv.number);
     res.created++;

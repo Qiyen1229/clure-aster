@@ -35,6 +35,10 @@ const monthEnd = (ref: DateKey): DateKey => monthDay(ref, 31)!;
 interface DateRule { re: RegExp; fn: (m: RegExpMatchArray, today: DateKey) => DateKey | null }
 const DATE_RULES: DateRule[] = [
   { re: /(\d{4})\s*[/\-.年]\s*(\d{1,2})\s*[/\-.月]\s*(\d{1,2})\s*[日號号]?/, fn: (m) => ymd(+m[1], +m[2], +m[3]) },
+  { re: /(?:明|下)年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*[日號号]?/, fn: (m, t) => ymd(Number(t.slice(0, 4)) + 1, +m[1], +m[2]) },
+  { re: /後年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*[日號号]?/, fn: (m, t) => ymd(Number(t.slice(0, 4)) + 2, +m[1], +m[2]) },
+  { re: /(?:去|上)年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*[日號号]?/, fn: (m, t) => ymd(Number(t.slice(0, 4)) - 1, +m[1], +m[2]) },
+  { re: /前年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*[日號号]?/, fn: (m, t) => ymd(Number(t.slice(0, 4)) - 2, +m[1], +m[2]) },
   { re: /(\d{1,2})\s*月\s*(\d{1,2})\s*[日號号]?/, fn: (m, t) => pastMonthDay(t, +m[1], +m[2]) },
   { re: /([一二三四五六七八九十]{1,3})月([一二三四五六七八九十]{1,3})[日號号]/, fn: (m, t) => pastMonthDay(t, cnInt(m[1]), cnInt(m[2])) },
   { re: /(?<![\d.$])(\d{1,2})\/(\d{1,2})(?![\d/])/, fn: (m, t) => pastMonthDay(t, +m[1], +m[2]) },
@@ -45,6 +49,8 @@ const DATE_RULES: DateRule[] = [
   { re: /(\d{1,2}|[一二兩三四五六七八九十]{1,3})\s*(?:個)?(?:週|周|星期|禮拜)[後后]/, fn: (m, t) => addDays(t, 7 * cnInt(m[1])) },
   { re: /下\s*個?\s*月\s*(\d{1,2})\s*[號号日]/, fn: (m, t) => monthDay(addMonths(`${t.slice(0, 8)}01`, 1), +m[1]) },
   { re: /下\s*個?\s*月\s*(?:底|末)/, fn: (_, t) => monthEnd(addMonths(`${t.slice(0, 8)}01`, 1)) },
+  { re: /下\s*個?\s*月(?!\d|[號号日底末])/, fn: (_, t) => monthDay(addMonths(`${t.slice(0, 8)}01`, 1), Number(t.slice(8, 10))) },
+  { re: /上\s*個?\s*月(?!\d|[號号日底末])/, fn: (_, t) => monthDay(addMonths(`${t.slice(0, 8)}01`, -1), Number(t.slice(8, 10))) },
   { re: /(?:這|本)\s*個?\s*月\s*(?:底|末)|月底|月末/, fn: (_, t) => monthEnd(t) },
   { re: /大前天/, fn: (_, t) => addDays(t, -3) },
   { re: /前天/, fn: (_, t) => addDays(t, -2) },
@@ -71,7 +77,7 @@ const DATE_RULES: DateRule[] = [
       const k = ymd(Number(t.slice(0, 4)), Number(t.slice(5, 7)), d);
       if (k && k <= t) return k;
       const prev = addMonths(t.slice(0, 8) + '01', -1);
-      return ymd(Number(prev.slice(0, 4)), Number(prev.slice(5, 7)), d);
+      return monthDay(prev, d);
     },
   },
 ];

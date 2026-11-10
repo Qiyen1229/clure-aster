@@ -59,6 +59,8 @@ function TradeForm({ stockId, trade, initialType, onClose }: { stockId?: string;
   const [feeEdited, setFeeEdited] = useState(!!trade);
   const [fx, setFx] = useState(trade?.fxRateDec ?? '');
   const [isDCA, setDCA] = useState(trade?.isDCA ?? false);
+  const [isDayTrade, setIsDayTrade] = useState(trade?.isDayTrade ?? false);
+  const [busy, setBusy] = useState(false);
   const [accountId, setAccountId] = useState(trade?.accountId ?? (inv.defaultBrokerageId || brokerages[0]?.id || ''));
   const brokerage = accounts.map.get(accountId);
   const [sync, setSync] = useState(trade?.syncToLedger ?? inv.syncToLedger);
@@ -91,13 +93,22 @@ function TradeForm({ stockId, trade, initialType, onClose }: { stockId?: string;
     if ((type === 'buy' || type === 'sell') && price && shares.gt(0)) {
       const cfg = twFeeConfig(inv);
       setFee(String(twFee(price, shares, cfg, lot) / 100));
-      setTax(type === 'sell' ? String(twSellTax(price, shares, twTaxRate(stock.assetType, cfg, stock.taxRateDec)) / 100) : '0');
+      setTax(type === 'sell' ? String(twSellTax(price, shares, twTaxRate(stock.assetType, cfg, stock.taxRateDec, isDayTrade)) / 100) : '0');
     } else { setFee('0'); setTax('0'); }
-  }, [price, shares, type, stock, feeEdited]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [price, shares, type, stock, feeEdited, isDayTrade]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const tryDec = (v: Decimal.Value | undefined | null, fallback = new Decimal(0)): Decimal => {
+    try {
+      if (v === undefined || v === null || v === '') return fallback;
+      return new Decimal(v);
+    } catch {
+      return fallback;
+    }
+  };
 
   const pos = useMemo(() => computePosition(trades.filter((t) => t.id !== trade?.id), inv.costMethod, currencyInfo(cur).exp), [trades, trade?.id, inv.costMethod, cur]);
-  const gross = price && shares.gt(0) ? new Decimal(price).mul(shares) : new Decimal(0);
-  const feeD = new Decimal(fee || 0), taxD = new Decimal(tax || 0);
+  const gross = price && shares.gt(0) ? tryDec(price).mul(shares) : new Decimal(0);
+  const feeD = tryDec(fee, new Decimal(0)), taxD = tryDec(tax, new Decimal(0));
   const total = type === 'buy' ? gross.plus(feeD) : gross.minus(feeD).minus(taxD);
   const estPnl = type === 'sell' && pos.shares.gt(0) && shares.gt(0)
     ? total.minus(new Decimal(pos.costMinor).div(Decimal.pow(10, currencyInfo(cur).exp)).mul(Decimal.min(shares, pos.shares)).div(pos.shares)) : null;
@@ -112,17 +123,19 @@ function TradeForm({ stockId, trade, initialType, onClose }: { stockId?: string;
   }
 
   const save = async () => {
+    if (busy) return;
     if (shares.lte(0)) return useUI.getState().showSnack({ text: type === 'split' ? '請輸入分割倍數' : '請輸入股數' });
-    if ((type === 'buy' || type === 'sell') && (!price || new Decimal(price).lte(0))) return useUI.getState().showSnack({ text: '請輸入成交價' });
+    if ((type === 'buy' || type === 'sell') && (!price || tryDec(price).lte(0))) return useUI.getState().showSnack({ text: '請輸入成交價' });
     if (type === 'sell' && shares.gt(pos.shares)) {
       if (!await ask(`賣出 ${shares} 股超過目前持有的 ${pos.shares} 股，確定要儲存？`)) return;
     }
     if (sync && (type === 'buy' || type === 'sell') && !cashAccountId) return useUI.getState().showSnack({ text: '請選擇扣款／入帳帳戶，或關閉同步記帳' });
+    setBusy(true);
     const input = {
       stockId: stock.id, accountId, type, date, ts: new Date(`${date}T${new Date().toTimeString().slice(0, 8)}`).getTime(),
-      sharesDec: shares.toString(), priceDec: type === 'buy' || type === 'sell' ? new Decimal(price).toString() : '0',
+      sharesDec: shares.toString(), priceDec: type === 'buy' || type === 'sell' ? tryDec(price).toString() : '0',
       feeMinor: toMinor(feeD, cur), taxMinor: toMinor(taxD, cur), fxRateDec: cur === settings.baseCurrency ? '1' : fx || '1',
-      isDCA, syncToLedger: sync && (type === 'buy' || type === 'sell'), cashAccountId: sync ? cashAccountId : undefined, note,
+      isDCA, isDayTrade: type === 'sell' && isDayTrade, syncToLedger: sync && (type === 'buy' || type === 'sell'), cashAccountId: sync ? cashAccountId : undefined, note,
       costMethodSnapshot: inv.costMethod,
     };
     try {
@@ -137,6 +150,8 @@ function TradeForm({ stockId, trade, initialType, onClose }: { stockId?: string;
       onClose();
     } catch (e) {
       useUI.getState().showSnack({ text: `儲存失敗：${(e as Error).message}` });
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -189,7 +204,12 @@ function TradeForm({ stockId, trade, initialType, onClose }: { stockId?: string;
           )}
         </>
       )}
-      <button className="btn" onClick={() => void save()}>儲存</button>
+      {type === 'sell' && isTW && (
+        <div className="list">
+          <SwitchField label="現股當沖（證交稅減半）" sub="依當沖降稅規定，證交稅減半為 0.15%" checked={isDayTrade} onChange={setIsDayTrade} />
+        </div>
+      )}
+      <button className="btn" disabled={busy} onClick={() => void save()}>{busy ? '儲存中…' : '儲存'}</button>
       {trade && (
         <button className="btn danger" style={{ marginTop: 10 }} onClick={async () => {
           await deleteTrade(trade.id);

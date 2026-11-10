@@ -43,11 +43,14 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = (event.notification.data as { url?: string } | undefined)?.url ?? '/';
+  const rawUrl = (event.notification.data as { url?: string } | undefined)?.url ?? '/';
+  const targetUrl = new URL(rawUrl, self.location.origin).origin === self.location.origin
+    ? new URL(rawUrl, self.location.origin).href
+    : self.location.origin + '/';
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-      for (const c of list) if ('focus' in c) { void (c as WindowClient).navigate(url); return (c as WindowClient).focus(); }
-      return self.clients.openWindow(url);
+      for (const c of list) if ('focus' in c) { void (c as WindowClient).navigate(targetUrl); return (c as WindowClient).focus(); }
+      return self.clients.openWindow(targetUrl);
     }),
   );
 });

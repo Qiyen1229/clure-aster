@@ -21,6 +21,7 @@ export function PinPad({ onComplete, error, disabled }: { onComplete: (pin: stri
   const press = (k: string) => {
     if (disabled) return;
     if (k === '⌫') { setPin((p) => p.slice(0, -1)); return; }
+    if (pin.length >= 6) return;
     const next = (pin + k).slice(0, 6);
     setPin(next);
     if (next.length === 6) { setTimeout(() => { onComplete(next); setPin(''); }, 80); }

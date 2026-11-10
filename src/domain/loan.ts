@@ -4,6 +4,7 @@
  * - 實際欠款（帳戶餘額）低於應剩餘本金代表有提前還款
  * - 剩餘利息、預計還清日、下一期
  */
+import Decimal from 'decimal.js';
 import type { InstallmentScheduleItem, LoanInfo } from '@/db/types';
 import { buildSchedule } from './installment';
 
@@ -53,7 +54,7 @@ export function loanStatus(loan: LoanInfo, balanceMinor: number, today: string):
  */
 export function splitPayment(balanceMinor: number, aprDec: string, paymentMinor: number): { principalMinor: number; interestMinor: number } {
   const owed = Math.max(0, -balanceMinor);
-  const interest = Math.round((owed * Number(aprDec || 0)) / 100 / 12);
+  const interest = new Decimal(owed).mul(aprDec || 0).div(1200).round().toNumber();
   const principal = Math.max(0, Math.min(owed, paymentMinor - interest));
   return { principalMinor: principal, interestMinor: Math.min(interest, paymentMinor) };
 }
@@ -64,13 +65,13 @@ export interface AmortResult { months: number; interestMinor: number; paymentMin
 
 /** 固定月付逐月攤還：回傳還清月數與總利息；月付不夠付利息（永遠還不完）回傳 null */
 export function amortize(balanceMinor: number, aprDec: string, paymentMinor: number, maxMonths = 1200): AmortResult | null {
-  const r = Number(aprDec || 0) / 100 / 12;
+  const rate = new Decimal(aprDec || 0).div(1200);
   let b = Math.max(0, balanceMinor);
   let interest = 0;
   let months = 0;
   while (b > 0) {
     if (++months > maxMonths) return null;
-    const i = Math.round(b * r);
+    const i = new Decimal(b).mul(rate).round().toNumber();
     const pay = Math.min(paymentMinor, b + i);
     if (pay - i <= 0) return null;
     interest += i;
@@ -82,8 +83,10 @@ export function amortize(balanceMinor: number, aprDec: string, paymentMinor: num
 /** 在剩餘期數不變下，把 balance 還清所需的月付（本息平均） */
 export function paymentFor(balanceMinor: number, aprDec: string, months: number): number {
   if (balanceMinor <= 0 || months <= 0) return 0;
-  const r = Number(aprDec || 0) / 100 / 12;
-  return Math.round(r === 0 ? balanceMinor / months : (balanceMinor * r) / (1 - (1 + r) ** -months));
+  const rate = new Decimal(aprDec || 0).div(1200);
+  if (rate.isZero()) return Math.round(balanceMinor / months);
+  const factor = new Decimal(1).plus(rate).pow(-months);
+  return new Decimal(balanceMinor).mul(rate).div(new Decimal(1).minus(factor)).round().toNumber();
 }
 
 export interface PrepaymentSim {

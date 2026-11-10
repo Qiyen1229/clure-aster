@@ -75,10 +75,12 @@ export interface AmountHit {
   currency?: string;
   /** 英文字詞後面隔一個空白的數字（「Uber 230」）：整句沒有其他金額時才採用 */
   weak?: boolean;
+  negative?: boolean;
 }
 
 const CN_NUM_CHARS = '零〇一二兩三四五六七八九十百千萬万壹貳參肆伍陸柒捌玖拾佰仟';
 const AMOUNT_RE = new RegExp(
+  `([-－負])?\\s*` +
   `(NT\\$|NTD|TWD|US\\$|USD|HK\\$|JPY|\\$|新台幣|新臺幣|台幣|臺幣)?\\s*` +
   `((?:\\d[\\d,]*(?:\\.\\d+)?(?:\\s*[萬万千kK](?![a-zA-Z])\\d?)?)|(?:[${CN_NUM_CHARS}]+))` +
   `\\s*(元|塊錢|塊|圓|块|dollars?)?`,
@@ -88,7 +90,7 @@ const AMOUNT_RE = new RegExp(
 const NOT_AMOUNT_AFTER = /^[杯個份張瓶罐包盒碗件次人位隻台支顆片條本號樓點時分秒歲年月日天週周%折度嵐樣種隻碼吋]/;
 const NOT_AMOUNT_BEFORE = /[A-Za-z\-/#_.:]$/;
 /** 「週3」「第2」「下午3」的數字不是金額 */
-const NOT_AMOUNT_AFTER_WORD = /(週|周|星期|禮拜|礼拜|第|早上|下午|晚上|中午)$/;
+const NOT_AMOUNT_AFTER_WORD = /(週|周|星期|禮拜|礼拜|第|早上|下午|晚上|中午|末|碼|码|號|号|卡號|帳號)$/;
 /** 中文數字後面可以接的字（「一百五用現金」）；其他中文字代表是詞的一部分（「五十嵐」「十分」） */
 const CN_OK_AFTER = /^($|[\s,，、。;；!！?？)）]|[用刷付給在從到買花去搭吃喝的])/;
 export const CURRENCY_WORDS: [RegExp, string][] = [
@@ -99,7 +101,7 @@ export const CURRENCY_WORDS: [RegExp, string][] = [
 const CURRENCY_AFTER = /^(美金|美元|日幣|日圓|日元|円|港幣|港元|歐元|人民幣|韓元|韓幣|英鎊|泰銖|新加坡幣|新幣|澳幣)/;
 /** 會被誤認為金額的店名 */
 const PROTECTED = new RegExp([
-  '7\\s*-?\\s*11', '7\\s*-?\\s*eleven', '85\\s*度\\s*c', '50\\s*嵐', '五十嵐', '21\\s*世紀', '101', '3\\s*m(?![a-z])',
+  '7\\s*-?\\s*11', '7\\s*-?\\s*eleven', '85\\s*度\\s*c', '50\\s*嵐', '五十嵐', '21\\s*世紀', '(?:台北|臺北)?101(?:大樓|購物中心|觀景台)', '3\\s*m(?![a-z])',
   // 簡訊裡的電話、帳號、會員編號、網址不是金額（例如「電話 0912345678」不可以變成 $912,345,678）
   'https?:\\/\\/\\S+', '(?<![\\d.,])\\d{9,}(?![\\d])', '(?<![\\d.,])0\\d{1,2}[- ]\\d{3,4}[- ]\\d{3,4}(?![\\d])',
 ].join('|'), 'gi');
@@ -113,15 +115,21 @@ export function findAmounts(text: string): AmountHit[] {
   const s = toHalfWidth(text).replace(PROTECTED, (m) => '＿'.repeat(m.length));
   const out: AmountHit[] = [];
   for (const m of s.matchAll(AMOUNT_RE)) {
-    const [whole, prefix, num, suffix] = m;
+    const whole = m[0];
+    const sign = m[1];
+    const prefix = m[2];
+    const num = m[3];
+    const suffix = m[4];
     const start = m.index! + whole.indexOf(num);
-    const before = s.slice(0, start).trimEnd();
+    const charBefore = start > 0 ? s.slice(0, start) : '';
+    const before = charBefore.trimEnd();
     const after = s.slice(m.index! + whole.length);
     const isCn = !/\d/.test(num);
+    const isNeg = Boolean(sign);
     // 英文字母緊貼數字（A4、MRT3）不是金額；中間有空白（「Uber 230」「Netflix 390」）先當作「弱」金額，整句沒有其他金額時才採用
-    const glued = !prefix && NOT_AMOUNT_BEFORE.test(s.slice(0, start)) && !/\d$/.test(before);
-    const weak = !prefix && !glued && NOT_AMOUNT_BEFORE.test(before) && !/\d$/.test(before) && /[A-Za-z]$/.test(before);
-    if (glued || (!prefix && NOT_AMOUNT_BEFORE.test(before) && !/\d$/.test(before) && !weak)) continue;
+    const glued = !prefix && !isNeg && NOT_AMOUNT_BEFORE.test(charBefore) && !/\d$/.test(before);
+    const weak = !prefix && !glued && !isNeg && NOT_AMOUNT_BEFORE.test(before) && !/\d$/.test(before) && /[A-Za-z]$/.test(before);
+    if (glued || (!prefix && !isNeg && NOT_AMOUNT_BEFORE.test(before) && !/\d$/.test(before) && !weak)) continue;
     if (!prefix && NOT_AMOUNT_AFTER_WORD.test(before)) continue;
     // 「1200 日圓」：後面接幣別，不是「日」
     const curAfter = !suffix ? after.trimStart().match(CURRENCY_AFTER)?.[0] : undefined;
@@ -132,11 +140,13 @@ export function findAmounts(text: string): AmountHit[] {
       const hasUnit = /[十百千萬万拾佰仟]/.test(num);
       if (!suffix && !(hasUnit && CN_OK_AFTER.test(after))) continue;
     }
-    const value = parseCnNumber(num);
-    if (value === null || !(value > 0) || value > 1e12) continue;
+    const rawVal = parseCnNumber(num);
+    if (rawVal === null || !(rawVal > 0) || rawVal > 1e12) continue;
+    const value = isNeg ? -rawVal : rawVal;
     out.push({
       weak, value, index: m.index!, length: whole.length, marked: !!(prefix || suffix || curAfter),
       currency: prefix ? detectCurrency(prefix) : curAfter ? detectCurrency(curAfter) : undefined,
+      negative: isNeg,
     });
   }
   const strong = out.filter((h) => !h.weak);

@@ -15,7 +15,7 @@ export interface MonthBucket { month: number; paidMinor: number; projectedMinor:
 export function dividendCalendar(params: {
   year: number;
   today: string;
-  dividends: Pick<Dividend, 'stockId' | 'kind' | 'status' | 'payDate' | 'perShareDec' | 'netMinor' | 'grossMinor' | 'currency'>[];
+  dividends: (Pick<Dividend, 'stockId' | 'kind' | 'status' | 'payDate' | 'perShareDec' | 'netMinor' | 'grossMinor' | 'currency'> & { sharesHeldDec?: string })[];
   /** 目前持股數（只有持有中的標的才會推估） */
   holdings: Map<string, { sharesDec: string; currency: string; exp: number }>;
   toBase: (minor: number, currency: string) => number;
@@ -37,7 +37,8 @@ export function dividendCalendar(params: {
       b.items.push({ stockId: d.stockId, amountMinor: v, kind: 'paid', perShareDec: d.perShareDec });
     } else {
       const h = holdings.get(d.stockId);
-      const gross = d.grossMinor || (h ? new Decimal(d.perShareDec).mul(h.sharesDec).mul(Decimal.pow(10, h.exp)).floor().toNumber() : 0);
+      const shares = (d.sharesHeldDec && Number(d.sharesHeldDec) > 0) ? d.sharesHeldDec : h?.sharesDec;
+      const gross = d.grossMinor || (shares && h ? new Decimal(d.perShareDec).mul(shares).mul(Decimal.pow(10, h.exp)).floor().toNumber() : 0);
       const v = toBase(gross, d.currency);
       b.projectedMinor += v;
       b.items.push({ stockId: d.stockId, amountMinor: v, kind: 'announced', perShareDec: d.perShareDec });

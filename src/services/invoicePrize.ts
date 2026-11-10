@@ -104,16 +104,23 @@ async function prizeCategoryId(): Promise<string> {
 export async function claimPrize(entry: PrizeEntry): Promise<Transaction> {
   if (!entry.hit) throw new Error('這張發票沒有中獎');
   if (entry.claimed) throw new Error('這張發票已經記過中獎收入');
+  const existing = await db.transactions.where('invoiceNo').equals(entry.number).toArray();
+  if (existing.some((t) => !t.deletedAt && t.type === 'income')) {
+    entry.claimed = true;
+    throw new Error('這張發票已經記過中獎收入');
+  }
   const accId = useSettings.getState().einvoice.defaultAccountId || entry.tx.accountId;
   const acc = (await db.accounts.get(accId)) ?? (await db.accounts.get(entry.tx.accountId));
   if (!acc) throw new Error('找不到可以入帳的帳戶，請先在電子發票設定預設帳戶');
   const categoryId = await prizeCategoryId();
   if (!categoryId) throw new Error('找不到收入分類');
-  return addTransaction({
+  const tx = await addTransaction({
     type: 'income', accountId: acc.id, categoryId, amountMinor: entry.hit.amount * 100, currency: 'TWD',
     date: todayKey(), ts: Date.now(), invoiceNo: entry.number,
     note: `統一發票中獎（${entry.hit.name}）${entry.number}`,
   });
+  entry.claimed = true;
+  return tx;
 }
 
 /** 手動輸入發票號碼對獎（紙本發票沒記帳時）：只回傳結果，不寫入 */
@@ -130,7 +137,7 @@ export async function checkPrizesOnStartup(): Promise<number> {
     if (r.claimState !== 'open' || !r.unclaimedMinor) continue;
     const n = r.winners.filter((w) => !w.claimed).length;
     winners += n;
-    await notify('🎉 統一發票中獎了！', `${draw.label}有 ${n} 張發票中獎，共 $${(r.unclaimedMinor / 100).toLocaleString()}；領獎到 ${r.schedule.claimTo}`, '/settings/invoice/prize', 'invoice', `invoice-prize:${draw.period}:${n}`);
+    await notify('🎉 統一發票中獎了！', `${draw.label}有 ${n} 張發票中獎，共 $${(r.unclaimedMinor / 100).toLocaleString()}；領獎到 ${r.schedule.claimTo}`, '/settings/invoice/prize', 'invoice', `invoice-prize:${draw.period}`);
   }
   return winners;
 }

@@ -18,6 +18,7 @@ import { FilterSheet, filterCount } from './FilterSheet';
 import { categoryChildren, matchFilter } from '@/db/repo/plan';
 import type { TxFilter } from '@/db/types';
 import { statAmount } from '@/domain/ledger';
+import { formatMoney } from '@/domain/money';
 import { useScreenDetail } from '@/stores/screenContext';
 
 type Unit = PeriodUnit | 'custom';
@@ -85,7 +86,7 @@ export default function LedgerPage() {
         if (it.tx.type === 'income') cur.income += statAmount(it.tx);
         else cur.expense += statAmount(it.tx);
       } else if (it.kind === 'transfer' && it.tr.feeMinor) {
-        cur.expense += it.tr.feeMinor;
+        cur.expense += it.tr.baseFeeMinor ?? it.tr.feeMinor;
       }
       rows.push({ type: 'item', item: it });
     }
@@ -111,7 +112,7 @@ export default function LedgerPage() {
   })();
 
   // 讓 AI 對話知道你正在看哪一段、套了哪些篩選（只有條件的名稱與筆數、合計，沒有單筆帳目與備註）
-  const money = (v: number) => `$${Math.round(v / 100).toLocaleString('zh-TW')}`;
+  const money = (v: number) => formatMoney(v, settings.baseCurrency, { decimals: 0 });
   const names = (ids: string[] | undefined, get: (id: string) => string | undefined) => (ids ?? []).map((id) => get(id)).filter(Boolean).slice(0, 4).join('、');
   const conds = [
     accountFilter ? `帳戶「${accounts.map.get(accountFilter)?.name ?? ''}」` : '',

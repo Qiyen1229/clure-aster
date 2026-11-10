@@ -271,6 +271,19 @@ export function Calendar({
     }
   };
 
+  const handlePointerCancel = (e: React.PointerEvent) => {
+    if (!dragStart.current || isAnimating.current) return;
+    const wasDrag = isDragging.current;
+    dragStart.current = null;
+    isDragging.current = false;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+    if (wasDrag) animateTo(0, 0);
+  };
+
   // 觸控板左右滑動（Mac 雙指水平捲動）
   const handleWheel = (e: React.WheelEvent) => {
     if (isAnimating.current || isDragging.current) return;
@@ -375,7 +388,7 @@ export function Calendar({
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
       onWheel={handleWheel}
     >
       {!collapsed && (

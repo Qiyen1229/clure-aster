@@ -26,8 +26,13 @@ let statusCache: { configured: boolean; message: string } | null = null;
 
 export async function carrierServerStatus(): Promise<{ configured: boolean; message: string }> {
   if (!AUTH_ENABLED) return { configured: false, message: '需要啟用帳號系統與自架伺服器' };
-  statusCache ??= await api<{ configured: boolean; message: string }>('/einvoice/status').catch(() => ({ configured: false, message: '無法連線到伺服器' }));
-  return statusCache;
+  if (statusCache) return statusCache;
+  try {
+    statusCache = await api<{ configured: boolean; message: string }>('/einvoice/status');
+    return statusCache;
+  } catch {
+    return { configured: false, message: '無法連線到伺服器' };
+  }
 }
 
 export async function fetchCarrierInvoices(start: string, end: string): Promise<Invoice[]> {

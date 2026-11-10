@@ -5,6 +5,7 @@ import { ICON_192 } from '@/ui/assets';
 import { useEffect, useRef, useState } from 'react';
 import { useUI } from '@/stores/ui';
 import { useSettings } from '@/stores/settings';
+import { useLock } from '@/services/lock';
 import { Sheet } from '@/ui/Sheet';
 
 export function SnackbarHost() {
@@ -35,20 +36,27 @@ export function SnackbarHost() {
 export function ConfirmHost() {
   const c = useUI((s) => s.confirm);
   const close = useUI((s) => s.closeConfirm);
+  const locked = useLock((s) => s.locked);
   const prevFocus = useRef<HTMLElement | null>(null);
+
+  // App 鎖定時自動關閉確認視窗，杜絕鎖屏繞過
+  useEffect(() => {
+    if (locked && c) close(false);
+  }, [locked, c, close]);
+
   // 開啟前記住原本的焦點（按鈕或抽屜內的元件），關閉後還回去，鍵盤與讀屏使用者不會掉到頁面最上面
   useEffect(() => {
-    if (!c) return;
+    if (!c || locked) return;
     prevFocus.current = document.activeElement as HTMLElement | null;
     return () => { const el = prevFocus.current; prevFocus.current = null; setTimeout(() => el?.isConnected && el.focus?.({ preventScroll: true }), 0); };
-  }, [c?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [c?.id, locked]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!c) return;
+    if (!c || locked) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); close(false); } };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [c, close]);
-  if (!c) return null;
+  }, [c, close, locked]);
+  if (!c || locked) return null;
   return (
     <div className="dlg-wrap" key={c.id}>
       <div className="dlg-backdrop" onClick={() => close(false)} aria-hidden="true" />
@@ -89,21 +97,27 @@ export function ActionSheetHost() {
 export function InputHost() {
   const r = useUI((s) => s.input);
   const close = useUI((s) => s.closeInput);
+  const locked = useLock((s) => s.locked);
   const [value, setValue] = useState('');
   const prevFocus = useRef<HTMLElement | null>(null);
+
   useEffect(() => {
-    if (!r) return;
+    if (locked && r) close(null);
+  }, [locked, r, close]);
+
+  useEffect(() => {
+    if (!r || locked) return;
     setValue(r.defaultValue ?? '');
     prevFocus.current = document.activeElement as HTMLElement | null;
     return () => { const el = prevFocus.current; prevFocus.current = null; setTimeout(() => el?.isConnected && el.focus?.({ preventScroll: true }), 0); };
-  }, [r?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [r?.id, locked]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!r) return;
+    if (!r || locked) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); close(null); } };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [r, close]);
-  if (!r) return null;
+  }, [r, close, locked]);
+  if (!r || locked) return null;
   const text = value.trim();
   const ok = !r.required || !!text;
   return (
@@ -133,6 +147,8 @@ export function UpdatePrompt() {
   useEffect(() => {
     if (!('serviceWorker' in navigator) || import.meta.env.DEV) return;
     let cancelled = false;
+    let timer: any = null;
+    let onVis: (() => void) | null = null;
     import('virtual:pwa-register').then(({ registerSW }) => {
       if (cancelled) return;
       const updateSW = registerSW({
@@ -141,14 +157,19 @@ export function UpdatePrompt() {
         onRegisteredSW: (_url, reg) => {
           // 每 30 分鐘、以及回到前景時檢查更新
           if (!reg) return;
-          setInterval(() => reg.update().catch(() => undefined), 30 * 60 * 1000);
-          document.addEventListener('visibilitychange', () => {
+          timer = setInterval(() => reg.update().catch(() => undefined), 30 * 60 * 1000);
+          onVis = () => {
             if (document.visibilityState === 'visible') reg.update().catch(() => undefined);
-          });
+          };
+          document.addEventListener('visibilitychange', onVis);
         },
       });
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (timer) clearInterval(timer);
+      if (onVis) document.removeEventListener('visibilitychange', onVis);
+    };
   }, []);
   useEffect(() => {
     if (!offlineReady) return;

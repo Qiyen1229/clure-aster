@@ -85,7 +85,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
   const [toAccountId, setToAccountId] = useState(prefill?.toAccountId ?? '');
   const [currency, setCurrency] = useState('');
   const [fxRate, setFxRate] = useState('');
-  const [toAmount, setToAmount] = useState('');
+  const [toAmount, setToAmount] = useState<string | null>(null);
   const [fee, setFee] = useState('');
   const [date, setDate] = useState(prefill?.date ?? (selectedDate || todayKey()));
   const [time, setTime] = useState(nowTime());
@@ -236,12 +236,18 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
   const onKey = useCallback((k: string) => setExpr((e) => pressKey(e, k, exp)), [exp]);
 
   const reset = () => {
-    setExpr(''); setNote(''); setAtts([]); setFee(''); setToAmount(''); setPersonName(''); setDurableYears(0); setDurableCustom(0); setDurableLinked(false); setSkipBudget(false);
+    setExpr(''); setNote(''); setAtts([]); setFee(''); setToAmount(null); setPersonName(''); setDurableYears(0); setDurableCustom(0); setDurableLinked(false); setSkipBudget(false);
     setTime(nowTime());
   };
 
   const dirty = !saved.current && (expr !== '' || note !== '' || atts.some((a) => a.fresh));
-  const confirmClose = () => !dirty || editing || askConfirm({ title: '放棄這筆記帳？', message: '已輸入的內容還沒儲存，離開後就不會保留。', confirmText: '放棄', cancelText: '繼續編輯', danger: true });
+  const confirmClose = () => !dirty || askConfirm({
+    title: editing ? '放棄修改？' : '放棄這筆記帳？',
+    message: editing ? '已修改的內容尚未儲存，確定要放棄變更？' : '已輸入的內容還沒儲存，離開後就不會保留。',
+    confirmText: '放棄',
+    cancelText: '繼續編輯',
+    danger: true,
+  });
   const handleClose = () => {
     if (!saved.current) void discardAttachments(atts.filter((a) => a.fresh).map((a) => a.id));
     onClose();
@@ -283,7 +289,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
         if (!toAccount) { useUI.getState().showSnack({ text: '請選擇轉入帳戶' }); return; }
         if (toAccount.id === account!.id) { useUI.getState().showSnack({ text: '轉出與轉入帳戶不能相同' }); return; }
         const fromMinorAmt = toMinor(v, account!.currency);
-        const toStr = needRate ? (toAmount || computedToAmount) : v.toString();
+        const toStr = needRate ? ((toAmount !== null ? toAmount : computedToAmount)) : v.toString();
         if (needRate && !toStr) { useUI.getState().showSnack({ text: '請輸入匯率或轉入金額' }); return; }
         const input = {
           fromAccountId: account!.id, toAccountId: toAccount.id, fromAmountMinor: fromMinorAmt,
@@ -573,7 +579,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
               }}
                 options={editing ? MODES.filter((m) => m.value === 'expense' || m.value === 'income') : mode === 'adjust' ? [...MODES, { value: 'adjust', label: '調整' }] : MODES} ariaLabel="記帳類型" />
               {isLoanMode(mode) && !editing && (
-                <div style={{ marginTop: 8 }}>
+                <div style={{ marginTop: 10 }}>
                   <Segmented value={mode} onChange={(m) => setMode(m as AddMode)} ariaLabel="借貸方向"
                     options={[{ value: 'receivable', label: '借出（誰欠你）' }, { value: 'payable', label: '借入（你欠誰）' }]} />
                 </div>
@@ -641,7 +647,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
               {mode === 'transfer' ? (
                 <div className="field">
                   <span className="label">轉入金額</span>
-                  <input inputMode="decimal" value={toAmount || computedToAmount} onChange={(e) => setToAmount(e.target.value.replace(/[^0-9.]/g, ''))} aria-label="轉入金額" />
+                  <input inputMode="decimal" value={toAmount !== null ? toAmount : computedToAmount} onChange={(e) => setToAmount(e.target.value.replace(/[^0-9.]/g, ''))} aria-label="轉入金額" />
                   <span className="muted num">{rateTo}</span>
                 </div>
               ) : value && fxRate && account ? (

@@ -37,8 +37,11 @@ export function twFee(priceDec: Decimal.Value, sharesDec: Decimal.Value, cfg: Tw
   return Decimal.max(raw, min).toNumber() * 100;
 }
 
-export function twTaxRate(assetType: 'stock' | 'etf' | 'bond_etf', cfg: TwFeeConfig = DEFAULT_TW_FEES, override?: string): string {
+export function twTaxRate(assetType: 'stock' | 'etf' | 'bond_etf', cfg: TwFeeConfig = DEFAULT_TW_FEES, override?: string, isDayTrade = false): string {
   if (override) return override;
+  if (isDayTrade && assetType === 'stock') {
+    return new Decimal(cfg.taxStockDec).div(2).toString();
+  }
   return assetType === 'etf' ? cfg.taxEtfDec : assetType === 'bond_etf' ? cfg.taxBondEtfDec ?? '0' : cfg.taxStockDec;
 }
 

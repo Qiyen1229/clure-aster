@@ -228,7 +228,7 @@ const twelvedata: QuoteProvider = {
     for (const r of refs.filter((x) => x.market === 'US')) {
       const j = await getJson(`https://api.twelvedata.com/quote?symbol=${encodeURIComponent(r.symbol)}&apikey=${encodeURIComponent(k)}`, { direct: true });
       if (!j.close) continue;
-      out.push({ market: r.market, symbol: r.symbol, name: j.name, priceDec: String(j.close), prevCloseDec: String(j.previous_close), openDec: j.open, highDec: j.high, lowDec: j.low, volume: Number(j.volume) || undefined, marketTime: (Number(j.timestamp) || Date.now() / 1000) * 1000, source: 'twelvedata' });
+      out.push({ market: r.market, symbol: r.symbol, name: j.name, priceDec: String(j.close), prevCloseDec: j.previous_close != null ? String(j.previous_close) : String(j.close), openDec: j.open, highDec: j.high, lowDec: j.low, volume: Number(j.volume) || undefined, marketTime: (Number(j.timestamp) || Date.now() / 1000) * 1000, source: 'twelvedata' });
     }
     return out;
   },
@@ -245,7 +245,9 @@ const alphavantage: QuoteProvider = {
       const j = await getJson(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(r.symbol)}&apikey=${encodeURIComponent(k)}`, { direct: true });
       const q = j['Global Quote'];
       if (!q?.['05. price']) continue;
-      out.push({ market: r.market, symbol: r.symbol, priceDec: num(q['05. price'])!, prevCloseDec: num(q['08. previous close'])!, marketTime: Date.parse(q['07. latest trading day']) || Date.now(), source: 'alphavantage' });
+      const p = num(q['05. price'])!;
+      const prev = num(q['08. previous close']) ?? p;
+      out.push({ market: r.market, symbol: r.symbol, priceDec: p, prevCloseDec: prev, marketTime: Date.parse(q['07. latest trading day']) || Date.now(), source: 'alphavantage' });
     }
     return out;
   },

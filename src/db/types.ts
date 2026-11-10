@@ -120,6 +120,7 @@ export interface Transfer extends BaseRow {
   toAmountMinor: number;
   fxRateDec?: string;
   feeMinor: number;
+  baseFeeMinor?: number;
   feeAccountId?: string;
   feeTransactionId?: string;
   date: string;
@@ -333,6 +334,7 @@ export interface StockTrade extends BaseRow {
   taxMinor: number;
   fxRateDec: string;
   isDCA: boolean;
+  isDayTrade?: boolean;
   costMethodSnapshot?: 'avg' | 'fifo';
   realizedPnlMinor?: number;
   cashAccountId?: string;

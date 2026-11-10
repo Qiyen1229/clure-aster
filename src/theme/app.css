@@ -1436,9 +1436,9 @@ button.stat.clickable:active {
 .pill > button { min-height: 32px; display: inline-flex; align-items: center; }
 .pill > button + button { margin-left: 6px; opacity: 0.6; }
 
-/* 鎖定畫面與 PIN 鍵盤 */
+/* 鎖定畫面與 PIN 鍵盤：層級 500，高於所有彈窗與確認框 (310) */
 .lockscreen {
-  position: fixed; inset: 0; z-index: 300; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+  position: fixed; inset: 0; z-index: 500; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
   padding: calc(var(--safe-t) + 24px) 24px calc(var(--safe-b) + 24px); background: var(--bg);
   overflow-y: auto; overscroll-behavior: contain;
 }
@@ -1807,7 +1807,7 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
 .ask-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .ask-chips .chip { font-size: 0.75rem; padding: 3px 8px; border-radius: 999px; background: var(--surface); }
 
-/* ---------- 特色功能卡片（導覽、新功能介紹） ---------- */
+/* ---------- 特色功能卡片（導覽、版本更新重點） ---------- */
 
 /* 首頁對話框與對話彈窗 */
 .chat-wrap { display: flex; flex-direction: column; flex: 1; min-height: 0; }

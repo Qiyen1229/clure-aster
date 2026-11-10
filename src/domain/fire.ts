@@ -90,7 +90,7 @@ export function simulateFire(input: FireInput): FireResult {
     for (let y = 0; y <= years; y++) {
       if (y > 0) {
         const ret = input.expectedReturn + input.volatility * normal(rand);
-        const infl = (1 + input.inflation) ** (y - 1);
+        const infl = (1 + input.inflation) ** y;
         w = w * (1 + ret) + input.annualSaving * infl;
         if (y <= retireIdx) rw = rw * (1 + ret) + input.annualSaving * infl;
         else rw = rw * (1 + ret) - input.annualExpense * infl;

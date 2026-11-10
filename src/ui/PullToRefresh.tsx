@@ -17,6 +17,10 @@ export function PullToRefresh({ onRefresh, children }: { onRefresh: () => Promis
         const dy = e.touches[0].clientY - start.current;
         if (dy > 0) setPull(Math.min(110, dy * 0.5));
       }}
+      onTouchCancel={() => {
+        start.current = null;
+        setPull(0);
+      }}
       onTouchEnd={async () => {
         if (start.current === null) return;
         start.current = null;

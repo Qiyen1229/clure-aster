@@ -82,12 +82,14 @@ async function saveQuotes(stocks: Stock[], quotes: Quote[]): Promise<Set<string>
   for (const q of quotes) {
     const s = stocks.find((x) => x.symbol === q.symbol && (x.market === q.market || marketGroup(x.market) === marketGroup(q.market)));
     if (!s || got.has(s.id)) continue;
-    const price = Number(q.priceDec), prev = Number(q.prevCloseDec);
+    const price = Number(q.priceDec), rawPrev = Number(q.prevCloseDec);
     if (!(price > 0)) continue;
+    const prev = Number.isFinite(rawPrev) && rawPrev > 0 ? rawPrev : price;
+    const diff = price - prev;
     got.add(s.id);
     rows.push({
       stockId: s.id, priceDec: q.priceDec, prevCloseDec: q.prevCloseDec,
-      changeDec: String(+(price - prev).toFixed(6)), changePctDec: prev ? String(+(((price - prev) / prev) * 100).toFixed(4)) : '0',
+      changeDec: String(+diff.toFixed(6)), changePctDec: prev ? String(+((diff / prev) * 100).toFixed(4)) : '0',
       openDec: q.openDec, highDec: q.highDec, lowDec: q.lowDec, volume: q.volume, marketTime: q.marketTime,
       source: q.source, updatedAt: Date.now(), isManual: false,
     });

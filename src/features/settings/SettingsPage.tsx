@@ -367,7 +367,7 @@ function AboutHubSheet({ open, onClose }: { open: boolean; onClose: () => void }
             } catch { snack('無法連線到伺服器，請稍後再試'); } finally { setChecking(false); }
           }}>{checking ? '檢查中…' : '檢查更新'}</button>
         </Row>
-        <Row icon="sparkles" tint="#0A84FF" label="新功能介紹" sub="瀏覽各版本重點新功能與操作導引" onClick={() => { onClose(); openWhatsNew(); }} />
+        <Row icon="sparkles" tint="#0A84FF" label="版本更新重點" sub="瀏覽各版本重點新功能與操作導引" onClick={() => { onClose(); openWhatsNew(); }} />
         <Row icon="compass" tint="#FF9F0A" label="重新執行首次引導" sub="再次瀏覽 Aster 最強功能特色與基礎設定" onClick={() => { s.set('onboarded', false); navTo('/onboarding'); }} />
         <Row icon="lock" tint="#30B0C7" label="隱私權政策" onClick={() => navTo('/privacy')} />
         <Row icon="note" tint="#8E8E93" label="服務條款與授權" onClick={() => navTo('/terms')} />
@@ -580,7 +580,7 @@ export default function SettingsPage() {
           <Row icon="shieldCheck" tint="#5E5CE6" label="帳號安全與隱私" sub="端對端加密、App 鎖 PIN/Face ID、變更密碼" onClick={() => setSecOpen(true)} />
         )}
         <Row icon="database" tint="#0A84FF" label="資料備份與維護" sub="備份還原、匯出入、資料庫健康檢查、範例帳目" onClick={() => setDataOpen(true)} />
-        <Row icon="info" tint="#8E8E93" label="關於 Aster" sub={`v${__APP_VERSION__} · 檢查更新、新功能介紹、條款政策`} onClick={() => setAboutOpen(true)} />
+        <Row icon="info" tint="#8E8E93" label="關於 Aster" sub={`v${__APP_VERSION__} · 檢查更新、版本更新重點、條款政策`} onClick={() => setAboutOpen(true)} />
       </Group>
 
       {/* 危險操作區 */}

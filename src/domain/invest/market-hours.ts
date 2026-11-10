@@ -84,10 +84,13 @@ function observed(y: number, m0: number, day: number): string {
 export function usHolidays(y: number): Set<string> {
   const gf = easter(y);
   gf.setUTCDate(gf.getUTCDate() - 2);
-  return new Set([
+  const nextNewYear = new Date(Date.UTC(y + 1, 0, 1));
+  const set = new Set([
     observed(y, 0, 1), nthWeekday(y, 0, 1, 3), nthWeekday(y, 1, 1, 3), key(gf), lastWeekday(y, 4, 1),
     observed(y, 5, 19), observed(y, 6, 4), nthWeekday(y, 8, 1, 1), nthWeekday(y, 10, 4, 4), observed(y, 11, 25),
   ]);
+  if (nextNewYear.getUTCDay() === 6) set.add(`${y}-12-31`);
+  return set;
 }
 
 const SESSIONS: Record<'TW' | 'US' | 'HK', { tz: string; pre: number; open: number; close: number }> = {
@@ -107,9 +110,21 @@ export function marketState(m: Market, now = new Date()): MarketState {
   if (p.weekday === 0 || p.weekday === 6) return 'holiday';
   if (g === 'TW' && TW_HOLIDAYS.has(p.date)) return 'holiday';
   if (g === 'US' && usHolidays(Number(p.date.slice(0, 4))).has(p.date)) return 'holiday';
+  if (g === 'HK' && p.minutes >= 12 * 60 && p.minutes < 13 * 60) return 'closed';
+  let closeMin = s.close;
+  if (g === 'US') {
+    const y = Number(p.date.slice(0, 4));
+    const thanksGiving = nthWeekday(y, 10, 4, 4);
+    const d = new Date(Date.parse(`${thanksGiving}T12:00:00Z`));
+    d.setUTCDate(d.getUTCDate() + 1);
+    const blackFriday = key(d);
+    if (p.date === blackFriday || (p.date === `${y}-12-24` && p.weekday >= 1 && p.weekday <= 5)) {
+      closeMin = 13 * 60;
+    }
+  }
   if (p.minutes < s.pre) return 'closed';
   if (p.minutes < s.open) return 'pre';
-  if (p.minutes < s.close) return 'open';
+  if (p.minutes < closeMin) return 'open';
   return 'closed';
 }
 

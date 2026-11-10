@@ -89,11 +89,16 @@ export async function listAgentOps(): Promise<AgentOpLog[]> {
  * 執行計畫（只執行可執行、沒被擋下的步驟）。全部在同一個交易裡：任何一步失敗，整批都不會寫入。
  * 回傳紀錄（含還原所需的資訊）。
  */
-export async function applyPlan(steps: ResolvedStep[], summary: string): Promise<AgentOpLog> {
+const appliedPlans = new Map<string, AgentOpLog>();
+
+export async function applyPlan(steps: ResolvedStep[], summary: string, idempotencyKey?: string): Promise<AgentOpLog> {
+  if (idempotencyKey && appliedPlans.has(idempotencyKey)) {
+    return appliedPlans.get(idempotencyKey)!;
+  }
   const ops = steps.flatMap((s) => opsOf(s).map((op) => ({ op, title: s.preview.title })));
   if (!ops.length) throw new Error('沒有可以執行的步驟');
   const titles = [...new Set(ops.map((o) => o.title))];
-  const log: AgentOpLog = { id: uid(), at: Date.now(), summary: summary || titles[0], titles, changes: [] };
+  const log: AgentOpLog = { id: idempotencyKey || uid(), at: Date.now(), summary: summary || titles[0], titles, changes: [] };
   await db.transaction('rw', [db.transactions, db.transfers, db.accounts, db.attachments, db.durables, db.budgets, db.budget_periods, db.recurring_rules, db.goals, db.rules,
     db.debts, db.people, db.stocks, db.stock_trades, db.settings, db.meta], async () => {
     for (const { op } of ops) {
@@ -174,6 +179,7 @@ export async function applyPlan(steps: ResolvedStep[], summary: string): Promise
     await db.meta.put({ key: OPS_KEY, value: [...(await readLog()), log] });
   });
   if (log.changes.some((c) => c.table === 'rules')) invalidateAutocat();
+  appliedPlans.set(log.id, log);
   return log;
 }
 

@@ -208,6 +208,8 @@ export async function releaseVoice() {
     });
     rec = null;
   }
+  // 若等待期間使用者按了取消（open 已為 false），直接退出，不入帳
+  if (!useVoice.getState().open) return;
   set({ listening: false, hold: false });
   if (!useVoice.getState().text.trim()) {
     closeVoice();

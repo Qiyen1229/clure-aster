@@ -10,12 +10,12 @@ import { buildSchedule, periodTotal, remaining } from '@/domain/installment';
 import { formatMoney, toMinor } from '@/domain/money';
 import { evaluate } from '@/domain/calc-expr';
 import { addMonths, todayKey } from '@/domain/period';
-import { useAccounts } from '@/app/hooks';
+import { useAccounts, useCategories } from '@/app/hooks';
 import { useUI, ask } from '@/stores/ui';
+import { useSettings } from '@/stores/settings';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { AccountField, AmountField, CategoryField, DateField, SelectField, TextField } from '@/ui/form';
 import { Sheet } from '@/ui/Sheet';
-import { useCategories } from '@/app/hooks';
 import { SectionHead } from './PlanPage';
 
 export default function InstallmentSection() {
@@ -24,6 +24,7 @@ export default function InstallmentSection() {
   const [status, setStatus] = useState<'active' | 'done'>('active');
   const list = useLiveQuery(() => db.installments.toArray(), []);
   const accounts = useAccounts(true);
+  const base = useSettings((s) => s.baseCurrency);
   const shown = (list ?? []).filter((i) => i.status === status);
   const future = (list ?? []).filter((i) => i.status === 'active').reduce((a, i) => a + remaining(i.schedule).futureMinor, 0);
   const nextMonth = addMonths(todayKey(), 1).slice(0, 7);
@@ -35,8 +36,8 @@ export default function InstallmentSection() {
       {(list?.length ?? 0) > 0 && (
         <div className="card glass">
           <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(2,1fr)' }}>
-            <div><div className="muted" style={{ fontSize: '0.75rem' }}>未來總負擔</div><div className="num" style={{ fontWeight: 700 }}><Amount minor={future} currency="TWD" tone="neg" /></div></div>
-            <div><div className="muted" style={{ fontSize: '0.75rem' }}>下個月應繳</div><div className="num" style={{ fontWeight: 700 }}><Amount minor={nextMonthDue} currency="TWD" tone="none" /></div></div>
+            <div><div className="muted" style={{ fontSize: '0.75rem' }}>未來總負擔</div><div className="num" style={{ fontWeight: 700 }}><Amount minor={future} currency={base} tone="neg" /></div></div>
+            <div><div className="muted" style={{ fontSize: '0.75rem' }}>下個月應繳</div><div className="num" style={{ fontWeight: 700 }}><Amount minor={nextMonthDue} currency={base} tone="none" /></div></div>
           </div>
         </div>
       )}

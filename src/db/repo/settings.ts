@@ -127,7 +127,7 @@ export interface Settings {
    * anomaly＝異常與訂閱偵測；budgetWarn＝預算預警；dismissed＝使用者按「略過」的項目 id（隨帳號同步、最多 200 筆）
    */
   insights: { anomaly: boolean; budgetWarn: boolean; dismissed: string[]; /** 規則判斷不了的新支出，請 AI 查市價（需先開啟 ai.enabled；不計額度） */ aiPrice: boolean };
-  /** 已看過哪一版的「新功能介紹」（隨帳號同步，換裝置不會再跳一次） */
+  /** 已看過哪一版的「版本更新重點」（隨帳號同步，換裝置不會再跳一次） */
   seenWhatsNew: string;
 }
 

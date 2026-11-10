@@ -136,11 +136,12 @@ export function buildSankey(txs: Iterable<Transaction>, cats: Map<string, Catego
     if (posSum > 0) {
       let left = saving;
       pos.forEach(([accId, v], i) => {
-        const share = i === pos.length - 1 ? left : Math.round((saving * v) / posSum);
+        const isLast = i === pos.length - 1;
+        const share = isLast ? Math.max(0, left) : Math.min(Math.max(0, Math.round((saving * v) / posSum)), left);
         left -= share;
         const a = accounts.get(accId);
         node(`a:${accId}`, a ? `${a.icon ? `${a.icon} ` : ''}${a.name}` : '帳戶', 3, COLOR.saving);
-        link('g:saving', `a:${accId}`, Math.max(0, share));
+        if (share > 0) link('g:saving', `a:${accId}`, share);
       });
     }
   }

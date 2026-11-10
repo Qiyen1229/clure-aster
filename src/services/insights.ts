@@ -12,7 +12,7 @@ import { computeBudgets, saveRecurring } from '@/db/repo/plan';
 import { detectInsights, expenseContext, highFinding, judgeOne, surgeWindows, type DetectInput, type Finding } from '@/domain/anomaly';
 import { countsInStats, statAmount } from '@/domain/ledger';
 import { forecastAll, type BudgetWarning } from '@/domain/budgetwarn';
-import { formatMoney } from '@/domain/money';
+import { currencyInfo, formatMoney, toMinor } from '@/domain/money';
 import { accountingMonth, addDays, todayKey } from '@/domain/period';
 import { useSettings } from '@/stores/settings';
 import { notify } from './notifications';
@@ -127,12 +127,14 @@ export async function checkNewTransactions(ids: string[], today = todayKey()): P
     else {
       // unknown：請 AI 查市價（一次最多 5 筆，避免批次匯入時狂問）
       const path = input.catPath?.(t.categoryId) ?? { name: input.catName(t.categoryId), mainName: input.catName(t.categoryId) };
+      const exp = currencyInfo(st.baseCurrency).exp;
+      const factor = 10 ** exp;
       const v = aiCalls < 5
-        ? await aiPriceCheck({ category: cats.get(t.categoryId)?.parentId ? `${path.mainName} > ${path.name}` : path.name, note: [t.merchant, t.note].filter(Boolean).join(' '), amount: statAmount(t) / 100, currency: st.baseCurrency, date: t.date, usual: j.habit ? j.habit.median / 100 : undefined })
+        ? await aiPriceCheck({ category: cats.get(t.categoryId)?.parentId ? `${path.mainName} > ${path.name}` : path.name, note: [t.merchant, t.note].filter(Boolean).join(' '), amount: statAmount(t) / factor, currency: st.baseCurrency, date: t.date, usual: j.habit ? j.habit.median / factor : undefined })
         : null;
       if (v) aiCalls++;
       if (v?.verdict === 'high') {
-        const range = v.typical_min && v.typical_max ? `AI 查到一般行情約 ${input.fmt(v.typical_min * 100)}～${input.fmt(v.typical_max * 100)}` : 'AI 評估這個金額高於一般行情';
+        const range = v.typical_min && v.typical_max ? `AI 查到一般行情約 ${input.fmt(toMinor(v.typical_min, st.baseCurrency))}～${input.fmt(toMinor(v.typical_max, st.baseCurrency))}` : 'AI 評估這個金額高於一般行情';
         f = highFinding(input, t, j, `${range}${v.reason ? `（${v.reason}）` : ''}。`);
       } else if (!v && j.extreme) f = highFinding(input, t, j); // 沒有 AI 可問：只在離譜到極端時提醒
     }

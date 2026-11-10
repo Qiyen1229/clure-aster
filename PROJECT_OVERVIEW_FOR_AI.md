@@ -2,7 +2,7 @@
 
 > 這份檔案把整個專案（功能、技術、架構、資料模型、API、安全、部署、檔案地圖、慣例）整合在一處，讓 AI 不用逐一翻檔案就能理解全貌。
 > 功能面的詳細說明（基礎功能、特別功能、規則與程式位置）見 [FEATURES_FOR_AI.md](FEATURES_FOR_AI.md)。
-> 內容整理自 README、CHANGELOG、docs/*、原始碼與設定檔。**版本：4.1.21（2026-11-10）**。分支：`feature/v1.2`（主分支 `main`，每次完成都 fast-forward 合併）。測試：前端 **699** ＋ 後端 **194** ＝ **893** 項。Alembic 目前到 `0013_totp`，**下一個遷移是 `0014_…`**。
+> 內容整理自 README、CHANGELOG、docs/*、原始碼與設定檔。**版本：4.1.22（2026-11-10）**。分支：`feature/v1.2`（主分支 `main`，每次完成都 fast-forward 合併）。測試：前端 **714** ＋ 後端 **194** ＝ **908** 項。Alembic 目前到 `0013_totp`，**下一個遷移是 `0014_…`**。
 > 逐版細節看 [CHANGELOG.md](CHANGELOG.md)；本檔是「整個專案長什麼樣子」的地圖，隨版本維護（每次發佈要順手更新本檔開頭的版本與測試數）。
 >
 > ### 版本號與發佈規範
@@ -40,7 +40,7 @@
 | QR | jsqr | 掃電子發票左側 QR Code |
 | 多語系 | （無） | 只提供繁體中文；3.6.5 已移除未使用的 i18next 依賴 |
 | PWA | vite-plugin-pwa（Workbox **injectManifest**）+ 自訂 `src/sw.ts` | 預快取、離線、更新提示（不自動 skipWaiting）、Web Push |
-| 測試 | Vitest 2 + fake-indexeddb + jsdom | `tests/unit/*.test.ts`（**692 項**） |
+| 測試 | Vitest 2 + fake-indexeddb + jsdom | `tests/unit/*.test.ts`（**714 項**） |
 | 圖示 | sharp（`npm run icons`） | `assets/icon.svg` → 全尺寸圖標＋iOS 啟動畫面 |
 | 手勢／動效 | 自寫 Pointer Events hook + CSS transform；`theme/app.css`（單一大型樣式檔） | 尊重 `prefers-reduced-motion` |
 

@@ -41,6 +41,7 @@ const HAS_AMOUNT = /\d|[一二兩三四五六七八九十百千萬]/;
 export function looksLikeOperation(text: string): boolean {
   const s = text.trim();
   if (s.length < 6) return false;
+  if (/^(?:不要|別|不用|請勿|暫不|先別)/.test(s) || /(?:不要|別|不用|請勿|暫不|先別)\s*(?:刪除|刪掉|改|動|調整|設定|建立|新增|買進|結清|還清|記帳|操作)/.test(s)) return false;
   if (VIEW_ASK.test(s) && MULTI_CLAUSE.test(s) && HAS_AMOUNT.test(s)) return true;
   if (PATTERNS[0].test(s) && NEEDS_CATEGORY_WORD.test(s)) return true;
   return PATTERNS.slice(1).some((p) => p.test(s));

@@ -12,7 +12,7 @@ import { deleteTransactions, deleteTransfers } from '@/db/repo/ledger';
 import { db } from '@/db/schema';
 import { isQuestion, looksLikeAiQuestion } from '@/domain/nlquery';
 import { isAggregationQuestion } from '@/domain/search';
-import { formatMoney } from '@/domain/money';
+import { formatMoney, toMinor } from '@/domain/money';
 import { localEditPlan, localView, looksLikeOperation } from '@/domain/agent/intent';
 import type { NlQuery } from '@/domain/nlquery';
 import { todayKey } from '@/domain/period';
@@ -221,6 +221,7 @@ async function sendImages(files: File[]) {
 
 function AgentBubble({ m }: { m: Extract<Msg, { kind: 'agent' }> }) {
   const [busy, setBusy] = useState(false);
+  const [recomputing, setRecomputing] = useState(false);
   // 單步勾選／略過：略過的步驟用 AI 規劃的原始步驟在本機重新預覽（後面步驟的餘額與持股模擬會跟著變），不必再問 AI、不扣額度
   const [off, setOff] = useState<Set<number>>(new Set());
   const [live, setLive] = useState<ResolvedStep[]>(m.steps);
@@ -232,14 +233,20 @@ function AgentBubble({ m }: { m: Extract<Msg, { kind: 'agent' }> }) {
     const next = new Set(off);
     if (next.has(i)) next.delete(i); else next.add(i);
     setOff(next);
-    const { previewPlan } = await import('@/services/agent');
-    setLive(await previewPlan(m.raw.filter((_, k) => !next.has(k))));
+    setRecomputing(true);
+    try {
+      const { previewPlan } = await import('@/services/agent');
+      setLive(await previewPlan(m.raw.filter((_, k) => !next.has(k))));
+    } finally {
+      setRecomputing(false);
+    }
   };
   const run = async () => {
+    if (recomputing || busy) return;
     setBusy(true);
     try {
       const { applyPlan } = await import('@/services/agent');
-      const log = await applyPlan(live, m.summary);
+      const log = await applyPlan(live, m.summary, String(m.id));
       patch({ phase: 'done', opId: log.id, note: `已執行 ${log.titles.length} 項操作` });
     } catch (e) { patch({ note: `執行失敗，沒有任何資料被改動：${(e as Error).message}` }); } finally { setBusy(false); }
   };
@@ -258,9 +265,9 @@ function AgentBubble({ m }: { m: Extract<Msg, { kind: 'agent' }> }) {
       <PlanPreview steps={display} summarySteps={live} off={off} onToggle={m.phase ? undefined : (i) => void toggle(i)} />
       {!m.phase && (
         <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-          <button className="btn secondary small" style={{ flex: 1 }} disabled={busy} onClick={() => patch({ phase: 'cancelled', note: '已取消，沒有改動任何資料' })}>取消</button>
-          <button className="btn small" style={{ flex: 2 }} disabled={busy || !diff.executable} onClick={() => void run()}>
-            {diff.executable ? `確認執行（${diff.executable} 項）` : diff.readonly ? '這是試算，不需要執行' : '沒有可以執行的步驟'}
+          <button className="btn secondary small" style={{ flex: 1 }} disabled={busy || recomputing} onClick={() => patch({ phase: 'cancelled', note: '已取消，沒有改動任何資料' })}>取消</button>
+          <button className="btn small" style={{ flex: 2 }} disabled={busy || recomputing || !diff.executable} onClick={() => void run()}>
+            {recomputing ? '試算中…' : diff.executable ? `確認執行（${diff.executable} 項）` : diff.readonly ? '這是試算，不需要執行' : '沒有可以執行的步驟'}
           </button>
         </div>
       )}
@@ -318,10 +325,10 @@ function EntriesBubble({ m }: { m: Extract<Msg, { kind: 'entries' }> }) {
       <div className="list" style={{ marginTop: 6 }}>
         {m.drafts.map((d, i) => (
           <div key={i} className="row" style={off.has(i) ? { opacity: 0.45 } : undefined}>
-            {multi && !m.booked && <Switch checked={!off.has(i)} label={`記這一筆：${d.note || formatMoney(Math.round(d.amount * 100), d.currency ?? base, { decimals: 0 })}`}
+            {multi && !m.booked && <Switch checked={!off.has(i)} label={`記這一筆：${d.note || formatMoney(toMinor(d.amount, d.currency ?? base), d.currency ?? base, { decimals: 0 })}`}
               onChange={(v) => setOff((o) => { const n = new Set(o); if (v) n.delete(i); else n.add(i); return n; })} />}
             <span className="row-main">
-              <span className="row-title num">{d.kind === 'income' ? '＋' : d.kind === 'transfer' ? '↔ ' : '－'}{formatMoney(Math.round(d.amount * 100), d.currency ?? base, { decimals: 0 })}　{d.note || (d.kind === 'transfer' ? '轉帳' : '')}</span>
+              <span className="row-title num">{d.kind === 'income' ? '＋' : d.kind === 'transfer' ? '↔ ' : '－'}{formatMoney(toMinor(d.amount, d.currency ?? base), d.currency ?? base, { decimals: 0 })}　{d.note || (d.kind === 'transfer' ? '轉帳' : '')}</span>
               <span className="row-sub" style={{ display: 'block' }}>
                 {d.kind === 'transfer' ? `${accounts.map.get(d.accountId)?.name ?? ''} → ${accounts.map.get(d.toAccountId ?? '')?.name ?? ''}` : `${cats.map.get(d.categoryId ?? '')?.name ?? '其他'}　${accounts.map.get(d.accountId)?.name ?? ''}`}　{d.date}{d.time ? ` ${d.time}` : ''}{isScheduled(d) ? '　⏰ 排程' : ''}
               </span>
@@ -409,21 +416,27 @@ export function ChatPanel({ onLeave, autoFocus }: { onLeave?: () => void; autoFo
   const screen = fullScreen.slice(0, 60);
   const attach = useChat((s) => s.attach);
   const pendingText = useChat((s) => s.pending);
+  const chatBusy = useChat((s) => s.busy);
+  const recRef = useRef<any>(null);
   useEffect(() => { if (open) end.current?.scrollIntoView({ block: 'end' }); }, [open, msgs]);
-  // 別處（搜尋頁、預算頁、舊連結）請對話框代送的一句話：對話視窗載入後自動送出
   useEffect(() => {
-    if (pendingText && !useChat.getState().busy) { useChat.setState({ pending: null }); void send(pendingText); }
-  }, [pendingText]);
+    return () => { recRef.current?.abort(); };
+  }, []);
+  // 別處（搜尋頁、預算頁、舊連結）請對話框代送的一句話：對話視窗載入且閒置時自動送出
+  useEffect(() => {
+    if (pendingText && !chatBusy) { useChat.setState({ pending: null }); void send(pendingText); }
+  }, [pendingText, chatBusy]);
   // 最近 7 天執行過的操作（存在本機，重開 App、清除對話後也還找得到）：隨時可一鍵還原
   const reloadOps = () => { void import('@/services/agent').then((m) => m.listAgentOps()).then(setOps).catch(() => undefined); };
   useEffect(() => { if (open) reloadOps(); }, [open, msgs]);
   const listen = () => {
     if (!SpeechCtor || listening) return;
     const rec = new SpeechCtor();
+    recRef.current = rec;
     rec.lang = 'zh-TW'; rec.interimResults = false; rec.maxAlternatives = 1;
     rec.onresult = (e) => setQ((v) => `${v ? `${v} ` : ''}${e.results[0][0].transcript}`.slice(0, 300));
-    rec.onend = () => { setListening(false); inputRef.current?.focus(); };
-    rec.onerror = () => { setListening(false); useUI.getState().showSnack({ text: '語音辨識失敗，請確認已允許麥克風' }); };
+    rec.onend = () => { setListening(false); recRef.current = null; inputRef.current?.focus(); };
+    rec.onerror = () => { setListening(false); recRef.current = null; useUI.getState().showSnack({ text: '語音辨識失敗，請確認已允許麥克風' }); };
     setListening(true);
     rec.start();
   };

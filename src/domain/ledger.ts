@@ -39,7 +39,9 @@ export function countsInStats(tx: Pick<Transaction, 'type' | 'excludeFromStats' 
 /** 計入統計的主幣別金額：分帳時只算「我的份額」 */
 export function statAmount(tx: Pick<Transaction, 'baseAmountMinor' | 'amountMinor' | 'split'>): number {
   if (!tx.split || tx.amountMinor === 0) return tx.baseAmountMinor;
-  return Math.round((tx.baseAmountMinor * tx.split.myShareMinor) / tx.amountMinor);
+  const prod = BigInt(tx.baseAmountMinor) * BigInt(tx.split.myShareMinor);
+  const div = BigInt(tx.amountMinor);
+  return Number((prod + div / 2n) / div);
 }
 
 /** 以主幣別金額計算收支小計；轉帳手續費算支出 */

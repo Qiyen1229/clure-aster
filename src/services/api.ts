@@ -48,6 +48,8 @@ export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   query?: Record<string, string | number | boolean | undefined | null>;
+  timeoutMs?: number;
+  signal?: AbortSignal;
 }
 
 export async function api<T>(path: string, opts: RequestOptions = {}, retry = true): Promise<T> {
@@ -56,12 +58,16 @@ export async function api<T>(path: string, opts: RequestOptions = {}, retry = tr
   const qs = opts.query
     ? '?' + Object.entries(opts.query).filter(([, v]) => v !== undefined && v !== null && v !== '').map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`).join('&')
     : '';
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 30000);
+  if (opts.signal) opts.signal.addEventListener('abort', () => controller.abort(), { once: true });
   let res: Response;
   try {
     res = await fetch(`${BASE}${path}${qs}`, {
       method,
       credentials: 'same-origin',
       cache: 'no-store',
+      signal: controller.signal,
       headers: {
         Accept: 'application/json',
         ...(opts.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
@@ -70,7 +76,12 @@ export async function api<T>(path: string, opts: RequestOptions = {}, retry = tr
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
     });
   } catch {
+    if (controller.signal.aborted && !opts.signal?.aborted) {
+      throw new ApiError(0, '連線逾時，請檢查網路後重試');
+    }
     throw new ApiError(0, '無法連線到伺服器，請檢查網路');
+  } finally {
+    clearTimeout(timer);
   }
   if (res.status === 401 && retry && !NO_AUTO_REFRESH.includes(path)) {
     if (await refreshOnce()) return api<T>(path, opts, false);
@@ -100,15 +111,21 @@ export class StreamUnsupported extends Error {}
  */
 export async function apiSse<T>(path: string, body: unknown, onEvent: (name: string, data: any) => void, retry = true): Promise<T> {
   await ensureCsrf();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 120000);
   let res: Response;
   try {
     res = await fetch(`${BASE}${path}`, {
       method: 'POST', credentials: 'same-origin', cache: 'no-store',
+      signal: controller.signal,
       headers: { Accept: 'text/event-stream', 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken() },
       body: JSON.stringify(body),
     });
   } catch {
+    if (controller.signal.aborted) throw new ApiError(0, '連線逾時，請檢查網路後重試');
     throw new ApiError(0, '無法連線到伺服器，請檢查網路');
+  } finally {
+    clearTimeout(timer);
   }
   if (res.status === 401 && retry) {
     if (await refreshOnce()) return apiSse<T>(path, body, onEvent, false);

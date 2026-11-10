@@ -32,7 +32,12 @@ export function QuickEntry({ initialText, accMap, catMap, onApply, onBooked }: {
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const recRef = useRef<any>(null);
   const SR = speechRecognition();
+
+  useEffect(() => {
+    return () => { recRef.current?.abort(); };
+  }, []);
   const today = todayKey();
 
   const run = async (t = text) => {
@@ -59,6 +64,7 @@ export function QuickEntry({ initialText, accMap, catMap, onApply, onBooked }: {
   const listen = () => {
     if (!SR) return;
     const rec = new SR();
+    recRef.current = rec;
     rec.lang = 'zh-TW';
     rec.interimResults = false;
     rec.maxAlternatives = 1;
@@ -67,8 +73,8 @@ export function QuickEntry({ initialText, accMap, catMap, onApply, onBooked }: {
       setText(said);
       void run(said);
     };
-    rec.onend = () => setListening(false);
-    rec.onerror = () => { setListening(false); setHint('語音辨識失敗：請允許麥克風，或改用鍵盤上的聽寫'); };
+    rec.onend = () => { setListening(false); recRef.current = null; };
+    rec.onerror = () => { setListening(false); recRef.current = null; setHint('語音辨識失敗：請允許麥克風，或改用鍵盤上的聽寫'); };
     setListening(true);
     rec.start();
   };

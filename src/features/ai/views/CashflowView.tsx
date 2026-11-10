@@ -1,7 +1,7 @@
 /** 對話裡的「現金流預測」檢視卡：未來 N 天可動用的錢、最低點、哪天哪個帳戶會不夠付（和現金流頁同一套算法） */
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { formatMoney } from '@/domain/money';
+import { currencyInfo, formatMoney } from '@/domain/money';
 import { todayKey } from '@/domain/period';
 import { buildCashflow, type CashflowData } from '@/services/cashflow';
 import { chartTheme } from '@/features/reports/chart-theme';
@@ -30,7 +30,7 @@ export function CashflowView({ params, refreshKey }: { params: ViewSpec['params'
       grid: { left: 4, right: 8, top: 8, bottom: 20, containLabel: true },
       tooltip: { trigger: 'axis', valueFormatter: (v: number) => money(v) },
       xAxis: { type: 'category', data: data.series.map((p) => short(p.date)), axisLabel: { color: t.text2, interval: Math.max(0, Math.round(data.series.length / 5) - 1) }, boundaryGap: false },
-      yAxis: { type: 'value', scale: true, axisLabel: { color: t.text2, formatter: (v: number) => { const a = Math.abs(v / 100); return a >= 1e4 ? `${(v / 100 / 1e4).toFixed(a >= 1e5 ? 0 : 1)}萬` : String(Math.round(v / 100)); } }, splitLine: { lineStyle: { color: t.sep } } },
+      yAxis: { type: 'value', scale: true, axisLabel: { color: t.text2, formatter: (v: number) => { const exp = currencyInfo(base).exp; const factor = 10 ** exp; const a = Math.abs(v / factor); return a >= 1e4 ? `${(v / factor / 1e4).toFixed(a >= 1e5 ? 0 : 1)}萬` : String(Math.round(v / factor)); } }, splitLine: { lineStyle: { color: t.sep } } },
       series: [{ type: 'line', data: data.series.map((p) => p.total), symbol: 'none', smooth: 0.2, lineStyle: { width: 2.2, color: t.accent }, areaStyle: { color: t.accent, opacity: 0.12 },
         markLine: { silent: true, symbol: 'none', data: [{ yAxis: 0 }], lineStyle: { color: t.neg, type: 'dashed' }, label: { show: false } } }],
     };

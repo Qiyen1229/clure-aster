@@ -39,14 +39,26 @@ export function FilterSheet({ open, onClose, value, onChange }: { open: boolean;
   const base = useSettings((s) => s.baseCurrency);
   const saved = useLiveQuery(() => db.saved_filters.orderBy('sort').toArray(), []) ?? [];
   const [catKind, setCatKind] = useState<'expense' | 'income'>('expense');
+  const [minStr, setMinStr] = useState(value.minMinor !== undefined ? fromMinor(value.minMinor, base).toString() : '');
+  const [maxStr, setMaxStr] = useState(value.maxMinor !== undefined ? fromMinor(value.maxMinor, base).toString() : '');
   const f = value;
   const set = (patch: Partial<TxFilter>) => onChange({ ...f, ...patch });
+  const onMinChange = (v: string) => {
+    const clean = v.replace(/[^0-9.]/g, '');
+    setMinStr(clean);
+    set({ minMinor: clean && clean !== '.' ? toMinor(clean, base) : undefined });
+  };
+  const onMaxChange = (v: string) => {
+    const clean = v.replace(/[^0-9.]/g, '');
+    setMaxStr(clean);
+    set({ maxMinor: clean && clean !== '.' ? toMinor(clean, base) : undefined });
+  };
   const TYPES: { id: TxType; label: string }[] = [{ id: 'expense', label: '支出' }, { id: 'income', label: '收入' }, { id: 'adjust', label: '餘額調整' }];
   const tree = buildTree(cats.all, catKind);
 
   return (
     <Sheet open={open} onClose={onClose} title="篩選" full
-      left={<button className="accent" style={{ minHeight: 44 }} onClick={() => onChange({})}>清除</button>}
+      left={<button className="accent" style={{ minHeight: 44 }} onClick={() => { onChange({}); setMinStr(''); setMaxStr(''); }}>清除</button>}
       right={<button className="accent" style={{ minHeight: 44, fontWeight: 600 }} onClick={onClose}>套用</button>}>
       {saved.length > 0 && (
         <>
@@ -89,11 +101,9 @@ export function FilterSheet({ open, onClose, value, onChange }: { open: boolean;
       )}
       <div className="section-title">金額區間（原幣）</div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <input className="input num" inputMode="decimal" placeholder="最小" value={f.minMinor !== undefined ? fromMinor(f.minMinor, base).toString() : ''}
-          onChange={(e) => set({ minMinor: e.target.value ? toMinor(e.target.value.replace(/[^0-9.]/g, '') || '0', base) : undefined })} />
+        <input className="input num" inputMode="decimal" placeholder="最小" value={minStr} onChange={(e) => onMinChange(e.target.value)} />
         <span className="muted">–</span>
-        <input className="input num" inputMode="decimal" placeholder="最大" value={f.maxMinor !== undefined ? fromMinor(f.maxMinor, base).toString() : ''}
-          onChange={(e) => set({ maxMinor: e.target.value ? toMinor(e.target.value.replace(/[^0-9.]/g, '') || '0', base) : undefined })} />
+        <input className="input num" inputMode="decimal" placeholder="最大" value={maxStr} onChange={(e) => onMaxChange(e.target.value)} />
       </div>
       <button className="btn tinted" style={{ marginTop: 16 }} disabled={!filterCount(f)} onClick={async () => {
         const name = await askInput({ title: '篩選名稱', defaultValue: '我的篩選', required: true, maxLength: 30, confirmText: '儲存' });

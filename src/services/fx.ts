@@ -37,6 +37,7 @@ export function resolveRate(map: RateMap, from: string, to: string): Decimal | n
 
 export async function getRate(from: string, to: string): Promise<Decimal | null> {
   if (from === to) return new Decimal(1);
+  await refreshRatesIfStale(to).catch(() => undefined);
   let rate = resolveRate(await loadMap(), from, to);
   if (!rate && navigator.onLine) {
     await refreshRates(to).catch(() => undefined);

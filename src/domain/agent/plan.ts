@@ -14,7 +14,7 @@
  */
 import type { Account, Budget, Category, CategoryRule, Goal, RecurringRule, Transaction } from '@/db/types';
 import { statAmount } from '@/domain/ledger';
-import { currencyInfo, formatMoney } from '@/domain/money';
+import { formatMoney } from '@/domain/money';
 import { accountingMonth, addDays, type Range } from '@/domain/period';
 import { occurrences } from '@/domain/recurrence';
 import { loanStatus, simulatePrepayment } from '@/domain/loan';
@@ -130,7 +130,7 @@ const countsForBudget = (t: Transaction) =>
 
 const inRange = (d: string, r: Range) => d >= r.start && d <= r.end;
 const fmt = (minor: number, cur: string) => formatMoney(minor, cur, { decimals: 0 });
-const minorOf = (amount: number, cur: string) => Math.round(amount * 10 ** currencyInfo(cur).exp);
+const minorOf = (amount: number, cur: string) => toMinor(amount, cur);
 
 /** 本月（記帳月）在某個分類範圍內已花多少 */
 export function spentInMonth(txs: Transaction[], budgetCategoryId: string, catMap: Map<string, Category>, month: Range): number {

@@ -74,7 +74,7 @@ export function forecastBudget(b: BudgetLite, fmt: (minor: number) => string): B
   if (!level) return null;
 
   const paceText = `目前平均每天花約 ${fmt(Math.round(pace))}`;
-  const when = exhaustDate ? `照這個速度，大約 ${md(exhaustDate)} 就會用完` : `照這個速度，這一期結束前會用完`;
+  const when = exhaustDate ? `照這個速度，大約 ${md(exhaustDate)} 就會用完` : `照目前速度雖然能撐到期末，但已接近額度上限`;
   return {
     ...base, id: `${base.id}:${b.period.start}:${level}`, level, exhaustDate, dailyCap,
     title: level === 'critical' ? `「${b.name}」快不夠用了（已用 ${Math.round(pct)}%）` : `「${b.name}」照目前的花法會超支`,

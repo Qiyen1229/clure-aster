@@ -3,6 +3,7 @@
  * 結轉規則：本期可用 = 本期額度 + 上期結餘（上期結餘可為負，代表超支會吃掉下期額度）。
  */
 import { accountingMonth, addDays, eachDay, weekRange, type DateKey, type Range } from './period';
+import { currencyInfo } from './money';
 
 export interface BudgetLike {
   periodType: 'month' | 'week' | 'custom';
@@ -123,18 +124,20 @@ export interface BudgetSuggestion {
   suggestedMinor: number;
 }
 
-/** 建議額度：過去平均再留 5% 緩衝，進位到好記的整數（金額單位：1 元 ＝ 100） */
-export function suggestAmount(avgMinor: number): number {
-  const major = avgMinor / 100;
+/** 建議額度：過去平均再留 5% 緩衝，進位到好記的整數 */
+export function suggestAmount(avgMinor: number, currency = 'TWD'): number {
+  const { exp } = currencyInfo(currency);
+  const factor = 10 ** exp;
+  const major = avgMinor / factor;
   if (major <= 0) return 0;
   const step = major < 2000 ? 100 : major < 20000 ? 500 : 1000;
-  return Math.max(step, Math.ceil((major * 1.05) / step) * step) * 100;
+  return Math.max(step, Math.ceil((major * 1.05) / step) * step) * factor;
 }
 
 /** 由過去幾個月的支出算建議；沒有任何花費的月份不納入平均 */
-export function suggestBudget(monthTotals: number[]): BudgetSuggestion | null {
+export function suggestBudget(monthTotals: number[], currency = 'TWD'): BudgetSuggestion | null {
   const months = monthTotals.filter((v) => v > 0);
   if (!months.length) return null;
   const avgMinor = Math.round(months.reduce((a, v) => a + v, 0) / months.length);
-  return { months, avgMinor, suggestedMinor: suggestAmount(avgMinor) };
+  return { months, avgMinor, suggestedMinor: suggestAmount(avgMinor, currency) };
 }

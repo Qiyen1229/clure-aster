@@ -49,6 +49,16 @@ export function toMinor(value: Decimal.Value, currency: string): number {
   return assertSafe(d.toNumber());
 }
 
+/** 安全轉換：若數值無效（如 1.2.3 或輸入中）回傳 fallback，絕不拋錯導致畫面白屏 */
+export function safeToMinor(value: unknown, currency: string, fallback = 0): number {
+  if (value === undefined || value === null || value === '') return fallback;
+  try {
+    return toMinor(value as Decimal.Value, currency);
+  } catch {
+    return fallback;
+  }
+}
+
 /** 最小單位整數 → Decimal（主單位） */
 export function fromMinor(minor: number, currency: string): Decimal {
   return new Decimal(minor).div(Decimal.pow(10, currencyInfo(currency).exp));

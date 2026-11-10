@@ -75,6 +75,7 @@ function PersonDebts({ personId, debts }: { personId: string; debts: Debt[] }) {
   const [settleAcc, setSettleAcc] = useState(accounts.list[0]?.id ?? '');
   const [touched, setTouched] = useState(false);
   const [showSettled, setShowSettled] = useState(false);
+  const [busy, setBusy] = useState(false);
   const list = debts.filter((d) => (showSettled ? true : !d.settled)).sort((a, b) => (a.date < b.date ? 1 : -1));
   const open = debts.filter((d) => !d.settled);
   // 預設結清帳戶：借出／借入當初使用的帳戶，否則第一個帳戶（帳戶清單載入較晚時補上）
@@ -110,10 +111,16 @@ function PersonDebts({ personId, debts }: { personId: string; debts: Debt[] }) {
         <AccountField label="結清入帳到" value={settleAcc} onChange={(v) => { setTouched(true); setSettleAcc(v); }} accounts={accounts.list} allowEmpty emptyLabel="只標記結清，不記帳" />
       </div>
       {open.length > 1 && (
-        <button className="btn tinted" style={{ marginBottom: 12 }} onClick={async () => {
-          for (const d of open) await settleDebt(d.id, settleAcc || undefined);
-          useUI.getState().showSnack({ text: `已結清 ${open.length} 筆` });
-        }}>全部結清</button>
+        <button className="btn tinted" style={{ marginBottom: 12 }} disabled={busy} onClick={async () => {
+          if (busy) return;
+          setBusy(true);
+          try {
+            for (const d of open) await settleDebt(d.id, settleAcc || undefined);
+            useUI.getState().showSnack({ text: `已結清 ${open.length} 筆` });
+          } finally {
+            setBusy(false);
+          }
+        }}>{busy ? '結清中…' : '全部結清'}</button>
       )}
       <div className="list">
         {list.map((d) => (
@@ -124,9 +131,18 @@ function PersonDebts({ personId, debts }: { personId: string; debts: Debt[] }) {
             </div>
             <Amount minor={d.direction === 'they_owe_me' ? d.amountMinor : -d.amountMinor} currency={d.currency} tone="auto" className="num" />
             {d.settled ? (
-              <button className="btn small secondary" onClick={() => void unsettleDebt(d.id)}>取消</button>
+              <button className="btn small secondary" disabled={busy} onClick={() => void unsettleDebt(d.id)}>取消</button>
             ) : (
-              <button className="btn small" onClick={() => void settleDebt(d.id, settleAcc || undefined).then(() => useUI.getState().showSnack({ text: '已結清' }))}>結清</button>
+              <button className="btn small" disabled={busy} onClick={async () => {
+                if (busy) return;
+                setBusy(true);
+                try {
+                  await settleDebt(d.id, settleAcc || undefined);
+                  useUI.getState().showSnack({ text: '已結清' });
+                } finally {
+                  setBusy(false);
+                }
+              }}>結清</button>
             )}
           </div>
         ))}

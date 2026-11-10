@@ -70,8 +70,7 @@ function segment(text: string): Segment[] {
     // 有標記的金額優先：標記「前面」沒標記的數字多半是數量或卡號末四碼，忽略；
     // 標記「後面」又說了一筆夠大的（「早餐 100 塊 手搖飲 230」）視為另一筆
     const marked = amounts.filter((a) => a.marked);
-    const lastMarked = marked.length ? marked[marked.length - 1].index : -1;
-    const list = marked.length && marked.length < amounts.length ? amounts.filter((a) => a.marked || (a.index > lastMarked && a.value >= 10)) : amounts;
+    const list = marked.length && marked.length < amounts.length ? amounts.filter((a) => a.marked || Math.abs(a.value) >= 10) : amounts;
     let from = 0;
     list.forEach((a, i) => {
       const end = a.index + a.length;
@@ -111,7 +110,7 @@ function tidyNote(note: string, match: CategoryMatch | undefined, kind: EntryKin
 /** 把一句話解析成一筆或多筆帳 */
 export function parseEntries(input: string, ctx: ParseContext): DraftEntry[] {
   const text = toHalfWidth(input).trim();
-  if (!text) return [];
+  if (!text || /(?:不要|別|不用|請勿|暫不)\s*記帳/.test(text)) return [];
   const segs = segment(text);
   const drafts: DraftEntry[] = [];
   const allAccounts = findAccounts(text, ctx.accounts);

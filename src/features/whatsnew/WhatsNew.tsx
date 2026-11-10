@@ -182,13 +182,13 @@ export function WhatsNewHost() {
       <div className="whatsnew-backdrop" aria-hidden="true" onClick={close} />
       <div className="whatsnew-modal">
         <header className="whatsnew-header">
-          <h2 id="whatsnew-modal-title" className="whatsnew-title">新功能介紹</h2>
+          <h2 id="whatsnew-modal-title" className="whatsnew-title">版本更新重點</h2>
           <div className="whatsnew-header-end">
             <span className="whatsnew-count">{page + 1} / {n}</span>
             <button
               type="button"
               className="whatsnew-close-btn"
-              aria-label="關閉新功能介紹"
+              aria-label="關閉版本更新重點"
               title="關閉"
               onClick={close}
             >

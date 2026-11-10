@@ -32,7 +32,7 @@ export async function loadFinanceSummary(today = todayKey()): Promise<{ summary:
   const goalRows = await Promise.all(activeGoals.map(async (g) => ({ name: g.name, target: g.targetMinor, saved: await goalSaved(g), deadline: g.deadline })));
   const summary = buildFinanceSummary({
     today, currency: base, decimals, monthStartDay: s.monthStartDay, txs, cats,
-    fixed: monthlyFixed(rules, installments, loanPayments, today),
+    fixed: monthlyFixed(rules, installments.filter((i) => i.currency === base), loanPayments, today),
     budgets: budgets.map((v) => ({ name: v.budget.name, limit: v.status.limit, spent: v.status.spent })),
     goals: goalRows, netWorth: nw.length ? nw[nw.length - 1].netWorth : undefined,
   });

@@ -270,6 +270,7 @@ async function writeTransfer(id: string, input: TransferInput, createdAt: number
     toAmountMinor: input.toAmountMinor,
     fxRateDec: input.fxRateDec,
     feeMinor: input.feeMinor,
+    baseFeeMinor: feeAmounts?.baseAmountMinor,
     feeAccountId: input.feeMinor > 0 ? input.fromAccountId : undefined,
     date: input.date,
     ts: input.ts,
