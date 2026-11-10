@@ -77,8 +77,20 @@ export function installViewportTracking(): () => void {
   const onFocusOut = () => setTimeout(schedule, 50);
   window.addEventListener('focusin', schedule);
   window.addEventListener('focusout', onFocusOut);
-  // 回到 App（可能在「設定」改了文字大小）時重新計算字級
-  const onVisible = () => { if (document.visibilityState === 'visible') clampRootFontSize(); };
+  // 回到 App（可能在「設定」改了文字大小、或背景休眠喚醒）時重新計算字級與視窗狀態
+  const onVisible = () => {
+    if (document.visibilityState === 'visible') {
+      clampRootFontSize();
+      update();
+      if (!isTextInput(document.activeElement)) {
+        root.classList.remove('kb-open');
+        root.style.setProperty('--kb', '0px');
+        if (vv && vv.offsetTop > 0) {
+          window.scrollTo(0, 0);
+        }
+      }
+    }
+  };
   document.addEventListener('visibilitychange', onVisible);
   update();
   return () => {

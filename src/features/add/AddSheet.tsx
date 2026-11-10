@@ -28,7 +28,7 @@ import { Sheet } from '@/ui/Sheet';
 import { Segmented, Switch } from '@/ui/controls';
 import { Icon } from '@/ui/Icon';
 import { Keypad } from './Keypad';
-import { AccountPicker, CurrencyPicker, ProjectPicker, TagPicker } from './pickers';
+import { AccountPicker, CurrencyPicker, DurablePicker, ProjectPicker, TagPicker } from './pickers';
 import { computeSplit, SplitSheet, type SplitState } from './SplitSheet';
 import { lifeLabel } from '@/domain/durable';
 import { LifeSpanSheet } from '../plan/LifeSpanSheet';
@@ -51,7 +51,7 @@ const MODES: { value: AddMode | 'loan'; label: string }[] = [
 
 const isLoanMode = (m: AddMode): m is 'receivable' | 'payable' => m === 'receivable' || m === 'payable';
 
-type Picker = null | 'account' | 'toAccount' | 'currency' | 'tags' | 'project' | 'photo' | 'split';
+type Picker = null | 'account' | 'toAccount' | 'currency' | 'tags' | 'project' | 'photo' | 'split' | 'durable';
 
 const nowTime = () => { const d = new Date(); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
 
@@ -780,17 +780,9 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
               </>
             )}
             {mode === 'expense' && (
-              <span className="pill" style={{ position: 'relative' }} aria-pressed={durableYears > 0}>
+              <button type="button" className="pill" onClick={() => setPicker('durable')} aria-pressed={durableYears > 0}>
                 <Icon name="chart" size={16} />{durableYears > 0 ? `耐用品 ${lifeLabel(durableYears)}` : '耐用品'}
-                <select value={durableCustom > 0 && durableYears === durableCustom ? -1 : durableYears} aria-label="標記為耐用品（追蹤每日持有成本）"
-                  onChange={(e) => { const v = Number(e.target.value); if (v < 0) setLifeOpen(true); else setDurableYears(v); }}
-                  style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%' }}>
-                  <option value={0}>不追蹤</option>
-                  {[1, 2, 3, 5, 7, 10].map((y) => <option key={y} value={y}>預計使用 {y} 年</option>)}
-                  <option value={-1}>{durableCustom > 0 ? `${lifeLabel(durableCustom)}（自訂）` : '自訂期限…'}</option>
-                  {durableCustom > 0 && <option value={-2}>修改自訂期限…</option>}
-                </select>
-              </span>
+              </button>
             )}
             {mode === 'expense' && (
               <button className="pill" onClick={() => setSkipBudget((x) => !x)} aria-pressed={skipBudget}>
@@ -858,6 +850,8 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
       <AccountPicker open={picker === 'toAccount'} onClose={() => setPicker(null)} accounts={accounts} value={toAccountId}
         title="轉入帳戶" exclude={accountId} onPick={(id) => { setToAccountId(id); setFxRate(''); setToAmount(''); }} />
       <CurrencyPicker open={picker === 'currency'} onClose={() => setPicker(null)} value={txCurrency} onPick={(c) => { setCurrency(c); setFxRate(''); }} />
+      <DurablePicker open={picker === 'durable'} onClose={() => setPicker(null)} value={durableYears} custom={durableCustom}
+        onPick={(y) => setDurableYears(y)} onCustom={() => setLifeOpen(true)} />
       <LifeSpanSheet open={lifeOpen} initialYears={durableCustom || durableYears} onClose={() => setLifeOpen(false)} onConfirm={(y) => { setDurableCustom(y); setDurableYears(y); }} />
       <SplitSheet open={picker === 'split'} onClose={() => setPicker(null)} value={split} onChange={setSplit}
         totalMinor={value && value.gt(0) ? toMinor(value, txCurrency) : 0} currency={txCurrency} />

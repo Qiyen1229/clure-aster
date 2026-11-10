@@ -106,7 +106,8 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
   const stopRaf = () => { cancelAnimationFrame(phys.current.raf); phys.current.raf = 0; };
   const tick = (now: number) => {
     const P = phys.current;
-    const dt = (now - P.last) / 1000;
+    const rawDt = (now - P.last) / 1000;
+    const dt = Math.max(0, Math.min(rawDt, 0.05)); // 限制 dt 上限（最多 50ms），防止背景喚醒後時間差過大導致彈簧數值發散
     P.last = now;
     const moving = stepSpring(P.x, 42, 1, dt); // 手指拖曳：硬彈簧，緊跟著手
     paint();
@@ -185,6 +186,65 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
     cancelAnimationFrame(P.raf); P.raf = 0;
     if (P.anim) { P.anim.onfinish = null; P.anim.cancel(); P.anim = null; P.track = null; }
   }, []);
+
+  // ── iOS 背景閒置過久或喚醒時的自動重校準 ──
+  // 解決 WebKit 在背景休眠後，固定圖層（position: fixed）偶爾脫離視窗底端、位移至螢幕中央的 Bug
+  const navRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const onResume = () => {
+      if (document.visibilityState === 'hidden') {
+        // 進入背景：立刻凍結動畫、清除 rAF 與拖曳狀態，避免計時器時間差暴增
+        freeze();
+        stopRaf();
+        scrub.current = null;
+        held.current = false;
+        setPressing(false);
+        setAiHold(false);
+        window.clearTimeout(timer.current);
+        return;
+      }
+
+      // 回到前景：重設手勢與物理動畫
+      scrub.current = null;
+      held.current = false;
+      setPressing(false);
+      setAiHold(false);
+      window.clearTimeout(timer.current);
+
+      const P = phys.current;
+      P.dragging = false;
+      stopRaf();
+      if (P.anim) {
+        P.anim.onfinish = null;
+        P.anim.cancel();
+        P.anim = null;
+        P.track = null;
+      }
+
+      // 重設導覽列 fixed 圖層位置，強迫 WebKit 重新錨定到底部
+      if (navRef.current) {
+        navRef.current.style.transform = 'translate3d(0, 0, 0)';
+        void navRef.current.offsetHeight;
+      }
+
+      // 下一幀重新對齊膠囊尺寸與透鏡位置
+      requestAnimationFrame(() => {
+        sizeLens();
+        const r = shownTo ? rectOf(shownTo) : null;
+        if (r && !phys.current.dragging) aim(r.x - 2, true);
+      });
+    };
+
+    document.addEventListener('visibilitychange', onResume);
+    window.addEventListener('pageshow', onResume);
+    window.addEventListener('focus', onResume);
+    return () => {
+      document.removeEventListener('visibilitychange', onResume);
+      window.removeEventListener('pageshow', onResume);
+      window.removeEventListener('focus', onResume);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shownTo]);
 
   // ── 手指在導覽列上：一按下透鏡就彈到那個分頁（Apple 的做法），按住左右滑動會跟著手指（帶慣性），放開才前往 ──
   const scrub = useRef<{ x: number; moved: boolean; id: number; lastX: number; lastT: number; v: number; to: string } | null>(null);
@@ -334,7 +394,7 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
   );
 
   return (
-    <nav className={`tabbar${hidden ? ' tabbar-off' : ''}`} aria-label="主要導覽" aria-hidden={hidden || undefined}>
+    <nav ref={navRef} className={`tabbar${hidden ? ' tabbar-off' : ''}`} aria-label="主要導覽" aria-hidden={hidden || undefined}>
       <div className="tabbar-capsule" ref={capRef} onPointerDown={onCapDown} onPointerMove={onCapMove} onPointerUp={onCapUp} onPointerCancel={onCapCancel}>
         {/* 玻璃透鏡（目前分頁的選取泡泡）：位置與大小由彈簧物理直接寫入 style */}
         <span ref={lensRef} className={`dock-lens${lensShown && shownTo ? '' : ' hidden'}`} aria-hidden="true"><span className="dock-lens-in" /></span>

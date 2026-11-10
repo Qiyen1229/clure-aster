@@ -57,6 +57,7 @@ export default function CategoriesPage() {
     const startX = e.clientX;
     const startY = e.clientY;
 
+    window.getSelection()?.removeAllRanges();
     window.clearTimeout(holdTimer.current);
     holdTimer.current = window.setTimeout(() => {
       // 計算所有項目高度
@@ -76,7 +77,7 @@ export default function CategoriesPage() {
       } catch {
         /* ignore */
       }
-    }, 240);
+    }, 150);
 
     const onCancel = (ev: PointerEvent) => {
       if (Math.abs(ev.clientX - startX) > 8 || Math.abs(ev.clientY - startY) > 8) {
@@ -154,7 +155,7 @@ export default function CategoriesPage() {
   };
 
   return (
-    <main className="page categories-page">
+    <main className="page categories-page" onContextMenu={(e) => e.preventDefault()}>
       <header className="topbar">
         <button className="icon-btn" aria-label="返回" onClick={() => navigate(-1)}><Icon name="chevronL" /></button>
         <h1>分類管理</h1>
@@ -217,6 +218,7 @@ export default function CategoriesPage() {
                 transform: translateY !== 0 ? `translate3d(0, ${translateY}px, 0)` : undefined,
                 transition: isDraggingThis ? 'box-shadow 160ms ease, border-color 160ms ease' : 'transform 200ms cubic-bezier(0.2, 0, 0, 1)',
               }}
+              onContextMenu={(e) => e.preventDefault()}
               onPointerDown={(e) => onPointerDown(e, main.id, index)}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}

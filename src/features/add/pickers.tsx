@@ -10,6 +10,7 @@ import { Amount } from '@/ui/controls';
 import { Icon } from '@/ui/Icon';
 import { CATEGORY_COLORS } from '@/db/seed/categories';
 import { accountTypeInfo } from '@/db/repo/accounts';
+import { lifeLabel } from '@/domain/durable';
 
 export function AccountPicker({ open, onClose, accounts, value, onPick, title = '選擇帳戶', exclude }: {
   open: boolean; onClose: () => void; accounts: Account[]; value?: string; onPick: (id: string) => void; title?: string; exclude?: string;
@@ -115,3 +116,74 @@ export function ProjectPicker({ open, onClose, projects, value, onPick }: {
     </Sheet>
   );
 }
+
+export function DurablePicker({
+  open,
+  onClose,
+  value,
+  custom,
+  onPick,
+  onCustom,
+}: {
+  open: boolean;
+  onClose: () => void;
+  value: number;
+  custom: number;
+  onPick: (years: number) => void;
+  onCustom: () => void;
+}) {
+  const presets = [1, 2, 3, 5, 7, 10];
+  return (
+    <Sheet open={open} onClose={onClose} title="標記為耐用品">
+      <p className="muted" style={{ fontSize: '0.84rem', margin: '0 4px 12px' }}>
+        設定預計使用期限，自動計算每日持有成本（手機、筆電、機車、家電等）。
+      </p>
+      <div className="list">
+        <button
+          type="button"
+          className="row"
+          onClick={() => { onPick(0); onClose(); }}
+          aria-pressed={value === 0}
+        >
+          <span className="row-main">不追蹤（一般支出）</span>
+          {value === 0 && <Icon name="check" className="accent" />}
+        </button>
+
+        {presets.map((y) => (
+          <button
+            key={y}
+            type="button"
+            className="row"
+            onClick={() => { onPick(y); onClose(); }}
+            aria-pressed={value === y && value !== custom}
+          >
+            <span className="row-main">預計使用 {y} 年</span>
+            {value === y && value !== custom && <Icon name="check" className="accent" />}
+          </button>
+        ))}
+
+        {custom > 0 && (
+          <button
+            type="button"
+            className="row"
+            onClick={() => { onPick(custom); onClose(); }}
+            aria-pressed={value === custom}
+          >
+            <span className="row-main">自訂：{lifeLabel(custom)}</span>
+            {value === custom && <Icon name="check" className="accent" />}
+          </button>
+        )}
+
+        <button
+          type="button"
+          className="row accent"
+          onClick={() => { onClose(); onCustom(); }}
+        >
+          <Icon name="edit" size={16} />
+          <span className="row-main">{custom > 0 ? '修改自訂期限…' : '自訂使用期限…'}</span>
+        </button>
+      </div>
+    </Sheet>
+  );
+}
+
