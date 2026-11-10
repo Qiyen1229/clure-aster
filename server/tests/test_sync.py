@@ -149,3 +149,23 @@ def test_tombstone_purge_requires_reset(api: Api) -> None:
     full = pull(api, 0, DEV_B).json()
     assert full["reset"] is False and [c["key"] for c in full["changes"]] == ['"t2"']
     assert pull(api, 3, DEV_B).json()["reset"] is False
+
+
+def test_user_total_sync_bytes_limit(api: Api, monkeypatch) -> None:
+    from app.core.config import get_settings
+
+    api.register("bob")
+    # 設定上限為 500 位元組
+    monkeypatch.setattr(get_settings(), "sync_max_bytes_per_user", 500)
+
+    # 第一次寫入 200 位元組（正常）
+    payload1 = {"note": "x" * 150}
+    r1 = push(api, DEV_A, [{"table": "transactions", "key": '"t1"', "updated_at": 1000, "deleted": False, "payload": payload1}])
+    assert r1.status_code == 200
+    assert r1.json()["accepted"] == 1
+
+    # 第二次寫入超過剩餘容量（350 位元組，累計超過 500 位元組上限）
+    payload2 = {"note": "y" * 350}
+    r2 = push(api, DEV_A, [{"table": "transactions", "key": '"t2"', "updated_at": 2000, "deleted": False, "payload": payload2}])
+    assert r2.status_code == 413
+    assert "容量" in r2.json()["detail"]

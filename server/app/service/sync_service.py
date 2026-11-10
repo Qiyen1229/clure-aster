@@ -15,6 +15,7 @@ from datetime import timedelta
 
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.security import utcnow
 from app.core.request_info import ClientInfo
 from app.model import SyncKey, SyncRecord, User
@@ -111,6 +112,23 @@ class SyncService:
         new_count = sum(1 for c, _ in encoded if (c.table, c.key) not in existing)
         if new_count and self.repo.count(user.id) + new_count > MAX_RECORDS_PER_USER:
             raise ServiceError(413, "同步資料筆數已達上限")
+
+        added_bytes = 0
+        for c, body in encoded:
+            if c.deleted or body is None:
+                continue
+            k = (c.table, c.key)
+            rec = existing.get(k)
+            body_len = len(body.encode())
+            old_len = len(rec.payload.encode()) if rec and rec.payload and not rec.deleted else 0
+            if body_len > old_len:
+                added_bytes += (body_len - old_len)
+
+        if added_bytes > 0:
+            max_bytes = get_settings().sync_max_bytes_per_user
+            current_bytes = self.repo.total_bytes(user.id)
+            if current_bytes + added_bytes > max_bytes:
+                raise ServiceError(413, "同步資料總容量已達上限")
 
         # 先決定哪些要寫入（同一批內同一筆出現多次時，以較新的為準）
         winners: dict[tuple[str, str], tuple[SyncChange, str | None]] = {}

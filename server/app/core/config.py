@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     allow_registration: bool = True
     first_user_admin: bool = True  # 系統沒有任何使用者時，第一位註冊者成為管理員
     trust_proxy_headers: bool = True  # 位於 nginx 後方時讀取 X-Real-IP／X-Forwarded-For
+    sync_max_bytes_per_user: int = Field(100 * 1024 * 1024, ge=1024 * 1024)  # 單一使用者累積同步資料總容量上限（預設 100MB）
 
     # nginx 的 /proxy/ 報價代理是否只允許已登入的使用者（/api/auth/check）
     proxy_require_login: bool = True

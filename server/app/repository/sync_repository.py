@@ -70,3 +70,11 @@ class SyncRepository:
 
     def count(self, user_id: int) -> int:
         return int(self.db.scalar(select(func.count(SyncRecord.id)).where(SyncRecord.user_id == user_id)) or 0)
+
+    def total_bytes(self, user_id: int) -> int:
+        stmt = select(func.coalesce(func.sum(func.length(SyncRecord.payload)), 0)).where(
+            SyncRecord.user_id == user_id,
+            SyncRecord.deleted.is_(False),
+            SyncRecord.payload.is_not(None),
+        )
+        return int(self.db.scalar(stmt) or 0)
