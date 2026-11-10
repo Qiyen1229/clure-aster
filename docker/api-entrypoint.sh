@@ -13,6 +13,7 @@ VENV=/opt/venv
 DATA_DIR="${CLURE_DATA_DIR:-/data}"
 PUID="${PUID:-1000}"
 PGID="${PGID:-1000}"
+FORWARDED_ALLOW_IPS="${FORWARDED_ALLOW_IPS:-127.0.0.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}"
 REQ="$APP_DIR/requirements.txt"
 
 log() { echo "$(date '+%Y-%m-%d %H:%M:%S') [api] $*"; }
@@ -42,7 +43,7 @@ start_api() {
   setpriv --reuid="$PUID" --regid="$PGID" --clear-groups \
     "$VENV/bin/uvicorn" app.main:app \
       --host 0.0.0.0 --port 8000 \
-      --proxy-headers --forwarded-allow-ips='*' \
+      --proxy-headers --forwarded-allow-ips="$FORWARDED_ALLOW_IPS" \
       --reload --reload-dir "$APP_DIR/app" --reload-dir "$APP_DIR/alembic" &
   CHILD=$!
 }

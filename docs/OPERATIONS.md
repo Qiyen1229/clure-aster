@@ -79,3 +79,16 @@ sudo docker ps --format "table {{.Names}}\t{{.Status}}" | grep clure
 | 報價更新失敗 | 設定 → 股票與資料源 →「診斷各資料源」 |
 | 推播收不到 | 設定 → 通知與提醒 → 傳送測試推播（訊息會寫出原因） |
 | 管理員密碼忘了 | `docker exec clure-api /opt/venv/bin/python -m app.cli create-admin --username <名稱> --email <信箱>`（CLURE_NEW_PASSWORD 提供新密碼） |
+
+## 6. 安全性與反向代理配置
+
+### 反向代理標頭信任（FORWARDED_ALLOW_IPS）
+Uvicorn 透過 `--proxy-headers` 讀取 `X-Forwarded-Proto` 與 `X-Forwarded-For`。為防止直接暴露 API 埠時被偽造協議或客戶端 IP，系統預設只採信內部網路與 Docker 子網段：
+```bash
+FORWARDED_ALLOW_IPS=127.0.0.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+```
+若您採用非預設網段的獨立反向代理伺服器（例如公網 Nginx / Traefik / Caddy），請在 `.env` 明確指定該代理的 IP 或子網段。
+
+### 公網公開部署資安警示（註冊管理員防搶）
+- 系統預設啟用開放註冊（`CLURE_ALLOW_REGISTRATION=true`），且第一個完成註冊的使用者會自動被賦予系統管理員權限（`CLURE_FIRST_USER_ADMIN=true`）。
+- **若服務直接暴露於公網（例如綁定公開網域名稱或連接 Cloudflare Tunnel）**：請務必在公開存取前，於本機完成第一個管理員帳號註冊，或於 `.env` 設定 `CLURE_ADMIN_USERNAME` 與 `CLURE_ADMIN_PASSWORD` 預先建立管理員。若僅供個人使用，首位管理員註冊後建議於 `.env` 設定 `CLURE_ALLOW_REGISTRATION=false` 關閉公開註冊。
