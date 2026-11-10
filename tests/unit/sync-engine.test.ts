@@ -272,4 +272,42 @@ describe('跨裝置同步', () => {
     await sync.syncNow();
     await check();
   });
+
+  it('單筆 >250KB 過大資料自佇列剔除，發出提示通知且其餘筆數正常同步', async () => {
+    const { useUI } = await import('@/stores/ui');
+    const snackSpy = vi.fn();
+    useUI.setState({ showSnack: snackSpy });
+
+    await useDevice('phone');
+    await bootstrap();
+    await sync.syncNow();
+
+    // 建立一筆正常帳目
+    const acc = await addAccount({ name: '測試帳戶', type: 'cash', currency: 'TWD', initialBalanceMinor: 10000, color: '#f00', icon: '💰', includeInNetWorth: true, isLiability: false });
+    await addTransaction({
+      type: 'expense', accountId: acc.id, categoryId: 'exp-food', amountMinor: 100, currency: 'TWD', date: '2026-10-10', ts: 1, note: '正常帳目',
+    });
+
+    // 建立一筆超大（>250KB）帳目
+    const bigString = 'X'.repeat(260 * 1024);
+    await addTransaction({
+      type: 'expense', accountId: acc.id, categoryId: 'exp-food', amountMinor: 200, currency: 'TWD', date: '2026-10-10', ts: 2, note: bigString,
+    });
+
+    // 執行同步
+    await sync.syncNow();
+
+    // 驗證：
+    // 1. 過大筆從 outbox 剔除
+    expect(await db.sync_outbox.count()).toBe(0);
+    // 2. 使用者收到 snack 提示
+    expect(snackSpy).toHaveBeenCalled();
+    expect(snackSpy.mock.calls[0][0].text).toContain('資料過大無法同步');
+    // 3. useSync 狀態記錄了過大項目
+    expect(sync.useSync.getState().oversizedItems.length).toBeGreaterThan(0);
+    // 4. 正常帳目已同步至伺服器
+    expect([...server.recs.values()].some((r) => (r.payload as any)?.note === '正常帳目')).toBe(true);
+    // 5. 過大帳目未進入伺服器
+    expect([...server.recs.values()].some((r) => (r.payload as any)?.note === bigString)).toBe(false);
+  });
 });

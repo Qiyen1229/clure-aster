@@ -88,9 +88,10 @@ function EncryptionSheet({ open, onClose }: { open: boolean; onClose: () => void
 
 /** 跨裝置同步狀態：最後同步時間、待上傳筆數、立即同步 */
 function SyncRow() {
-  const { phase, lastSyncAt, pending, error } = useSync();
+  const { phase, lastSyncAt, pending, error, oversizedItems } = useSync();
   const when = lastSyncAt ? new Date(lastSyncAt).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' }) : '';
-  const sub = phase === 'error' ? error : `${SYNC_TEXT[phase]}${phase === 'idle' && when ? `（${when}）` : ''}${pending > 0 && phase !== 'syncing' ? ` · ${pending} 筆待上傳` : ''}`;
+  const oversizedText = oversizedItems?.length ? ` · ${oversizedItems.length} 筆過大已略過` : '';
+  const sub = phase === 'error' ? error : `${SYNC_TEXT[phase]}${phase === 'idle' && when ? `（${when}）` : ''}${pending > 0 && phase !== 'syncing' ? ` · ${pending} 筆待上傳` : ''}${oversizedText}`;
   return (
     <button className="row" onClick={() => void syncNow()} disabled={phase === 'syncing'}>
       <span className={`sync-dot ${phase}`} aria-hidden="true" />

@@ -26,6 +26,7 @@ import {
 import { recomputeBalances } from '@/db/repo/accounts';
 import { loadSettings } from '@/db/repo/settings';
 import { useSettings } from '@/stores/settings';
+import { useUI } from '@/stores/ui';
 import { api, ApiError } from './api';
 import {
   activate, createConfig, decryptJson, E2EELockedError, encryptJson, isEncrypted, localKey, reconcile, unlock, type E2EEConfig,
@@ -49,8 +50,18 @@ interface StatusResponse {
 /** locked：帳號已啟用端對端加密，但這台裝置還沒輸入加密密碼 */
 export type SyncPhase = 'off' | 'idle' | 'syncing' | 'offline' | 'error' | 'locked';
 
-export const useSync = create<{ phase: SyncPhase; lastSyncAt: number | null; pending: number; error: string; e2ee: E2EEConfig | null }>(() => ({
+export const useSync = create<{
+  phase: SyncPhase;
+  lastSyncAt: number | null;
+  pending: number;
+  error: string;
+  e2ee: E2EEConfig | null;
+  oversizedItems: string[];
+  addOversizedItem: (item: string) => void;
+}>(() => ({
   phase: 'off', lastSyncAt: null, pending: 0, error: '', e2ee: null,
+  oversizedItems: [],
+  addOversizedItem: (item) => useSync.setState((s) => ({ oversizedItems: [...new Set([...s.oversizedItems, item])] })),
 }));
 
 const SYNCED = new Set<string>(SYNCED_TABLES);
@@ -182,14 +193,17 @@ async function pushPending(device: string, key: CryptoKey | null): Promise<void>
       list.forEach((e, i) => rows.set(e.id, got[i] as Record<string, unknown> | undefined));
     }
     const oversizedEntries: string[] = [];
+    const oversizedDetails: string[] = [];
     for (const e of entries) {
       const row = rows.get(e.id);
       const payload = row ? (key ? (await encryptJson(key, row)) as unknown as Record<string, unknown> : row) : null;
       const change: SyncChange = { table: e.table, key: JSON.stringify(e.key), updated_at: e.at, deleted: !row, payload };
       const size = JSON.stringify(change).length;
       if (size > MAX_SINGLE_PAYLOAD) {
-        console.error(`[sync] 單筆資料過大 (${size} bytes > 250KB)，剔除佇列避免同步卡死：${e.table}|${String(e.key)}`);
+        const item = `${e.table}/${String(e.key)}`;
+        console.error(`[sync] 單筆資料過大 (${size} bytes > 250KB)，剔除佇列避免同步卡死：${item}`);
         oversizedEntries.push(e.id);
+        oversizedDetails.push(item);
         continue;
       }
       if (sent.length && bytes + size > PUSH_BYTES) break;
@@ -199,6 +213,11 @@ async function pushPending(device: string, key: CryptoKey | null): Promise<void>
     }
     if (oversizedEntries.length) {
       await db.sync_outbox.bulkDelete(oversizedEntries);
+      for (const item of oversizedDetails) useSync.getState().addOversizedItem(item);
+      useUI.getState().showSnack({
+        text: `有 ${oversizedEntries.length} 筆資料過大無法同步（${oversizedDetails[0]}${oversizedDetails.length > 1 ? ' 等' : ''}）`,
+        tone: 'warn',
+      });
     }
     if (!changes.length) continue;
 
@@ -208,8 +227,11 @@ async function pushPending(device: string, key: CryptoKey | null): Promise<void>
     } catch (err: unknown) {
       const errWithStatus = err as { status?: number };
       if (errWithStatus?.status === 413 && sent.length === 1) {
-        console.error(`[sync] 伺服器回傳 413（單筆過大），剔除佇列避免死鎖：${sent[0].table}|${String(sent[0].key)}`);
+        const item = `${sent[0].table}/${String(sent[0].key)}`;
+        console.error(`[sync] 伺服器回傳 413（單筆過大），剔除佇列避免死鎖：${item}`);
         await db.sync_outbox.delete(sent[0].id);
+        useSync.getState().addOversizedItem(item);
+        useUI.getState().showSnack({ text: `資料過大無法同步（${item}）`, tone: 'warn' });
         continue;
       }
       throw err;
