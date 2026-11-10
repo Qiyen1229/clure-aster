@@ -58,4 +58,21 @@ describe('統一發票對獎服務', () => {
     const r = await checkPeriod(draw);
     await expect(claimPrize(r.entries[0])).rejects.toThrow('沒有中獎');
   });
+
+  it('並發呼叫 claimPrize 兩次只記一筆收入（T9 競態防護）', async () => {
+    await exp('AB44991397', '2026-08-03');
+    const r = await checkPeriod(draw);
+    const entry1 = { ...r.winners[0] };
+    const entry2 = { ...r.winners[0] };
+
+    const results = await Promise.allSettled([claimPrize(entry1), claimPrize(entry2)]);
+    const successes = results.filter((x) => x.status === 'fulfilled');
+    const failures = results.filter((x) => x.status === 'rejected');
+
+    expect(successes.length).toBe(1);
+    expect(failures.length).toBe(1);
+
+    const prizeIncomes = await db.transactions.where('invoiceNo').equals('AB44991397').filter((t) => t.type === 'income').toArray();
+    expect(prizeIncomes.length).toBe(1);
+  });
 });
