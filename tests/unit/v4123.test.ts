@@ -18,6 +18,7 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
 import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { cleanDecimalInput, FilterSheet } from '@/features/ledger/FilterSheet';
+import { Amount } from '@/ui/controls';
 import type { TxFilter } from '@/db/types';
 import { db, openUserDatabase } from '@/db/schema';
 import { processPushNotification, tagToKind } from '@/services/pushDedupe';
@@ -663,6 +664,28 @@ describe('v4.1.23 Phase 2 測試', () => {
       const found = logs.find((l) => l.message.includes('全域拋出例外'));
       expect(found).toBeDefined();
       expect(found?.type).toBe('error');
+    });
+  });
+
+  describe('今日可用餘額色彩遵循使用者設定', () => {
+    it('Amount 配合 tone="auto" 在正數時套用 .pos class（依據 upColor 設定套用 --c-pos 紅/綠）', () => {
+      const container = document.createElement('div');
+      const root = createRoot(container);
+      act(() => {
+        root.render(React.createElement(Amount, { minor: 50000, currency: 'TWD', tone: 'auto' }));
+      });
+      const span = container.querySelector('span.amount');
+      expect(span).toBeTruthy();
+      expect(span?.classList.contains('pos')).toBe(true);
+      expect(span?.classList.contains('neg')).toBe(false);
+
+      act(() => {
+        root.render(React.createElement(Amount, { minor: -20000, currency: 'TWD', tone: 'auto' }));
+      });
+      const negSpan = container.querySelector('span.amount');
+      expect(negSpan?.classList.contains('neg')).toBe(true);
+      expect(negSpan?.classList.contains('pos')).toBe(false);
+      container.remove();
     });
   });
 });
