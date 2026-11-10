@@ -216,7 +216,6 @@ async function pushPending(device: string, key: CryptoKey | null): Promise<void>
       for (const item of oversizedDetails) useSync.getState().addOversizedItem(item);
       useUI.getState().showSnack({
         text: `有 ${oversizedEntries.length} 筆資料過大無法同步（${oversizedDetails[0]}${oversizedDetails.length > 1 ? ' 等' : ''}）`,
-        tone: 'warn',
       });
     }
     if (!changes.length) continue;
@@ -231,7 +230,7 @@ async function pushPending(device: string, key: CryptoKey | null): Promise<void>
         console.error(`[sync] 伺服器回傳 413（單筆過大），剔除佇列避免死鎖：${item}`);
         await db.sync_outbox.delete(sent[0].id);
         useSync.getState().addOversizedItem(item);
-        useUI.getState().showSnack({ text: `資料過大無法同步（${item}）`, tone: 'warn' });
+        useUI.getState().showSnack({ text: `資料過大無法同步（${item}）` });
         continue;
       }
       throw err;

@@ -241,6 +241,7 @@ describe('v4.1.23 Phase 2 測試', () => {
         role: 'ai' as const,
         kind: 'agent' as const,
         summary: '測試操作',
+        quota: '今日剩餘 10 次',
         raw: [
           { op: 'create_tx', amountMinor: 100 },
           { op: 'create_tx', amountMinor: 200 },

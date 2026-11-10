@@ -103,6 +103,7 @@ async function prizeCategoryId(): Promise<string> {
 /** 把一張中獎發票記成「中獎」收入；記到發票預設帳戶（沒設定就用原本那張發票的帳戶） */
 export async function claimPrize(entry: PrizeEntry): Promise<Transaction> {
   if (!entry.hit) throw new Error('這張發票沒有中獎');
+  const hit = entry.hit;
   if (entry.claimed) throw new Error('這張發票已經記過中獎收入');
   const accId = useSettings.getState().einvoice.defaultAccountId || entry.tx.accountId;
   const acc = (await db.accounts.get(accId)) ?? (await db.accounts.get(entry.tx.accountId));
@@ -117,9 +118,9 @@ export async function claimPrize(entry: PrizeEntry): Promise<Transaction> {
       throw new Error('這張發票已經記過中獎收入');
     }
     const tx = await addTransaction({
-      type: 'income', accountId: acc.id, categoryId, amountMinor: entry.hit.amount * 100, currency: 'TWD',
+      type: 'income', accountId: acc.id, categoryId, amountMinor: hit.amount * 100, currency: 'TWD',
       date: todayKey(), ts: Date.now(), invoiceNo: entry.number,
-      note: `統一發票中獎（${entry.hit.name}）${entry.number}`,
+      note: `統一發票中獎（${hit.name}）${entry.number}`,
     });
     entry.claimed = true;
     return tx;
