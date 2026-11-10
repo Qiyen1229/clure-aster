@@ -11,6 +11,7 @@ import { EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { SwitchField } from '@/ui/form';
 import { Icon } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
+import { exportErrorLogsToFile } from '@/services/errorLog';
 import AiConsole from './AiConsole';
 
 interface Stats {
@@ -187,6 +188,38 @@ function BackupCard() {
   );
 }
 
+/** 本機錯誤日誌：匯出本機瀏覽器（IndexedDB）最近 20 筆未捕捉的前端異常與堆疊紀錄（JSON）供診斷除錯 */
+function ErrorLogCard() {
+  const [busy, setBusy] = useState(false);
+  const snack = (text: string) => useUI.getState().showSnack({ text });
+  return (
+    <section className="card" style={{ marginBottom: 12 }}>
+      <div className="row-title">🐞 本機錯誤日誌</div>
+      <div className="row-sub" style={{ whiteSpace: 'normal' }}>
+        匯出本機瀏覽器（IndexedDB）最近 20 筆未捕捉的前端異常與堆疊紀錄（JSON 診斷檔），離線保存不外洩。
+      </div>
+      <button
+        className="btn small tinted"
+        style={{ marginTop: 8 }}
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            const r = await exportErrorLogsToFile();
+            if (r !== 'cancelled') snack('已匯出錯誤日誌 ✓');
+          } catch {
+            snack('匯出錯誤日誌失敗');
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {busy ? '匯出中…' : '匯出錯誤日誌'}
+      </button>
+    </section>
+  );
+}
+
 function Overview() {
   const { data, error, reload } = useApi<Stats>('/admin/stats');
   const recent = useApi<Page<AuditLog>>('/admin/audit-logs', { success: false, size: 5 });
@@ -212,9 +245,11 @@ function Overview() {
           <p className="muted">修改 NAS 上的 .env 後執行 docker compose up -d 套用。</p>
         </div>
       )}
+      <div className="section-title" style={{ marginTop: 4 }}>系統工具</div>
       <RegistrationSwitch />
       <MailCard />
       <BackupCard />
+      <ErrorLogCard />
       <div className="admin-grid">
         {cards.map((c) => (
           <button key={c.k} className={`admin-stat${c.warn ? ' warn' : ''}`} onClick={() => c.to && navigate(c.to)} disabled={!c.to}>

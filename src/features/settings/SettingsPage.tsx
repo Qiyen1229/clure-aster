@@ -27,7 +27,6 @@ import { FONT_SIZES } from '@/app/viewport';
 import { api } from '@/services/api';
 import { confirmIdentity } from '@/services/identity';
 import { wipeLocalData } from '@/services/lockGuard';
-import { exportErrorLogsToFile } from '@/services/errorLog';
 
 const SYNC_TEXT = { off: '未啟用', idle: '已同步', syncing: '同步中…', offline: '離線，恢復連線後自動同步', error: '同步失敗', locked: '需要輸入加密密碼' } as const;
 
@@ -370,16 +369,6 @@ function AboutHubSheet({ open, onClose }: { open: boolean; onClose: () => void }
           }}>{checking ? '檢查中…' : '檢查更新'}</button>
         </Row>
         <Row icon="sparkles" tint="#0A84FF" label="版本更新重點" sub="瀏覽各版本重點新功能與操作導引" onClick={() => { onClose(); openWhatsNew(); }} />
-        <Row icon="info" tint="#FF453A" label="本機錯誤日誌" sub="匯出最近 20 筆未捕捉異常供診斷">
-          <button className="pill" onClick={async () => {
-            try {
-              const r = await exportErrorLogsToFile();
-              if (r !== 'cancelled') snack('已匯出錯誤日誌 ✓');
-            } catch {
-              snack('匯出錯誤日誌失敗');
-            }
-          }}>匯出</button>
-        </Row>
         <Row icon="compass" tint="#FF9F0A" label="重新執行首次引導" sub="再次瀏覽 Aster 最強功能特色與基礎設定" onClick={() => { s.set('onboarded', false); navTo('/onboarding'); }} />
         <Row icon="lock" tint="#30B0C7" label="隱私權政策" onClick={() => navTo('/privacy')} />
         <Row icon="note" tint="#8E8E93" label="服務條款與授權" onClick={() => navTo('/terms')} />

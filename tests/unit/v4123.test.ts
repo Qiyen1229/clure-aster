@@ -665,6 +665,20 @@ describe('v4.1.23 Phase 2 測試', () => {
       expect(found).toBeDefined();
       expect(found?.type).toBe('error');
     });
+
+    it('錯誤日誌匯出功能位於資安後台（AdminPage）系統工具區，設定頁（SettingsPage）不再顯示', () => {
+      const settingsContent = fs.readFileSync(path.resolve(__dirname, '../../src/features/settings/SettingsPage.tsx'), 'utf-8');
+      const adminContent = fs.readFileSync(path.resolve(__dirname, '../../src/features/admin/AdminPage.tsx'), 'utf-8');
+
+      // SettingsPage 不再包含 exportErrorLogsToFile 或「本機錯誤日誌」
+      expect(settingsContent).not.toContain('exportErrorLogsToFile');
+      expect(settingsContent).not.toContain('本機錯誤日誌');
+
+      // AdminPage 包含 exportErrorLogsToFile 與「本機錯誤日誌」系統工具卡片
+      expect(adminContent).toContain('exportErrorLogsToFile');
+      expect(adminContent).toContain('本機錯誤日誌');
+      expect(adminContent).toContain('系統工具');
+    });
   });
 
   describe('今日可用餘額色彩遵循使用者設定', () => {
