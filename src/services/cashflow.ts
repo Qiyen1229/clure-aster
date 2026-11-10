@@ -65,8 +65,11 @@ export async function buildCashflow(days: number, includeSpend: boolean, today =
   const events: CashEvent[] = [];
   /** 信用卡上未來的消費（週期、分期）：卡 id → [{date, amount}] */
   const cardCharges = new Map<string, { date: DateKey; amountMinor: number }[]>();
-  const toAccountCurrency = async (amountMinor: number, from: string, acc: Account) =>
-    from === acc.currency ? amountMinor : convertMinor(amountMinor, from, acc.currency, await rateOrOne(from, acc.currency));
+  const toAccountCurrency = async (amountMinor: number, from: string, acc: Account) => {
+    if (from === acc.currency) return amountMinor;
+    const rate = await rateOrNull(from, acc.currency);
+    return rate !== null ? convertMinor(amountMinor, from, acc.currency, rate) : amountMinor;
+  };
 
   // 週期帳目（含待確認的日期）
   let hasIncome = false;

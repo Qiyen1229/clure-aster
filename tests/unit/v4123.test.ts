@@ -32,7 +32,6 @@ import { AgentBubble } from '@/features/home/AiChat';
 import { parseTwMarketTime, providerById } from '@/services/quotes/providers';
 import { buildPortfolio } from '@/services/portfolio';
 import { cooldownRemaining, refreshQuotes, resetBreaker } from '@/services/quotes/registry';
-import { db } from '@/db/schema';
 import { exportErrorLogs, getRecentErrors, initGlobalErrorLogging, logAppError, MAX_ERROR_LOGS } from '@/services/errorLog';
 
 const previewResolvers: Array<(steps: any[]) => void> = [];
@@ -454,9 +453,9 @@ describe('v4.1.23 Phase 2 測試', () => {
 
       // rates 為空，缺少 JPY -> TWD 匯率
       const summary = buildPortfolio({
-        stocks: [jpyStock],
-        trades: [trade],
-        prices: [price],
+        stocks: [jpyStock as any],
+        trades: [trade as any],
+        prices: [price as any],
         dividends: [],
         rates: [],
         base: 'TWD',
@@ -481,7 +480,7 @@ describe('v4.1.23 Phase 2 測試', () => {
         currency: 'TWD',
         lotSize: 1000,
         assetType: 'stock' as const,
-      };
+      } as any;
 
       const misProvider = providerById('twse-mis')!;
       const spy = vi.spyOn(misProvider, 'quote').mockRejectedValue(new Error('MIS network error'));
