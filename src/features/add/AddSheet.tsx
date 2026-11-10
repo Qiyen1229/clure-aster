@@ -573,8 +573,10 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
               }}
                 options={editing ? MODES.filter((m) => m.value === 'expense' || m.value === 'income') : mode === 'adjust' ? [...MODES, { value: 'adjust', label: '調整' }] : MODES} ariaLabel="記帳類型" />
               {isLoanMode(mode) && !editing && (
-                <Segmented value={mode} onChange={(m) => setMode(m as AddMode)} ariaLabel="借貸方向"
-                  options={[{ value: 'receivable', label: '借出（誰欠你）' }, { value: 'payable', label: '借入（你欠誰）' }]} />
+                <div style={{ marginTop: 8 }}>
+                  <Segmented value={mode} onChange={(m) => setMode(m as AddMode)} ariaLabel="借貸方向"
+                    options={[{ value: 'receivable', label: '借出（誰欠你）' }, { value: 'payable', label: '借入（你欠誰）' }]} />
+                </div>
               )}
             </>
           )}

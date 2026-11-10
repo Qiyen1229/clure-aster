@@ -575,6 +575,8 @@ a { color: inherit; text-decoration: none; }
 /* 分段控制後面緊接內容時，保留呼吸空間（最後一個子元素或加記一筆面板內的緊湊版不加） */
 .segmented:not(:last-child) { margin-bottom: 12px; }
 .add-layout .segmented { margin-bottom: 0; }
+.segmented + .segmented,
+.add-layout .segmented + .segmented { margin-top: 8px; }
 .segmented button { position: relative; z-index: 1; font-size: 0.88rem; font-weight: 500; border-radius: 8px; min-height: 32px; color: var(--text-2); transition: color 200ms;
   min-width: 0; padding: 4px 6px; line-height: 1.25; overflow-wrap: anywhere; } /* 大字級時選項文字在按鈕內換行，不溢出 */
 .segmented button[aria-pressed='true'] { color: var(--text); font-weight: 600; }

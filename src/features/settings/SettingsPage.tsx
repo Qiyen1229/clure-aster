@@ -251,10 +251,10 @@ function TaxonomyHubSheet({ open, onClose }: { open: boolean; onClose: () => voi
   return (
     <Sheet open={open} onClose={onClose} title="分類、標籤與規則">
       <div className="list">
-        <Row icon="pie" tint="#FF375F" label="支出／收入分類" sub="名稱、圖示、顏色、排序、封存" onClick={() => navTo('/settings/categories')} />
+        <Row icon="tags" tint="#FF375F" label="支出／收入分類" sub="名稱、圖示、顏色、排序、封存" onClick={() => navTo('/settings/categories')} />
         <Row icon="tag" tint="#BF5AF2" label="標籤管理" sub="跨分類維度標記（如：出差、出國、公費）" onClick={() => navTo('/settings/tags')} />
         <Row icon="filter" tint="#30B0C7" label="自動分類規則" sub="依備註或商家名稱，自動帶入分類與標籤" onClick={() => navTo('/settings/rules')} />
-        <Row icon="template" tint="#FF9F0A" label="常用項目（釘選）" sub="將常記的項目釘選在建議列，一鍵帶入" onClick={() => navTo('/settings/pinned')} />
+        <Row icon="pin" tint="#FF9F0A" label="常用項目（釘選）" sub="將常記的項目釘選在建議列，一鍵帶入" onClick={() => navTo('/settings/pinned')} />
       </div>
     </Sheet>
   );
@@ -266,8 +266,8 @@ function AutoRecordHubSheet({ open, onClose }: { open: boolean; onClose: () => v
   return (
     <Sheet open={open} onClose={onClose} title="自動記帳與對帳">
       <div className="list">
-        <Row icon="download" tint="#30D158" label="自動記帳收件匣" sub="Apple Pay、簡訊、Siri 捷徑自動入帳" onClick={() => navTo('/inbox')} />
-        <Row icon="note" tint="#0A84FF" label="電子發票載具" sub="手機條碼載具、發票自動對獎與明細記帳" onClick={() => navTo('/settings/invoice')} />
+        <Row icon="inbox" tint="#30D158" label="自動記帳收件匣" sub="Apple Pay、簡訊、Siri 捷徑自動入帳" onClick={() => navTo('/inbox')} />
+        <Row icon="receipt" tint="#0A84FF" label="電子發票載具" sub="手機條碼載具、發票自動對獎與明細記帳" onClick={() => navTo('/settings/invoice')} />
         <Row icon="check" tint="#FF9F0A" label="帳單對帳匯入" sub="用網銀信用卡對帳單比對帳本，補齊漏記" onClick={() => navTo('/settings/import?mode=reconcile')} />
       </div>
     </Sheet>
@@ -281,7 +281,7 @@ function AiHubSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
     <Sheet open={open} onClose={onClose} title="AI 助理與智慧偵測">
       <div className="list">
         {AUTH_ENABLED && (
-          <Row icon="sliders" tint="#8E8E93" label="AI 功能設定與額度" sub="AI 總開關、送出內容去識別化、點數查詢" onClick={() => navTo('/settings/ai')} />
+          <Row icon="slidersHorizontal" tint="#8E8E93" label="AI 功能設定與額度" sub="AI 總開關、送出內容去識別化、點數查詢" onClick={() => navTo('/settings/ai')} />
         )}
         <Row icon="ai" tint="#17181c" label="消費異常與預算預警" sub="本機規則偵測重複扣款、訂閱漲價與超支預警" onClick={() => navTo('/ai')} />
       </div>
@@ -299,9 +299,9 @@ function SecurityHubSheet({ open, onClose, onOpenEnc, onOpenPw }: { open: boolea
   return (
     <Sheet open={open} onClose={onClose} title="帳號安全與隱私">
       <div className="list">
-        <Row icon="lock" tint="#5E5CE6" label="端對端加密" onClick={() => { onClose(); onOpenEnc(); }}
+        <Row icon="shieldCheck" tint="#5E5CE6" label="端對端加密" onClick={() => { onClose(); onOpenEnc(); }}
           sub={syncPhase === 'locked' ? '⚠️ 請輸入加密密碼以繼續同步' : syncE2ee?.enabled ? '已啟用：伺服器只保存密文' : '未啟用：啟用後伺服器無法窺探內容'} />
-        <Row icon="eye" tint="#30B0C7" label="App 鎖與隱私" onClick={() => navTo('/settings/security')}
+        <Row icon="lock" tint="#30B0C7" label="App 鎖與隱私" onClick={() => navTo('/settings/security')}
           sub={s.lock.enabled ? `App 鎖已啟用${s.lock.webauthn ? '（含 Face ID）' : ''}` : 'PIN 碼、Face ID、背景隱藏金額'} />
         <Row icon="edit" tint="#8E8E93" label="變更登入密碼" onClick={() => { onClose(); onOpenPw(); }} sub="修改目前帳號的登入密碼" />
         {auth.user?.role === 'admin' && (
@@ -325,17 +325,17 @@ function DataHubSheet({ open, onClose }: { open: boolean; onClose: () => void })
   return (
     <Sheet open={open} onClose={onClose} title="資料備份與維護">
       <div className="list">
-        <Row icon="folder" tint="#0A84FF" label="備份、匯入與匯出" sub="本機備份檔還原、CSV、Excel、PDF 匯出" onClick={() => navTo('/settings/backup')} />
+        <Row icon="database" tint="#0A84FF" label="備份、匯入與匯出" sub="本機備份檔還原、CSV、Excel、PDF 匯出" onClick={() => navTo('/settings/backup')} />
         <Row icon="check" tint="#30D158" label="資料健康檢查" sub="自動修復帳目餘額與索引一致性" onClick={() => navTo('/settings/health')} />
         {sample ? (
-          <Row icon="template" tint="#8E8E93" label="清除範例資料" sub="刪除 90 天展示用的帳戶與帳目">
+          <Row icon="sparkles" tint="#8E8E93" label="清除範例資料" sub="刪除 90 天展示用的帳戶與帳目">
             <button className="btn small danger" disabled={busy === 'sample'} onClick={() => run('sample', async () => {
               const n = await clearSampleData();
               snack(`已清除 ${n} 筆範例資料`);
             })}>清除</button>
           </Row>
         ) : (
-          <Row icon="template" tint="#8E8E93" label="載入示範資料" sub="載入 90 天示範帳目，可隨時一鍵清除">
+          <Row icon="sparkles" tint="#8E8E93" label="載入示範資料" sub="載入 90 天示範帳目，可隨時一鍵清除">
             <button className="btn small tinted" disabled={busy === 'sample'} onClick={() => run('sample', async () => {
               await loadSampleData();
               snack('已載入示範資料');
@@ -368,7 +368,7 @@ function AboutHubSheet({ open, onClose }: { open: boolean; onClose: () => void }
           }}>{checking ? '檢查中…' : '檢查更新'}</button>
         </Row>
         <Row icon="sparkles" tint="#0A84FF" label="新功能介紹" sub="瀏覽各版本重點新功能與操作導引" onClick={() => { onClose(); openWhatsNew(); }} />
-        <Row icon="template" tint="#FF9F0A" label="重新執行首次引導" sub="再次瀏覽 Aster 最強功能特色與基礎設定" onClick={() => { s.set('onboarded', false); navTo('/onboarding'); }} />
+        <Row icon="compass" tint="#FF9F0A" label="重新執行首次引導" sub="再次瀏覽 Aster 最強功能特色與基礎設定" onClick={() => { s.set('onboarded', false); navTo('/onboarding'); }} />
         <Row icon="lock" tint="#30B0C7" label="隱私權政策" onClick={() => navTo('/privacy')} />
         <Row icon="note" tint="#8E8E93" label="服務條款與授權" onClick={() => navTo('/terms')} />
         <details className="set-details" style={{ margin: '8px 4px 4px' }}>
@@ -558,28 +558,28 @@ export default function SettingsPage() {
 
       {/* 1. 記帳核心 */}
       <Group title="記帳與分類">
-        <Row icon="pie" tint="#FF375F" label="分類、標籤與規則" sub="收支分類、標籤、常用釘選、自動分類規則" onClick={() => setCatOpen(true)} />
-        <Row icon="sliders" tint="#8E8E93" label="記帳格式與幣別" sub={`${s.baseCurrency}・每月 ${s.monthStartDay === 31 ? '最後一天' : `${s.monthStartDay} 日`}起算・一週從${s.weekStart === 0 ? '週日' : '週一'}`} onClick={() => setPrefsOpen(true)} />
+        <Row icon="tags" tint="#FF375F" label="分類、標籤與規則" sub="收支分類、標籤、常用釘選、自動分類規則" onClick={() => setCatOpen(true)} />
+        <Row icon="slidersHorizontal" tint="#8E8E93" label="記帳格式與幣別" sub={`${s.baseCurrency}・每月 ${s.monthStartDay === 31 ? '最後一天' : `${s.monthStartDay} 日`}起算・一週從${s.weekStart === 0 ? '週日' : '週一'}`} onClick={() => setPrefsOpen(true)} />
       </Group>
 
       {/* 2. 智慧與自動化 */}
       <Group title="自動化與智慧">
-        <Row icon="download" tint="#30D158" label="自動記帳與對帳" sub="Apple Pay 收件匣、電子發票載具對獎、帳單核對" onClick={() => setAutoOpen(true)} />
+        <Row icon="receipt" tint="#30D158" label="自動記帳與對帳" sub="Apple Pay 收件匣、電子發票載具對獎、帳單核對" onClick={() => setAutoOpen(true)} />
         <Row icon="ai" tint="#17181c" label="AI 助理與智慧偵測" sub="助理開關、送出內容設定、額度、異常與預算預警" onClick={() => setAiOpen(true)} />
       </Group>
 
       {/* 3. 介面與通知 */}
       <Group title="介面與通知">
-        <Row icon="eye" tint="#0A84FF" label="外觀與首頁版面" sub={`${s.theme === 'system' ? '跟隨系統' : s.theme === 'dark' ? '深色' : '淺色'}・${ACCENTS.find((a) => a.key === s.accent)?.name ?? ''}・首頁快覽配置`} onClick={() => setLookOpen(true)} />
+        <Row icon="palette" tint="#0A84FF" label="外觀與首頁版面" sub={`${s.theme === 'system' ? '跟隨系統' : s.theme === 'dark' ? '深色' : '淺色'}・${ACCENTS.find((a) => a.key === s.accent)?.name ?? ''}・首頁快覽配置`} onClick={() => setLookOpen(true)} />
         <Row icon="bell" tint="#FF3B30" label="通知與市場整合" sub="記帳推播、繳款提醒、台美股行情資料源" onClick={() => setIntegOpen(true)} />
       </Group>
 
       {/* 4. 系統與資料 */}
       <Group title="系統與資料">
         {account && (
-          <Row icon="lock" tint="#5E5CE6" label="帳號安全與隱私" sub="端對端加密、App 鎖 PIN/Face ID、變更密碼" onClick={() => setSecOpen(true)} />
+          <Row icon="shieldCheck" tint="#5E5CE6" label="帳號安全與隱私" sub="端對端加密、App 鎖 PIN/Face ID、變更密碼" onClick={() => setSecOpen(true)} />
         )}
-        <Row icon="folder" tint="#0A84FF" label="資料備份與維護" sub="備份還原、匯出入、資料庫健康檢查、範例帳目" onClick={() => setDataOpen(true)} />
+        <Row icon="database" tint="#0A84FF" label="資料備份與維護" sub="備份還原、匯出入、資料庫健康檢查、範例帳目" onClick={() => setDataOpen(true)} />
         <Row icon="info" tint="#8E8E93" label="關於 Aster" sub={`v${__APP_VERSION__} · 檢查更新、新功能介紹、條款政策`} onClick={() => setAboutOpen(true)} />
       </Group>
 

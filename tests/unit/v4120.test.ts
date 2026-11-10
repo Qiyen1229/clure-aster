@@ -78,3 +78,23 @@ describe('v4.1.20 分類與帳戶 Lucide 向量圖標升級（CatIcon）', () =>
     expect(html).toContain('👽');
   });
 });
+
+describe('v4.1.20 設定頁面全面採用 Lucide 圖標', () => {
+  it('Icon 元件支援設定頁專用 Lucide 向量圖標', async () => {
+    const { Icon } = await import('@/ui/Icon');
+    const icons = ['tags', 'slidersHorizontal', 'receipt', 'palette', 'shieldCheck', 'database', 'inbox', 'compass', 'bell', 'info'] as const;
+    for (const name of icons) {
+      const html = renderToString(React.createElement(Icon, { name }));
+      expect(html).toContain('<svg');
+      expect(html).toContain('viewBox="0 0 24 24"');
+    }
+  });
+
+  it('AI 助理圖標保留原創多面彩虹寶石（AiGem）', async () => {
+    const { Icon } = await import('@/ui/Icon');
+    const html = renderToString(React.createElement(Icon, { name: 'ai' }));
+    expect(html).toContain('<svg');
+    expect(html).toContain('polygon');
+    expect(html).toContain('linearGradient');
+  });
+});
