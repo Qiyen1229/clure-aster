@@ -11,6 +11,7 @@ import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { NetworkFirst, StaleWhileRevalidate } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
+import { processPushNotification } from './services/pushDedupe';
 
 declare const self: ServiceWorkerGlobalScope & { __WB_MANIFEST: Array<{ url: string; revision: string | null }> };
 
@@ -36,9 +37,7 @@ self.addEventListener('message', (event) => {
 self.addEventListener('push', (event) => {
   let msg: { title?: string; body?: string; url?: string; tag?: string } = {};
   try { msg = event.data?.json() ?? {}; } catch { msg = { body: event.data?.text() }; }
-  event.waitUntil(self.registration.showNotification(msg.title || 'Aster 記帳', {
-    body: msg.body ?? '', icon: '/icons/icon-192.png', badge: '/icons/favicon-32.png', tag: msg.tag, data: { url: msg.url || '/' },
-  }));
+  event.waitUntil(processPushNotification(msg, (t, opt) => self.registration.showNotification(t, opt)));
 });
 
 self.addEventListener('notificationclick', (event) => {
