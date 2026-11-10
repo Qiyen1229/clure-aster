@@ -5,8 +5,8 @@
  * - 手續費：first = 第一期一次收取；spread = 平均分攤到每期
  */
 import Decimal from 'decimal.js';
-import { allocate } from './money';
-import { addMonths, type DateKey } from './period';
+import { allocate, convertMinor } from './money';
+import { addMonths, todayKey, type DateKey } from './period';
 import type { InstallmentScheduleItem } from '@/db/types';
 
 export function buildSchedule(params: {
@@ -47,4 +47,48 @@ export const periodTotal = (it: InstallmentScheduleItem) => it.principalMinor + 
 export function remaining(schedule: InstallmentScheduleItem[]) {
   const left = schedule.filter((s) => !s.transactionId);
   return { periodsLeft: left.length, futureMinor: left.reduce((a, s) => a + periodTotal(s), 0) };
+}
+
+export interface InstallmentSummary {
+  futureMinor: number;
+  nextMonthDueMinor: number;
+  missingRates: boolean;
+}
+
+/**
+ * 跨幣別彙總進行中的分期未來總負擔與下個月應繳，缺匯率之分期不計入並標記 missingRates
+ */
+export function computeInstallmentSummary(
+  list: Array<{ currency: string; status: string; schedule: InstallmentScheduleItem[] }>,
+  base: string,
+  resolveFx: (from: string, to: string) => Decimal.Value | null,
+  nextMonth = addMonths(todayKey(), 1).slice(0, 7),
+): InstallmentSummary {
+  let futureMinor = 0;
+  let nextMonthDueMinor = 0;
+  let missingRates = false;
+
+  for (const i of list) {
+    const cur = i.currency;
+    const r = cur === base ? 1 : resolveFx(cur, base);
+    if (cur !== base && (r == null || r === '')) {
+      missingRates = true;
+      continue;
+    }
+    const rateVal = r ?? 1;
+
+    if (i.status === 'active') {
+      const rem = remaining(i.schedule).futureMinor;
+      futureMinor += cur === base ? rem : convertMinor(rem, cur, base, rateVal);
+    }
+
+    for (const s of i.schedule) {
+      if (!s.transactionId && s.date.startsWith(nextMonth)) {
+        const due = periodTotal(s);
+        nextMonthDueMinor += cur === base ? due : convertMinor(due, cur, base, rateVal);
+      }
+    }
+  }
+
+  return { futureMinor, nextMonthDueMinor, missingRates };
 }

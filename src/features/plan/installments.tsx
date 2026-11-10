@@ -6,13 +6,14 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
 import type { Installment } from '@/db/types';
 import { addInstallment, deleteInstallment } from '@/db/repo/plan';
-import { buildSchedule, periodTotal, remaining } from '@/domain/installment';
+import { buildSchedule, computeInstallmentSummary, periodTotal, remaining } from '@/domain/installment';
 import { formatMoney, toMinor } from '@/domain/money';
 import { evaluate } from '@/domain/calc-expr';
 import { addMonths, todayKey } from '@/domain/period';
 import { useAccounts, useCategories } from '@/app/hooks';
 import { useUI, ask } from '@/stores/ui';
 import { useSettings } from '@/stores/settings';
+import { resolveRate } from '@/services/fx';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { AccountField, AmountField, CategoryField, DateField, SelectField, TextField } from '@/ui/form';
 import { Sheet } from '@/ui/Sheet';
@@ -23,12 +24,17 @@ export default function InstallmentSection() {
   const [view, setView] = useState<Installment | null>(null);
   const [status, setStatus] = useState<'active' | 'done'>('active');
   const list = useLiveQuery(() => db.installments.toArray(), []);
+  const rates = useLiveQuery(async () => {
+    const rows = await db.exchange_rates.toArray();
+    return new Map(rows.map((r) => [`${r.base}>${r.quote}`, r]));
+  }, []);
   const accounts = useAccounts(true);
   const base = useSettings((s) => s.baseCurrency);
   const shown = (list ?? []).filter((i) => i.status === status);
-  const future = (list ?? []).filter((i) => i.status === 'active').reduce((a, i) => a + remaining(i.schedule).futureMinor, 0);
-  const nextMonth = addMonths(todayKey(), 1).slice(0, 7);
-  const nextMonthDue = (list ?? []).flatMap((i) => i.schedule.filter((s) => !s.transactionId && s.date.startsWith(nextMonth))).reduce((a, s) => a + periodTotal(s), 0);
+  const { futureMinor, nextMonthDueMinor, missingRates } = useMemo(() => {
+    const rateMap = rates ?? new Map();
+    return computeInstallmentSummary(list ?? [], base, (from, to) => resolveRate(rateMap, from, to));
+  }, [list, rates, base]);
 
   return (
     <>
@@ -36,9 +42,14 @@ export default function InstallmentSection() {
       {(list?.length ?? 0) > 0 && (
         <div className="card glass">
           <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(2,1fr)' }}>
-            <div><div className="muted" style={{ fontSize: '0.75rem' }}>未來總負擔</div><div className="num" style={{ fontWeight: 700 }}><Amount minor={future} currency={base} tone="neg" /></div></div>
-            <div><div className="muted" style={{ fontSize: '0.75rem' }}>下個月應繳</div><div className="num" style={{ fontWeight: 700 }}><Amount minor={nextMonthDue} currency={base} tone="none" /></div></div>
+            <div><div className="muted" style={{ fontSize: '0.75rem' }}>未來總負擔</div><div className="num" style={{ fontWeight: 700 }}><Amount minor={futureMinor} currency={base} tone="neg" /></div></div>
+            <div><div className="muted" style={{ fontSize: '0.75rem' }}>下個月應繳</div><div className="num" style={{ fontWeight: 700 }}><Amount minor={nextMonthDueMinor} currency={base} tone="none" /></div></div>
           </div>
+          {missingRates && (
+            <div className="muted" style={{ fontSize: '0.75rem', marginTop: 8, color: 'var(--c-warn, #f59e0b)' }}>
+              部分分期缺匯率未計入
+            </div>
+          )}
         </div>
       )}
       <Segmented value={status} onChange={setStatus} options={[{ value: 'active', label: '進行中' }, { value: 'done', label: '已繳清' }]} ariaLabel="狀態" />

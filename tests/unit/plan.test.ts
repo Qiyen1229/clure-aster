@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { describeRule, nextAfter, occurrences, timesPerYear } from '@/domain/recurrence';
-import { buildSchedule, periodTotal, remaining } from '@/domain/installment';
+import { buildSchedule, computeInstallmentSummary, periodTotal, remaining } from '@/domain/installment';
 import { budgetPeriod, budgetStatus, periodsUntil, rolloverChain } from '@/domain/budget';
 import { netByPerson, splitEqually } from '@/domain/debt';
 import { goalProgress, monthsBetween } from '@/domain/goal';
@@ -49,6 +49,49 @@ describe('分期', () => {
     expect(s.map(periodTotal)).toEqual([4034, 4033, 4033]);
     s[0].transactionId = 'x';
     expect(remaining(s)).toEqual({ periodsLeft: 2, futureMinor: 8066 });
+  });
+
+  it('跨幣別分期匯總換匯（TWD 1000 + USD 100 匯率 30 → 4000 TWD）與缺匯率提示', () => {
+    const list = [
+      {
+        currency: 'TWD',
+        status: 'active',
+        schedule: [
+          { no: 1, date: '2026-11-05', principalMinor: 1000_00, interestMinor: 0, feeMinor: 0 },
+        ],
+      },
+      {
+        currency: 'USD',
+        status: 'active',
+        schedule: [
+          { no: 1, date: '2026-11-05', principalMinor: 100_00, interestMinor: 0, feeMinor: 0 },
+        ],
+      },
+    ];
+    const rates: Record<string, string> = { 'USD>TWD': '30' };
+    const res = computeInstallmentSummary(list, 'TWD', (from, to) => rates[`${from}>${to}`] ?? null, '2026-11');
+    expect(res.futureMinor).toBe(4000_00);
+    expect(res.nextMonthDueMinor).toBe(4000_00);
+    expect(res.missingRates).toBe(false);
+
+    // JPY 測試：base=JPY, USD 100 分期 (USD->JPY = 150)
+    const listJpy = [
+      {
+        currency: 'USD',
+        status: 'active',
+        schedule: [
+          { no: 1, date: '2026-11-05', principalMinor: 100_00, interestMinor: 0, feeMinor: 0 },
+        ],
+      },
+    ];
+    const resJpy = computeInstallmentSummary(listJpy, 'JPY', (from, to) => from === 'USD' && to === 'JPY' ? '150' : null, '2026-11');
+    expect(resJpy.futureMinor).toBe(15000);
+    expect(resJpy.missingRates).toBe(false);
+
+    // 缺匯率測試
+    const resMissing = computeInstallmentSummary(list, 'TWD', () => null, '2026-11');
+    expect(resMissing.futureMinor).toBe(1000_00);
+    expect(resMissing.missingRates).toBe(true);
   });
 });
 
