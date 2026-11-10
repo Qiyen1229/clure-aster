@@ -109,7 +109,7 @@ function RegistrationSwitch() {
   const cur = s ?? data;
   if (error || !cur) return null;
   const toggle = async (open: boolean) => {
-    if (!open || await ask('開放註冊後，知道網址的任何人都能建立帳號。確定要開放嗎？')) {
+    if (!open || await ask('開放註冊後，知道網址的任何人都能建立帳號。若服務暴露於公網，建議僅在需要時開放，或由管理員手動建立帳號。確定要開放嗎？')) {
       setBusy(true);
       try {
         setS(await api<SystemSettings>('/admin/settings', { method: 'PATCH', body: { allow_registration: open } }));
@@ -120,7 +120,7 @@ function RegistrationSwitch() {
   return (
     <div className="list" style={{ marginBottom: 12 }}>
       <SwitchField label="開放註冊" checked={cur.allow_registration} onChange={(v) => { if (!busy) void toggle(v); }}
-        sub={(cur.allow_registration ? '任何人都能在登入頁自行建立帳號' : '登入頁不顯示註冊，只能由管理員建立帳號')
+        sub={(cur.allow_registration ? '任何人都能在登入頁自行建立帳號；若服務暴露於公網，建議在完成管理員設定後關閉以維護資安' : '登入頁不顯示註冊，只能由管理員建立帳號')
           + (cur.allow_registration_overridden ? '' : '（目前沿用 .env 設定）')} />
     </div>
   );
