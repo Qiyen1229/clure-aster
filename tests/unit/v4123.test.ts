@@ -22,6 +22,10 @@ import type { TxFilter } from '@/db/types';
 import { db } from '@/db/schema';
 import { processPushNotification } from '@/services/pushDedupe';
 import { notify } from '@/services/notifications';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { execSync } from 'node:child_process';
 
 describe('v4.1.23 Phase 1 測試', () => {
   describe('T4: FilterSheet 多小數點防護與狀態同步', () => {
@@ -131,6 +135,38 @@ describe('v4.1.23 Phase 2 測試', () => {
       expect(regSpy).not.toHaveBeenCalled();
 
       Object.defineProperty(navigator, 'serviceWorker', { value: origSW, configurable: true });
+    });
+  });
+
+  describe('T6: deploy-nas 覆蓋解壓殘留舊檔防護', () => {
+    it('rsync --delete 清除舊版檔案且完整保留 .env 與 data/', () => {
+      const testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nas-deploy-test-'));
+      try {
+        // 建立 vA 環境（含使用者資料與舊版特有檔）
+        fs.writeFileSync(path.join(testDir, '.env'), 'SECRET_KEY=keep_me\n');
+        fs.mkdirSync(path.join(testDir, 'data'));
+        fs.writeFileSync(path.join(testDir, 'data', 'clure.db'), 'sqlite-binary-data');
+        fs.writeFileSync(path.join(testDir, 'old-deprecated-file.js'), 'console.log("old");');
+
+        // 建立 vB 部署包解壓縮後的 .deploy-tmp 目錄（無 old-deprecated-file.js，有 new-file.js）
+        const deployTmp = path.join(testDir, '.deploy-tmp');
+        fs.mkdirSync(deployTmp);
+        fs.writeFileSync(path.join(deployTmp, 'new-file.js'), 'console.log("new");');
+
+        // 執行 rsync 同步
+        execSync(
+          `rsync -a --delete --exclude='.env' --exclude='data/' --exclude='server/data/' --exclude='server/.venv/' --exclude='aster-nas.zip' --exclude='.deploy-tmp' "${deployTmp}/" "${testDir}/"`,
+        );
+        fs.rmSync(deployTmp, { recursive: true, force: true });
+
+        // 驗證
+        expect(fs.existsSync(path.join(testDir, 'new-file.js'))).toBe(true);
+        expect(fs.existsSync(path.join(testDir, 'old-deprecated-file.js'))).toBe(false); // 已被刪除
+        expect(fs.readFileSync(path.join(testDir, '.env'), 'utf-8')).toBe('SECRET_KEY=keep_me\n'); // .env 保留
+        expect(fs.readFileSync(path.join(testDir, 'data', 'clure.db'), 'utf-8')).toBe('sqlite-binary-data'); // data 保留
+      } finally {
+        fs.rmSync(testDir, { recursive: true, force: true });
+      }
     });
   });
 });

@@ -20,11 +20,18 @@ echo "▶ 傳送到 $HOST:$DIR …"
 scp -q aster-nas.zip "$HOST:$DIR/aster-nas.zip"
 
 echo "▶ 在 NAS 上解壓縮覆蓋並套用（可能要輸入 sudo 密碼）…"
-# -t：讓 sudo 能互動輸入密碼。優先用 unzip；NAS 沒有 unzip 時改用 python 容器內的 zipfile（就地覆蓋，不重建資料夾）
+# -t：讓 sudo 能互動輸入密碼。解壓縮到暫存目錄並以 rsync --delete 同步，刪除已廢棄舊檔同時保留 .env 與 data/
 ssh -t "$HOST" "set -e; cd '$DIR';
-  if command -v unzip >/dev/null 2>&1; then unzip -oq aster-nas.zip;
-  else sudo docker run --rm -v '$DIR':/d python:3.12-slim python -c \"import zipfile;zipfile.ZipFile('/d/aster-nas.zip').extractall('/d')\"; fi;
-  rm -f aster-nas.zip;
+  rm -rf .deploy-tmp;
+  mkdir -p .deploy-tmp;
+  if command -v unzip >/dev/null 2>&1; then unzip -oq aster-nas.zip -d .deploy-tmp;
+  else sudo docker run --rm -v '$DIR':/d python:3.12-slim python -c \"import zipfile;zipfile.ZipFile('/d/aster-nas.zip').extractall('/d/.deploy-tmp')\"; fi;
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete --exclude='.env' --exclude='data/' --exclude='server/data/' --exclude='server/.venv/' --exclude='aster-nas.zip' --exclude='.deploy-tmp' .deploy-tmp/ ./;
+  else
+    cp -rf .deploy-tmp/* ./;
+  fi;
+  rm -rf .deploy-tmp aster-nas.zip;
   sudo docker compose -p '$PROJECT' up -d;
   sleep 8;
   sudo docker ps --format 'table {{.Names}}\t{{.Status}}' | grep -E 'NAMES|clure'"
