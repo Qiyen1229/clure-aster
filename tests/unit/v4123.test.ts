@@ -358,4 +358,60 @@ describe('v4.1.23 Phase 2 測試', () => {
       expect(compose).toContain('image: nginxinc/nginx-unprivileged:1.27-alpine');
     });
   });
+
+  describe('T18: web-watch 原子切換 symlink 防範熱更新 404', () => {
+    it('以臨時 symlink + rename 原子覆蓋 current，持續可讀且保留最新 2 個版本', () => {
+      const testOut = fs.mkdtempSync(path.join(os.tmpdir(), 'web-watch-test-'));
+      try {
+        const cur = path.join(testOut, 'current');
+
+        // 模擬第 1 次建置
+        const v1Dir = 'v-1000';
+        const v1Path = path.join(testOut, v1Dir);
+        fs.mkdirSync(v1Path);
+        fs.writeFileSync(path.join(v1Path, 'index.html'), '<h1>v1</h1>');
+        const tmpLink1 = path.join(testOut, '.tmp-1');
+        fs.symlinkSync(v1Dir, tmpLink1);
+        fs.renameSync(tmpLink1, cur);
+
+        expect(fs.readlinkSync(cur)).toBe('v-1000');
+        expect(fs.readFileSync(path.join(cur, 'index.html'), 'utf-8')).toBe('<h1>v1</h1>');
+
+        // 模擬第 2 次熱更新建置
+        const v2Dir = 'v-2000';
+        const v2Path = path.join(testOut, v2Dir);
+        fs.mkdirSync(v2Path);
+        fs.writeFileSync(path.join(v2Path, 'index.html'), '<h1>v2</h1>');
+        const tmpLink2 = path.join(testOut, '.tmp-2');
+        fs.symlinkSync(v2Dir, tmpLink2);
+        fs.renameSync(tmpLink2, cur);
+
+        expect(fs.readlinkSync(cur)).toBe('v-2000');
+        expect(fs.readFileSync(path.join(cur, 'index.html'), 'utf-8')).toBe('<h1>v2</h1>');
+
+        // 模擬第 3 次建置並觸發保留最新 2 個版本清理
+        const v3Dir = 'v-3000';
+        const v3Path = path.join(testOut, v3Dir);
+        fs.mkdirSync(v3Path);
+        fs.writeFileSync(path.join(v3Path, 'index.html'), '<h1>v3</h1>');
+        const tmpLink3 = path.join(testOut, '.tmp-3');
+        fs.symlinkSync(v3Dir, tmpLink3);
+        fs.renameSync(tmpLink3, cur);
+
+        const all = fs.readdirSync(testOut).filter((f) => f.startsWith('v-')).sort();
+        while (all.length > 2) {
+          const rmTarget = path.join(testOut, all.shift()!);
+          fs.rmSync(rmTarget, { recursive: true, force: true });
+        }
+
+        expect(fs.readlinkSync(cur)).toBe('v-3000');
+        expect(fs.readFileSync(path.join(cur, 'index.html'), 'utf-8')).toBe('<h1>v3</h1>');
+        expect(fs.existsSync(v1Path)).toBe(false); // 最舊的 v1 已被清理
+        expect(fs.existsSync(v2Path)).toBe(true);  // v2 保留
+        expect(fs.existsSync(v3Path)).toBe(true);  // v3 保留
+      } finally {
+        fs.rmSync(testOut, { recursive: true, force: true });
+      }
+    });
+  });
 });

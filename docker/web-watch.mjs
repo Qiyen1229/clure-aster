@@ -16,7 +16,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, readdirSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROOT = process.cwd();
@@ -79,13 +79,39 @@ function build() {
     log('❌ 建置失敗，保留目前版本（修正檔案後會自動重試）');
     return false;
   }
-  // 原子切換：current → .old，.next → current
+  // 原子切換 symlink：建立臨時 symlink 後以 rename 覆蓋 current，絕不留 404 窗口
   const cur = join(OUT, 'current');
-  const old = join(OUT, '.old');
-  rmSync(old, { recursive: true, force: true });
-  if (existsSync(cur)) renameSync(cur, old);
-  renameSync(next, cur);
-  rmSync(old, { recursive: true, force: true });
+  const targetDir = `v-${Date.now()}`;
+  const targetPath = join(OUT, targetDir);
+  renameSync(next, targetPath);
+
+  const tmpLink = join(OUT, `.current-tmp-${Date.now()}`);
+  symlinkSync(targetDir, tmpLink);
+
+  let curIsSymlink = false;
+  try {
+    curIsSymlink = lstatSync(cur).isSymbolicLink();
+  } catch {
+    curIsSymlink = false;
+  }
+
+  if (existsSync(cur) && !curIsSymlink) {
+    const oldDir = join(OUT, `.old-${Date.now()}`);
+    renameSync(cur, oldDir);
+    renameSync(tmpLink, cur);
+    rmSync(oldDir, { recursive: true, force: true });
+  } else {
+    renameSync(tmpLink, cur);
+  }
+
+  // 清理舊版本的建置目錄（保留最新 2 個）
+  try {
+    const all = readdirSync(OUT).filter((f) => f.startsWith('v-')).sort();
+    while (all.length > 2) {
+      const rmTarget = join(OUT, all.shift());
+      rmSync(rmTarget, { recursive: true, force: true });
+    }
+  } catch { /* 忽略清理錯誤 */ }
   let version = '';
   try { version = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version; } catch { /* 略過 */ }
   log(`✅ 已上線 v${version}（${((Date.now() - started) / 1000).toFixed(1)} 秒）；使用者開啟 App 時會看到「有新版本」提示`);
