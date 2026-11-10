@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/schema';
 import { computeBudgets, createSuggestedBudgets, suggestBudgets } from '@/db/repo/plan';
+import { useSettings } from '@/stores/settings';
 
 let n = 0;
 const tx = (date: string, amountMinor: number, categoryId = 'exp-food', over: Record<string, unknown> = {}) => ({
@@ -68,5 +69,22 @@ describe('預算建議（依過去完整月份）與預估期末', () => {
     expect(v.projection.projected).toBeLessThan(v.status.projected);
     expect(v.projection.projected).toBeGreaterThan(1_090_000);
     expect(v.projection.projected).toBeLessThan(1_400_000);
+  });
+
+  it('base=JPY 時月支出 10000（日圓）建議值級距正確', async () => {
+    const origBase = useSettings.getState().baseCurrency;
+    try {
+      useSettings.setState({ baseCurrency: 'JPY' });
+      await db.transactions.bulkAdd([
+        tx('2026-07-10', 10_000, 'exp-food', { currency: 'JPY', baseAmountMinor: 10_000 }),
+        tx('2026-08-10', 10_000, 'exp-food', { currency: 'JPY', baseAmountMinor: 10_000 }),
+        tx('2026-09-10', 10_000, 'exp-food', { currency: 'JPY', baseAmountMinor: 10_000 }),
+      ] as never);
+      const s = await suggestBudgets('2026-10-20');
+      expect(s.total?.avgMinor).toBe(10_000);
+      expect(s.total?.suggestedMinor).toBe(10_500);
+    } finally {
+      useSettings.setState({ baseCurrency: origBase });
+    }
   });
 });

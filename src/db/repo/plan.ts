@@ -18,6 +18,7 @@ import { convertMinor } from '@/domain/money';
 import { accountingMonth, addDays, eachDay, todayKey, type Range } from '@/domain/period';
 import { resolveRate } from '@/services/fx';
 import { getSetting } from './settings';
+import { useSettings } from '@/stores/settings';
 
 const now = () => Date.now();
 
@@ -525,11 +526,12 @@ export async function suggestBudgets(today = todayKey()): Promise<SuggestedBudge
     arr[k] += v;
     perCat.set(c, arr);
   }
+  const base = useSettings.getState().baseCurrency || 'TWD';
   const byCategory = [...perCat.entries()]
-    .map(([categoryId, arr]) => ({ categoryId, suggestion: suggestBudget(arr) }))
+    .map(([categoryId, arr]) => ({ categoryId, suggestion: suggestBudget(arr, base) }))
     .filter((x): x is { categoryId: string; suggestion: BudgetSuggestion } => !!x.suggestion)
     .sort((a, b) => b.suggestion.avgMinor - a.suggestion.avgMinor);
-  return { monthsUsed: totals.filter((v) => v > 0).length, total: suggestBudget(totals), byCategory };
+  return { monthsUsed: totals.filter((v) => v > 0).length, total: suggestBudget(totals, base), byCategory };
 }
 
 /** 一鍵建立：每月總預算＋花費最多的幾個分類（已經有的分類不重複建立）；回傳新建的預算 id */
