@@ -11,6 +11,9 @@ import { timesPerYear } from './recurrence';
 export interface SumTx { date: DateKey; type: 'expense' | 'income'; categoryId: string; amount: number }
 export interface SumBudget { name: string; limit: number; spent: number }
 export interface SumGoal { name: string; target: number; saved: number; deadline?: string }
+export interface SumDurable { name: string; cost: number; days: number; perDay: number }
+export interface SumDebt { theyOweMe: number; iOweThem: number; count: number }
+export interface SumProject { name: string; spent: number; budget?: number }
 
 export interface SummaryInput {
   today: DateKey;
@@ -24,6 +27,9 @@ export interface SummaryInput {
   budgets: SumBudget[];
   goals: SumGoal[];
   netWorth?: number;
+  durables?: { count: number; totalDailyBurn: number; items: SumDurable[] };
+  debts?: SumDebt;
+  projects?: { count: number; items: SumProject[] };
 }
 
 export interface AiMonth {
@@ -49,6 +55,9 @@ export interface AiSummary {
   goals: SumGoal[];
   netWorth?: number;
   nextMonth: { label: string; days: number };
+  durables?: { count: number; totalDailyBurn: number; items: SumDurable[] };
+  debts?: SumDebt;
+  projects?: { count: number; items: SumProject[] };
 }
 
 const major = (minor: number, decimals: number) => Math.round(minor / 10 ** decimals);
@@ -113,6 +122,9 @@ export function buildFinanceSummary(input: SummaryInput, back = 6): AiSummary {
     goals: input.goals.map((g) => ({ name: g.name, target: major(g.target, decimals), saved: major(g.saved, decimals), ...(g.deadline ? { deadline: g.deadline } : {}) })),
     ...(input.netWorth !== undefined ? { netWorth: major(input.netWorth, decimals) } : {}),
     nextMonth: { label: monthLabel(next), days: eachDay(next).length },
+    ...(input.durables ? { durables: input.durables } : {}),
+    ...(input.debts ? { debts: input.debts } : {}),
+    ...(input.projects ? { projects: input.projects } : {}),
   };
 }
 

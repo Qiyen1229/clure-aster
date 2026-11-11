@@ -23,7 +23,11 @@ export async function updateDurable(id: string, patch: Partial<DurableInput>) {
 }
 
 export async function deleteDurable(id: string) {
-  await db.durables.delete(id);
+  await db.durables.update(id, { deletedAt: now(), updatedAt: now() });
+}
+
+export async function restoreDurable(id: string) {
+  await db.durables.update(id, { deletedAt: null, updatedAt: now() });
 }
 
 /** 用了一次（只有開啟「追蹤使用次數」的物品） */

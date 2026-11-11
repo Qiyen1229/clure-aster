@@ -16,7 +16,7 @@ import { formatMoney, toMinor } from '@/domain/money';
 import { localEditPlan, localView, looksLikeOperation } from '@/domain/agent/intent';
 import type { NlQuery } from '@/domain/nlquery';
 import { todayKey } from '@/domain/period';
-import { accountTalk, budgetTalk } from '@/services/localTalk';
+import { accountTalk, budgetTalk, debtTalk, durableTalk, goalTalk, projectTalk, recurringTalk } from '@/services/localTalk';
 import { currentScreen, useScreen } from '@/stores/screenContext';
 import { ViewBubble } from '../ai/views/ViewBubble';
 import { aiDataEnabled, aiAsk, aiChatTalk, aiEnabledLocally, aiReceipt, quotaLabel, type ChatTurn } from '@/services/ai';
@@ -90,8 +90,15 @@ export async function respond(text: string, screen?: string, onPartial?: (text: 
     return { role: 'ai', kind: 'entries', drafts: ctx.lastBooked.map((d) => ({ ...d, date: today, dateGiven: false, time: undefined })), via: 'rule', sub: '照上一筆再記一次，日期是今天' };
   }
 
-  // 帳戶餘額、預算：App 裡本來就有精確數字，本機直接回答（不用 AI、不扣額度）
-  const local = (await accountTalk(t).catch(() => null)) ?? (await budgetTalk(t).catch(() => null));
+  // 帳戶餘額、負債、預算、耐用品、應收付、專案、存錢目標、固定支出：本機直接回答（不用 AI、不扣額度）
+  const local =
+    (await accountTalk(t).catch(() => null)) ??
+    (await budgetTalk(t).catch(() => null)) ??
+    (await durableTalk(t).catch(() => null)) ??
+    (await debtTalk(t).catch(() => null)) ??
+    (await projectTalk(t).catch(() => null)) ??
+    (await goalTalk(t).catch(() => null)) ??
+    (await recurringTalk(t).catch(() => null));
   if (local) return { role: 'ai', kind: 'text', text: local.text, sub: local.sub, link: local.link };
 
   // 接續上一個查詢的追問：「那上個月呢」「只看信用卡」「跟上個月比」（本機運算）

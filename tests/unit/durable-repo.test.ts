@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '@/db/schema';
 import { buildDefaultCategories } from '@/db/seed/categories';
 import { addAccount } from '@/db/repo/accounts';
-import { addDurable, addUse, reopenDurable, sellDurable } from '@/db/repo/durables';
+import { addDurable, addUse, deleteDurable, reopenDurable, restoreDurable, sellDurable } from '@/db/repo/durables';
 
 describe('耐用物品存取', () => {
   let accId = '';
@@ -52,5 +52,15 @@ describe('耐用物品存取', () => {
     expect(back.status).toBe('active');
     expect(back.endDate).toBeUndefined();
     expect(back.saleMinor).toBeUndefined();
+  });
+  it('刪除與復原：軟刪除標記 deletedAt，復原清空 deletedAt', async () => {
+    const d = await phone();
+    await deleteDurable(d.id);
+    const deleted = (await db.durables.get(d.id))!;
+    expect(deleted.deletedAt).toBeTruthy();
+
+    await restoreDurable(d.id);
+    const restored = (await db.durables.get(d.id))!;
+    expect(restored.deletedAt).toBeNull();
   });
 });

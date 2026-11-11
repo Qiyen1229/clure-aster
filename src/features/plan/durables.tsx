@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
 import type { Durable } from '@/db/types';
-import { addDurable, addUse, deleteDurable, reopenDurable, sellDurable, updateDurable } from '@/db/repo/durables';
+import { addDurable, addUse, deleteDurable, reopenDurable, restoreDurable, sellDurable, updateDurable } from '@/db/repo/durables';
 import { durableStats, lifeLabel, totalDailyBurn } from '@/domain/durable';
 import { evaluate } from '@/domain/calc-expr';
 import { currencyInfo, formatMoney, fromMinor, toMinor } from '@/domain/money';
@@ -45,6 +45,14 @@ export default function DurableSection() {
   const done = (list ?? []).filter((d) => d.status !== 'active').sort((a, b) => ((b.endDate ?? '') < (a.endDate ?? '') ? -1 : 1));
   const burn = totalDailyBurn(active, today, base);
 
+  const handleDelete = async (d: Durable) => {
+    if (!await ask(`刪除「${d.name}」？已記的帳目不受影響。`)) return;
+    await deleteDurable(d.id);
+    snackUndo('已刪除耐用品', async () => {
+      await restoreDurable(d.id);
+    });
+  };
+
   return (
     <>
       <SectionHead title="耐用品" onAdd={() => setForm({})} addLabel="新增" />
@@ -62,17 +70,33 @@ export default function DurableSection() {
         active.length === 0 ? (
           <EmptyState emoji="🧰" title="還沒有耐用品" text="買了大件的東西，記帳時選「耐用品」，或在這裡新增。之後每天都看得到它攤了多少錢。"
             action={<button className="btn small" onClick={() => setForm({})}>新增耐用品</button>} />
-        ) : active.map((d) => <ActiveCard key={d.id} d={d} today={today} onEdit={() => setForm({ edit: d })} onSell={() => setSelling(d)} />)
+        ) : active.map((d) => (
+          <ActiveCard
+            key={d.id}
+            d={d}
+            today={today}
+            onEdit={() => setForm({ edit: d })}
+            onSell={() => setSelling(d)}
+            onDelete={() => void handleDelete(d)}
+          />
+        ))
       ) : done.length === 0 ? <EmptyState emoji="📭" title="還沒有賣掉或淘汰的物品" /> : done.map((d) => (
-        <DoneCard key={d.id} d={d} onReopen={() => void reopenDurable(d.id).then((r) => useUI.getState().showSnack({ text: r.removedSale ? '已改回還在用，並刪除當時記的二手賣出收入（可在「最近刪除」復原）' : '已改回還在用' }))} onDelete={async () => {
-          if (!await ask(`刪除「${d.name}」的紀錄？已記的帳目不受影響。`)) return;
-          const copy = { ...d };
-          void deleteDurable(d.id).then(() => snackUndo('已刪除', async () => { await db.durables.put(copy); }));
-        }} />
+        <DoneCard
+          key={d.id}
+          d={d}
+          onReopen={() => void reopenDurable(d.id).then((r) => useUI.getState().showSnack({ text: r.removedSale ? '已改回還在用，並刪除當時記的二手賣出收入（可在「最近刪除」復原）' : '已改回還在用' }))}
+          onDelete={() => void handleDelete(d)}
+        />
       ))}
 
       <Sheet open={!!form} onClose={() => setForm(null)} title={form?.edit ? '編輯耐用品' : '新增耐用品'}>
-        {form && <DurableForm edit={form.edit} onClose={() => setForm(null)} />}
+        {form && (
+          <DurableForm
+            edit={form.edit}
+            onClose={() => setForm(null)}
+            onDelete={form.edit ? () => void handleDelete(form.edit!) : undefined}
+          />
+        )}
       </Sheet>
       <Sheet open={!!selling} onClose={() => setSelling(null)} title={selling ? `處理「${selling.name}」` : ''}>
         {selling && <SellForm d={selling} onClose={() => setSelling(null)} />}
@@ -81,7 +105,7 @@ export default function DurableSection() {
   );
 }
 
-function ActiveCard({ d, today, onEdit, onSell }: { d: Durable; today: string; onEdit: () => void; onSell: () => void }) {
+function ActiveCard({ d, today, onEdit, onSell, onDelete }: { d: Durable; today: string; onEdit: () => void; onSell: () => void; onDelete: () => void }) {
   const s = durableStats(d, today);
   const pct = s.usedRatio !== undefined ? Math.min(100, s.usedRatio * 100) : null;
   const over = s.usedRatio !== undefined && s.usedRatio >= 1;
@@ -123,6 +147,7 @@ function ActiveCard({ d, today, onEdit, onSell }: { d: Durable; today: string; o
       <div className="btn-row" style={{ marginTop: 12 }}>
         <button className="btn small secondary" style={{ flex: 1 }} onClick={onEdit}>編輯</button>
         <button className="btn small tinted" style={{ flex: 1 }} onClick={onSell}>賣掉／淘汰</button>
+        <button className="btn small tinted" style={{ color: 'var(--danger)', flex: 1 }} onClick={onDelete}>刪除</button>
       </div>
     </div>
   );
@@ -157,7 +182,7 @@ function DoneCard({ d, onReopen, onDelete }: { d: Durable; onReopen: () => void;
   );
 }
 
-function DurableForm({ edit, onClose }: { edit?: Durable; onClose: () => void }) {
+function DurableForm({ edit, onClose, onDelete }: { edit?: Durable; onClose: () => void; onDelete?: () => void }) {
   const base = useSettings((s) => s.baseCurrency);
   const [name, setName] = useState(edit?.name ?? '');
   const [icon, setIcon] = useState(edit?.icon ?? '📦');
@@ -200,7 +225,24 @@ function DurableForm({ edit, onClose }: { edit?: Durable; onClose: () => void })
         {trackUses && <TextField label="目前已使用" value={uses} onChange={(v) => setUses(v.replace(/\D/g, ''))} inputMode="numeric" maxLength={6} />}
         <TextField label="備註" value={note} onChange={setNote} maxLength={100} />
       </div>
-      <button className="btn" onClick={() => void save()}>{edit ? '儲存' : '開始追蹤'}</button>
+      {edit ? (
+        <div className="btn-row" style={{ marginTop: 12 }}>
+          <button
+            type="button"
+            className="btn secondary"
+            style={{ color: 'var(--danger)', flex: 1 }}
+            onClick={() => {
+              onClose();
+              onDelete?.();
+            }}
+          >
+            刪除這件耐用品
+          </button>
+          <button className="btn" style={{ flex: 1 }} onClick={() => void save()}>儲存</button>
+        </div>
+      ) : (
+        <button className="btn" onClick={() => void save()}>開始追蹤</button>
+      )}
       <LifeSpanSheet open={lifeOpen} initialYears={custom || years} onClose={() => setLifeOpen(false)} onConfirm={(y) => { setCustom(y); setYears(y); }} />
     </>
   );

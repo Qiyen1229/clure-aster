@@ -58,6 +58,19 @@ describe('buildFinanceSummary', () => {
     const json = JSON.stringify(s);
     expect(json).not.toMatch(/2026-09-10|2026-08-25|note|account|merchant/i);
   });
+  it('包含耐用品、欠款借貸與專案去識別化維度', () => {
+    const custom = buildFinanceSummary({
+      ...base([]),
+      durables: { count: 1, totalDailyBurn: 34, items: [{ name: 'iPhone', cost: 36900, days: 100, perDay: 34 }] },
+      debts: { theyOweMe: 1500, iOweThem: 600, count: 2 },
+      projects: { count: 1, items: [{ name: '日本旅行', spent: 45000, budget: 50000 }] },
+    });
+    expect(custom.durables?.count).toBe(1);
+    expect(custom.durables?.items[0].name).toBe('iPhone');
+    expect(custom.debts?.theyOweMe).toBe(1500);
+    expect(custom.debts?.iOweThem).toBe(600);
+    expect(custom.projects?.items[0].spent).toBe(45000);
+  });
   it('分類超過 10 個時，其餘合併', () => {
     const many: SummaryInput['cats'] = Array.from({ length: 13 }, (_, i) => ({ id: `c${i}`, name: `分類${i}`, kind: 'expense' as const, parentId: '' }));
     const r = buildFinanceSummary({ ...base(many.map((c, i) => tx('2026-09-10', 1000 - i, 'expense', c.id))), cats: many });
