@@ -36,6 +36,9 @@ NOTIFY_APPS = [
     {"BundleIdentifier": "tw.com.openpoint.member", "Name": "OPENPOINT"},
     {"BundleIdentifier": "com.etmgup.pxmart", "Name": "全聯福利中心"},
     {"BundleIdentifier": "tw.com.twmp.twhcewallet", "Name": "台灣行動支付"},
+    {"BundleIdentifier": "tw.com.allpay.app.AllPay", "Name": "歐付寶"},
+    {"BundleIdentifier": "com.gashpay.personal", "Name": "橘子支付"},
+    {"BundleIdentifier": "com.pay2go.Pay2Go", "Name": "ezPay簡單付"},
     # 銀行與信用卡 App（刷實體卡／網購／綁定支付）
     {"BundleIdentifier": "com.cathaybk.cathaybk", "Name": "國泰世華"},
     {"BundleIdentifier": "com.cathayholdings.mymobione", "Name": "國泰優惠"},
@@ -58,6 +61,19 @@ NOTIFY_APPS = [
     {"BundleIdentifier": "tw.com.tcb-bank.mbbank.released", "Name": "合作金庫"},
     {"BundleIdentifier": "tw.gov.post.mpost", "Name": "行動郵局"},
     {"BundleIdentifier": "com.obank.tw.ebank", "Name": "王道銀行 O-Bank"},
+    {"BundleIdentifier": "com.ubot.wbank", "Name": "聯邦行動銀行"},
+    {"BundleIdentifier": "com.ubot.dbank", "Name": "New New Bank"},
+    {"BundleIdentifier": "com.kgib.maib.prod", "Name": "凱基銀行"},
+    {"BundleIdentifier": "com.yuantabank.bankinginyour.superapp.personal", "Name": "元大行動銀行"},
+    {"BundleIdentifier": "com.skbank.iphone.skbank", "Name": "新光銀行"},
+    {"BundleIdentifier": "tw.com.scsb.ios.mbank", "Name": "上海商銀掌上銀"},
+    {"BundleIdentifier": "tw.com.landbank.mb.newrelease", "Name": "土銀行動銀行"},
+    {"BundleIdentifier": "com.chb.mobile.pmb", "Name": "彰銀行動網"},
+    {"BundleIdentifier": "com.ricb.ebank", "Name": "樂天國際銀行"},
+    {"BundleIdentifier": "tw.com.rakuten.card.RakutenCardTaiwan", "Name": "樂天信用卡"},
+    {"BundleIdentifier": "com.sunnybank.newmobilebankios", "Name": "陽信行動網銀"},
+    {"BundleIdentifier": "tw.com.tcbbank.mobilebank", "Name": "台中銀行"},
+    {"BundleIdentifier": "com.cotabank.CotaEBank", "Name": "三信商銀"},
     {"BundleIdentifier": "com.feib.mobile.pmb", "Name": "遠東商銀"},
     {"BundleIdentifier": "com.dbs.mbanking.tw", "Name": "星展 digibank"},
     {"BundleIdentifier": "com.dbs.cardplus.tw", "Name": "星展 Card+"},
@@ -195,29 +211,41 @@ def voice() -> dict:
     code_id = str(uuid.uuid4()).upper()
     req_id = str(uuid.uuid4()).upper()
     msg_id = str(uuid.uuid4()).upper()
+    detect_id = str(uuid.uuid4()).upper()
 
     actions = [
         {"WFWorkflowActionIdentifier": "is.workflow.actions.gettext",
          "WFWorkflowActionParameters": {"UUID": code_id, "WFTextActionText": text("")}},
+        {"WFWorkflowActionIdentifier": "is.workflow.actions.detect.text",
+         "WFWorkflowActionParameters": {
+             "UUID": detect_id,
+             "WFInput": {"Value": {"Type": "ExtensionInput"}, "WFSerializationType": "WFTextTokenAttachment"},
+         }},
         {"WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
          "WFWorkflowActionParameters": {
-             "GroupingIdentifier": cond_id, "WFCondition": 100, "WFControlFlowMode": 0, "WFInput": {"Type": "ExtensionInput"}
+             "GroupingIdentifier": cond_id,
+             "WFCondition": 100,
+             "WFControlFlowMode": 0,
+             "WFInput": {
+                 "Value": output(detect_id, "文字"),
+                 "WFSerializationType": "WFTextTokenAttachment",
+             },
          }},
         {"WFWorkflowActionIdentifier": "is.workflow.actions.detect.text",
          "WFWorkflowActionParameters": {
-             "WFInput": {"Value": {"Type": "ExtensionInput"}, "WFSerializationType": "WFTextTokenAttachment"}
+             "WFInput": {"Value": output(detect_id, "文字"), "WFSerializationType": "WFTextTokenAttachment"},
          }},
         {"WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
          "WFWorkflowActionParameters": {
-             "GroupingIdentifier": cond_id, "WFControlFlowMode": 1
+             "GroupingIdentifier": cond_id, "WFControlFlowMode": 1,
          }},
         {"WFWorkflowActionIdentifier": "is.workflow.actions.dictatetext",
          "WFWorkflowActionParameters": {
-             "UUID": dictate_id, "WFSpeechLanguage": "zh-TW"
+             "UUID": dictate_id, "WFSpeechLanguage": "zh-TW",
          }},
         {"WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
          "WFWorkflowActionParameters": {
-             "UUID": cond_id, "GroupingIdentifier": cond_id, "WFControlFlowMode": 2
+             "UUID": cond_id, "GroupingIdentifier": cond_id, "WFControlFlowMode": 2,
          }},
         {"WFWorkflowActionIdentifier": "is.workflow.actions.downloadurl",
          "WFWorkflowActionParameters": {

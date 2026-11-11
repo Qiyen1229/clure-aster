@@ -1,63 +1,135 @@
 /**
- * 說明文字可折疊：標題旁一顆 ⓘ，點開才看到小字介紹；展開狀態記在這台裝置（localStorage，失敗也不影響使用）。
- *  - Hint：卡片標題＋ⓘ（可在右側放按鈕），說明在標題下方展開
- *  - Intro：獨立的一段說明（例如設定各組底下的長說明），收成「ⓘ 說明」一行
- *  - LabelHint：表單列的名稱＋ⓘ，說明在名稱下方展開（右邊的開關不受影響）
+ * 說明文字浮窗：標題旁一顆 ⓘ，點開跳出置中卡片浮窗，附帶「知道了」關閉按鈕。
+ *  - Hint：卡片標題＋ⓘ（可在右側放按鈕），點擊跳出說明浮窗
+ *  - Intro：獨立的一行「ⓘ 說明」按鈕，點擊跳出說明浮窗
+ *  - LabelHint：表單列的名稱＋ⓘ，點擊跳出說明浮窗（右邊開關不受影響）
  */
-import { useId, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from './Icon';
 
-const KEY = (id: string) => `aster.hint.${id}`;
-const read = (id: string) => { try { return localStorage.getItem(KEY(id)) === '1'; } catch { return false; } };
-
-function useOpen(id: string) {
-  const [open, setOpen] = useState(() => read(id));
-  const toggle = () => setOpen((o) => { try { localStorage.setItem(KEY(id), o ? '0' : '1'); } catch { /* 忽略 */ } return !o; });
-  return [open, toggle] as const;
+interface InfoModalProps {
+  title: ReactNode;
+  content: ReactNode;
+  onClose: () => void;
 }
 
-function Body({ open, bodyId, children, className }: { open: boolean; bodyId: string; children: ReactNode; className?: string }) {
-  return <div className={`hint-body${open ? ' open' : ''}${className ? ` ${className}` : ''}`} id={bodyId}><div className="hint-inner">{children}</div></div>;
+export function InfoModal({ title, content, onClose }: InfoModalProps) {
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    btnRef.current?.focus();
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', onKey, true);
+    };
+  }, [onClose]);
+
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div className="dlg-wrap hint-modal-wrap" style={{ zIndex: 320 }}>
+      <div className="dlg-backdrop" onClick={onClose} aria-hidden="true" />
+      <div className="dlg hint-dialog" role="dialog" aria-modal="true">
+        <div className="hint-dialog-body">
+          {title && <h3 className="hint-dialog-title">{title}</h3>}
+          <div className="hint-dialog-content">{content}</div>
+        </div>
+        <div className="hint-dialog-actions">
+          <button
+            ref={btnRef}
+            type="button"
+            className="hint-dialog-btn"
+            onClick={onClose}
+          >
+            知道了
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
 }
 
-const InfoBtn = ({ open, onClick, bodyId, label }: { open: boolean; onClick: () => void; bodyId: string; label: string }) => (
-  <button type="button" className="hint-btn" aria-expanded={open} aria-controls={bodyId} aria-label={label} onClick={onClick}><Icon name="info" /></button>
-);
-
-export function Hint({ id, title, hint, right }: { id: string; title: ReactNode; hint?: ReactNode; right?: ReactNode }) {
-  const [open, toggle] = useOpen(id);
-  const bodyId = useId();
+export function Hint({ id: _id, title, hint, right }: { id: string; title: ReactNode; hint?: ReactNode; right?: ReactNode }) {
+  const [open, setOpen] = useState(false);
   return (
     <>
       <div className="hint-head">
         <div className="row-title" style={{ whiteSpace: 'normal' }}>{title}</div>
-        {hint && <InfoBtn open={open} onClick={toggle} bodyId={bodyId} label="說明" />}
-        {right && <><span className="hint-spacer" />{right}</>}
+        {hint && (
+          <button
+            type="button"
+            className="hint-btn"
+            aria-label="說明"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setOpen(true);
+            }}
+          >
+            <Icon name="info" />
+          </button>
+        )}
+        {right && <><span className="hint-spacer" /><div onClick={(e) => e.stopPropagation()}>{right}</div></>}
       </div>
-      {hint && <Body open={open} bodyId={bodyId}><p>{hint}</p></Body>}
+      {open && hint && <InfoModal title={title} content={hint} onClose={() => setOpen(false)} />}
     </>
   );
 }
 
-export function Intro({ id, children, label = '說明' }: { id: string; children: ReactNode; label?: string }) {
-  const [open, toggle] = useOpen(id);
-  const bodyId = useId();
+export function Intro({ id: _id, children, label = '說明' }: { id: string; children: ReactNode; label?: string }) {
+  const [open, setOpen] = useState(false);
   return (
     <>
-      <button type="button" className="intro-toggle" aria-expanded={open} aria-controls={bodyId} onClick={toggle}><Icon name="info" />{label}</button>
-      <Body open={open} bodyId={bodyId} className="intro-body"><p>{children}</p></Body>
+      <button
+        type="button"
+        className="intro-toggle"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen(true);
+        }}
+      >
+        <Icon name="info" />{label}
+      </button>
+      {open && <InfoModal title={label} content={children} onClose={() => setOpen(false)} />}
     </>
   );
 }
 
-/** 表單列的名稱＋ⓘ；放在 `.field` 裡取代原本的 `<span className="label">名稱<span className="row-sub">…</span></span>` */
-export function LabelHint({ id, label, hint }: { id: string; label: ReactNode; hint: ReactNode }) {
-  const [open, toggle] = useOpen(id);
-  const bodyId = useId();
+/** 表單列的名稱＋ⓘ；點擊跳出置中浮窗說明，右邊開關不受影響 */
+export function LabelHint({ id: _id, label, hint }: { id: string; label: ReactNode; hint: ReactNode }) {
+  const [open, setOpen] = useState(false);
   return (
-    <span className="label" style={{ flex: 1, minWidth: 0 }}>
-      <span className="hint-head" style={{ display: 'flex' }}><span>{label}</span><InfoBtn open={open} onClick={toggle} bodyId={bodyId} label={`${typeof label === 'string' ? label : ''}說明`} /></span>
-      <Body open={open} bodyId={bodyId}><span className="row-sub" style={{ display: 'block', margin: '4px 0 2px' }}>{hint}</span></Body>
-    </span>
+    <>
+      <span className="label" style={{ flex: 1, minWidth: 0 }}>
+        <span className="hint-head" style={{ display: 'flex' }}>
+          <span>{label}</span>
+          <button
+            type="button"
+            className="hint-btn"
+            aria-label={`${typeof label === 'string' ? label : ''}說明`}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setOpen(true);
+            }}
+          >
+            <Icon name="info" />
+          </button>
+        </span>
+      </span>
+      {open && <InfoModal title={label} content={hint} onClose={() => setOpen(false)} />}
+    </>
   );
 }

@@ -41,6 +41,10 @@ describe('找金額', () => {
     expect(findAmounts('10/25 午餐 150').map((a) => a.value)).toEqual([150]);
     expect(findAmounts('下午3點 咖啡 80').map((a) => a.value)).toEqual([80]);
     expect(findAmounts('週3 午餐 一百五').map((a) => a.value)).toEqual([150]);
+    expect(findAmounts('雙11 購物滿額現折')).toEqual([]);
+    expect(findAmounts('中信卡雙11刷卡滿額現折')).toEqual([]);
+    expect(findAmounts('雙十一 狂歡回饋')).toEqual([]);
+    expect(findAmounts('雙12 優惠活動')).toEqual([]);
   });
   it('NT$、元、塊算有標記；中文數字要有單位或「元」', () => {
     const [a] = findAmounts('計程車 NT$230');
