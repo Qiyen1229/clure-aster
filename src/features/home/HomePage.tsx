@@ -118,7 +118,7 @@ export default function HomePage() {
         el.style.transform = 'translate3d(0, calc(var(--safe-t, 0px) + 52px), 0)';
         el.style.opacity = '1';
       }
-      void Promise.allSettled([syncNow(), refreshRates(baseCurrency)]).finally(() => {
+      void Promise.allSettled([syncNow(), refreshRates(baseCurrency), import('@/services/inbox').then((m) => m.refreshInbox())]).finally(() => {
         haptic('success');
         window.setTimeout(() => {
           if (indicatorRef.current) {

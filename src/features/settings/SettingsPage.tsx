@@ -487,7 +487,7 @@ export default function SettingsPage() {
         el.style.transform = 'translate3d(0, calc(var(--safe-t, 0px) + 52px), 0)';
         el.style.opacity = '1';
       }
-      void Promise.allSettled([syncNow(), refreshRates(s.baseCurrency)]).finally(() => {
+      void Promise.allSettled([syncNow(), refreshRates(s.baseCurrency), import('@/services/inbox').then((m) => m.refreshInbox())]).finally(() => {
         haptic('success');
         window.setTimeout(() => {
           if (indicatorRef.current) {

@@ -100,20 +100,18 @@ export async function runStartupTasks() {
     // 預計扣款：只更新收件匣的數字（本機推算）
     step('forecast', () => import('./forecast').then((m) => m.refreshForecastCount())),
     // 自動記帳收件匣（iPhone 捷徑送來的 Apple Pay、簡訊、Siri）
-    step('inbox', async () => {
-      const r = await (await import('./inbox')).processInboxOnStartup();
-      if (r?.booked || r?.merged) useUI.getState().showSnack({ text: `收件匣：自動記下 ${r.booked} 筆${r.merged ? `、合併 ${r.merged} 筆重複通知` : ''}${r.pending ? `，${r.pending} 筆待確認` : ''}` });
-    }),
+    step('inbox', () => import('./inbox').then((m) => m.refreshInbox())),
   ]);
 }
 
 /**
- * 背景循環（App 在前景時）：盤中每 N 秒刷新報價；回到前景時補跑週期帳目與提醒檢查（10 分鐘節流）。
+ * 背景循環（App 在前景時）：盤中每 N 秒刷新報價；回到前景時處理收件匣（30 秒節流）與補跑週期帳目、提醒檢查（10 分鐘節流）。
  * 回傳清除函式。
  */
 export function startAutoRefresh(): () => void {
   let lastQuote = Date.now();
   let lastChecks = Date.now();
+  let lastInbox = Date.now();
   const tick = async () => {
     if (document.visibilityState !== 'visible' || !navigator.onLine) return;
     const sec = useSettings.getState().quote.refreshSec;
@@ -124,7 +122,13 @@ export function startAutoRefresh(): () => void {
     }
   };
   const onVis = async () => {
-    if (document.visibilityState !== 'visible' || Date.now() - lastChecks < 10 * 60 * 1000) return;
+    if (document.visibilityState !== 'visible') return;
+    // 收件匣每次回到前景都處理（30 秒節流），不等 10 分鐘的補算：刷卡通知送進來要盡快看到
+    if (Date.now() - lastInbox >= 30_000) {
+      lastInbox = Date.now();
+      void import('./inbox').then((m) => m.refreshInbox()).catch(() => undefined);
+    }
+    if (Date.now() - lastChecks < 10 * 60 * 1000) return;
     lastChecks = Date.now();
     await processRecurring().catch(() => undefined);
     await processInstallments().catch(() => undefined);

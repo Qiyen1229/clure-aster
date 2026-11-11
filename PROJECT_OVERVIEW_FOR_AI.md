@@ -2,7 +2,7 @@
 
 > 這份檔案把整個專案（功能、技術、架構、資料模型、API、安全、部署、檔案地圖、慣例）整合在一處，讓 AI 不用逐一翻檔案就能理解全貌。
 > 功能面的詳細說明（基礎功能、特別功能、規則與程式位置）見 [FEATURES_FOR_AI.md](FEATURES_FOR_AI.md)。
-> 內容整理自 README、CHANGELOG、docs/*、原始碼與設定檔。**版本：4.1.26（2026-11-11）**。分支：`feature/v1.2`（主分支 `main`，每次完成都 fast-forward 合併）。測試：前端 **745** ＋ 後端 **196** ＝ **941** 項。Alembic 目前到 `0013_totp`，**下一個遷移是 `0014_…`**。
+> 內容整理自 README、CHANGELOG、docs/*、原始碼與設定檔。**版本：4.1.26（2026-11-11）**。分支：`feature/v1.2`（主分支 `main`，每次完成都 fast-forward 合併）。測試：前端 **764** ＋ 後端 **197** ＝ **961** 項。Alembic 目前到 `0013_totp`，**下一個遷移是 `0014_…`**。
 > 逐版細節看 [CHANGELOG.md](CHANGELOG.md)；本檔是「整個專案長什麼樣子」的地圖，隨版本維護（每次發佈要順手更新本檔開頭的版本與測試數）。
 >
 > ### 版本號與發佈規範
@@ -40,7 +40,7 @@
 | QR | jsqr | 掃電子發票左側 QR Code |
 | 多語系 | （無） | 只提供繁體中文；3.6.5 已移除未使用的 i18next 依賴 |
 | PWA | vite-plugin-pwa（Workbox **injectManifest**）+ 自訂 `src/sw.ts` | 預快取、離線、更新提示（不自動 skipWaiting）、Web Push |
-| 測試 | Vitest 2 + fake-indexeddb + jsdom | `tests/unit/*.test.ts`（**744 項**） |
+| 測試 | Vitest 2 + fake-indexeddb + jsdom | `tests/unit/*.test.ts`（**764 項**） |
 | 圖示 | sharp（`npm run icons`） | `assets/icon.svg` → 全尺寸圖標＋iOS 啟動畫面 |
 | 手勢／動效 | 自寫 Pointer Events hook + CSS transform；`theme/app.css`（單一大型樣式檔） | 尊重 `prefers-reduced-motion` |
 
@@ -345,12 +345,12 @@ npm install && npm run dev
 ```
 | 指令 | 說明 |
 |---|---|
-| `npm test` / `test:watch` | Vitest 單元測試（692 項，涵蓋金額、計算機、期間、帳目一致性、預算、週期、分期、分帳、FIFO、台股費稅、XIRR、市場時間、報表、CSV/Excel、匯入、PIN、同步、E2EE、備份、自動分類、發票、財務自由、稅務、貸款、推播排程、一句話記帳、收件匣解析、現金流、週報、問答查帳、AI 分流、操作助手、排程、功能介紹與更新說明把關…） |
+| `npm test` / `test:watch` | Vitest 單元測試（764 項，涵蓋金額、計算機、期間、帳目一致性、預算、週期、分期、分帳、FIFO、台股費稅、XIRR、市場時間、報表、CSV/Excel、匯入、PIN、同步、E2EE、備份、自動分類、發票、財務自由、稅務、貸款、推播排程、一句話記帳、收件匣解析、現金流、週報、問答查帳、AI 分流、操作助手、排程、功能介紹與更新說明把關…） |
 | `npm run typecheck` / `build` / `preview` | 型別檢查／建置／預覽（9122，SW 生效） |
 | `npm run icons` | 由 `assets/icon.svg` 重產圖標與 iOS 啟動畫面 |
 | `npm run pack:nas` | 產生 `aster-nas.zip`（不含 `.env`、`data/`） |
 | `npm run check` | tsc＋eslint（零警告）＋vitest |
-| `cd server && .venv/bin/python -m pytest -q` | 後端測試（192 項：auth、admin、cli、einvoice、inbox、push/e2ee、sync、ai、ai_stream、限流、資安、備份、通知…） |
+| `cd server && .venv/bin/python -m pytest -q` | 後端測試（197 項：auth、admin、cli、einvoice、inbox、push/e2ee、sync、ai、ai_stream、限流、資安、備份、通知…） |
 
 ### NAS Docker（熱更新版，`docker-compose.yml`）
 服務：`web-builder`（node:20-alpine，`docker/web-watch.mjs` 監看原始碼 → `vite build` → 成功才原子切換，失敗保留舊版）、`web`（nginx，對外 9122，`nginx-watch.sh` 設定熱載入）、`api`（python:3.12-slim，`docker/api-entrypoint.sh` 安裝套件、修正權限、`uvicorn --reload`，輪詢偵測檔案變更）、`quote-proxy`（Node 報價代理，`node --watch`）、選用 `postgres`（`--profile postgres`）。資料卷：`clure-node-modules`、`clure-www`、`clure-pyenv`。資料在 `${CLURE_DATA_PATH}/api/`（`clure.db`、`jwt_secret`、`vapid_private.pem`）。

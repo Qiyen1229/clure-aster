@@ -101,3 +101,36 @@ def test_inbox_requires_login() -> None:
     c = TestClient(app)
     assert c.get("/api/inbox/items").status_code == 401
     assert c.get("/api/inbox/tokens").status_code == 401
+
+
+def test_hook_pushes_to_subscribed_devices(api: Api, monkeypatch) -> None:  # noqa: ANN001
+    """捷徑送進收件匣時立即推播：有訂閱才送、雜訊不送、推播失敗不影響收件；內容不含金額與商家。"""
+    from app.core import webpush
+    from tests.test_push_e2ee import _sub_body
+
+    api.register("alice")
+    token = api.post("/api/inbox/tokens", {"name": "iPhone"}).json()["token"]
+    assert api.post("/api/push/subscribe", _sub_body()).status_code == 200
+
+    sent: list[dict] = []
+    monkeypatch.setattr(webpush, "send", lambda endpoint, p, a, msg, **kw: (sent.append(msg), webpush.SendResult(True, 201, False))[1])
+    r = _hook(token, {"source": "Apple Pay", "amount": "NT$120", "merchant": "全聯"})
+    assert r.status_code == 200 and r.json()["ok"]
+    assert len(sent) == 1
+    assert sent[0]["title"] == "📥 收件匣有新項目" and sent[0]["url"] == "/inbox"
+    assert sent[0]["tag"].startswith("inbox:") and sent[0]["db"].startswith("clure-u")
+    assert "120" not in sent[0]["body"] and "全聯" not in sent[0]["body"]
+
+    # 雜訊通知不寫入，也不推播
+    rn = _hook(token, {"source": "notify", "text": "【玉山銀行】您的網路交易驗證碼(OTP)為 123456，請於2分鐘內輸入"})
+    assert rn.json()["message"] == "已略過非消費通知"
+    assert len(sent) == 1
+
+    # 推播服務掛了：收件照常，項目仍進收件匣
+    def boom(*a, **kw):  # noqa: ANN002, ANN003, ANN202
+        raise RuntimeError("push service down")
+
+    monkeypatch.setattr(webpush, "send", boom)
+    r2 = _hook(token, {"text": "晚餐 80"})
+    assert r2.status_code == 200 and r2.json()["ok"]
+    assert len(api.get("/api/inbox/items").json()) == 2

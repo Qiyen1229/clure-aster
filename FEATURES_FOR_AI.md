@@ -172,7 +172,7 @@
 即將除息的持股：預計配息、二代健保、邊際稅額變化（合併 vs 分開取較省）、**參與除息 vs 除息前賣出買回**（省下的稅與補充保費 − 手續費與證交稅；風險緩衝＝市值 0.5%），預設偏保守；海外所得離 100 萬門檻、稅損收割。鈴鐺的「需要你看一下」在 7 天內除息時提醒。
 
 ### 3.4 自動記帳與分類
-- **自動記帳收件匣**（`features/inbox/`、`/api/hook/inbox`、`docs/INBOX.md`）：iPhone 捷徑把 Apple Pay 交易、銀行簡訊、Siri 內容送進來，規則解析成草稿，確認才入帳；含來源去重。**六個做好、簽署過的捷徑**（Apple Pay、簡訊、Siri、**快速記帳、貼上記帳、分享記帳**，`public/shortcuts/`、`scripts/make-shortcuts.py --only …`）由**安裝精靈**（`ShortcutWizard.tsx`）帶著一個一個加入：從「捷徑」App 回來自動打勾並提示下一個，Apple Pay／簡訊加入後用清單帶做完「建立自動化」（iPhone 不允許 App 代設；勾選狀態只存本機 localStorage，只是備忘不是偵測）。
+- **自動記帳收件匣**（`features/inbox/`、`/api/hook/inbox`、`docs/INBOX.md`）：iPhone 捷徑把 Apple Pay 交易、銀行簡訊、Siri 內容送進來，規則解析成草稿，確認才入帳；含來源去重。**兩個做好、簽署過的捷徑**（⚡ 自動記帳＝52 家銀行／支付 App 通知＋錢包自動化、🎙 隨手記＝Siri 語音＋分享選單，`public/shortcuts/`、`scripts/make-shortcuts.py`）由**安裝精靈**（`ShortcutWizard.tsx`）帶著加入：iCloud 分享連結一鍵匯入；自動記帳內嵌觸發器，只需在捷徑裡把自動化切「立即執行」（勾選狀態只存本機 localStorage，只是備忘不是偵測）。**即時同步**：伺服器收到項目立即背景推播（`api/inbox.py` hook → `PushService.send_to_user`，tag `inbox:<id>`、url `/inbox`，不含金額與商家，失敗不影響收件）；App 回到前景（30 秒節流，`startup.ts`）與首頁／設定下拉刷新都會跑 `refreshInbox()`（＝`processInboxOnStartup`＋入帳提示），不必重開 App。
 - **加入捷徑的方式（v4.1.5）**：用 **iCloud 分享連結**——`openShortcutImport()` 直接 `location.href = https://www.icloud.com/shortcuts/<SHORTCUTS[].icloud>`，iOS 以通用連結交給「捷徑」App 跳出「加入捷徑」。**不要用 `shortcuts://import-shortcut?url=…`**：給 iCloud 網頁連結會「檔案的格式不正確」，給自架 `.shortcut` 網址會「提供的捷徑 URL 無效」；下載檔案則會在 PWA 變成沒有關閉鍵的預覽，分享選單找不到「捷徑」——檔案只留作備用下載。六個捷徑是通用範本（連結碼在匯入時才貼上），共用同一組連結。更新捷徑內容要重新上傳並換掉識別碼（流程見 CHANGELOG 4.1.5）。
 - **預計扣款（本機推算，無伺服器）**：收件匣最上面的「預計扣款」區。`domain/forecast.ts` 把異常偵測（`detectInsights`）的「看起來是固定扣款、未登記」結果推算下一次扣款日（每月同一天、每年同月同日、每週 +7；寬限 週3／月10／年14 天），`services/forecast.ts` 組合週期帳目的 `pendingDates` 與預測項目；動作＝記帳（日期用預計日）、編輯、登記成週期（`createSubscriptionFrom`）、略過這一次（本機 meta `forecast.skipped`，≤100）。數字放在 `useInboxCount.extra`（只算預測，週期待確認已有鈴鐺通知），顯示用 `useInboxTotal()`。設定 `inbox.forecast`（預設開）。
 - **自動分類規則＋商家記憶**（`domain/rules.ts`、`services/autocat.ts`）。
@@ -234,7 +234,7 @@ JSON 完整備份／還原（含照片）、**加密備份**（PBKDF2-SHA256 310
 ---
 
 ## 6. 測試與品質
-- 前端 Vitest **592 項**（`tests/unit/`，fake-indexeddb；含 `agent-actions`、`agent-intent`、`calc-history`、`forecast`、`shortcut-import`）＋後端 pytest **186 項**（`server/tests/`）＝ **778 項**；`npm run check` = 型態檢查 + ESLint（0 警告）+ 測試；CI 於 main 與 feature 分支每次推送執行。
+- 前端 Vitest **764 項**（`tests/unit/`，fake-indexeddb；含 `agent-actions`、`agent-intent`、`calc-history`、`forecast`、`inbox-refresh`、`shortcut-import`）＋後端 pytest **197 項**（`server/tests/`）＝ **961 項**；`npm run check` = 型態檢查 + ESLint（0 警告）+ 測試；CI 於 main 與 feature 分支每次推送執行。
 - 純函式優先放 `src/domain/`（便於測試）；有副作用的放 `src/services/`；資料庫存取放 `src/db/repo/`。
 
 ## 7. 給修改者的注意事項（踩過的坑）

@@ -5,6 +5,8 @@
 """
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.orm import Session
 
@@ -15,6 +17,8 @@ from app.model import User
 from app.schema.auth import MessageResponse
 from app.schema.inbox import AckRequest, AckResult, HookItem, HookResult, InboxItemOut, TokenCreate, TokenCreated, TokenOut
 from app.service.inbox_service import InboxService
+
+log = logging.getLogger("aster.inbox")
 
 router = APIRouter(prefix="/api/inbox", tags=["inbox"])
 hook_router = APIRouter(prefix="/api/hook", tags=["inbox"])
@@ -65,4 +69,10 @@ def hook(body: HookItem, client: ClientInfo = Depends(get_client), authorization
     item = svc.receive(user, row, body)
     if item is None:
         return HookResult(message="已略過非消費通知")
+    # 立即推播：有訂閱背景推播的裝置會收到通知，點開直達收件匣。內容不含金額與商家（與 E2EE 推播一致）；失敗不影響收件
+    try:
+        from app.service.push_service import PushService
+        PushService(db).send_to_user(user.id, {"title": "📥 收件匣有新項目", "body": "打開 Aster 確認記帳", "url": "/inbox", "tag": f"inbox:{item.id}"})
+    except Exception:  # noqa: BLE001 — 推播失敗不能影響捷徑收件
+        log.exception("收件匣推播失敗")
     return HookResult(message="已送到 Aster，打開 App 確認記帳")
