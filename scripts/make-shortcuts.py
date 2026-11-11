@@ -1,19 +1,14 @@
 #!/usr/bin/env python3
-"""產生並簽署六個可匯入的 iPhone 捷徑，輸出到 public/shortcuts/。
+"""產生並簽署精簡後的兩個可匯入 iPhone 捷徑，輸出到 public/shortcuts/。
 
-- Aster 通知記帳：內建台灣主流銀行 App、LINE Pay、街口支付等通知自動化觸發器，刷實體卡、網購、掃碼跳通知自動送到收件匣
-- Aster Apple Pay 記帳：內建「錢包（交易）」自動化觸發器，感應付款後自動送出金額、商家、卡片
-- Aster 記一筆（Siri）：聽寫一句話 → 送到收件匣 → 唸出結果
-- Aster 快速記帳：跳出輸入框，打一句話（「午餐 120」）→ 送到收件匣（適合動作按鈕、背面輕點、主畫面）
-- Aster 貼上記帳：把剪貼簿的文字（從銀行 App、LINE 複製的交易明細）送到收件匣
-- Aster 分享記帳：出現在任何 App 的分享選單，把分享的文字送到收件匣
+- Aster 自動記帳：內建台灣主流銀行 App、LINE Pay、街口等通知自動化 ＋ 錢包（Apple Pay 交易）自動化觸發器，刷實體卡、網購、掃碼、感應付款跳通知全自動入帳
+- Aster 隨手記：對 Siri 說一句話記帳 ＋ 在任何 App 分享文字記帳（無文字時自動啟動語音聽寫；有分享文字時直接記帳）
 
 捷徑裡不含任何網址或權杖：匯入時只問一題「貼上連結碼」（App 會先複製到剪貼簿），
 連結碼就是 https://你的網址/api/hook/inbox?t=clr_… 。所以同一組檔案每位使用者都能用。
 
 簽署需要 macOS 的 shortcuts 指令（--mode anyone 會連到 Apple 簽署並產生 iCloud 分享識別碼，需登入 Apple ID）：
-    python3 scripts/make-shortcuts.py                      # 全部
-    python3 scripts/make-shortcuts.py --only notify,applepay  # 只重做指定的（不動已經發布過的檔案）
+    python3 scripts/make-shortcuts.py
 """
 from __future__ import annotations
 
@@ -28,7 +23,7 @@ from pathlib import Path
 OUT = Path(__file__).resolve().parent.parent / "public" / "shortcuts"
 OBJ = "￼"  # 文字中變數的位置
 
-# 預先內建於「Aster 通知記帳」自動化觸發器（WFNotificationTrigger）的台灣主流銀行與行動支付 App
+# 預先內建於「Aster 自動記帳」通知自動化觸發器（WFNotificationTrigger）的台灣主流銀行與行動支付 App
 NOTIFY_APPS = [
     # 行動支付／掃碼付款
     {"BundleIdentifier": "com.linepaytw.upay", "Name": "LINE Pay"},
@@ -166,73 +161,106 @@ def build(
     return wf
 
 
-def siri() -> dict:
-    dictate_id = str(uuid.uuid4()).upper()
-    dictate = {"WFWorkflowActionIdentifier": "is.workflow.actions.dictatetext",
-               "WFWorkflowActionParameters": {"UUID": dictate_id, "WFSpeechLanguage": "zh-TW"}}
-    return build([field("source", text("siri")), field("text", var_text(output(dictate_id, "聽寫的文字")))], speak_result=True, before=[dictate])
-
-
-def quick() -> dict:
-    ask_id = str(uuid.uuid4()).upper()
-    ask = {"WFWorkflowActionIdentifier": "is.workflow.actions.ask",
-           "WFWorkflowActionParameters": {"UUID": ask_id, "WFAskActionPrompt": "記一筆（例如：午餐 120、昨天計程車 230）", "WFInputType": "Text"}}
-    return build([field("source", text("quick")), field("text", var_text(output(ask_id, "詢問的輸入")))], speak_result=True, before=[ask])
-
-
-def clipboard() -> dict:
-    clip_id = str(uuid.uuid4()).upper()
-    clip = {"WFWorkflowActionIdentifier": "is.workflow.actions.getclipboard", "WFWorkflowActionParameters": {"UUID": clip_id}}
-    return build([field("source", text("clipboard")), field("text", var_text(output(clip_id, "剪貼簿")))], speak_result=True, before=[clip])
-
-
-def share() -> dict:
-    # WFWorkflowTypes 含 ActionExtension 才會出現在分享選單；內容是分享進來的文字
-    return build([field("source", text("share")), field("text", var_text(shortcut_input()))], speak_result=True, types=["ActionExtension"])
-
-
-def applepay() -> dict:
-    return build(
-        [
-            field("source", text("applepay")),
-            field("amount", var_text(shortcut_input("Amount"))),
-            field("merchant", var_text(shortcut_input("Merchant"))),
-            field("card", var_text(shortcut_input("Card or Pass"))),
-        ],
-        triggers=[{
-            "WFTriggerIdentifier": "WFWalletTransactionTrigger",
-            "WFTriggerUUID": str(uuid.uuid4()).upper(),
-            "WFTriggerSerializedParameters": {},
-        }],
-    )
-
-
-def notify() -> dict:
-    """銀行 App／LINE Pay／街口支付等通知自動記帳（內建 30+ 個台灣銀行與行動支付 App 觸發器）"""
+def auto() -> dict:
+    """Aster 自動記帳：內建銀行通知與錢包交易觸發器，收到通知或 Apple Pay 付款後自動送出"""
     return build(
         [
             field("source", text("notify")),
-            field("card", var_text(shortcut_input("App"))),
+            field("amount", var_text(shortcut_input("Amount"))),
+            field("merchant", var_text(shortcut_input("Merchant"))),
+            field("card", multi_var_text([shortcut_input("Card or Pass"), shortcut_input("App")])),
             field("text", multi_var_text([shortcut_input("Subtitle"), shortcut_input()])),
         ],
-        triggers=[{
-            "WFTriggerIdentifier": "WFNotificationTrigger",
-            "WFTriggerUUID": str(uuid.uuid4()).upper(),
-            "WFTriggerSerializedParameters": {
-                "SelectedApps": NOTIFY_APPS,
+        triggers=[
+            {
+                "WFTriggerIdentifier": "WFNotificationTrigger",
+                "WFTriggerUUID": str(uuid.uuid4()).upper(),
+                "WFTriggerSerializedParameters": {
+                    "SelectedApps": NOTIFY_APPS,
+                },
             },
-        }],
+            {
+                "WFTriggerIdentifier": "WFWalletTransactionTrigger",
+                "WFTriggerUUID": str(uuid.uuid4()).upper(),
+                "WFTriggerSerializedParameters": {},
+            },
+        ],
     )
 
 
-# 檔名用英文（打包成 zip 到 NAS 解壓縮時中文檔名可能變亂碼）；簽署時的暫存檔名用中文，讓 iCloud 分享頁直接顯示中文捷徑名稱
+def voice() -> dict:
+    """Aster 隨手記：對 Siri 說話記帳 ＋ 在分享選單記帳"""
+    cond_id = str(uuid.uuid4()).upper()
+    dictate_id = str(uuid.uuid4()).upper()
+    code_id = str(uuid.uuid4()).upper()
+    req_id = str(uuid.uuid4()).upper()
+    msg_id = str(uuid.uuid4()).upper()
+
+    actions = [
+        {"WFWorkflowActionIdentifier": "is.workflow.actions.gettext",
+         "WFWorkflowActionParameters": {"UUID": code_id, "WFTextActionText": text("")}},
+        {"WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
+         "WFWorkflowActionParameters": {
+             "GroupingIdentifier": cond_id, "WFCondition": 100, "WFControlFlowMode": 0, "WFInput": {"Type": "ExtensionInput"}
+         }},
+        {"WFWorkflowActionIdentifier": "is.workflow.actions.detect.text",
+         "WFWorkflowActionParameters": {
+             "WFInput": {"Value": {"Type": "ExtensionInput"}, "WFSerializationType": "WFTextTokenAttachment"}
+         }},
+        {"WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
+         "WFWorkflowActionParameters": {
+             "GroupingIdentifier": cond_id, "WFControlFlowMode": 1
+         }},
+        {"WFWorkflowActionIdentifier": "is.workflow.actions.dictatetext",
+         "WFWorkflowActionParameters": {
+             "UUID": dictate_id, "WFSpeechLanguage": "zh-TW"
+         }},
+        {"WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
+         "WFWorkflowActionParameters": {
+             "UUID": cond_id, "GroupingIdentifier": cond_id, "WFControlFlowMode": 2
+         }},
+        {"WFWorkflowActionIdentifier": "is.workflow.actions.downloadurl",
+         "WFWorkflowActionParameters": {
+             "UUID": req_id,
+             "WFURL": var_text(output(code_id, "文字")),
+             "WFHTTPMethod": "POST",
+             "ShowHeaders": True,
+             "WFHTTPHeaders": dict_value([field("Content-Type", text("application/json"))]),
+             "WFHTTPBodyType": "JSON",
+             "WFJSONValues": dict_value([
+                 field("source", text("siri")),
+                 field("text", var_text(output(cond_id, "如果的結果"))),
+             ]),
+         }},
+        {"WFWorkflowActionIdentifier": "is.workflow.actions.getvalueforkey",
+         "WFWorkflowActionParameters": {"UUID": msg_id, "WFDictionaryKey": "message", "WFInput": {
+             "Value": output(req_id, "URL 的內容"), "WFSerializationType": "WFTextTokenAttachment"}}},
+        {"WFWorkflowActionIdentifier": "is.workflow.actions.showresult",
+         "WFWorkflowActionParameters": {"Text": var_text(output(msg_id, "字典值"))}},
+    ]
+
+    return {
+        "WFWorkflowClientVersion": "2607.0.1",
+        "WFWorkflowMinimumClientVersion": 900,
+        "WFWorkflowMinimumClientVersionString": "900",
+        "WFWorkflowIcon": {"WFWorkflowIconStartColor": 4282601983, "WFWorkflowIconGlyphNumber": 59446},
+        "WFWorkflowTypes": ["ActionExtension"],
+        "WFWorkflowHasShortcutInputVariables": True,
+        "WFWorkflowInputContentItemClasses": [
+            "WFStringContentItem", "WFURLContentItem", "WFRichTextContentItem", "WFArticleContentItem",
+        ],
+        "WFWorkflowOutputContentItemClasses": [],
+        "WFWorkflowActions": actions,
+        "WFWorkflowImportQuestions": [{
+            "ActionIndex": 0, "Category": "Parameter", "ParameterKey": "WFTextActionText", "DefaultValue": "",
+            "Text": "貼上 Aster 的連結碼（在 App 按「加入捷徑」時已自動複製，長按這裡選「貼上」）",
+        }],
+    }
+
+
 SHORTCUTS: dict[str, tuple[str, object]] = {
-    "aster-notify": ("Aster 通知記帳", notify),
-    "aster-applepay": ("Aster Apple Pay 記帳", applepay),
-    "aster-siri": ("Aster 記一筆", siri),
-    "aster-quick": ("Aster 快速記帳", quick),
-    "aster-clipboard": ("Aster 貼上記帳", clipboard),
-    "aster-share": ("Aster 分享記帳", share),
+    "aster-auto": ("Aster 自動記帳", auto),
+    "aster-voice": ("Aster 隨手記", voice),
 }
 
 
@@ -261,7 +289,7 @@ def main() -> int:
             if r.returncode != 0 or not dest.exists():
                 print(f"簽署失敗：{name}\n{r.stderr or r.stdout}", file=sys.stderr)
                 return 1
-            dest.chmod(0o644)  # 簽署輸出預設只有自己可讀，nginx 讀不到
+            dest.chmod(0o644)
             icloud_id = extract_icloud_id(dest.read_bytes())
             print(f"已簽署：{dest}（{dest.stat().st_size} bytes） icloud={icloud_id}")
     return 0

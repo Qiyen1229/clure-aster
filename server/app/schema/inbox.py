@@ -10,6 +10,7 @@ SOURCE_ALIASES = {
     "apple_pay": "applepay", "wallet": "applepay", "錢包": "applepay",
     "notification": "notify", "通知": "notify", "app": "notify",
     "message": "sms", "簡訊": "sms", "語音": "siri", "mail": "email", "剪貼簿": "clipboard", "分享": "share", "快速": "quick",
+    "auto": "notify", "自動": "notify", "voice": "siri", "隨手記": "siri",
 }
 
 

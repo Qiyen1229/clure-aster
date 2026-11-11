@@ -21,7 +21,7 @@ import { bookDrafts, fallbackAccount, parseContext, resolveDraft, type ResolvedD
 
 export interface InboxRaw {
   id: number;
-  source: 'applepay' | 'notify' | 'sms' | 'siri' | 'clipboard' | 'share' | 'quick' | 'email' | 'other';
+  source: 'auto' | 'voice' | 'applepay' | 'notify' | 'sms' | 'siri' | 'clipboard' | 'share' | 'quick' | 'email' | 'other';
   text: string;
   amount: string;
   merchant: string;
@@ -54,6 +54,8 @@ export interface InboxEntry {
 export interface InboxToken { id: number; name: string; hint: string; created_at: string; last_used_at: string | null; use_count?: number }
 
 export const SOURCE_LABEL: Record<InboxRaw['source'], { icon: string; label: string }> = {
+  auto: { icon: '⚡', label: '自動' },
+  voice: { icon: '🎙', label: '隨手記' },
   notify: { icon: '🔔', label: '通知' },
   applepay: { icon: '💳', label: 'Apple Pay' },
   sms: { icon: '💬', label: '簡訊' },
@@ -72,12 +74,8 @@ export const hookUrl = () => `${location.origin}/api/hook/inbox`;
 
 /** 預先做好、簽署過的捷徑（scripts/make-shortcuts.py 產生 public/shortcuts/aster-<key>.shortcut）；name＝匯入後的捷徑名稱 */
 export const SHORTCUTS = [
-  { key: 'notify', name: 'Aster 通知記帳', icon: '🔔', title: '銀行 App／LINE Pay／街口通知自動記帳', automation: '通知', icloud: 'df72f051370c48ef974903f9658bc88e', hint: '最推薦：刷實體卡、網購、LINE Pay、街口跳通知就自動記（已內建常用銀行與支付 App）' },
-  { key: 'applepay', name: 'Aster Apple Pay 記帳', icon: '💳', title: 'Apple Pay 付款後自動記帳', automation: '交易', icloud: '78948856756a4def89a5f17b75191793', hint: '感應付款後自動送出金額、商家、卡片' },
-  { key: 'siri', name: 'Aster 記一筆', icon: '🎙', title: '對 Siri 說一句話記帳', automation: null, icloud: '6f573f0a226441d7a044e7770ec05f6a', hint: '「嘿 Siri，Aster 記一筆」，再說「午餐 120」。' },
-  { key: 'quick', name: 'Aster 快速記帳', icon: '⚡', title: '點一下、打一句話記帳', automation: null, icloud: 'e3275089e3234121a22c65ee9cbf0cd1', hint: '放到主畫面或動作按鈕、背面輕點，跳出輸入框打「午餐 120」' },
-  { key: 'clipboard', name: 'Aster 貼上記帳', icon: '📋', title: '把剪貼簿的文字送去記帳', automation: null, icloud: 'a9125e621f50418faa6caab3dff26296', hint: '在銀行 App、LINE 複製一段交易明細後執行' },
-  { key: 'share', name: 'Aster 分享記帳', icon: '📤', title: '從分享選單把文字送去記帳', automation: null, icloud: '93e04d6cdf06495ca991bc18e65f0791', hint: '任何 App 的分享按鈕裡就會出現「Aster 分享記帳」' },
+  { key: 'auto', name: 'Aster 自動記帳', icon: '⚡', title: '銀行 App／LINE Pay／街口／Apple Pay 自動記帳', automation: '通知與錢包', icloud: '75eff9fa50cb40ce9b877973cc6bbe7c', hint: '最推薦：刷實體卡、網購、LINE Pay、街口、Apple Pay 跳通知就自動記（已內建 36 家銀行與支付 App）' },
+  { key: 'voice', name: 'Aster 隨手記', icon: '🎙', title: '對 Siri 說一句話記帳 ＋ 分享選單記帳', automation: null, icloud: '50674e39d0704a17824f28b1728c1bfa', hint: '「嘿 Siri，Aster 隨手記」說出花費，或在任何 App 按分享直接把文字送去記帳' },
 ] as const;
 
 type ShortcutDef = (typeof SHORTCUTS)[number];

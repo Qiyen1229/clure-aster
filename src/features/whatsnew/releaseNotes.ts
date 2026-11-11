@@ -25,6 +25,16 @@ export interface ReleaseNote {
 /** 新的在前 */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '4.1.25', date: '2026-11-11',
+    features: [
+      {
+        title: '自動化記帳極簡雙捷徑',
+        intro: '將原本繁雜的 6 個捷徑精簡整合為 2 個：「Aster 自動記帳」全包銀行通知與 Apple Pay，「Aster 隨手記」包辦 Siri 語音與分享選單。',
+        howto: '至「設定 → 自動記帳收件匣」只需依序加入這兩個捷徑，設定成本大幅降低。',
+      },
+    ],
+  },
+  {
     version: '4.1.24', date: '2026-11-11',
     features: [
       {

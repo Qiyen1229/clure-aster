@@ -89,8 +89,11 @@ export function ShortcutWizard({ preparing, onAdd, hasLink }: { preparing: boole
               </span>
               <button className={`pill${added ? '' : ' accent-pill'}`} disabled={preparing} onClick={() => void add(s)}>{added ? '重新加入' : '加入'}</button>
             </div>
-            {s.key === 'quick' && added && <p className="muted oneclick-note">設定 → 動作按鈕（或「輔助使用 → 觸控 → 背面輕點」）選「捷徑」→「<b>{s.name}</b>」，之後一按就跳出輸入框。</p>}
-            {s.key === 'share' && added && <p className="muted oneclick-note">在任何 App 按分享 → 往下找「<b>{s.name}</b>」（第一次要到「編輯動作」把它加進常用）。</p>}
+            {s.key === 'voice' && added && (
+              <p className="muted oneclick-note">
+                對 Siri 說「<b>{s.name}</b>，午餐 120」即可語音記帳；也可以在任何 App 選取文字或帳單點分享 ➔ 選擇「<b>{s.name}</b>」。
+              </p>
+            )}
           </div>
         );
       })}
@@ -101,34 +104,17 @@ export function ShortcutWizard({ preparing, onAdd, hasLink }: { preparing: boole
             <div key={s.key} className="wiz-auto-item">
               <p className="wiz-auto-title"><b>{s.title}</b></p>
               <ol className="wiz-auto-steps" style={{ paddingLeft: '1.2rem' }}>
-                {s.key === 'notify' ? (
-                  <>
-                    <li style={{ listStyle: 'none', margin: '2px 0 4px -1.2rem', fontWeight: 600, color: 'var(--accent)' }}>
-                      💡 推薦方式（已內建 36 家銀行與支付 App，免手動勾選）：
-                    </li>
-                    <li>打開「捷徑」App，找到剛加入的「<b>{s.name}</b>」，點右上角「<b>⋯</b>」進入編輯。</li>
-                    <li>點最上方虛線框的「<b>已關閉自動化</b>」（或時鐘圖示）。</li>
-                    <li>切換為「<b>立即執行</b>」，並關閉「執行時通知」即可！若有想增減的 App 可點虛線框內的 ＋ 調整。</li>
-                    <li style={{ listStyle: 'none', margin: '8px 0 4px -1.2rem', fontWeight: 600, color: 'var(--muted)' }}>
-                      備用方式（若捷徑上方無虛線框，手動建立步驟）：
-                    </li>
-                    <li>打開「捷徑」App ➔ 下方「自動化」➔ 點「＋」➔ 點上方「自動化操作」找到「<b>App 通知</b>」（或「App」）。</li>
-                    <li>「App」勾選常用的銀行、LINE Pay、街口等 ➔ 勾選「<b>立即執行</b>」➔ 下一步搜尋「執行捷徑」選「<b>{s.name}</b>」。</li>
-                  </>
-                ) : (
-                  <>
-                    <li style={{ listStyle: 'none', margin: '2px 0 4px -1.2rem', fontWeight: 600, color: 'var(--accent)' }}>
-                      💡 推薦方式（已內建錢包自動化）：
-                    </li>
-                    <li>打開「捷徑」App，找到剛加入的「<b>{s.name}</b>」，點右上角「<b>⋯</b>」進入編輯。</li>
-                    <li>點最上方虛線框的「<b>已關閉自動化</b>」➔ 切換為「<b>立即執行</b>」即可！</li>
-                    <li style={{ listStyle: 'none', margin: '8px 0 4px -1.2rem', fontWeight: 600, color: 'var(--muted)' }}>
-                      備用方式（手動建立步驟）：
-                    </li>
-                    <li>打開「捷徑」App ➔「自動化」➔ 最下方「＋」➔ 點「自動化操作」找到「<b>錢包</b>」（iOS 17 叫「交易」）。</li>
-                    <li>選「任何卡片」➔ 勾選「<b>立即執行</b>」➔ 下一步搜尋「執行捷徑」選「<b>{s.name}</b>」。</li>
-                  </>
-                )}
+                <li style={{ listStyle: 'none', margin: '2px 0 4px -1.2rem', fontWeight: 600, color: 'var(--accent)' }}>
+                  💡 推薦方式（已內建 36 家銀行、支付 App 與 Apple Pay 自動化，免手動勾選）：
+                </li>
+                <li>打開「捷徑」App，找到剛加入的「<b>{s.name}</b>」，點右上角「<b>⋯</b>」進入編輯。</li>
+                <li>點最上方虛線框的「<b>已關閉自動化</b>」（或時鐘圖示）。</li>
+                <li>切換為「<b>立即執行</b>」，並關閉「執行時通知」即可！若有想增減的 App 可點虛線框內的 ＋ 調整。</li>
+                <li style={{ listStyle: 'none', margin: '8px 0 4px -1.2rem', fontWeight: 600, color: 'var(--muted)' }}>
+                  備用方式（若捷徑上方無虛線框，手動建立步驟）：
+                </li>
+                <li>打開「捷徑」App ➔ 下方「自動化」➔ 點「＋」➔ 點上方「自動化操作」找到「<b>App 通知</b>」（或「錢包」交易）。</li>
+                <li>「App」勾選常用的銀行、LINE Pay、街口等 ➔ 勾選「<b>立即執行</b>」➔ 下一步搜尋「執行捷徑」選「<b>{s.name}</b>」。</li>
               </ol>
               <button className="pill accent-pill" onClick={() => mark(s.key, 'auto', true)}>我做好了 ✓</button>
             </div>
