@@ -69,6 +69,14 @@ export function WhatsNewHost() {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const sliderRef = useRef<HTMLDivElement | null>(null);
   const prevFocus = useRef<HTMLElement | null>(null);
+  const isNavigatingRef = useRef(false);
+  const navTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (navTimerRef.current) clearTimeout(navTimerRef.current);
+    };
+  }, []);
 
   // 主動開啟新功能介紹（例如從「設定 → 關於 Aster」）
   useEffect(() => {
@@ -131,15 +139,24 @@ export function WhatsNewHost() {
 
   const goToPage = useCallback((idx: number) => {
     const target = Math.max(0, Math.min(n - 1, idx));
+    if (target === page) return;
     haptic('selection');
     setPage(target);
     const el = sliderRef.current;
     if (el) {
+      isNavigatingRef.current = true;
+      if (navTimerRef.current) clearTimeout(navTimerRef.current);
+      el.style.scrollSnapType = 'none';
       el.scrollTo({ left: target * el.clientWidth, behavior: 'smooth' });
+      navTimerRef.current = window.setTimeout(() => {
+        if (el) el.style.scrollSnapType = '';
+        isNavigatingRef.current = false;
+      }, 350);
     }
-  }, [n]);
+  }, [n, page]);
 
   const onScroll = () => {
+    if (isNavigatingRef.current) return;
     const el = sliderRef.current;
     if (!el || el.clientWidth === 0) return;
     const p = Math.round(el.scrollLeft / el.clientWidth);
@@ -236,12 +253,14 @@ export function WhatsNewHost() {
           </div>
         )}
 
-        <div className="whatsnew-actions">
-          {page > 0 && (
+        <div className={`whatsnew-actions${n <= 1 ? ' single' : ''}`}>
+          {n > 1 && (
             <button
               type="button"
               className="btn secondary"
+              disabled={page === 0}
               onClick={() => goToPage(page - 1)}
+              aria-label="上一頁"
             >
               上一頁
             </button>

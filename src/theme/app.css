@@ -1269,6 +1269,7 @@ button.stat.clickable:active {
 .whatsnew-slides {
   display: flex;
   width: 100%;
+  align-items: stretch;
 }
 .whatsnew-slide {
   flex: 0 0 100%;
@@ -1281,6 +1282,8 @@ button.stat.clickable:active {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
+  display: flex;
+  flex-direction: column;
 }
 .whatsnew-card {
   background: var(--surface-2);
@@ -1288,6 +1291,9 @@ button.stat.clickable:active {
   padding: 16px;
   border: 0.5px solid var(--glass-border);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 .whatsnew-card header {
   display: flex;
@@ -1376,17 +1382,27 @@ button.stat.clickable:active {
   margin: 2px 0 4px;
 }
 .whatsnew-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   align-items: center;
   gap: 10px;
   padding: 12px 18px 16px;
   border-top: 0.5px solid var(--sep);
   background: color-mix(in srgb, var(--surface) 60%, transparent);
 }
+.whatsnew-actions.single {
+  grid-template-columns: 1fr;
+}
 .whatsnew-actions .btn {
-  flex: 1;
+  width: 100%;
   min-height: 44px;
   font-weight: 600;
+  transition: opacity 200ms ease, background-color 200ms ease, transform 120ms ease;
+}
+.whatsnew-actions .btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 .steps { display: flex; gap: 6px; justify-content: center; margin-bottom: 16px; }
 .steps i { width: 6px; height: 6px; border-radius: 3px; background: var(--surface-3); transition: width 300ms var(--ease), background 300ms; }
