@@ -5,8 +5,12 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-SOURCES = ("applepay", "sms", "siri", "clipboard", "share", "quick", "email", "other")
-SOURCE_ALIASES = {"apple_pay": "applepay", "wallet": "applepay", "錢包": "applepay", "message": "sms", "簡訊": "sms", "語音": "siri", "mail": "email", "剪貼簿": "clipboard", "分享": "share", "快速": "quick"}
+SOURCES = ("applepay", "notify", "sms", "siri", "clipboard", "share", "quick", "email", "other")
+SOURCE_ALIASES = {
+    "apple_pay": "applepay", "wallet": "applepay", "錢包": "applepay",
+    "notification": "notify", "通知": "notify", "app": "notify",
+    "message": "sms", "簡訊": "sms", "語音": "siri", "mail": "email", "剪貼簿": "clipboard", "分享": "share", "快速": "quick",
+}
 
 
 def _clip(v: object, n: int) -> str:

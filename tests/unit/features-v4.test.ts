@@ -10,7 +10,7 @@ import { invalidateAutocat, saveRule } from '@/services/autocat';
 import { forecast, dailyVariableSpend } from '@/domain/cashflow';
 import { summarize } from '@/domain/summary';
 import { parseQuery, type QueryContext } from '@/domain/nlquery';
-import { itemDate, noticeMerchant } from '@/services/inbox';
+import { itemDate } from '@/services/inbox';
 import type { Category, Transaction } from '@/db/types';
 
 async function fresh() {
@@ -57,15 +57,39 @@ describe('收件匣解析', () => {
     const [d] = await draftsFromItem(item, ctx, 'fallback');
     expect(d).toMatchObject({ kind: 'expense', amount: 1234, accountId: esun.id, note: '全聯福利中心', date: '2026-10-28' });
   });
-  it('簡訊：取 NT$ 金額（不是卡號末四碼）、商店名稱', async () => {
-    await acc('玉山銀行');
-    const { draftsFromItem } = await import('@/services/inbox');
+  it('通知與簡訊：取 NT$ 金額（不是卡號末四碼）、商店名稱與排除餘額', async () => {
+    const esun = await acc('玉山銀行');
+    const cathay = await acc('國泰世華');
+    const linepay = await acc('LINE Pay');
+    const { draftsFromItem, noticeMerchant } = await import('@/services/inbox');
     const { parseContext } = await import('@/services/quickentry');
     const ctx = await parseContext('2026-10-28');
-    const text = '【玉山銀行】您的信用卡末四碼1234於10/27 12:30消費NT$560，商店:全家便利商店，如有疑問請洽客服';
-    const [d] = await draftsFromItem({ id: 2, source: 'sms', text, amount: '', merchant: '', card: '', occurred: '', created_at: '2026-10-28T04:00:00' }, ctx, 'fb');
-    expect(d).toMatchObject({ amount: 560, note: '全家便利商店', date: '2026-10-27' });
+
+    // 1. 簡訊格式
+    const textSms = '【玉山銀行】您的信用卡末四碼1234於10/27 12:30消費NT$560，商店:全家便利商店，如有疑問請洽客服';
+    const [dSms] = await draftsFromItem({ id: 2, source: 'sms', text: textSms, amount: '', merchant: '', card: '', occurred: '', created_at: '2026-10-28T04:00:00' }, ctx, 'fb');
+    expect(dSms).toMatchObject({ amount: 560, note: '全家便利商店', date: '2026-10-27', accountId: esun.id });
+
+    // 2. 實體卡刷卡 App 通知（含可用餘額，只取消費金額；由 card「國泰世華」識別帳戶）
+    const textCard = '您於 10/28 15:30 刷卡消費 NT$1,250，商店名稱：新光三越，可用餘額 NT$86,000';
+    const [dCard] = await draftsFromItem({ id: 3, source: 'notify', text: textCard, amount: '', merchant: '', card: '國泰世華', occurred: '', created_at: '2026-10-28T08:00:00' }, ctx, 'fb');
+    expect(dCard).toMatchObject({ amount: 1250, note: '新光三越', date: '2026-10-28', accountId: cathay.id });
+
+    // 3. 掃碼付款 App 通知（含數字店名 50嵐、在 ... 付款；card 為 LINE Pay）
+    const textScan = '【LINE Pay】在 50嵐 付款 NT$65 完成，感謝您的使用';
+    const [dScan] = await draftsFromItem({ id: 4, source: 'notify', text: textScan, amount: '', merchant: '', card: 'LINE Pay', occurred: '', created_at: '2026-10-28T09:00:00' }, ctx, 'fb');
+    expect(dScan).toMatchObject({ amount: 65, note: '50嵐', date: '2026-10-28', accountId: linepay.id });
+
+    // 4. 掃碼付款但內文有扣款銀行卡（文字銀行優先）
+    const textCombo = '【LINE Pay】在 7-ELEVEN 消費 NT$120，付款方式：國泰世華信用卡';
+    const [dCombo] = await draftsFromItem({ id: 5, source: 'notify', text: textCombo, amount: '', merchant: '', card: 'LINE Pay', occurred: '', created_at: '2026-10-28T09:30:00' }, ctx, 'fb');
+    expect(dCombo).toMatchObject({ amount: 120, note: '7-ELEVEN', date: '2026-10-28', accountId: cathay.id });
+
+    // noticeMerchant 多種格式驗證
     expect(noticeMerchant('您於 Uber 消費 NT$230')).toBe('Uber');
+    expect(noticeMerchant('在 7-ELEVEN 支付 NT$85')).toBe('7-ELEVEN');
+    expect(noticeMerchant('交易店家：路易莎咖啡 NT$130')).toBe('路易莎咖啡');
+    expect(noticeMerchant('消費地點：好市多 NT$3,400')).toBe('好市多');
   });
   it('交易時間：捷徑格式或收到時間（UTC）', () => {
     expect(itemDate({ occurred: '2026年10月25日 下午12:30', created_at: '2026-10-28T04:00:00' }, '2026-10-28')).toBe('2026-10-25');

@@ -54,6 +54,35 @@ def test_hook_accepts_legacy_header(api: Api) -> None:
     assert TestClient(app).post("/api/hook/inbox", json={"text": "午餐 1"}, headers={"X-Clure-Token": token}).status_code == 200
 
 
+def test_hook_notify_noise_filtering(api: Api) -> None:
+    api.register("bob")
+    token = api.post("/api/inbox/tokens", {"name": "iPhone"}).json()["token"]
+
+    # 1. 真正的 App 交易通知：成功寫入
+    r1 = _hook(token, {"source": "通知", "card": "國泰世華", "text": "您於 10/28 12:30 消費 NT$280，可用餘額 NT$50,000"})
+    assert r1.status_code == 200 and r1.json()["message"] == "已送到 Aster，打開 App 確認記帳"
+
+    r2 = _hook(token, {"source": "notify", "card": "LINE Pay", "text": "在 50嵐 付款 NT$65 完成"})
+    assert r2.status_code == 200 and r2.json()["message"] == "已送到 Aster，打開 App 確認記帳"
+
+    # 2. 雜訊通知：回傳 200 但略過不寫入
+    noise_samples = [
+        "【玉山銀行】您的網路交易驗證碼(OTP)為 123456，請於2分鐘內輸入",
+        "【國泰世華】您的網銀帳號於 11:20 登入成功，如非本人請洽客服",
+        "【台新 Richart】信貸專案限時優惠利率 1.88% 起，立即登錄申請",
+        "今天晚上 7 點好樂迪包廂見喔！",  # 一般 LINE 聊天，無交易信號
+    ]
+    for noise in noise_samples:
+        rn = _hook(token, {"source": "notify", "card": "銀行", "text": noise})
+        assert rn.status_code == 200 and rn.json()["message"] == "已略過非消費通知"
+
+    # 驗證收件匣只有那 2 筆真正交易
+    items = api.get("/api/inbox/items").json()
+    assert len(items) == 2
+    assert items[0]["source"] == "notify" and items[0]["card"] == "LINE Pay"
+    assert items[1]["source"] == "notify" and items[1]["card"] == "國泰世華"
+
+
 def test_hook_rejects_bad_token_and_isolates_users(admin_and_user) -> None:  # noqa: ANN001
     a, u = admin_and_user
     assert _hook("clr_wrong", {"text": "x 1"}).status_code == 401

@@ -1,7 +1,7 @@
 /**
  * 自動記帳收件匣：
  * ① 這是什麼（第一次使用時展開）
- * ② 待確認：iPhone 捷徑送來的 Apple Pay 交易、銀行簡訊、Siri 一句話 → 一鍵記帳、編輯後記帳、略過
+ * ② 待確認：iPhone 捷徑送來的 Apple Pay 交易、銀行 App 通知、Siri 一句話 → 一鍵記帳、編輯後記帳、略過
  * ③ 設定捷徑：建立捷徑專用權杖、三種捷徑的設定步驟、傳送測試
  * ④ 記帳方式：自動入帳、預設帳戶、卡片對應的帳戶
  */
@@ -213,12 +213,12 @@ export default function InboxPage() {
         <summary><b>📥 收件匣是什麼？</b></summary>
         <p className="muted">像一個記帳專用的信箱：付款或收到通知時，iPhone 的「捷徑」會自動把內容寄到這裡，你打開 Aster 確認就記好了。</p>
         <ol className="inbox-steps">
-          <li><span>💳</span><div><b>照常付款</b><br />Apple Pay 刷卡、銀行刷卡簡訊，或對 Siri 說「記一筆，午餐 120」</div></li>
-          <li><span>📨</span><div><b>捷徑自動寄出</b><br />把金額、商家、卡片送到你自己的伺服器</div></li>
+          <li><span>💳</span><div><b>照常付款</b><br />刷實體卡、網購、LINE Pay 掃碼，或對 Siri 說「記一筆，午餐 120」</div></li>
+          <li><span>📨</span><div><b>捷徑自動寄出</b><br />銀行或支付 App 跳通知時，自動把金額、商家送進 Aster</div></li>
           <li><span>✅</span><div><b>打開 App 確認</b><br />自動判斷分類與帳戶，一鍵記帳（熟了可改成自動入帳）</div></li>
         </ol>
         <p className="muted" style={{ fontSize: '0.8rem', marginBottom: 0 }}>
-          🔒 Aster 不會讀你的簡訊、銀行或 Apple 錢包；捷徑的權杖只能寄送、不能看帳。內容處理後即刪除，30 天沒處理也會自動清除。
+          🔒 Aster 不會讀取你的帳號密碼；捷徑的權杖只能寄送通知內容、不能看帳。內容處理後即刪除，30 天沒處理也會自動清除。
         </p>
       </details>
 
@@ -464,17 +464,18 @@ function ShortcutGuides() {
         <p className="muted">完成後用 Apple Pay 付一筆，打開 Aster 就會在收件匣看到。</p>
       </details>
       <details className="card">
-        <summary><b>💬 銀行刷卡簡訊自動記帳</b></summary>
+        <summary><b>🔔 銀行 App／LINE Pay／街口通知自動記帳</b></summary>
         <ol>
-          <li>「自動化」→「＋」→ 選「<b>訊息</b>」。</li>
-          <li>「寄件者」選銀行的簡訊號碼，或「訊息包含」填「<b>消費</b>」；選「立即執行」。</li>
+          <li>打開「捷徑」App →「自動化」→ 右上角「＋」→ 選「<b>App 通知</b>」（或「App」）。</li>
+          <li>「App」勾選你的銀行 App、LINE Pay、街口支付等，選「<b>立即執行</b>」，按「下一步」→「新增空白自動化」。</li>
           {common}
         </ol>
         <table className="inbox-fields"><tbody>
-          <tr><td><code>source</code></td><td>sms</td></tr>
-          <tr><td><code>text</code></td><td>「捷徑輸入」→「<b>內容</b>」（整則簡訊）</td></tr>
+          <tr><td><code>source</code></td><td>notify</td></tr>
+          <tr><td><code>card</code></td><td>點「捷徑輸入」→ 選「<b>App</b>」（傳送發送通知的 App 名稱）</td></tr>
+          <tr><td><code>text</code></td><td>點「捷徑輸入」→ 選「<b>內容</b>」</td></tr>
         </tbody></table>
-        <p className="muted">Aster 會從簡訊找出「NT$」後的金額、「商店」後的店名與對應帳戶。很多銀行已改用 App 推播，iPhone 無法自動讀取。</p>
+        <p className="muted">Aster 會從通知文字中解析金額、商店名稱與卡片帳戶，非交易的驗證碼與廣告推播會自動過濾略過。</p>
       </details>
       <details className="card">
         <summary><b>🎙 對 Siri 說一句話記帳</b></summary>

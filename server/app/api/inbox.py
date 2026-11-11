@@ -62,5 +62,7 @@ def hook(body: HookItem, client: ClientInfo = Depends(get_client), authorization
     svc = InboxService(db)
     user, row = svc.user_for_token(token)
     rate_limit(hook_limiter, str(row.id))
-    svc.receive(user, row, body)
+    item = svc.receive(user, row, body)
+    if item is None:
+        return HookResult(message="已略過非消費通知")
     return HookResult(message="已送到 Aster，打開 App 確認記帳")

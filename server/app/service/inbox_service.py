@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import secrets
 from datetime import timedelta
 
@@ -25,6 +26,30 @@ TOKEN_PREFIX = "clr_"
 MAX_TOKENS = 10
 MAX_PENDING = 500
 RETENTION = timedelta(days=30)
+
+_NOISE_RE = re.compile(
+    r"驗證碼|動態密碼|安全碼|驗證密碼|\bOTP\b|登入成功|成功登入|登入通知|裝置登入|密碼變更|修改密碼|立即登錄|登錄活動|參加抽獎|申請信貸|信貸專案|貸款試算",
+    re.IGNORECASE,
+)
+_TX_SIGNAL_RE = re.compile(
+    r"消費|刷卡|付款|扣款|扣帳|簽帳|交易|授權|請款|轉帳|轉出|轉入|入帳|匯款|提款|提領|支付|儲值|加值|繳費|繳款|退款|退貨|退刷|NT\$|NTD|TWD|USD|JPY|EUR|HKD",
+    re.IGNORECASE,
+)
+_DIGIT_RE = re.compile(r"\d")
+
+
+def is_noise_notification(body: HookItem) -> bool:
+    """過濾銀行與行動支付 App 的非交易推播（OTP 驗證碼、登入通知、行銷廣告、一般 LINE 聊天）"""
+    if body.source != "notify" or body.amount:
+        return False
+    combined = f"{body.text} {body.merchant}".strip()
+    if not combined:
+        return True
+    if _NOISE_RE.search(combined):
+        return True
+    if not _DIGIT_RE.search(combined) or not _TX_SIGNAL_RE.search(combined):
+        return True
+    return False
 
 
 def hash_token(token: str) -> str:
@@ -65,7 +90,9 @@ class InboxService:
         return user, row
 
     # ── 項目 ──
-    def receive(self, user: User, token: InboxToken, body: HookItem) -> InboxItem:
+    def receive(self, user: User, token: InboxToken, body: HookItem) -> InboxItem | None:
+        if is_noise_notification(body):
+            return None
         pending = int(self.db.scalar(select(func.count(InboxItem.id)).where(InboxItem.user_id == user.id)) or 0)
         if pending >= MAX_PENDING:
             raise ServiceError(429, "收件匣已滿，請先打開 App 處理待確認的項目")

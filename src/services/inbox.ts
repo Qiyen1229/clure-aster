@@ -21,7 +21,7 @@ import { bookDrafts, fallbackAccount, parseContext, resolveDraft, type ResolvedD
 
 export interface InboxRaw {
   id: number;
-  source: 'applepay' | 'sms' | 'siri' | 'clipboard' | 'share' | 'quick' | 'email' | 'other';
+  source: 'applepay' | 'notify' | 'sms' | 'siri' | 'clipboard' | 'share' | 'quick' | 'email' | 'other';
   text: string;
   amount: string;
   merchant: string;
@@ -54,6 +54,7 @@ export interface InboxEntry {
 export interface InboxToken { id: number; name: string; hint: string; created_at: string; last_used_at: string | null; use_count?: number }
 
 export const SOURCE_LABEL: Record<InboxRaw['source'], { icon: string; label: string }> = {
+  notify: { icon: '🔔', label: '通知' },
   applepay: { icon: '💳', label: 'Apple Pay' },
   sms: { icon: '💬', label: '簡訊' },
   siri: { icon: '🎙', label: 'Siri' },
@@ -71,8 +72,8 @@ export const hookUrl = () => `${location.origin}/api/hook/inbox`;
 
 /** 預先做好、簽署過的捷徑（scripts/make-shortcuts.py 產生 public/shortcuts/aster-<key>.shortcut）；name＝匯入後的捷徑名稱 */
 export const SHORTCUTS = [
-  { key: 'applepay', name: 'Aster Apple Pay 記帳', icon: '💳', title: 'Apple Pay 付款後自動記帳', automation: '交易', icloud: '0dca1526e16548888206e466326dbe40', hint: '最推薦：付款後自動送出金額、商家、卡片' },
-  { key: 'sms', name: 'Aster 簡訊記帳', icon: '💬', title: '銀行刷卡簡訊自動記帳', automation: '訊息', icloud: '31059b2ef220416999d0a94ad7a77974', hint: '銀行刷卡簡訊、轉帳通知都能收' },
+  { key: 'notify', name: 'Aster 通知記帳', icon: '🔔', title: '銀行 App／LINE Pay／街口通知自動記帳', automation: '通知', icloud: 'df72f051370c48ef974903f9658bc88e', hint: '最推薦：刷實體卡、網購、LINE Pay、街口跳通知就自動記（已內建常用銀行與支付 App）' },
+  { key: 'applepay', name: 'Aster Apple Pay 記帳', icon: '💳', title: 'Apple Pay 付款後自動記帳', automation: '交易', icloud: '78948856756a4def89a5f17b75191793', hint: '感應付款後自動送出金額、商家、卡片' },
   { key: 'siri', name: 'Aster 記一筆', icon: '🎙', title: '對 Siri 說一句話記帳', automation: null, icloud: '6f573f0a226441d7a044e7770ec05f6a', hint: '「嘿 Siri，Aster 記一筆」，再說「午餐 120」。' },
   { key: 'quick', name: 'Aster 快速記帳', icon: '⚡', title: '點一下、打一句話記帳', automation: null, icloud: 'e3275089e3234121a22c65ee9cbf0cd1', hint: '放到主畫面或動作按鈕、背面輕點，跳出輸入框打「午餐 120」' },
   { key: 'clipboard', name: 'Aster 貼上記帳', icon: '📋', title: '把剪貼簿的文字送去記帳', automation: null, icloud: 'a9125e621f50418faa6caab3dff26296', hint: '在銀行 App、LINE 複製一段交易明細後執行' },
@@ -159,11 +160,17 @@ export async function ackInbox(ids: number[]): Promise<number[]> {
   return r.ids;
 }
 
-/** 簡訊／Email 裡的商店名稱：「商店:全聯」「特店名稱：Uber」「於 全家 消費」 */
+/** 通知／簡訊／Email 裡的商店名稱：「商店:全聯」「特店名稱：Uber」「於 全家 消費」「在 7-ELEVEN 付款」 */
 export function noticeMerchant(text: string): string {
   const s = toHalfWidth(text);
-  const m = s.match(/(?:商店|特店(?:名稱)?|商家|店家|消費地點|交易商店|商戶)\s*[:：]?\s*([^\s,，。;；)）]+)/)
-    ?? s.match(/於\s*([^\s\d,，。]{2,20}?)\s*(?:消費|刷卡|交易)/);
+  const prefixMatch = s.match(/(?:商店|特店|商家|店家|消費地點|交易商店|交易店家|商戶|門市)(?:名稱)?\s*[:：]\s*([^\n,，。;；)）]+)/);
+  if (prefixMatch) {
+    let m = prefixMatch[1].trim();
+    m = m.replace(/\s*(?:NT\$|NTD|TWD|\$|金額|消費|\d{1,2}\/\d{1,2}).*$/i, '').trim();
+    if (m) return m;
+  }
+  const m = s.match(/(?:商店|特店|商家|店家|消費地點|交易商店|交易店家|商戶|門市)\s*[:：]?\s*([^\s\n,，。;；)）]+)/)
+    ?? s.match(/(?:於|在)\s*([^\n,，。;；()（）]{2,25}?)\s*(?:消費|刷卡|交易|付款|扣款|支付|成功)/);
   return m?.[1]?.trim() ?? '';
 }
 
@@ -210,16 +217,28 @@ export async function draftsFromItem(it: InboxRaw, ctx: Ctx, fallback: string): 
   } else {
     drafts = parseEntries(it.text, { ...ctx, today: date });
     if (!drafts.length) return [];
-    // 簡訊：多個金額時只取一筆（其餘多半是額度、餘額），備註換成商店名稱
-    if (it.source === 'sms' || it.source === 'email') {
+    // 通知／簡訊：多個金額時只取一筆（其餘多半是額度、餘額），備註換成商店名稱
+    if (it.source === 'notify' || it.source === 'sms' || it.source === 'email') {
       const merchant = it.merchant || noticeMerchant(it.text);
       drafts = [{ ...drafts[0], note: merchant || drafts[0].note.slice(0, 40), kind: /退款|退貨|退刷/.test(it.text) ? 'income' : 'expense' }];
     }
   }
   const out: ResolvedDraft[] = [];
   for (const d of drafts) {
-    const r = await resolveDraft({ ...d, accountId: byCard ?? d.accountId }, base);
-    out.push(byCard ? { ...r, accountId: byCard, accountSource: 'text' } : r);
+    let targetAcc: string | undefined;
+    if (it.source === 'notify') {
+      // 若文字中提到非 App 本身的帳戶（例如 LINE Pay 通知提及「國泰世華」），優先以該銀行卡入帳
+      const textAccs = findAccounts(it.text, ctx.accounts);
+      const bankAcc = textAccs.find((a) => {
+        const accObj = ctx.accounts.find((acc) => acc.id === a.id);
+        return accObj && accObj.name.toLowerCase() !== (it.card || '').toLowerCase();
+      });
+      targetAcc = bankAcc?.id ?? byCard ?? d.accountId;
+    } else {
+      targetAcc = byCard ?? d.accountId;
+    }
+    const r = await resolveDraft({ ...d, accountId: targetAcc }, base);
+    out.push(targetAcc ? { ...r, accountId: targetAcc, accountSource: 'text' } : r);
   }
   return out;
 }

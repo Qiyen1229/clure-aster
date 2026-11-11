@@ -96,19 +96,37 @@ export function ShortcutWizard({ preparing, onAdd, hasLink }: { preparing: boole
       })}
       {needAuto.length > 0 && (
         <div className="wiz-auto" role="group" aria-label="還差一步：建立自動化">
-          <b>還差一步：建立自動化</b>
+          <b>還差一步：啟用自動化</b>
           {needAuto.map((s) => (
             <div key={s.key} className="wiz-auto-item">
               <p className="wiz-auto-title"><b>{s.title}</b></p>
-              <ol className="wiz-auto-steps">
-                <li>打開「捷徑」App → 「自動化」，再點最下方的「＋」</li>
-                {s.key === 'applepay' ? (
-                  <li>點「自動化操作」標籤，找到「錢包」點它，再進入搜尋框，搜尋「執行捷徑」點它，「捷徑」選「{s.name}」</li>
+              <ol className="wiz-auto-steps" style={{ paddingLeft: '1.2rem' }}>
+                {s.key === 'notify' ? (
+                  <>
+                    <li style={{ listStyle: 'none', margin: '2px 0 4px -1.2rem', fontWeight: 600, color: 'var(--accent)' }}>
+                      💡 推薦方式（已內建 36 家銀行與支付 App，免手動勾選）：
+                    </li>
+                    <li>打開「捷徑」App，找到剛加入的「<b>{s.name}</b>」，點右上角「<b>⋯</b>」進入編輯。</li>
+                    <li>點最上方虛線框的「<b>已關閉自動化</b>」（或時鐘圖示）。</li>
+                    <li>切換為「<b>立即執行</b>」，並關閉「執行時通知」即可！若有想增減的 App 可點虛線框內的 ＋ 調整。</li>
+                    <li style={{ listStyle: 'none', margin: '8px 0 4px -1.2rem', fontWeight: 600, color: 'var(--muted)' }}>
+                      備用方式（若捷徑上方無虛線框，手動建立步驟）：
+                    </li>
+                    <li>打開「捷徑」App ➔ 下方「自動化」➔ 點「＋」➔ 點上方「自動化操作」找到「<b>App 通知</b>」（或「App」）。</li>
+                    <li>「App」勾選常用的銀行、LINE Pay、街口等 ➔ 勾選「<b>立即執行</b>」➔ 下一步搜尋「執行捷徑」選「<b>{s.name}</b>」。</li>
+                  </>
                 ) : (
                   <>
-                    <li>點上方「自動化操作」標籤找到「訊息」（說明是「當我收到傳來的訊息時」）</li>
-                    <li>這個觸發一定要填條件才能啟用：「寄件人 是」點藍字選你的銀行（簡訊的號碼或聯絡人）；再點「加入過濾條件」，訊息可依銀行曾寄送的訊息自行填寫，避免把驗證碼簡訊也記進來</li>
-                    <li>再點搜尋框，搜尋「執行捷徑」，「捷徑」選「{s.name}」</li>
+                    <li style={{ listStyle: 'none', margin: '2px 0 4px -1.2rem', fontWeight: 600, color: 'var(--accent)' }}>
+                      💡 推薦方式（已內建錢包自動化）：
+                    </li>
+                    <li>打開「捷徑」App，找到剛加入的「<b>{s.name}</b>」，點右上角「<b>⋯</b>」進入編輯。</li>
+                    <li>點最上方虛線框的「<b>已關閉自動化</b>」➔ 切換為「<b>立即執行</b>」即可！</li>
+                    <li style={{ listStyle: 'none', margin: '8px 0 4px -1.2rem', fontWeight: 600, color: 'var(--muted)' }}>
+                      備用方式（手動建立步驟）：
+                    </li>
+                    <li>打開「捷徑」App ➔「自動化」➔ 最下方「＋」➔ 點「自動化操作」找到「<b>錢包</b>」（iOS 17 叫「交易」）。</li>
+                    <li>選「任何卡片」➔ 勾選「<b>立即執行</b>」➔ 下一步搜尋「執行捷徑」選「<b>{s.name}</b>」。</li>
                   </>
                 )}
               </ol>
