@@ -372,13 +372,8 @@ describe('v4.1.23 Phase 2 測試', () => {
       vi.setSystemTime(mockDate);
       try {
         const ts = parseTwMarketTime(undefined);
-        const d = new Date(ts);
-        // 2026-01-01 是 TW_HOLIDAYS，應退到 2025-12-31（三）
-        expect(d.getFullYear()).toBe(2025);
-        expect(d.getMonth() + 1).toBe(12);
-        expect(d.getDate()).toBe(31);
-        expect(d.getHours()).toBe(13);
-        expect(d.getMinutes()).toBe(30);
+        // 2026-01-01 是 TW_HOLIDAYS，應退到 2025-12-31（三）13:30 台灣時間（即 UTC 05:30:00.000Z）
+        expect(new Date(ts).toISOString()).toBe('2025-12-31T05:30:00.000Z');
       } finally {
         vi.useRealTimers();
       }
