@@ -25,6 +25,21 @@ export interface ReleaseNote {
 /** 新的在前 */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '4.1.24', date: '2026-11-11',
+    features: [
+      {
+        title: 'App 通知自動記帳',
+        intro: '內建36家台灣主流銀行與支付App，刷實體卡、網購或LINE Pay掃碼跳通知，自動送入收件匣記帳。',
+        howto: '至「設定 → 自動記帳收件匣」一鍵加入「Aster 通知記帳」捷徑，點開右上角⋯開啟自動化即可。',
+      },
+      {
+        title: '智慧過濾非交易推播',
+        intro: '自動辨識並略過OTP驗證碼、登入成功、行銷廣告與一般聊天，只有真實扣款消費才會進收件匣。',
+        howto: '全自動運作，後端即時過濾雜訊，收件匣永遠保持乾淨不塞車。',
+      },
+    ],
+  },
+  {
     version: '4.1.23', date: '2026-11-10',
     features: [
       {
