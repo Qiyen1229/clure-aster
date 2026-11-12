@@ -12,6 +12,7 @@ import { createSubscriptionFrom, dismissFinding, loadSnapshot, runInsights, type
 import { useSettings } from '@/stores/settings';
 import { snackUndo, useUI } from '@/stores/ui';
 import { SkeletonRows } from '@/ui/controls';
+import { Icon } from '@/ui/Icon';
 import { WhyToggle } from './WhyToggle';
 
 const KIND_ICON: Record<Finding['kind'], string> = { subscription: '🔁', price_up: '📈', duplicate: '🧾', large: '💥', surge: '📊' };
@@ -41,7 +42,27 @@ export function InsightsResults() {
           {cfg.budgetWarn && (
             <>
               <div className="section-title">預算預警</div>
-              {warnings.length === 0 ? <p className="muted" style={{ margin: '0 8px 12px' }}>目前所有預算的花費速度都在額度內 ✓</p> : (
+              {warnings.length === 0 ? (
+                <div className="card glass" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', margin: '4px 0 12px' }}>
+                  <span
+                    style={{
+                      width: 26,
+                      height: 26,
+                      borderRadius: '50%',
+                      background: 'rgba(48, 209, 88, 0.15)',
+                      color: '#30D158',
+                      display: 'inline-grid',
+                      placeItems: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Icon name="check" size={16} />
+                  </span>
+                  <div style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>
+                    目前所有預算的花費速度都在額度內
+                  </div>
+                </div>
+              ) : (
                 warnings.map((w) => <WarningCard key={w.id} w={w} onOpen={() => navigate('/plan?tab=budget')} />)
               )}
             </>
@@ -49,7 +70,27 @@ export function InsightsResults() {
           {cfg.anomaly && (
             <>
               <div className="section-title">需要留意</div>
-              {warnList.length === 0 ? <p className="muted" style={{ margin: '0 8px 12px' }}>沒有發現異常 ✓</p> : warnList.map((f) => <FindingCard key={f.id} f={f} />)}
+              {warnList.length === 0 ? (
+                <div className="card glass" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', margin: '4px 0 12px' }}>
+                  <span
+                    style={{
+                      width: 26,
+                      height: 26,
+                      borderRadius: '50%',
+                      background: 'rgba(48, 209, 88, 0.15)',
+                      color: '#30D158',
+                      display: 'inline-grid',
+                      placeItems: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Icon name="check" size={16} />
+                  </span>
+                  <div style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>
+                    近 14 個月帳目中沒有發現異常
+                  </div>
+                </div>
+              ) : warnList.map((f) => <FindingCard key={f.id} f={f} />)}
               {infoList.length > 0 && <div className="section-title">其他發現</div>}
               {infoList.map((f) => <FindingCard key={f.id} f={f} />)}
             </>

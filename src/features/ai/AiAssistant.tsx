@@ -9,7 +9,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AUTH_ENABLED } from '@/stores/auth';
 import { getAiStatus, type AiStatus } from '@/services/ai';
 import { useSettings } from '@/stores/settings';
-import { AiMark, Icon } from '@/ui/Icon';
+import { Icon } from '@/ui/Icon';
 import { SmartAlerts } from './SmartAlerts';
 import { BUDGET_PROMPT, useChat } from '@/features/home/aiChatStore';
 
@@ -35,33 +35,11 @@ export default function AiAssistant() {
       <button className="icon-btn" aria-label="AI 設定" onClick={() => navigate('/settings/ai')}><Icon name="sliders" /></button>
     </header>
   );
-  if (!AUTH_ENABLED) return <main className="page">{header}<SmartAlerts /></main>;
-  if (!ai?.enabled) {
-    return (
-      <main className="page">{header}
-        <section className="card" style={{ margin: '12px 0' }}>
-          <div className="row-title"><AiMark /> AI 對話與分析</div>
-          <p style={{ whiteSpace: 'normal' }}>一句話記帳、跨帳戶操作、拍照記帳。預設關閉，可於設定中開啟。</p>
-          <button className="btn" onClick={() => navigate('/settings/ai')}>前往 AI 設定</button>
-        </section>
-        <div style={{ display: 'grid', gap: 12 }}><SmartAlerts /></div>
-      </main>
-    );
-  }
-  const dataOn = !!ai.allowData;
+
   return (
     <main className="page">
       {header}
-      {st && <p className="row-sub" style={{ margin: '0 4px 10px', whiteSpace: 'normal' }}>{st.available ? '' : '⚠️ '}{st.message}　今日剩 {st.quota.daily.remaining ?? '不限'} 次、本週 {st.quota.weekly.remaining ?? '不限'} 次、本月 {st.quota.monthly.remaining ?? '不限'} 次</p>}
-      <div style={{ display: 'grid', gap: 12 }}>
-        {!dataOn && (
-          <section className="card">
-            <p style={{ margin: '0 0 8px', whiteSpace: 'normal' }}>問 AI 與財務分析需要允許存取去識別化的收支統計（各月與各分類合計）。</p>
-            <button className="btn" onClick={() => navigate('/settings/ai')}>前往允許</button>
-          </section>
-        )}
-        <SmartAlerts />
-      </div>
+      <SmartAlerts aiStatus={st} />
     </main>
   );
 }
