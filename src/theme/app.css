@@ -1024,6 +1024,33 @@ a { color: inherit; text-decoration: none; }
   font-size: 0.82rem;
 }
 
+/* 盈虧日曆模式下的週曆膠囊：微調垂直節奏（高度 74px），確保金額與 % 數完整露出且具備舒適呼吸感 */
+.cal-pill.pnl-mode {
+  height: 74px;
+  padding-top: 6px;
+  padding-bottom: 4px;
+}
+.cal-pill.pnl-mode .cal-pill-day {
+  font-size: 0.68rem;
+  line-height: 1;
+}
+.cal-pill.pnl-mode .cal-pill-num {
+  font-size: 0.98rem;
+  line-height: 1.15;
+  margin: 1px 0 2px;
+}
+.cal-pill.pnl-mode .cal-cell-pnl {
+  margin-top: 1px;
+}
+.cal-pill.pnl-mode .cal-pnl-amt {
+  font-size: 0.68rem;
+  line-height: 1.15;
+}
+.cal-pill.pnl-mode .cal-pnl-pct {
+  font-size: 0.60rem;
+  line-height: 1.1;
+}
+
 /* 盈虧日曆模式下的選取態與淡色底塊 */
 .cal-pill.pnl-mode.selected,
 .cal-grid-cell.pnl-mode.selected {
