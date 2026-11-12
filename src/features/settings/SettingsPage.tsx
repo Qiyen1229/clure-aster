@@ -567,6 +567,9 @@ export default function SettingsPage() {
   };
 
   const account = AUTH_ENABLED && auth.user;
+  const travelProjects = useLiveQuery(() =>
+    db.projects.filter((p) => p.status === 'active' && !!p.isTravel).toArray()
+  , []) ?? [];
 
   /** 刪除帳號：伺服器上的帳號與全部同步資料永久刪除，這台裝置的本機資料一併清除 */
   const deleteAccount = async () => {
@@ -611,6 +614,64 @@ export default function SettingsPage() {
           </Group>
         </>
       )}
+
+      {/* 運作模式切換（跨裝置同步正下方）：一般模式 vs 旅遊模式 */}
+      <Group title="運作模式">
+        <div className="row set-stack">
+          {travelProjects.length === 0 ? (
+            <div className="row-sub" style={{ whiteSpace: 'normal' }}>
+              目前無進行中的旅遊專案。至「專案」新增旅遊專案即可開啟專屬旅遊模式。
+            </div>
+          ) : (
+            <>
+              <Segmented
+                value={s.travelModeProjectId ? 'travel' : 'normal'}
+                onChange={(v) => {
+                  haptic('selection');
+                  if (v === 'normal') {
+                    s.set('travelModeProjectId', null);
+                  } else {
+                    const target = travelProjects.find((p) => p.id === s.travelModeProjectId) ?? travelProjects[0];
+                    s.set('travelModeProjectId', target.id);
+                  }
+                }}
+                ariaLabel="運作模式"
+                options={[
+                  { value: 'normal', label: '一般模式' },
+                  {
+                    value: 'travel',
+                    label: travelProjects.length === 1
+                      ? `旅遊模式（${travelProjects[0].name}）`
+                      : '旅遊模式',
+                  },
+                ]}
+              />
+              {travelProjects.length > 1 && s.travelModeProjectId && (
+                <div style={{ marginTop: 8 }}>
+                  <select
+                    className="select"
+                    value={s.travelModeProjectId}
+                    onChange={(e) => {
+                      haptic('selection');
+                      s.set('travelModeProjectId', e.target.value);
+                    }}
+                    style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--sep)', background: 'var(--surface-2)', color: 'var(--text)' }}
+                  >
+                    {travelProjects.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div className="row-sub" style={{ whiteSpace: 'normal', marginTop: 6 }}>
+                {s.travelModeProjectId
+                  ? `目前處於「${travelProjects.find((p) => p.id === s.travelModeProjectId)?.name ?? ''}」旅遊模式，首頁與報表已切換為旅行專屬版面。`
+                  : '一般日常記帳模式，日常生活預算與每月分析不受旅遊專案干擾。'}
+              </div>
+            </>
+          )}
+        </div>
+      </Group>
 
       {/* 1. 記帳核心 */}
       <Group title="記帳與分類">

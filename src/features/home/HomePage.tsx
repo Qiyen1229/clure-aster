@@ -24,6 +24,7 @@ import { Amount, EmptyState, SkeletonRows } from '@/ui/controls';
 import { Calendar } from './Calendar';
 import { MonthPicker } from './MonthPicker';
 import { HomeHero } from './HomeHero';
+import { TravelHero } from './TravelHero';
 import { RemindersSheet, useUnreadCount } from './RemindersSheet';
 import { useInboxCount } from '@/services/inboxCount';
 import { syncNow } from '@/services/sync';
@@ -40,7 +41,11 @@ export default function HomePage() {
   const selected = useUI((s) => s.selectedDate);
   const setSelected = useUI((s) => s.setSelectedDate);
   const openAdd = useUI((s) => s.openAdd);
-  const { weekStart, calendarCollapsed, baseCurrency, homeWidgets, set } = useSettings();
+  const { weekStart, calendarCollapsed, baseCurrency, homeWidgets, travelModeProjectId, set } = useSettings();
+  const travelProject = useLiveQuery(
+    () => (travelModeProjectId ? db.projects.get(travelModeProjectId) : undefined),
+    [travelModeProjectId]
+  );
   const [calendarMode, setCalendarMode] = useState<'ledger' | 'pnl'>('ledger');
   const [monthOpen, setMonthOpen] = useState(false);
   const [remindersOpen, setRemindersOpen] = useState(false);
@@ -300,11 +305,20 @@ export default function HomePage() {
         </div>
       </header>
 
-      <HomeHero
-        selected={selected}
-        mode={calendarMode}
-        pnlSummary={pnlData.monthSummary}
-      />
+      {travelProject && calendarMode === 'ledger' ? (
+        <TravelHero
+          project={travelProject}
+          onSwitchNormal={() => set('travelModeProjectId', null)}
+          onAddTripExpense={() => openAdd({ date: selected, projectId: travelProject.id, currency: travelProject.currency })}
+          onViewProject={() => navigate(`/plan/projects/${travelProject.id}`)}
+        />
+      ) : (
+        <HomeHero
+          selected={selected}
+          mode={calendarMode}
+          pnlSummary={pnlData.monthSummary}
+        />
+      )}
 
       {/* 膠囊週曆（可平滑展開為全月，支援記帳與盈虧雙模式） */}
       <Calendar
@@ -382,7 +396,7 @@ export default function HomePage() {
               emoji="🧾"
               title="這天尚無記帳紀錄"
               text="花 3 秒記一筆，養成清晰的財務好習慣。"
-              action={<button className="btn tinted small" onClick={() => openAdd({ date: selected })}>記一筆</button>}
+              action={<button className="btn tinted small" onClick={() => openAdd({ date: selected, projectId: travelProject?.id, currency: travelProject?.currency })}>記一筆</button>}
             />
           ) : (
             <div className="day-ledger-list">

@@ -11,6 +11,7 @@ export type AddMode = TxType | 'transfer' | 'receivable' | 'payable';
 export interface AddPrefill {
   mode?: AddMode;
   amount?: string;
+  currency?: string;
   categoryId?: string;
   accountId?: string;
   toAccountId?: string;
@@ -18,6 +19,7 @@ export interface AddPrefill {
   date?: string;
   tagIds?: string[];
   projectId?: string;
+  skipBudget?: boolean;
   /** 商家（例如電子發票的賣方名稱） */
   merchant?: string;
   /** 電子發票號碼 */

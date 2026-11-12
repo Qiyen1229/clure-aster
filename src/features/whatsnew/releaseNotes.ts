@@ -25,6 +25,16 @@ export interface ReleaseNote {
 /** 新的在前 */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '4.1.31', date: '2026-11-13',
+    features: [
+      {
+        title: '專案旅程模式',
+        intro: '設定跨裝置同步下方新增運作模式切換，支援一鍵切換「一般模式」與「旅遊模式」。進入旅遊模式自動套用輕快度假色彩，首頁化身為旅程進度看板，記帳預設外幣自動換算，報表專案獨立統計與隔離。',
+        howto: '在「專案」建立旅遊專案後，至「設定 → 運作模式」即可切換；旅程結束將專案結算封存後自動回歸日常模式。',
+      },
+    ],
+  },
+  {
     version: '4.1.30', date: '2026-11-12',
     features: [
       {

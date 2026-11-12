@@ -24,7 +24,7 @@ export const useSettings = create<SettingsState>((set) => ({
   set: (key, value) => {
     set({ [key]: value } as Partial<SettingsState>);
     void saveSetting(key, value);
-    if (key === 'theme' || key === 'themePalette' || key === 'accent' || key === 'upColor') applyTheme(useSettings.getState());
+    if (key === 'theme' || key === 'themePalette' || key === 'accent' || key === 'upColor' || key === 'travelModeProjectId') applyTheme(useSettings.getState());
     if (key === 'fontSize') setFontSizePreference(value as Settings['fontSize']);
   },
 }));
@@ -32,14 +32,19 @@ export const useSettings = create<SettingsState>((set) => ({
 const media = typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 media?.addEventListener('change', () => applyTheme(useSettings.getState()));
 
-export function applyTheme(s: Pick<Settings, 'theme' | 'accent' | 'upColor' | 'themePalette'>) {
+export function applyTheme(s: Partial<Pick<Settings, 'theme' | 'accent' | 'upColor' | 'themePalette' | 'travelModeProjectId'>>) {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
   const dark = s.theme === 'dark' || (s.theme === 'system' && !!media?.matches);
-  root.dataset.theme = dark ? 'dark' : 'light';
-  root.dataset.accent = s.accent;
-  root.dataset.updown = s.upColor;
+  if (s.theme !== undefined) root.dataset.theme = dark ? 'dark' : 'light';
+  if (s.accent !== undefined) root.dataset.accent = s.accent;
+  if (s.upColor !== undefined) root.dataset.updown = s.upColor;
   root.dataset.palette = normalizeThemePalette(s.themePalette);
+  if (s.travelModeProjectId) {
+    root.dataset.mode = 'travel';
+  } else {
+    delete root.dataset.mode;
+  }
   const metaColor = getComputedStyle(root).getPropertyValue('--bg').trim();
   document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute('content', metaColor));
 }

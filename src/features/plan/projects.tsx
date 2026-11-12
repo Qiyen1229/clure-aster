@@ -13,7 +13,7 @@ import { evaluate } from '@/domain/calc-expr';
 import { useAccounts, useCategories, useTags } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
 import { useUI, ask } from '@/stores/ui';
-import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
+import { Amount, EmptyState, Segmented, SkeletonRows, Switch } from '@/ui/controls';
 import { AmountField, CurrencyField, DateField, TextField } from '@/ui/form';
 import { CatIcon, Icon } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
@@ -89,6 +89,11 @@ function ProjectForm({ project, onClose }: { project?: Project; onClose: () => v
   const [currency, setCurrency] = useState(project?.currency ?? base);
   const [budget, setBudget] = useState(project?.budgetMinor ? fromMinor(project.budgetMinor, project.currency).toString() : '');
   const [note, setNote] = useState(project?.note ?? '');
+  const [isTravel, setIsTravel] = useState(
+    project?.isTravel !== undefined
+      ? !!project.isTravel
+      : (icon === '🧳' || icon === '✈️' || icon === '🏝️' || icon === '🗾' || /旅行|旅遊|日本|出國|度假/.test(name))
+  );
   const navigate = useNavigate();
 
   const save = async () => {
@@ -96,7 +101,7 @@ function ProjectForm({ project, onClose }: { project?: Project; onClose: () => v
     const b = budget ? evaluate(budget) : null;
     const id = await saveProject({
       name: name.trim(), icon, color, start, end: end || undefined, currency, budgetMinor: b && b.gt(0) ? toMinor(b, currency) : undefined,
-      status: project?.status ?? 'active', note,
+      status: project?.status ?? 'active', note, isTravel,
     }, project?.id);
     onClose();
     if (!project) navigate(`/plan/projects/${id}`);
@@ -105,13 +110,23 @@ function ProjectForm({ project, onClose }: { project?: Project; onClose: () => v
   return (
     <>
       <div className="swatches" role="radiogroup" aria-label="圖示">
-        {PROJECT_ICONS.map((i) => <button key={i} className="pill" aria-pressed={icon === i} onClick={() => setIcon(i)} aria-label={i}>{i}</button>)}
+        {PROJECT_ICONS.map((i) => <button key={i} className="pill" aria-pressed={icon === i} onClick={() => {
+          setIcon(i);
+          if (!project && (i === '🧳' || i === '✈️' || i === '🏝️' || i === '🗾')) setIsTravel(true);
+        }} aria-label={i}>{i}</button>)}
       </div>
       <div className="swatches" role="radiogroup" aria-label="顏色">
         {PROJECT_COLORS.map((c) => <button key={c} className="swatch" style={{ ['--c' as string]: c }} aria-pressed={color === c} aria-label={c} onClick={() => setColor(c)} />)}
       </div>
       <div className="list">
         <TextField label="名稱" value={name} onChange={setName} placeholder="例如：日本旅行" />
+        <div className="row" style={{ justifyContent: 'space-between', padding: '8px 0' }}>
+          <div className="row-main">
+            <div className="row-title">設為旅遊專案</div>
+            <div className="row-sub">啟用後可切換專屬「旅遊模式」，首頁與報表專案特化</div>
+          </div>
+          <Switch checked={isTravel} onChange={setIsTravel} label="設為旅遊專案" />
+        </div>
         <DateField label="開始" value={start} onChange={setStart} />
         <DateField label="結束" value={end} onChange={setEnd} min={start} />
         <CurrencyField label="專案幣別" value={currency} onChange={setCurrency} />
@@ -121,11 +136,22 @@ function ProjectForm({ project, onClose }: { project?: Project; onClose: () => v
       <button className="btn" onClick={() => void save()}>儲存</button>
       {project && (
         <div className="btn-row" style={{ marginTop: 10 }}>
-          <button className="btn secondary" onClick={async () => { await saveProject({ ...project, status: project.status === 'active' ? 'done' : 'active' }, project.id); onClose(); }}>
+          <button className="btn secondary" onClick={async () => {
+            const nextStatus = project.status === 'active' ? 'done' : 'active';
+            await saveProject({ ...project, status: nextStatus }, project.id);
+            if (nextStatus === 'done' && useSettings.getState().travelModeProjectId === project.id) {
+              useSettings.getState().set('travelModeProjectId', null);
+              useUI.getState().showSnack({ text: `「${project.name}」已結束，Aster 已切換回一般模式。` });
+            }
+            onClose();
+          }}>
             {project.status === 'active' ? '標記為已結束' : '重新開啟'}
           </button>
           <button className="btn danger" onClick={async () => {
             if (!await ask(`刪除專案「${project.name}」？帳目會保留，只移除專案標記。`)) return;
+            if (useSettings.getState().travelModeProjectId === project.id) {
+              useSettings.getState().set('travelModeProjectId', null);
+            }
             await deleteProject(project.id);
             onClose();
             navigate('/plan?tab=project');
@@ -147,6 +173,8 @@ export function ProjectDetailPage() {
   const tags = useTags();
   const [editing, setEditing] = useState(false);
   const openAdd = useUI((s) => s.openAdd);
+  const travelModeProjectId = useSettings((s) => s.travelModeProjectId);
+  const setSetting = useSettings((s) => s.set);
 
   const byCat = useMemo(() => {
     if (!stats) return [];
@@ -189,6 +217,23 @@ export function ProjectDetailPage() {
           <div className="stat"><div className="k">天數</div><div className="v num">{days}</div></div>
         </div>
       </section>
+      {project.isTravel && project.status === 'active' && (
+        <div style={{ marginBottom: 12 }}>
+          <button
+            className={`btn small ${travelModeProjectId === project.id ? 'secondary' : 'tinted'}`}
+            style={{ width: '100%' }}
+            onClick={() => {
+              const next = travelModeProjectId === project.id ? null : project.id;
+              setSetting('travelModeProjectId', next);
+              useUI.getState().showSnack({
+                text: next ? `已切換為「${project.name}」旅遊模式` : '已切換回一般模式'
+              });
+            }}
+          >
+            {travelModeProjectId === project.id ? '切換回一般模式' : `切換至此旅遊模式（${project.name}）`}
+          </button>
+        </div>
+      )}
       <div className="btn-row" style={{ marginBottom: 12 }}>
         <button className="btn tinted small" style={{ flex: 1 }} onClick={() => openAdd({ projectId: project.id })}>記一筆</button>
         <button className="btn tinted small" style={{ flex: 1 }} onClick={() => void exportCSV({ projectId: project.id }, `aster-${project.name}`)}>匯出 CSV</button>

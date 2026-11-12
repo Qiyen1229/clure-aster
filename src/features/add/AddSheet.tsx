@@ -91,11 +91,11 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
   const [time, setTime] = useState(nowTime());
   const [note, setNote] = useState(prefill?.note ?? '');
   const [tagIds, setTagIds] = useState<string[]>(prefill?.tagIds ?? []);
-  const [projectId, setProjectId] = useState(prefill?.projectId ?? '');
+  const [projectId, setProjectId] = useState(prefill?.projectId ?? (!editing && settings.travelModeProjectId ? settings.travelModeProjectId : ''));
   /** 標記為耐用品（預計用幾年）；0＝不追蹤 */
   const [durableYears, setDurableYears] = useState(0);
   /** 不計入預算（仍計入收支統計）：預算進度與「今日還可花」都不算這一筆 */
-  const [skipBudget, setSkipBudget] = useState(false);
+  const [skipBudget, setSkipBudget] = useState(prefill?.skipBudget ?? (!editing && !!settings.travelModeProjectId));
   /** 耐用品「自訂期限」彈窗與目前的自訂值（年；0＝沒有自訂） */
   const [lifeOpen, setLifeOpen] = useState(false);
   const [durableCustom, setDurableCustom] = useState(0);
@@ -134,6 +134,14 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
     const last = settings.lastAccountId && accMap.get(settings.lastAccountId) && !accMap.get(settings.lastAccountId)!.archived ? settings.lastAccountId : '';
     setAccountId(last || accounts[0].id);
   }, [accounts]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (editing || prefill?.currency || currency) return;
+    const curProj = projectId ? projMap.get(projectId) : (settings.travelModeProjectId ? projMap.get(settings.travelModeProjectId) : undefined);
+    if (curProj?.currency && curProj.currency !== settings.baseCurrency) {
+      setCurrency(curProj.currency);
+    }
+  }, [editing, prefill?.currency, projectId, settings.travelModeProjectId, projMap, currency, settings.baseCurrency]);
 
   useEffect(() => {
     if (!allCats.length || editing) return;
@@ -793,7 +801,7 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
               </button>
             )}
             {mode === 'expense' && (
-              <button className="pill" onClick={() => setSkipBudget((x) => !x)} aria-pressed={skipBudget}>
+              <button className="pill" onClick={() => setSkipBudget((x: boolean) => !x)} aria-pressed={skipBudget}>
                 <Icon name="chart" size={16} />不計入預算
               </button>
             )}

@@ -164,6 +164,7 @@ export interface Project extends BaseRow {
   currency: string;
   budgetMinor?: number;
   status: 'active' | 'done' | 'archived';
+  isTravel?: boolean;
 }
 
 export interface Budget extends BaseRow {

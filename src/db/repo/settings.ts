@@ -141,6 +141,10 @@ export interface Settings {
   insights: { anomaly: boolean; budgetWarn: boolean; dismissed: string[]; /** 規則判斷不了的新支出，請 AI 查市價（需先開啟 ai.enabled；不計額度） */ aiPrice: boolean };
   /** 已看過哪一版的「版本更新重點」（隨帳號同步，換裝置不會再跳一次） */
   seenWhatsNew: string;
+  /** 旅遊模式作用中的專案 id（null＝一般模式） */
+  travelModeProjectId: string | null;
+  /** 一般模式下，報表是否排除旅遊專案（預設 true，保護日常生活開銷走勢） */
+  excludeTravelFromReports: boolean;
 }
 
 export interface InboxSettings {
@@ -228,6 +232,8 @@ export const DEFAULT_SETTINGS: Settings = {
   ai: { enabled: false, allowData: false, auto: false },
   insights: { anomaly: true, budgetWarn: true, dismissed: [], aiPrice: true },
   seenWhatsNew: '',
+  travelModeProjectId: null,
+  excludeTravelFromReports: true,
 };
 
 export async function getSetting<K extends keyof Settings>(key: K): Promise<Settings[K]> {

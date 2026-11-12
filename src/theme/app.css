@@ -83,6 +83,107 @@
 /* 亮色系主題色上的文字改用深色，確保對比度 ≥ 4.5（WCAG AA） */
 :root[data-accent='cyan'], :root[data-accent='gold'], :root[data-accent='orange'], :root[data-accent='green'] { --on-accent: #06181c; }
 
+/* 旅遊模式專屬輕快度假色彩：天際蔚藍 / 清爽度假感 */
+:root[data-mode='travel'] {
+  --accent: #0284c7;
+  --accent-text: #0369a1;
+  --accent-soft: rgba(2, 132, 199, 0.14);
+}
+:root[data-theme='dark'][data-mode='travel'] {
+  --accent: #38bdf8;
+  --accent-text: #7dd3fc;
+  --accent-soft: rgba(56, 189, 248, 0.18);
+}
+
+/* 旅遊模式看板樣式 */
+.travel-hero {
+  padding: 16px 18px 18px;
+  border-radius: 18px;
+  background: var(--surface);
+  border: 1px solid var(--sep);
+  margin-bottom: 14px;
+}
+.travel-hero-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 8px;
+}
+.travel-mode-badge-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.travel-mode-chip {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--on-accent, #ffffff);
+  letter-spacing: 0.02em;
+}
+.travel-hero-project-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.travel-hero-day-sub {
+  font-size: 0.78rem;
+  color: var(--text-2);
+}
+.travel-switch-btn {
+  font-size: 0.75rem;
+  color: var(--text-2);
+  background: var(--surface-2);
+  border: 1px solid var(--sep);
+  padding: 3px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.travel-switch-btn:hover {
+  color: var(--text);
+  border-color: var(--text-3);
+}
+.travel-hero-main {
+  margin-bottom: 12px;
+}
+.travel-hero-equiv {
+  font-size: 0.85rem;
+  color: var(--text-2);
+  margin-top: 2px;
+}
+.travel-budget-block {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.travel-budget-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+}
+.travel-budget-label {
+  color: var(--text-2);
+}
+.travel-budget-val {
+  color: var(--text);
+  font-weight: 600;
+}
+.travel-hero-actions {
+  display: flex;
+  gap: 8px;
+}
+.travel-hero-actions .btn {
+  flex: 1;
+}
+
 /* 完整配色放在自由點綴色之後，避免儲存的 Accent 覆蓋主題搭配。 */
 :root:is([data-palette='graphite'], [data-palette='jade'], [data-palette='amber']) {
   --bg-elev: var(--surface);

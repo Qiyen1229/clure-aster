@@ -14,9 +14,10 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
 import type { Transaction } from '@/db/types';
 import { analyze, pctChange } from '@/domain/reports';
-import { accountingMonth, addMonths, todayKey, yearRange, type Range } from '@/domain/period';
+import { accountingMonth, addMonths, eachDay, todayKey, yearRange, type Range } from '@/domain/period';
 import { formatMoney } from '@/domain/money';
 import { countsInStats, statAmount } from '@/domain/ledger';
+import { projectStats } from '@/db/repo/plan';
 import { netWorthSeries } from '@/services/networth';
 import { useAccounts, useCategories, useProjects, useTags } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
@@ -31,13 +32,14 @@ const EChart = lazy(() => import('./EChart'));
 
 interface RFilter { accountIds: string[]; projectIds: string[]; tagIds: string[]; currencies: string[] }
 
-async function loadTxs(range: Range, f: RFilter): Promise<Transaction[]> {
+async function loadTxs(range: Range, f: RFilter, excludeProjectIds?: Set<string>): Promise<Transaction[]> {
   const all = await db.transactions.where('date').between(range.start, range.end, true, true).toArray();
   return all.filter((t) => !t.deletedAt
     && (!f.accountIds.length || f.accountIds.includes(t.accountId))
     && (!f.projectIds.length || f.projectIds.includes(t.projectId ?? ''))
     && (!f.tagIds.length || f.tagIds.some((x) => t.tagIds.includes(x)))
-    && (!f.currencies.length || f.currencies.includes(t.currency)));
+    && (!f.currencies.length || f.currencies.includes(t.currency))
+    && (!excludeProjectIds || !t.projectId || !excludeProjectIds.has(t.projectId)));
 }
 
 function shiftRange(unit: 'month' | 'year', r: Range, n: number, msd: number): Range {
@@ -46,7 +48,20 @@ function shiftRange(unit: 'month' | 'year', r: Range, n: number, msd: number): R
 
 export default function ReportsPage() {
   const navigate = useNavigate();
-  const { baseCurrency: base, monthStartDay } = useSettings();
+  const { baseCurrency: base, monthStartDay, travelModeProjectId, excludeTravelFromReports, set: setSetting } = useSettings();
+  const travelProject = useLiveQuery(
+    () => (travelModeProjectId ? db.projects.get(travelModeProjectId) : undefined),
+    [travelModeProjectId]
+  );
+  const allTravelProjects = useLiveQuery(
+    () => db.projects.filter((p) => !!p.isTravel).toArray(),
+    []
+  ) ?? [];
+  const travelProjectStats = useLiveQuery(
+    () => (travelProject ? projectStats(travelProject) : null),
+    [travelProject]
+  );
+
   const [unit, setUnit] = useState<'month' | 'year' | 'custom'>('month');
   const [anchor, setAnchor] = useState(todayKey());
   const [custom, setCustom] = useState<Range>({ start: addMonths(todayKey(), -3), end: todayKey() });
@@ -59,6 +74,13 @@ export default function ReportsPage() {
   const accounts = useAccounts(true);
   const tags = useTags();
 
+  const excludeSet = useMemo(() => {
+    if (travelModeProjectId) return undefined;
+    if (!excludeTravelFromReports || allTravelProjects.length === 0) return undefined;
+    if (filter.projectIds.length > 0) return undefined;
+    return new Set(allTravelProjects.map((p) => p.id));
+  }, [travelModeProjectId, excludeTravelFromReports, allTravelProjects, filter.projectIds]);
+
   const range: Range = unit === 'custom' ? custom : unit === 'year' ? yearRange(anchor) : accountingMonth(anchor, monthStartDay);
   const prev = unit === 'custom' ? null : shiftRange(unit, range, -1, monthStartDay);
   const lastYear = unit === 'month' ? accountingMonth(addMonths(range.start, -12), monthStartDay) : null;
@@ -68,11 +90,31 @@ export default function ReportsPage() {
 
   const data = useLiveQuery(async () => {
     const [cur, p, ly, trend] = await Promise.all([
-      loadTxs(range, filter), prev ? loadTxs(prev, filter) : Promise.resolve([]), lastYear ? loadTxs(lastYear, filter) : Promise.resolve([]), loadTxs(trendRange, filter),
+      loadTxs(range, filter, excludeSet),
+      prev ? loadTxs(prev, filter, excludeSet) : Promise.resolve([]),
+      lastYear ? loadTxs(lastYear, filter, excludeSet) : Promise.resolve([]),
+      loadTxs(trendRange, filter, excludeSet),
     ]);
     return { cur, p, ly, trend };
-  }, [range.start, range.end, fkey, tick]);
+  }, [range.start, range.end, fkey, tick, excludeSet]);
   const nw = useLiveQuery(() => netWorthSeries(12), [tick]);
+
+  const tripByCat = useMemo(() => {
+    if (!travelProjectStats) return [];
+    const m = new Map<string, number>();
+    for (const [cid, v] of travelProjectStats.byCat) {
+      const c = cats.map.get(cid);
+      const main = c?.parentId || cid;
+      m.set(main, (m.get(main) ?? 0) + v);
+    }
+    return [...m].sort((a, b) => b[1] - a[1]);
+  }, [travelProjectStats, cats.map]);
+
+  const tripItems = useMemo(() => {
+    if (!travelProjectStats) return [];
+    return [...travelProjectStats.txs].sort((a, b) => (a.date === b.date ? b.ts - a.ts : a.date < b.date ? 1 : -1))
+      .map((t) => ({ kind: 'tx' as const, id: t.id, date: t.date, ts: t.ts, tx: t }));
+  }, [travelProjectStats]);
 
   const a = useMemo(() => (data ? analyze(data.cur, cats.map, range, kind, todayKey()) : null), [data, cats.map, kind, range.start, range.end]); // eslint-disable-line react-hooks/exhaustive-deps
   const ap = useMemo(() => (data && prev ? analyze(data.p, cats.map, prev, kind) : null), [data, cats.map, kind]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -180,6 +222,97 @@ export default function ReportsPage() {
     return <span style={{ color: good ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>{c > 0 ? '▲' : '▼'} {Math.abs(c).toFixed(1)}%</span>;
   };
 
+  if (travelProject) {
+    const daysCount = eachDay({ start: travelProject.start, end: travelProject.end && travelProject.end < todayKey() ? travelProject.end : todayKey() }).length || 1;
+    return (
+      <main className="page">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, marginBottom: 12 }}>
+          <div>
+            <div className="travel-mode-badge-group">
+              <span className="travel-mode-chip">旅遊模式</span>
+              <h1 className="large-title" style={{ margin: 0, fontSize: '1.4rem' }}>{travelProject.name} 報表</h1>
+            </div>
+            <div className="travel-hero-day-sub" style={{ marginTop: 4 }}>
+              {travelProject.start.replace(/-/g, '/')}{travelProject.end ? ` – ${travelProject.end.replace(/-/g, '/')}` : ' 起'} · {travelProject.currency}
+            </div>
+          </div>
+          <button
+            type="button"
+            className="travel-switch-btn"
+            onClick={() => setSetting('travelModeProjectId', null)}
+            aria-label="切換回一般模式"
+          >
+            切換回一般模式
+          </button>
+        </div>
+
+        <section className="card glass">
+          <div className="muted" style={{ fontSize: '0.8rem' }}>總花費（{travelProject.currency}）</div>
+          <div className="hero-num num">
+            <Amount minor={travelProjectStats?.expense ?? 0} currency={travelProject.currency} tone="none" animate />
+          </div>
+          {travelProject.currency !== travelProjectStats?.base && travelProjectStats && travelProjectStats.expenseBase > 0 && (
+            <div className="muted num" style={{ fontSize: '0.85rem' }}>
+              ≈ <Amount minor={travelProjectStats.expenseBase} currency={travelProjectStats.base} tone="none" />
+            </div>
+          )}
+          {travelProject.budgetMinor ? (
+            <>
+              <div className="bar" style={{ marginTop: 10 }}>
+                <i
+                  style={{
+                    width: `${Math.min(100, travelProjectStats ? (travelProjectStats.expense / travelProject.budgetMinor) * 100 : 0)}%`,
+                    ['--c' as string]: (travelProjectStats?.expense ?? 0) > travelProject.budgetMinor ? 'var(--danger)' : travelProject.color,
+                  }}
+                />
+              </div>
+              <div className="muted num" style={{ fontSize: '0.8rem', marginTop: 6 }}>
+                預算 <Amount minor={travelProject.budgetMinor} currency={travelProject.currency} tone="none" />・剩餘{' '}
+                <Amount minor={travelProject.budgetMinor - (travelProjectStats?.expense ?? 0)} currency={travelProject.currency} tone="auto" />
+              </div>
+            </>
+          ) : null}
+          <div className="stat-grid" style={{ marginTop: 12 }}>
+            <div className="stat"><div className="k">筆數</div><div className="v num">{travelProjectStats?.txs.length ?? 0}</div></div>
+            <div className="stat"><div className="k">日均</div><div className="v num"><Amount minor={Math.round((travelProjectStats?.expense ?? 0) / daysCount)} currency={travelProject.currency} tone="none" /></div></div>
+            <div className="stat"><div className="k">天數</div><div className="v num">{daysCount}</div></div>
+          </div>
+        </section>
+
+        {tripByCat.length > 0 && (
+          <div className="list" style={{ marginTop: 12 }}>
+            <div className="section-title">類別支出分佈</div>
+            {tripByCat.map(([cid, v]) => {
+              const c = cats.map.get(cid);
+              const p = travelProjectStats!.expense ? (v / travelProjectStats!.expense) * 100 : 0;
+              return (
+                <div key={cid} className="row with-icon">
+                  <span className="cat-icon sm" style={{ ['--c' as string]: c?.color }} aria-hidden="true"><CatIcon icon={c?.icon} size={16} /></span>
+                  <div className="row-main">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <span>{c?.name} <span className="muted num" style={{ fontSize: '0.8rem' }}>{p.toFixed(1)}%</span></span>
+                      <Amount minor={v} currency={travelProject.currency} tone="none" className="num" />
+                    </div>
+                    <div className="bar"><i style={{ width: `${p}%`, ['--c' as string]: c?.color }} /></div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="section-title" style={{ marginTop: 16 }}>旅程消費明細</div>
+        {tripItems.length === 0 ? (
+          <EmptyState emoji="🧾" title="這趟旅程還沒有帳目" text="點擊「＋」或首頁「記一筆旅行開銷」開始記錄。" />
+        ) : (
+          tripItems.map((it) => (
+            <LedgerRow key={it.id} item={it} cats={cats.map} accounts={accounts.map} tags={tags.map} showDate />
+          ))
+        )}
+      </main>
+    );
+  }
+
   return (
     <main className="page">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
@@ -197,6 +330,19 @@ export default function ReportsPage() {
           }}><Icon name="download" /></button>
         </div>
       </div>
+      {allTravelProjects.length > 0 && (
+        <div style={{ margin: '8px 0' }}>
+          <Segmented
+            value={excludeTravelFromReports ? 'exclude' : 'include'}
+            onChange={(v) => setSetting('excludeTravelFromReports', v === 'exclude')}
+            options={[
+              { value: 'exclude', label: '排除旅遊專案' },
+              { value: 'include', label: '包含旅遊專案' },
+            ]}
+            ariaLabel="旅遊專案統計"
+          />
+        </div>
+      )}
       <Segmented value={unit} onChange={(u) => { setUnit(u); setDrill(null); }} options={[{ value: 'month', label: '月' }, { value: 'year', label: '年' }, { value: 'custom', label: '自訂' }]} ariaLabel="期間" />
       {unit === 'custom' ? (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '12px 0' }}>
