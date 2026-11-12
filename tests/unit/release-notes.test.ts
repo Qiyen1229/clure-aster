@@ -19,12 +19,17 @@ describe('更新說明資料', () => {
   it('★ 目前版本一定要有一筆（每次發佈都要新增；沒有新功能就寫 features: []）', () => {
     expect(RELEASE_NOTES.some((n) => n.version === pkg.version), `releaseNotes.ts 還沒有 v${pkg.version} 這一版`).toBe(true);
   });
-  it('版本不重複、由新到舊、不晚於目前版本；每個功能都有標題、介紹與用法', () => {
+  it('版本不重複、由新到舊、不晚於目前版本；每個功能都有標題、介紹與用法，且標題嚴格限制不得超過 10 個字', () => {
     const vs = RELEASE_NOTES.map((n) => n.version);
     expect(new Set(vs).size).toBe(vs.length);
     expect([...vs].sort((a, b) => cmpVersion(b, a))).toEqual(vs);
     expect(cmpVersion(vs[0], pkg.version)).toBeLessThanOrEqual(0);
-    for (const n of RELEASE_NOTES) for (const f of n.features) expect(f.title.trim() && f.intro.trim() && f.howto.trim(), `${n.version} ${f.title}`).toBeTruthy();
+    for (const n of RELEASE_NOTES) {
+      for (const f of n.features) {
+        expect(f.title.trim() && f.intro.trim() && f.howto.trim(), `${n.version} ${f.title}`).toBeTruthy();
+        expect(f.title.trim().length, `[${n.version}]「${f.title}」標題不得超過 10 個字（目前為 ${f.title.trim().length} 字）`).toBeLessThanOrEqual(10);
+      }
+    }
   });
 });
 

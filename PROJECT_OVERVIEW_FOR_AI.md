@@ -7,7 +7,7 @@
 >
 > ### 版本號與發佈規範
 > - 格式 `x.y.z`。原本的命名原則（x＝3 個以上新功能、y＝1～3 個、z＝修復）僅供參考；**實務上版本號由使用者指定**（4.1.x 系列就是使用者逐版指定的，功能與修正都用 z 遞增）。
-> - 每次發佈都要同步：`package.json`／`package-lock.json`、`server/app/main.py`、`CHANGELOG.md`、`FEATURES_FOR_AI.md`、`src/release.json`、`README.md` 的測試數、**本檔開頭的版本與測試數**；**並檢查功能介紹與更新說明**：`src/features/onboarding/showcase.ts`（首次引導的 6 個最強功能，依分數自動取前 6，`release.json` 的 `showcaseReviewed` 要等於版本號）、`src/features/whatsnew/releaseNotes.ts`（更新後彈窗的每版功能說明，當版一定要有一筆）；兩者都有測試把關。最後 `sh scripts/pack-nas.sh` 產出 `aster-nas.zip`。
+> - 每次發佈都要同步：`package.json`／`package-lock.json`、`server/app/main.py`、`CHANGELOG.md`、`FEATURES_FOR_AI.md`、`src/release.json`、`README.md` 的測試數、**本檔開頭的版本與測試數**；**並檢查功能介紹與更新說明**：`src/features/onboarding/showcase.ts`（首次引導的 6 個最強功能，依分數自動取前 6，`release.json` 的 `showcaseReviewed` 要等於版本號）、`src/features/whatsnew/releaseNotes.ts`（更新後彈窗的每版功能說明，當版一定要有一筆，**功能標題嚴格限制不得超過 10 個字**）；兩者都有測試把關。最後 `sh scripts/pack-nas.sh` 產出 `aster-nas.zip`。
 > - 想看細節時，請依第 13 節「檔案地圖」直接讀對應檔案；各檔案開頭都有繁體中文說明註解。功能面的詳細說明見 [FEATURES_FOR_AI.md](FEATURES_FOR_AI.md)。
 
 ---
