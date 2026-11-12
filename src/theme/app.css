@@ -427,7 +427,7 @@ button img, a img, .cat-icon, .tab svg { -webkit-user-drag: none; }
 /* 有透鏡時選取狀態不再需要自己的背景與彈跳動畫（透鏡負責） */
 .tab[aria-current='page'] svg { animation: none; }
 
-/* 中央按鈕：與膠囊等高的立體玻璃圓珠 */
+/* 中央按鈕：首頁 48px 霧面實色＋；次級頁保留立體 Logo 珠 */
 .tab-center {
   position: relative;
   z-index: 4;
@@ -455,41 +455,14 @@ button img, a img, .cat-icon, .tab svg { -webkit-user-drag: none; }
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   border: 0;
-  /* 顏色全部由使用者選的主題色（--accent）推算：亮部、本體、暗部、光暈都跟著變 */
-  background:
-    radial-gradient(75% 55% at 50% 8%, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0) 70%),
-    radial-gradient(90% 70% at 50% 108%, color-mix(in srgb, var(--accent) 55%, #fff), transparent 62%),
-    linear-gradient(160deg, color-mix(in srgb, var(--accent) 55%, #fff) 0%, var(--accent) 42%, color-mix(in srgb, var(--accent) 62%, #000) 100%);
-  box-shadow:
-    inset 0 2px 2px rgba(255, 255, 255, 0.75),
-    inset 0 -7px 12px color-mix(in srgb, var(--accent) 45%, rgba(0, 0, 0, 0.7)),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.18),
-    0 10px 22px -4px color-mix(in srgb, var(--accent) 60%, transparent),
-    0 3px 8px rgba(0, 0, 0, 0.3);
+  /* 霧面實色：直接取主題色，不疊漸層、高光與光暈 */
+  background: var(--accent);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
   transition: transform 340ms var(--spring), box-shadow 300ms ease, filter 200ms ease;
 }
-/* 頂部玻璃穹頂高光 */
-.dynamic-fab::before {
-  content: '';
-  position: absolute;
-  left: 14%;
-  right: 14%;
-  top: 4%;
-  height: 44%;
-  border-radius: 50% 50% 46% 46% / 60% 60% 40% 40%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.04));
-  pointer-events: none;
-  z-index: 1;
-}
+.dynamic-fab.mode-plus { width: 48px; height: 48px; }
 .dynamic-fab:active, .dynamic-fab.pressing { transform: scale(0.93); filter: brightness(1.06); }
-.dynamic-fab.pressing {
-  box-shadow:
-    inset 0 2px 2px rgba(255, 255, 255, 0.75),
-    inset 0 -7px 12px color-mix(in srgb, var(--accent) 45%, rgba(0, 0, 0, 0.7)),
-    0 0 0 4px color-mix(in srgb, var(--accent) 38%, transparent),
-    0 12px 28px -2px color-mix(in srgb, var(--accent) 75%, transparent);
-}
-/* 手指在導覽列上滑到中間首頁時，圓珠鼓起發光 */
+/* 手指在導覽列上滑到中間首頁時，按鈕鼓起 */
 .dynamic-fab.scrub-target { transform: scale(1.1); filter: brightness(1.1); }
 /* 次級頁面：深色玻璃珠 */
 .dynamic-fab.mode-logo {
@@ -516,15 +489,23 @@ button img, a img, .cat-icon, .tab svg { -webkit-user-drag: none; }
     0 10px 20px -4px rgba(40, 60, 120, 0.3),
     0 3px 8px rgba(40, 60, 120, 0.12);
 }
-.dynamic-fab.mode-logo::before { opacity: 0.55; }
-
-/* 長按時向外擴散的光環 */
-.fab-aura { position: absolute; inset: 0; border-radius: 50%; pointer-events: none; }
-.dynamic-fab.pressing .fab-aura { animation: aura-expand 1.2s ease-out infinite; overflow: visible; }
-@keyframes aura-expand {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 70%, transparent); opacity: 1; }
-  100% { box-shadow: 0 0 0 18px transparent; opacity: 0; }
+/* 頂部玻璃穹頂高光：僅次級頁 Logo 珠保留 */
+.dynamic-fab.mode-logo::before {
+  content: '';
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  top: 4%;
+  height: 44%;
+  border-radius: 50% 50% 46% 46% / 60% 60% 40% 40%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.04));
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.55;
 }
+
+/* 長按／上滑手勢保留；擴散光暈已取消，此層僅維持定位 */
+.fab-aura { position: absolute; inset: 0; border-radius: 50%; pointer-events: none; }
 
 /* 圖層切換（＋ ↔ Logo）：絕對置中，圖示精準位於圓珠中心 */
 .fab-layer {
@@ -536,7 +517,7 @@ button img, a img, .cat-icon, .tab svg { -webkit-user-drag: none; }
   transition: opacity 260ms var(--ease), transform 360ms var(--spring);
 }
 .fab-layer.off { opacity: 0; transform: scale(0.3) rotate(-90deg); pointer-events: none; }
-.fab-layer svg { width: 34px; height: 34px; display: block; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.35)); }
+.fab-layer svg { width: 24px; height: 24px; display: block; }
 .fab-layer .logo { width: 46px; height: 46px; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35)); }
 
 /* 待處理事項的小光點 */
@@ -2164,7 +2145,6 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
 
 /* ───── v4.1.0 對話即介面：嵌在對話裡的檢視卡、畫面情境標籤、靈動島叫出 AI ───── */
 .dynamic-fab { touch-action: none; } /* 圓球要偵測往上滑：不能讓瀏覽器把它當成捲動而中斷手勢 */
-.dynamic-fab.ai-hold .fab-aura { animation: aura-expand 0.6s ease-out 2; overflow: visible; }
 .dynamic-fab.ai-hold { filter: brightness(1.12) saturate(1.2); }
 .view-wrap { margin-top: 10px; padding: 12px; border-radius: var(--radius-s); background: var(--surface-2); min-width: 0; overflow-x: hidden; }
 .view-wrap .section-title, .view-wrap .card p { white-space: normal; overflow-wrap: anywhere; }
