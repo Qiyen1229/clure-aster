@@ -8,10 +8,14 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { addDays, fromDateKey, monthGrid, todayKey, weekRange, type CalendarCell } from '@/domain/period';
 import type { Totals } from '@/domain/ledger';
+import type { DayPnlResult, MonthPnlSummary } from '@/domain/invest/pnlCalendar';
+import { formatPnlCompact, formatPnlPct } from '@/domain/invest/pnlCalendar';
 import { haptic } from '@/services/haptics';
 import { Icon } from '@/ui/Icon';
 
 const SHORT_WEEK_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
+
+export type CalendarMode = 'ledger' | 'pnl';
 
 interface Props {
   year: number;
@@ -21,10 +25,14 @@ interface Props {
   dayTotals: Map<string, Totals>;
   daysWithRecords: Set<string>;
   collapsed: boolean;
+  mode?: CalendarMode;
+  pnlDays?: Map<string, DayPnlResult>;
+  monthPnlSummary?: MonthPnlSummary;
   onSelect: (key: string) => void;
   onMonthShift: (delta: number) => void;
   onWeekShift: (delta: number) => void;
   onToggleCollapse: () => void;
+  onModeChange?: (mode: CalendarMode) => void;
 }
 
 export function Calendar({
@@ -35,10 +43,14 @@ export function Calendar({
   dayTotals,
   daysWithRecords,
   collapsed,
+  mode = 'ledger',
+  pnlDays,
+  monthPnlSummary,
   onSelect,
   onMonthShift,
   onWeekShift,
   onToggleCollapse,
+  onModeChange,
 }: Props) {
   const today = todayKey();
 
@@ -309,10 +321,18 @@ export function Calendar({
         const hasInc = (t?.income ?? 0) > 0;
         const isWeekend = weekday === 0 || weekday === 6;
 
+        const pnl = pnlDays?.get(k);
+        const hasPnl = mode === 'pnl' && pnl && pnl.hasActivity && pnl.currencies.length > 0;
+        let pnlTintClass = '';
+        if (hasPnl && pnl) {
+          const sumPnl = pnl.currencies.reduce((acc, cur) => acc + cur.pnlMinor, 0);
+          pnlTintClass = sumPnl > 0 ? 'pnl-tint-pos' : sumPnl < 0 ? 'pnl-tint-neg' : '';
+        }
+
         return (
           <button
             key={k}
-            className={`cal-pill ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''} ${isWeekend ? 'weekend' : ''}`}
+            className={`cal-pill ${mode === 'pnl' ? 'pnl-mode' : ''} ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''} ${isWeekend ? 'weekend' : ''} ${pnlTintClass}`}
             onClick={(e) => {
               if (justSwiped.current || isAnimating.current) {
                 e.preventDefault();
@@ -323,15 +343,39 @@ export function Calendar({
               onSelect(k);
             }}
             aria-selected={isSelected}
-            aria-label={`${k}${has ? '，有紀錄' : ''}`}
+            aria-label={`${k}${mode === 'pnl' ? (hasPnl ? '，有損益' : '') : has ? '，有紀錄' : ''}`}
           >
             <span className="cal-pill-day">{SHORT_WEEK_LABELS[weekday]}</span>
             <span className="cal-pill-num num">{dayNum}</span>
-            <span className="cal-pill-dots" aria-hidden="true">
-              {hasExp && <i className="dot exp" />}
-              {hasInc && <i className="dot inc" />}
-              {!hasExp && !hasInc && has && <i className="dot other" />}
-            </span>
+            {mode === 'ledger' ? (
+              <span className="cal-pill-dots" aria-hidden="true">
+                {hasExp && <i className="dot exp" />}
+                {hasInc && <i className="dot inc" />}
+                {!hasExp && !hasInc && has && <i className="dot other" />}
+              </span>
+            ) : hasPnl && pnl ? (
+              <div className="cal-cell-pnl num" aria-hidden="true">
+                {pnl.currencies.length === 1 ? (
+                  <>
+                    <span className={`cal-pnl-amt ${pnl.currencies[0].pnlMinor > 0 ? 'pos' : pnl.currencies[0].pnlMinor < 0 ? 'neg' : 'flat'}`}>
+                      {formatPnlCompact(pnl.currencies[0])}
+                    </span>
+                    <span className={`cal-pnl-pct ${pnl.currencies[0].pnlMinor > 0 ? 'pos' : pnl.currencies[0].pnlMinor < 0 ? 'neg' : 'flat'}`}>
+                      {formatPnlPct(pnl.currencies[0].pnlPct)}
+                    </span>
+                  </>
+                ) : (
+                  <div className="cal-cell-pnl-dual">
+                    <span className={`cal-pnl-amt ${pnl.currencies[0].pnlMinor > 0 ? 'pos' : pnl.currencies[0].pnlMinor < 0 ? 'neg' : 'flat'}`}>
+                      {formatPnlCompact(pnl.currencies[0], true)}
+                    </span>
+                    <span className={`cal-pnl-amt ${pnl.currencies[1].pnlMinor > 0 ? 'pos' : pnl.currencies[1].pnlMinor < 0 ? 'neg' : 'flat'}`}>
+                      {formatPnlCompact(pnl.currencies[1], true)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : null}
           </button>
         );
       })}
@@ -340,7 +384,7 @@ export function Calendar({
 
   // 繪製單月 42 格
   const renderMonthSlide = (cells: CalendarCell[], selDate: string, label: string) => (
-    <div className="cal-grid" role="grid" aria-label={label}>
+    <div className={`cal-grid ${mode === 'pnl' ? 'cal-grid-pnl' : ''}`} role="grid" aria-label={label}>
       {cells.map((c) => {
         const t = dayTotals.get(c.key);
         const has = daysWithRecords.has(c.key);
@@ -350,13 +394,21 @@ export function Calendar({
         const isSelected = c.key === selDate;
         const isWeekend = c.weekday === 0 || c.weekday === 6;
 
+        const pnl = pnlDays?.get(c.key);
+        const hasPnl = mode === 'pnl' && pnl && pnl.hasActivity && pnl.currencies.length > 0;
+        let pnlTintClass = '';
+        if (hasPnl && pnl) {
+          const sumPnl = pnl.currencies.reduce((acc, cur) => acc + cur.pnlMinor, 0);
+          pnlTintClass = sumPnl > 0 ? 'pnl-tint-pos' : sumPnl < 0 ? 'pnl-tint-neg' : '';
+        }
+
         return (
           <button
             key={c.key}
-            className={`cal-grid-cell ${c.inMonth ? '' : 'out'} ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''} ${isWeekend ? 'weekend' : ''}`}
+            className={`cal-grid-cell ${mode === 'pnl' ? 'pnl-mode' : ''} ${c.inMonth ? '' : 'out'} ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''} ${isWeekend ? 'weekend' : ''} ${pnlTintClass}`}
             role="gridcell"
             aria-selected={isSelected}
-            aria-label={`${c.key}${has ? '，有紀錄' : ''}`}
+            aria-label={`${c.key}${mode === 'pnl' ? (hasPnl ? '，有損益' : '') : has ? '，有紀錄' : ''}`}
             onClick={(e) => {
               if (justSwiped.current || isAnimating.current) {
                 e.preventDefault();
@@ -370,11 +422,35 @@ export function Calendar({
             <span className="cal-grid-num num">
               {c.day === 1 ? `${Number(c.key.slice(5, 7))}月` : c.day}
             </span>
-            <span className="cal-pill-dots" aria-hidden="true">
-              {hasExp && <i className="dot exp" />}
-              {hasInc && <i className="dot inc" />}
-              {!hasExp && !hasInc && has && <i className="dot other" />}
-            </span>
+            {mode === 'ledger' ? (
+              <span className="cal-pill-dots" aria-hidden="true">
+                {hasExp && <i className="dot exp" />}
+                {hasInc && <i className="dot inc" />}
+                {!hasExp && !hasInc && has && <i className="dot other" />}
+              </span>
+            ) : hasPnl && pnl ? (
+              <div className="cal-cell-pnl num" aria-hidden="true">
+                {pnl.currencies.length === 1 ? (
+                  <>
+                    <span className={`cal-pnl-amt ${pnl.currencies[0].pnlMinor > 0 ? 'pos' : pnl.currencies[0].pnlMinor < 0 ? 'neg' : 'flat'}`}>
+                      {formatPnlCompact(pnl.currencies[0])}
+                    </span>
+                    <span className={`cal-pnl-pct ${pnl.currencies[0].pnlMinor > 0 ? 'pos' : pnl.currencies[0].pnlMinor < 0 ? 'neg' : 'flat'}`}>
+                      {formatPnlPct(pnl.currencies[0].pnlPct)}
+                    </span>
+                  </>
+                ) : (
+                  <div className="cal-cell-pnl-dual">
+                    <span className={`cal-pnl-amt ${pnl.currencies[0].pnlMinor > 0 ? 'pos' : pnl.currencies[0].pnlMinor < 0 ? 'neg' : 'flat'}`}>
+                      {formatPnlCompact(pnl.currencies[0], true)}
+                    </span>
+                    <span className={`cal-pnl-amt ${pnl.currencies[1].pnlMinor > 0 ? 'pos' : pnl.currencies[1].pnlMinor < 0 ? 'neg' : 'flat'}`}>
+                      {formatPnlCompact(pnl.currencies[1], true)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : null}
           </button>
         );
       })}
@@ -384,13 +460,74 @@ export function Calendar({
   return (
     <div
       ref={containerRef}
-      className="cal-container"
+      className={`cal-container ${mode === 'pnl' ? 'cal-mode-pnl' : ''}`}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}
       onWheel={handleWheel}
     >
+      {/* 獨立切換列（記帳日曆 ⇄ 盈虧日曆）＋全月盈虧摘要 */}
+      <div className="cal-top-toolbar">
+        <div className="cal-mode-segmented" role="tablist" aria-label="日曆檢視模式">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === 'ledger'}
+            className={`cal-mode-btn ${mode === 'ledger' ? 'active' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (mode !== 'ledger') {
+                haptic('selection');
+                onModeChange?.('ledger');
+              }
+            }}
+          >
+            記帳日曆
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === 'pnl'}
+            className={`cal-mode-btn ${mode === 'pnl' ? 'active' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (mode !== 'pnl') {
+                haptic('selection');
+                onModeChange?.('pnl');
+              }
+            }}
+          >
+            <Icon name="trend" size={13} />
+            <span>盈虧日曆</span>
+          </button>
+        </div>
+
+        {mode === 'pnl' && monthPnlSummary && (
+          <div className="cal-pnl-month-glance num" aria-label="當月總盈虧">
+            {monthPnlSummary.currencies.length === 0 ? (
+              <span className="cal-pnl-glance-empty">本月無交易與持股</span>
+            ) : (
+              monthPnlSummary.currencies.map((c) => {
+                const isPos = c.totalPnlMinor > 0;
+                const isNeg = c.totalPnlMinor < 0;
+                const tone = isPos ? 'pos' : isNeg ? 'neg' : 'flat';
+                const sign = isPos ? '+' : isNeg ? '-' : '';
+                const val = (Math.abs(c.totalPnlMinor) / 100).toLocaleString('en-US', {
+                  maximumFractionDigits: c.currency === 'TWD' ? 0 : 2,
+                });
+                return (
+                  <span key={c.currency} className={`cal-pnl-glance-badge ${tone}`}>
+                    <span className="cal-pnl-glance-cur">{c.currency === 'TWD' ? 'NT$' : 'US$'}</span>
+                    <span className="cal-pnl-glance-val">{`${sign}${val}`}</span>
+                  </span>
+                );
+              })
+            )}
+          </div>
+        )}
+      </div>
+
       {!collapsed && (
         <div className="cal-week-header" aria-hidden="true">
           {orderedLabels.map((l) => (

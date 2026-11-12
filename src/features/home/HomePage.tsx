@@ -7,13 +7,14 @@
  * - 當日：一行標題（日期＋支出／收入）＋帳目清單；「全部 ›」進帳目列表。
  * - 小工具預設不在首頁（設定 → 首頁快覽配置可加回）。
  */
-import { lazy, Suspense, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
 import { listLedger, listStatTxs } from '@/db/repo/ledger';
 import { addDays, fromDateKey, monthGrid, toDateKey, todayKey } from '@/domain/period';
 import { totals, totalsByDay } from '@/domain/ledger';
+import { computePnlCalendar, type DayPnlResult, type MonthPnlSummary } from '@/domain/invest/pnlCalendar';
 import { useAccounts, useCategories, useTags } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
 import { useUI } from '@/stores/ui';
@@ -40,6 +41,7 @@ export default function HomePage() {
   const setSelected = useUI((s) => s.setSelectedDate);
   const openAdd = useUI((s) => s.openAdd);
   const { weekStart, calendarCollapsed, baseCurrency, homeWidgets, set } = useSettings();
+  const [calendarMode, setCalendarMode] = useState<'ledger' | 'pnl'>('ledger');
   const [monthOpen, setMonthOpen] = useState(false);
   const [remindersOpen, setRemindersOpen] = useState(false);
   const unread = useUnreadCount() + useInboxCount((x) => x.n + x.extra);
@@ -168,6 +170,64 @@ export default function HomePage() {
   const items = useLiveQuery(() => listLedger(selected, selected), [selected]);
   const dayTotal = useLiveQuery(async () => totals(await listStatTxs(selected, selected)), [selected]);
 
+  // 投資資料與盈虧日曆計算
+  const invData = useLiveQuery(async () => {
+    const [stocks, trades, priceCaches, priceHistories] = await Promise.all([
+      db.stocks.toArray(),
+      db.stock_trades.toArray(),
+      db.price_cache.toArray(),
+      db.price_history.toArray(),
+    ]);
+    return {
+      stocks,
+      trades: trades.filter((t) => !t.deletedAt),
+      priceCaches,
+      priceHistories: priceHistories.filter((h) => h.date >= gridStart && h.date <= gridEnd),
+    };
+  }, [gridStart, gridEnd]);
+
+  const pnlData = useMemo(() => {
+    if (!invData) {
+      return {
+        days: new Map<string, DayPnlResult>(),
+        monthSummary: {
+          monthKey: `${year}-${String(month0 + 1).padStart(2, '0')}`,
+          byCurrency: new Map(),
+          currencies: [],
+          totalTrades: 0,
+        } as MonthPnlSummary,
+      };
+    }
+    return computePnlCalendar({
+      stocks: invData.stocks,
+      trades: invData.trades,
+      priceCaches: invData.priceCaches,
+      priceHistories: invData.priceHistories,
+      startDate: gridStart,
+      endDate: gridEnd,
+      today: todayKey(),
+    });
+  }, [invData, gridStart, gridEnd, year, month0]);
+
+  const selectedDayPnl = pnlData.days.get(selected);
+
+  // 切換到盈虧日曆時，若有持股尚未取得近 30 天日線，於背景預載入
+  useEffect(() => {
+    if (calendarMode !== 'pnl' || !invData) return;
+    const heldStockIds = new Set(invData.trades.map((t) => t.stockId));
+    const heldStocks = invData.stocks.filter((s) => heldStockIds.has(s.id));
+    if (heldStocks.length === 0) return;
+
+    const cachedIds = new Set(invData.priceHistories.map((h) => h.stockId));
+    for (const stock of heldStocks) {
+      if (!cachedIds.has(stock.id)) {
+        import('@/services/quotes/registry').then((m) => {
+          m.fetchHistory(stock, '1m').catch(() => {});
+        });
+      }
+    }
+  }, [calendarMode, invData]);
+
   const goMonth = (y: number, m0: number) => {
     const target = new Date(y, m0, 1);
     const today = todayKey();
@@ -241,7 +301,7 @@ export default function HomePage() {
 
       <HomeHero selected={selected} />
 
-      {/* 膠囊週曆（可平滑展開為全月） */}
+      {/* 膠囊週曆（可平滑展開為全月，支援記帳與盈虧雙模式） */}
       <Calendar
         year={year}
         month0={month0}
@@ -250,45 +310,153 @@ export default function HomePage() {
         dayTotals={stat?.byDay ?? new Map()}
         daysWithRecords={stat?.days ?? new Set()}
         collapsed={calendarCollapsed}
+        mode={calendarMode}
+        pnlDays={pnlData.days}
+        monthPnlSummary={pnlData.monthSummary}
         onSelect={setSelected}
         onMonthShift={shiftMonth}
         onWeekShift={shiftWeek}
         onToggleCollapse={() => set('calendarCollapsed', !calendarCollapsed)}
+        onModeChange={setCalendarMode}
       />
 
-      {/* 當日：一行標題（日期＋支出／收入） */}
+      {/* 當日：一行標題（記帳模式：支出／收入；盈虧模式：分幣別投資淨利淨損） */}
       <div className="day-head">
         <div className="day-head-title">
           <span className="date-text num">{Number(selected.slice(5, 7))}/{Number(selected.slice(8))}</span>
           <span className="weekday-text">{WEEK_NAMES[sel.getDay()]}</span>
           {isToday && <span className="today-badge">今天</span>}
         </div>
-        <div className="day-head-sum num">
-          <span>支出 <Amount minor={expenseTotal} currency={baseCurrency} tone="none" opts={{ decimals: 0 }} /></span>
-          {incomeTotal > 0 && <span>收入 <Amount minor={incomeTotal} currency={baseCurrency} tone="pos" opts={{ decimals: 0 }} /></span>}
-        </div>
-        <button className="day-head-all" onClick={() => navigate('/ledger')} aria-label="全部帳目">全部 <Icon name="chevronR" size={14} /></button>
-      </div>
-
-      {/* 當日帳目明細清單 */}
-      <section className="day-ledger-section" aria-label="當日帳目明細">
-        {!items || cats.loading || accounts.loading ? (
-          <SkeletonRows n={3} />
-        ) : items.length === 0 ? (
-          <EmptyState
-            emoji="🧾"
-            title="這天尚無記帳紀錄"
-            text="花 3 秒記一筆，養成清晰的財務好習慣。"
-            action={<button className="btn tinted small" onClick={() => openAdd({ date: selected })}>記一筆</button>}
-          />
+        {calendarMode === 'ledger' ? (
+          <div className="day-head-sum num">
+            <span>支出 <Amount minor={expenseTotal} currency={baseCurrency} tone="none" opts={{ decimals: 0 }} /></span>
+            {incomeTotal > 0 && <span>收入 <Amount minor={incomeTotal} currency={baseCurrency} tone="pos" opts={{ decimals: 0 }} /></span>}
+          </div>
         ) : (
-          <div className="day-ledger-list">
-            {items.map((it) => (
-              <LedgerRow key={it.id} item={it} cats={cats.map} accounts={accounts.map} tags={tags.map} />
-            ))}
+          <div className="day-head-sum num pnl-head-sum">
+            {selectedDayPnl && selectedDayPnl.currencies.length > 0 ? (
+              selectedDayPnl.currencies.map((c) => {
+                const isPos = c.pnlMinor > 0;
+                const isNeg = c.pnlMinor < 0;
+                const tone = isPos ? 'pos' : isNeg ? 'neg' : 'flat';
+                const sign = isPos ? '+' : isNeg ? '-' : '';
+                const val = (Math.abs(c.pnlMinor) / 100).toLocaleString('en-US', {
+                  maximumFractionDigits: c.currency === 'TWD' ? 0 : 2,
+                });
+                const pctStr = `${c.pnlPct >= 0 ? '+' : ''}${c.pnlPct.toFixed(1)}%`;
+                return (
+                  <span key={c.currency} className={`pnl-head-pill ${tone}`}>
+                    {c.currency === 'TWD' ? 'NT$' : 'US$'}&nbsp;{`${sign}${val}`}
+                    <span className="pnl-head-pct">({pctStr})</span>
+                  </span>
+                );
+              })
+            ) : (
+              <span className="pnl-head-empty">本日無持股波動</span>
+            )}
           </div>
         )}
-      </section>
+        {calendarMode === 'ledger' ? (
+          <button className="day-head-all" onClick={() => navigate('/ledger')} aria-label="全部帳目">
+            全部 <Icon name="chevronR" size={14} />
+          </button>
+        ) : (
+          <button className="day-head-all" onClick={() => navigate('/invest')} aria-label="投資總覽">
+            投資總覽 <Icon name="chevronR" size={14} />
+          </button>
+        )}
+      </div>
+
+      {/* 當日帳目明細清單 或 股票明細清單 */}
+      {calendarMode === 'ledger' ? (
+        <section className="day-ledger-section" aria-label="當日帳目明細">
+          {!items || cats.loading || accounts.loading ? (
+            <SkeletonRows n={3} />
+          ) : items.length === 0 ? (
+            <EmptyState
+              emoji="🧾"
+              title="這天尚無記帳紀錄"
+              text="花 3 秒記一筆，養成清晰的財務好習慣。"
+              action={<button className="btn tinted small" onClick={() => openAdd({ date: selected })}>記一筆</button>}
+            />
+          ) : (
+            <div className="day-ledger-list">
+              {items.map((it) => (
+                <LedgerRow key={it.id} item={it} cats={cats.map} accounts={accounts.map} tags={tags.map} />
+              ))}
+            </div>
+          )}
+        </section>
+      ) : (
+        <section className="day-ledger-section day-pnl-section" aria-label="當日股票明細">
+          {!selectedDayPnl || selectedDayPnl.stocks.length === 0 ? (
+            <EmptyState
+              emoji="📈"
+              title="這天無股票交易或持股波動"
+              text="這天未進行股票平倉，股市亦無收盤變動或無持股。"
+              action={<button className="btn tinted small" onClick={() => navigate('/invest')}>查看投資組合</button>}
+            />
+          ) : (
+            <div className="day-pnl-list">
+              {selectedDayPnl.stocks.map((s) => {
+                const isPos = s.pnlMinor > 0;
+                const isNeg = s.pnlMinor < 0;
+                const tone = isPos ? 'pos' : isNeg ? 'neg' : 'flat';
+                const sign = isPos ? '+' : isNeg ? '-' : '';
+                const val = (Math.abs(s.pnlMinor) / 100).toLocaleString('en-US', {
+                  maximumFractionDigits: s.currency === 'TWD' ? 0 : 2,
+                });
+                return (
+                  <button
+                    key={s.stockId}
+                    type="button"
+                    className="day-stock-card"
+                    onClick={() => {
+                      haptic('light');
+                      navigate(`/invest/stock/${s.stockId}`);
+                    }}
+                  >
+                    <div className="stock-card-left">
+                      <div className="stock-card-title-row">
+                        <span className="stock-card-name">{s.name}</span>
+                        <span className="stock-card-symbol num">{s.symbol}</span>
+                        <span className="stock-card-market chip">{s.market}</span>
+                      </div>
+                      <div className="stock-card-sub">
+                        {s.trades.length > 0 ? (
+                          <span className="stock-card-action">
+                            {s.tradeType === 'buy' ? '買進' : s.tradeType === 'sell' ? '賣出' : '當沖沖銷'} {s.tradeShares} 股
+                            {s.tradePrice ? ` @ $${s.tradePrice}` : ''}
+                          </span>
+                        ) : (
+                          <span className="stock-card-held">
+                            持股 {s.heldShares} 股 · 收盤 ${s.closePriceDec}
+                            {s.priceChangePct !== undefined ? ` (${s.priceChangePct >= 0 ? '+' : ''}${s.priceChangePct.toFixed(2)}%)` : ''}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="stock-card-right num">
+                      <div className={`stock-card-pnl ${tone}`}>
+                        {s.currency === 'TWD' ? 'NT$' : 'US$'}&nbsp;{`${sign}${val}`}
+                      </div>
+                      {s.realizedMinor !== 0 && s.unrealizedChangeMinor !== 0 ? (
+                        <div className="stock-card-pnl-sub">
+                          已實現 {s.realizedMinor >= 0 ? '+' : ''}{(s.realizedMinor / 100).toLocaleString('en-US')}
+                        </div>
+                      ) : s.realizedMinor !== 0 ? (
+                        <div className="stock-card-pnl-sub">已實現平倉</div>
+                      ) : (
+                        <div className="stock-card-pnl-sub">持股收盤波動</div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* 下半部獨立區塊：快覽（今日可用、預算、淨資產…可在設定增減）；提醒與待處理事項統一在右上角鈴鐺，沒有快覽時整塊隱藏 */}
       <div className="home-lower" aria-label="快覽">

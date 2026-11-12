@@ -94,6 +94,12 @@ export const CANDIDATES: ShowcaseFeature[] = [
     bullets: ['石墨冰藍、霧白墨綠、暖灰琥珀', '支援深色、淺色與跟隨系統', '經典灰階保留自由選色'],
     howto: '到「設定 → 介面與通知 → 外觀與首頁版面」',
   },
+  {
+    id: 'pnl-calendar', icon: 'trend', title: '全新盈虧日曆', since: '4.1.30', power: 3, novelty: 4,
+    pitch: '首頁一鍵切換，每日股票盈虧一目了然',
+    bullets: ['已實現損益與未實現浮動收盤損益自動算', '台股、美股雙幣別自動分行顯示', '點選任一日即可複盤當日持股與交易明細'],
+    howto: '在首頁日曆上方點選「盈虧日曆」即可切換',
+  },
 ];
 
 const vParts = (v: string) => v.split('.').map((n) => Number(n) || 0);

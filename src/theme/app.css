@@ -906,6 +906,252 @@ a { color: inherit; text-decoration: none; }
   transform: scale(0.96);
 }
 
+/* ---------- 盈虧日曆切換列 & 格式排版 (v4.1.30) ---------- */
+.cal-top-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px 8px;
+}
+.cal-mode-segmented {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  border: 0.5px solid var(--glass-border);
+  gap: 2px;
+}
+.cal-mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: all 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.cal-mode-btn:active { transform: scale(0.96); }
+.cal-mode-btn.active {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.cal-pnl-month-glance {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.cal-pnl-glance-empty {
+  font-size: 0.75rem;
+  color: var(--text-3);
+}
+.cal-pnl-glance-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 7px;
+}
+.cal-pnl-glance-badge.pos {
+  color: var(--c-pos);
+  background: color-mix(in srgb, var(--c-pos) 10%, transparent);
+}
+.cal-pnl-glance-badge.neg {
+  color: var(--c-neg);
+  background: color-mix(in srgb, var(--c-neg) 10%, transparent);
+}
+.cal-pnl-glance-badge.flat {
+  color: var(--text-2);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+.cal-pnl-glance-cur {
+  font-size: 0.7rem;
+  opacity: 0.85;
+}
+
+/* 格子內盈虧文字排版 */
+.cal-cell-pnl {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-top: 1px;
+  line-height: 1.1;
+}
+.cal-pnl-amt {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+}
+.cal-pnl-pct {
+  font-size: 0.58rem;
+  font-weight: 600;
+  opacity: 0.9;
+  white-space: nowrap;
+}
+.cal-cell-pnl-dual {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  gap: 1px;
+}
+.cal-cell-pnl-dual .cal-pnl-amt {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+.cal-grid-pnl .cal-grid-cell {
+  height: 52px;
+  padding-top: 4px;
+}
+.cal-grid-pnl .cal-grid-cell .cal-grid-num {
+  font-size: 0.82rem;
+}
+
+/* 盈虧日曆模式下的選取態與淡色底塊 */
+.cal-pill.pnl-mode.selected,
+.cal-grid-cell.pnl-mode.selected {
+  background: var(--surface);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1.5px var(--accent), 0 4px 12px rgba(0, 0, 0, 0.08);
+  color: var(--text);
+}
+.cal-pill.pnl-mode.selected .cal-pill-day {
+  color: var(--accent-text);
+  opacity: 1;
+}
+.cal-pill.pnl-mode.selected .cal-pill-num,
+.cal-grid-cell.pnl-mode.selected .cal-grid-num {
+  color: var(--accent-text);
+}
+
+.cal-pill.pnl-tint-pos:not(.selected),
+.cal-grid-cell.pnl-tint-pos:not(.selected) {
+  background: color-mix(in srgb, var(--c-pos) 8%, var(--surface));
+  border-color: color-mix(in srgb, var(--c-pos) 24%, var(--glass-border));
+}
+.cal-pill.pnl-tint-neg:not(.selected),
+.cal-grid-cell.pnl-tint-neg:not(.selected) {
+  background: color-mix(in srgb, var(--c-neg) 8%, var(--surface));
+  border-color: color-mix(in srgb, var(--c-neg) 24%, var(--glass-border));
+}
+
+/* 首頁當日明細：盈虧模式 */
+.pnl-head-sum {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.pnl-head-pill {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.pnl-head-pct {
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin-left: 2px;
+  opacity: 0.85;
+}
+.pnl-head-empty {
+  font-size: 0.8rem;
+  color: var(--text-3);
+}
+
+.day-pnl-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.day-stock-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 0.5px solid var(--glass-border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 120ms ease, background 140ms ease;
+}
+.day-stock-card:active {
+  transform: scale(0.98);
+}
+.stock-card-left {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.stock-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.stock-card-name {
+  font-size: 0.94rem;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stock-card-symbol {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-3);
+}
+.stock-card-market {
+  font-size: 0.65rem;
+  padding: 1px 5px;
+}
+.stock-card-sub {
+  font-size: 0.78rem;
+  color: var(--text-2);
+}
+.stock-card-action {
+  font-weight: 500;
+}
+.stock-card-held {
+  color: var(--text-2);
+}
+.stock-card-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+.stock-card-pnl {
+  font-size: 0.98rem;
+  font-weight: 700;
+}
+.stock-card-pnl-sub {
+  font-size: 0.72rem;
+  color: var(--text-3);
+  font-weight: 500;
+}
+
 .anim-l { animation: cal-slide-l 220ms var(--ease) both; }
 .anim-r { animation: cal-slide-r 220ms var(--ease) both; }
 @keyframes cal-slide-l { from { opacity: 0; transform: translateX(18px); } }

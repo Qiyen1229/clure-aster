@@ -25,6 +25,16 @@ export interface ReleaseNote {
 /** 新的在前 */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '4.1.30', date: '2026-11-12',
+    features: [
+      {
+        title: '全新盈虧日曆',
+        intro: '首頁週曆與月曆新增獨立切換按鈕，一鍵切換至盈虧日曆。自動整合每日股票交易已實現損益與持股收盤浮動損益，支援台股與美股雙幣別分行排版。',
+        howto: '在首頁日曆上方點選「盈虧日曆」即可切換；點選任一日可在下方查看當日各股票的交易與持股收盤明細。',
+      },
+    ],
+  },
+  {
     version: '4.1.29', date: '2026-11-12',
     features: [
       {
