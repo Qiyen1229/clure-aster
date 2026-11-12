@@ -18,6 +18,7 @@ import type { AccentKey, ThemePalette } from '@/db/repo/settings';
 import { Segmented, Switch } from '@/ui/controls';
 import { Icon, type IconName } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
+import { isOverlayTouch } from '@/ui/PullToRefresh';
 import { InfoModal } from '@/ui/Hint';
 import { NewMark } from '@/ui/NewMark';
 import { openWhatsNew } from '@/features/whatsnew/WhatsNew';
@@ -480,7 +481,7 @@ export default function SettingsPage() {
   } | null>(null);
 
   const onTouchStart = (e: React.TouchEvent<HTMLElement>) => {
-    if (refreshing || window.scrollY > 2) return;
+    if (refreshing || window.scrollY > 2 || isOverlayTouch(e.target)) return;
     const t = e.touches[0];
     if (!t) return;
     ptrRef.current = { startY: t.clientY, startX: t.clientX, active: false, armed: false, currentY: 0, rafId: 0 };

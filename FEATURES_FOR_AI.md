@@ -4,6 +4,7 @@
 > 與 [PROJECT_OVERVIEW_FOR_AI.md](PROJECT_OVERVIEW_FOR_AI.md)（技術棧、架構、部署、檔案地圖）互補：那份偏「怎麼建」，這份偏「做了什麼」。
 > 版本：**4.1.29**（2026-11-12）。分支 `feature/v1.2`。逐版細節見 [CHANGELOG.md](CHANGELOG.md)；設計文件見 `docs/`。
 > 慣例：金額內部一律用**整數最小單位**（TWD 的 1 元 = 100），不要用浮點數；使用者可見文字一律**繁體中文（台灣用語）**。
+> 
 
 ---
 
@@ -229,13 +230,13 @@ JSON 完整備份／還原（含照片）、**加密備份**（PBKDF2-SHA256 310
 ## 5. 介面與動態（Apple 質感）
 - **靈動島（Liquid Glass）導覽列**（`app/TabBar.tsx`、`domain/spring.ts`）：手指按下即選取、透鏡 Q 彈；拖曳時直接寫 transform；放開後以預先取樣的彈簧軌跡（`sampleSpring`，120fps）用 WAAPI 在合成器播放。中央圓球的長按／上滑手勢見 §0。
 - **頁面轉場**：分頁左右滑、進入／返回下一層；**彈跳只在由靈動島觸發的切換才有**（`navSource`）。
-- **彈窗（`ui/Sheet.tsx`）**：空白處 1:1 跟手下滑關閉、可巢狀、Esc 關閉；`variant="rise"`（對話、計算機）從底部升起；**拖到一半放開是平順彈回**（進場動畫不會被重播；退場動畫在套上 `closing` class 的同一個畫面才還給樣式表，`useLayoutEffect`）。尊重系統「減少動態效果」。
+- **彈窗（`ui/Sheet.tsx`）**：空白處 1:1 跟手下滑關閉、可巢狀、Esc 關閉；`variant="rise"`（對話、計算機）從底部升起；**拖到一半放開是平順彈回**（進場動畫不會被重播；退場動畫在套上 `closing` class 的同一個畫面才還給樣式表，`useLayoutEffect`）。尊重系統「減少動態效果」。portal 彈窗的 touch 會沿 React 樹冒泡回頁面，因此下拉更新入口（`ui/PullToRefresh.tsx` 的 `isOverlayTouch`，設定／首頁／投資頁共用）一律忽略 `.sheet`／`.sheet-backdrop`／`.dlg-wrap`／`[role="dialog"]`／`[role="alertdialog"]` 來源的 touch——下滑關彈窗不會同時觸發刷新（v4.1.29 修復）。
 - 原創品牌：3D 星軌草寫 A 圖標；多面寶石 AI 圖示（`AiGem`）。
 
 ---
 
 ## 6. 測試與品質
-- 前端 Vitest **853 項**（`tests/unit/`，fake-indexeddb；含 `agent-actions`、`agent-intent`、`calc-history`、`forecast`、`inbox-refresh`、`shortcut-import`）＋後端 pytest **198 項**（`server/tests/`）＝ **1051 項**；`npm run check` = 型態檢查 + ESLint（0 警告）+ 測試；CI 於 main 與 feature 分支每次推送執行。
+- 前端 Vitest **855 項**（`tests/unit/`，fake-indexeddb；含 `agent-actions`、`agent-intent`、`calc-history`、`forecast`、`inbox-refresh`、`shortcut-import`、`pull-refresh-overlay`）＋後端 pytest **198 項**（`server/tests/`）＝ **1053 項**；`npm run check` = 型態檢查 + ESLint（0 警告）+ 測試；CI 於 main 與 feature 分支每次推送執行。
 - 純函式優先放 `src/domain/`（便於測試）；有副作用的放 `src/services/`；資料庫存取放 `src/db/repo/`。
 
 ## 7. 給修改者的注意事項（踩過的坑）

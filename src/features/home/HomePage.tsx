@@ -18,6 +18,7 @@ import { useAccounts, useCategories, useTags } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
 import { useUI } from '@/stores/ui';
 import { Icon } from '@/ui/Icon';
+import { isOverlayTouch } from '@/ui/PullToRefresh';
 import { Amount, EmptyState, SkeletonRows } from '@/ui/controls';
 import { Calendar } from './Calendar';
 import { MonthPicker } from './MonthPicker';
@@ -57,7 +58,7 @@ export default function HomePage() {
   } | null>(null);
 
   const onTouchStart = (e: React.TouchEvent<HTMLElement>) => {
-    if (refreshing || window.scrollY > 2) return;
+    if (refreshing || window.scrollY > 2 || isOverlayTouch(e.target)) return;
     const t = e.touches[0];
     if (!t) return;
     ptrRef.current = { startY: t.clientY, startX: t.clientX, active: false, armed: false, currentY: 0, rafId: 0 };

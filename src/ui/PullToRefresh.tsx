@@ -3,6 +3,11 @@
  */
 import { useRef, useState, type ReactNode } from 'react';
 
+/** Portal 彈窗的 touch 事件會沿 React 樹冒泡回頁面；來源是彈窗時不啟動下拉更新，避免「下滑關彈窗」同時觸發刷新 */
+export function isOverlayTouch(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest('.sheet, .sheet-backdrop, .dlg-wrap, [role="dialog"], [role="alertdialog"]') !== null;
+}
+
 export function PullToRefresh({ onRefresh, children }: { onRefresh: () => Promise<unknown>; children: ReactNode }) {
   const [pull, setPull] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -11,7 +16,7 @@ export function PullToRefresh({ onRefresh, children }: { onRefresh: () => Promis
 
   return (
     <div
-      onTouchStart={(e) => { if (window.scrollY <= 0 && !busy) start.current = e.touches[0].clientY; }}
+      onTouchStart={(e) => { if (window.scrollY <= 0 && !busy && !isOverlayTouch(e.target)) start.current = e.touches[0].clientY; }}
       onTouchMove={(e) => {
         if (start.current === null) return;
         const dy = e.touches[0].clientY - start.current;
