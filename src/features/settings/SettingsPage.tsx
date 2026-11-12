@@ -119,7 +119,7 @@ export const ACCENTS: { key: AccentKey; name: string; color: string }[] = [
 
 export const PALETTES: { key: ThemePalette; name: string; desc: string; preview: [string, string, string] }[] = [
   { key: 'default', name: '經典灰階', desc: '自由搭配點綴色', preview: ['#f2f2f7', '#ffffff', '#0fb5d4'] },
-  { key: 'graphite', name: '石墨冰藍', desc: '中性石墨，清冷冰藍', preview: ['#111315', '#1b1e21', '#a1cce5'] },
+  { key: 'graphite', name: '石墨冰藍', desc: '中性石墨，清冷冰藍', preview: ['#131518', '#1c1f23', '#a1cce5'] },
   { key: 'jade', name: '霧白墨綠', desc: '清透霧白，沉穩墨綠', preview: ['#f1f4f1', '#ffffff', '#346c53'] },
   { key: 'amber', name: '暖灰琥珀', desc: '柔和暖灰，低調琥珀', preview: ['#f3f1ed', '#fdfcf9', '#80602c'] },
 ];

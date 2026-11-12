@@ -2,7 +2,7 @@
 
 > 這份檔案把整個專案（功能、技術、架構、資料模型、API、安全、部署、檔案地圖、慣例）整合在一處，讓 AI 不用逐一翻檔案就能理解全貌。
 > 功能面的詳細說明（基礎功能、特別功能、規則與程式位置）見 [FEATURES_FOR_AI.md](FEATURES_FOR_AI.md)。
-> 內容整理自 README、CHANGELOG、docs/*、原始碼與設定檔。**版本：4.1.29（2026-11-12）**。分支：`feature/v1.2`（主分支 `main`，每次完成都 fast-forward 合併）。測試：前端 **855** ＋ 後端 **198** ＝ **1053** 項。Alembic 目前到 `0013_totp`，**下一個遷移是 `0014_…`**。
+> 內容整理自 README、CHANGELOG、docs/*、原始碼與設定檔。**版本：4.1.29（2026-11-12）**。分支：`feature/v1.2`（主分支 `main`，每次完成都 fast-forward 合併）。測試：前端 **872** ＋ 後端 **198** ＝ **1070** 項。Alembic 目前到 `0013_totp`，**下一個遷移是 `0014_…`**。
 > 逐版細節看 [CHANGELOG.md](CHANGELOG.md)；本檔是「整個專案長什麼樣子」的地圖，隨版本維護（每次發佈要順手更新本檔開頭的版本與測試數）。
 >
 > ### 版本號與發佈規範
@@ -40,7 +40,7 @@
 | QR | jsqr | 掃電子發票左側 QR Code |
 | 多語系 | （無） | 只提供繁體中文；3.6.5 已移除未使用的 i18next 依賴 |
 | PWA | vite-plugin-pwa（Workbox **injectManifest**）+ 自訂 `src/sw.ts` | 預快取、離線、更新提示（不自動 skipWaiting）、Web Push |
-| 測試 | Vitest 2 + fake-indexeddb + jsdom | `tests/unit/*.test.ts`（**855 項**） |
+| 測試 | Vitest 2 + fake-indexeddb + jsdom | `tests/unit/*.test.ts`（**872 項**） |
 | 圖示 | sharp（`npm run icons`） | `assets/icon.svg` → 全尺寸圖標＋iOS 啟動畫面 |
 | 手勢／動效 | 自寫 Pointer Events hook + CSS transform；`theme/app.css`（單一大型樣式檔） | 尊重 `prefers-reduced-motion` |
 
@@ -345,7 +345,7 @@ npm install && npm run dev
 ```
 | 指令 | 說明 |
 |---|---|
-| `npm test` / `test:watch` | Vitest 單元測試（855 項，涵蓋金額、計算機、期間、帳目一致性、預算、週期、分期、分帳、FIFO、台股費稅、XIRR、市場時間、報表、CSV/Excel、匯入、PIN、同步、E2EE、備份、自動分類、發票、財務自由、稅務、貸款、推播排程、一句話記帳、收件匣解析、現金流、週報、問答查帳、AI 分流、操作助手、排程、功能介紹與更新說明把關、全域主題色、到價開關、備播去重、淨值效能優化…） |
+| `npm test` / `test:watch` | Vitest 單元測試（872 項，涵蓋金額、計算機、期間、帳目一致性、預算、週期、分期、分帳、FIFO、台股費稅、XIRR、市場時間、報表、CSV/Excel、匯入、PIN、同步、E2EE、備份、自動分類、發票、財務自由、稅務、貸款、推播排程、一句話記帳、收件匣解析、現金流、週報、問答查帳、AI 分流、操作助手、排程、功能介紹與更新說明把關、全域主題色、到價開關、備播去重、淨值效能優化…） |
 | `npm run typecheck` / `build` / `preview` | 型別檢查／建置／預覽（9122，SW 生效） |
 | `npm run icons` | 由 `assets/icon.svg` 重產圖標與 iOS 啟動畫面 |
 | `npm run pack:nas` | 產生 `aster-nas.zip`（不含 `.env`、`data/`） |
