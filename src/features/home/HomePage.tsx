@@ -206,6 +206,7 @@ export default function HomePage() {
       startDate: gridStart,
       endDate: gridEnd,
       today: todayKey(),
+      monthKey: `${year}-${String(month0 + 1).padStart(2, '0')}`,
     });
   }, [invData, gridStart, gridEnd, year, month0]);
 
@@ -299,7 +300,11 @@ export default function HomePage() {
         </div>
       </header>
 
-      <HomeHero selected={selected} />
+      <HomeHero
+        selected={selected}
+        mode={calendarMode}
+        pnlSummary={pnlData.monthSummary}
+      />
 
       {/* 膠囊週曆（可平滑展開為全月，支援記帳與盈虧雙模式） */}
       <Calendar

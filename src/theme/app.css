@@ -1190,6 +1190,11 @@ a { color: inherit; text-decoration: none; }
 .home-hero { margin: 4px 2px var(--gap-m); }
 .hero-label { font-size: 0.85rem; font-weight: 600; color: var(--text-2); letter-spacing: 0.01em; }
 .hero-amount { font-size: clamp(2.3rem, 11vw, 3rem); font-weight: 800; letter-spacing: -0.035em; line-height: 1.1; margin: 2px 0 6px; }
+.hero-pnl-dual-amounts { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.hero-pnl-badge { display: inline-flex; align-items: baseline; font-size: clamp(1.8rem, 8vw, 2.4rem); font-weight: 800; letter-spacing: -0.03em; }
+.hero-pnl-badge.pos { color: var(--c-pos); }
+.hero-pnl-badge.neg { color: var(--c-neg); }
+.hero-pnl-badge.flat { color: var(--text-2); }
 .hero-sub { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; font-size: 0.92rem; color: var(--text-2); }
 .hero-sub i { font-style: normal; color: var(--text-3); }
 

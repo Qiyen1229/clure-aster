@@ -498,8 +498,7 @@ export function Calendar({
               }
             }}
           >
-            <Icon name="trend" size={13} />
-            <span>盈虧日曆</span>
+            盈虧日曆
           </button>
         </div>
 

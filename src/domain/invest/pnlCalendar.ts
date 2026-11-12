@@ -72,6 +72,7 @@ export interface ComputePnlCalendarParams {
   startDate: string; // 'YYYY-MM-DD'
   endDate: string; // 'YYYY-MM-DD'
   today: string; // 'YYYY-MM-DD'
+  monthKey?: string; // 'YYYY-MM' (當月 key，用於計算 monthSummary)
   costMethod?: CostMethod;
 }
 
@@ -98,9 +99,11 @@ export function computePnlCalendar(params: ComputePnlCalendarParams): {
     startDate,
     endDate,
     today,
+    monthKey,
     costMethod = 'avg',
   } = params;
 
+  const targetMonth = monthKey || startDate.slice(0, 7);
   const cacheMap = new Map<string, PriceCache>(priceCaches.map((c) => [c.stockId, c]));
 
   // 整理各標的之歷史收盤日線：stockId -> Map<date, closeDec>
@@ -390,9 +393,8 @@ export function computePnlCalendar(params: ComputePnlCalendarParams): {
         pnlPct,
       });
 
-      // 累計月份統計（僅累計同月日期）
-      const monthPrefix = startDate.slice(0, 7);
-      if (d.startsWith(monthPrefix) && (data.pnlMinor !== 0 || hasTrade)) {
+      // 累計月份統計（僅累計目標月份）
+      if (d.startsWith(targetMonth) && (data.pnlMinor !== 0 || hasTrade)) {
         let mSummary = monthByCurrency.get(cur);
         if (!mSummary) {
           mSummary = {
@@ -443,7 +445,7 @@ export function computePnlCalendar(params: ComputePnlCalendarParams): {
   return {
     days: dayResults,
     monthSummary: {
-      monthKey: startDate.slice(0, 7),
+      monthKey: targetMonth,
       byCurrency: monthByCurrency,
       currencies: monthCurrencies,
       totalTrades: totalTradesCount,
