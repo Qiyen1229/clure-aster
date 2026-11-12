@@ -32,3 +32,8 @@ clure-nas.tar.gz
 # 交接包（含個人記憶，不要提交到公開倉庫）
 productAI/
 productAI.zip
+
+# 品牌候選圖包（本機設計素材；僅 script-a-pure.svg 進版控作為導覽標記來源）
+assets/brand-a-icons/*
+!assets/brand-a-icons/script-a-pure.svg
+assets/aster-a-*.png

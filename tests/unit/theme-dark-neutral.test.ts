@@ -58,7 +58,7 @@ describe('中央品牌按鈕平面化（與首頁＋同一套霧面語言）', (
     expect(css).not.toContain(":root:not([data-theme='dark']) .dynamic-fab.mode-logo");
   });
 
-  it('品牌星芒圖層 26px、無立體陰影；圓盤顏色跟隨主題 accent', () => {
+  it('品牌花體 A 圖層 26px、無立體陰影；圓盤顏色跟隨主題 accent', () => {
     const body = ruleBody(/\.fab-layer \.brand\s*\{([^}]*)\}/);
     expect(body).toContain('width: 26px');
     expect(body).not.toContain('drop-shadow');

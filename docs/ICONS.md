@@ -15,11 +15,11 @@
 想換顏色、粗細或圖案，也是直接改這個 SVG（漸層在最上面的 `<defs>`）。
 
 ## 2. App 內的品牌標記（底部中央按鈕）
-沒有獨立 Logo 元件：`TabBar.tsx` 直接渲染 `<Icon name="asterisk" size={26} stroke={2.2} className="brand" />`，與全 App 圖示同一套 Lucide 線條語言（Aster 之名源自希臘文 asteriskos「小星」）。
+沒有獨立 Logo 元件：`TabBar.tsx` 直接渲染 `<Icon name="brand" size={26} stroke={2} className="brand" />`——極簡花體 A（來源 `assets/brand-a-icons/script-a-pure.svg`：三道圓頭筆鋒＋頂峰星點），與全 App 圖示同一套 24×24 線條語言，顏色以 currentColor 跟隨主題。
 
 - 大小：`src/theme/app.css` 的 `.fab-layer .brand`（目前 26px）。
 - 顏色：`.dynamic-fab.mode-logo` 的 `color: var(--accent)`，自動跟隨主題與深淺色。
-- 星芒幾何：`src/ui/Icon.tsx` 的 `ICON_NODES.asterisk`（Lucide ISC 授權）。
+- 花體 A 幾何：`src/ui/Icon.tsx` 的 `ICON_NODES.brand`（主筆 2、橫槓 1.8、頂峰 0.9 實心星點）。
 
 載入畫面（開啟 App 的瞬間）用的是 `public/splash/` 啟動畫面與 `public/icons/icon-192.png`，也都由 `npm run icons` 產生。
 

@@ -415,7 +415,7 @@ button img, a img, .cat-icon, .tab svg { -webkit-user-drag: none; }
 /* 有透鏡時選取狀態不再需要自己的背景與彈跳動畫（透鏡負責） */
 .tab[aria-current='page'] svg { animation: none; }
 
-/* 中央按鈕：首頁 48px 霧面實色＋；次級頁 48px 霧面品牌星芒，皆為平面 */
+/* 中央按鈕：首頁 48px 霧面實色＋；次級頁 48px 霧面品牌花體 A，皆為平面 */
 .tab-center {
   position: relative;
   z-index: 4;
@@ -452,7 +452,7 @@ button img, a img, .cat-icon, .tab svg { -webkit-user-drag: none; }
 .dynamic-fab:active, .dynamic-fab.pressing { transform: scale(0.93); filter: brightness(1.06); }
 /* 手指在導覽列上滑到中間首頁時，按鈕鼓起 */
 .dynamic-fab.scrub-target { transform: scale(1.1); filter: brightness(1.1); }
-/* 次級頁面：平面霧面品牌圓盤，星芒取主題 accent，與首頁＋同一套視覺語言 */
+/* 次級頁面：平面霧面品牌圓盤，花體 A 取主題 accent，與首頁＋同一套視覺語言 */
 .dynamic-fab.mode-logo {
   width: 48px;
   height: 48px;
@@ -464,7 +464,7 @@ button img, a img, .cat-icon, .tab svg { -webkit-user-drag: none; }
 /* 長按／上滑手勢保留；擴散光暈已取消，此層僅維持定位 */
 .fab-aura { position: absolute; inset: 0; border-radius: 50%; pointer-events: none; }
 
-/* 圖層切換（＋ ↔ 品牌星芒）：絕對置中，圖示精準位於圓盤中心 */
+/* 圖層切換（＋ ↔ 品牌花體 A）：絕對置中，圖示精準位於圓盤中心 */
 .fab-layer {
   position: absolute;
   inset: 0;

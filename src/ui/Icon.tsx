@@ -20,11 +20,12 @@ const ICON_NODES: Record<string, React.ReactNode> = {
       <path d="M12 5v14" />
     </>
   ),
-  asterisk: (
+  brand: (
     <>
-      <path d="M12 6v12" />
-      <path d="M17.196 9 6.804 15" />
-      <path d="m6.804 9 10.392 6" />
+      <path d="M4.5 15.5C3.8 17.5 5.5 19 7.2 18.2C9 17 9.5 13.8 7.6 12.2C5.8 10.8 4.8 13 6.6 15.2C8.2 17 11.2 11.8 16.2 3.5" />
+      <path d="M16.2 3.5C15.4 6.8 13 14.8 11.8 18.5C11.4 19.6 10.4 20.2 9.5 19.5" />
+      <path d="M7.2 14.8C10.2 14.2 13.5 13.6 18.8 11.5" strokeWidth={1.8} />
+      <circle cx="16.2" cy="3.5" r="0.9" fill="currentColor" stroke="none" />
     </>
   ),
   pin: (
