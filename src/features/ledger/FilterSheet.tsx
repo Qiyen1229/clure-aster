@@ -13,7 +13,7 @@ import { useSettings } from '@/stores/settings';
 import { askInput, useUI } from '@/stores/ui';
 import { Sheet } from '@/ui/Sheet';
 import { Segmented } from '@/ui/controls';
-import { Icon } from '@/ui/Icon';
+import { Icon, iconEmoji } from '@/ui/Icon';
 
 export function filterCount(f: TxFilter): number {
   return (f.types?.length ? 1 : 0) + (f.accountIds?.length ? 1 : 0) + (f.categoryIds?.length ? 1 : 0) + (f.projectIds?.length ? 1 : 0)
@@ -113,7 +113,7 @@ export function FilterSheet({ open, onClose, value, onChange }: { open: boolean;
       <div className="section-title">類型</div>
       <Chips items={TYPES} value={f.types} onChange={(v) => set({ types: v.length ? v : undefined })} />
       <div className="section-title">帳戶</div>
-      <Chips items={accounts.list.map((a) => ({ id: a.id, label: `${a.icon} ${a.name}` }))} value={f.accountIds} onChange={(v) => set({ accountIds: v.length ? v : undefined })} />
+      <Chips items={accounts.list.map((a) => ({ id: a.id, label: `${iconEmoji(a.icon)} ${a.name}` }))} value={f.accountIds} onChange={(v) => set({ accountIds: v.length ? v : undefined })} />
       <div className="section-title">分類</div>
       <Segmented value={catKind} onChange={setCatKind} options={[{ value: 'expense', label: '支出' }, { value: 'income', label: '收入' }]} ariaLabel="分類類型" />
       <div style={{ marginTop: 8 }}>

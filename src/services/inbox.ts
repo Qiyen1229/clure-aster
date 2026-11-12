@@ -75,8 +75,8 @@ export const hookUrl = () => `${location.origin}/api/hook/inbox`;
 
 /** 預先做好、簽署過的捷徑（scripts/make-shortcuts.py 產生 public/shortcuts/aster-<key>.shortcut）；name＝匯入後的捷徑名稱 */
 export const SHORTCUTS = [
-  { key: 'auto', name: 'Aster 自動記帳', icon: '⚡', title: '銀行 App／LINE Pay／街口／Apple Pay 自動記帳', automation: '通知與錢包', icloud: '3debf9fb541241c2a56a3de486c96d22', hint: '最推薦：刷實體卡、網購、LINE Pay、街口、Apple Pay 跳通知就自動記（已內建 52 家銀行與支付 App）' },
-  { key: 'voice', name: 'Aster 隨手記', icon: '🎙', title: '對 Siri 說一句話記帳 ＋ 分享選單記帳', automation: null, icloud: 'fd578109c6b34298b548369394d76868', hint: '「嘿 Siri，Aster 隨手記」說出花費，或在任何 App 按分享直接把文字送去記帳' },
+  { key: 'auto', name: 'Aster 自動記帳', icon: '⚡', title: '銀行 App／LINE Pay／街口／Apple Pay 自動記帳', automation: '通知與錢包', icloud: '78007b1d408246d3b5957a4174d4674c', hint: '最推薦：刷實體卡、網購、LINE Pay、街口、Apple Pay 跳通知就自動記（已內建 52 家銀行與支付 App）' },
+  { key: 'voice', name: 'Aster 隨手記', icon: '🎙', title: '對 Siri 說一句話記帳 ＋ 分享選單記帳', automation: null, icloud: 'c9f38f3363294443918b040e21156d46', hint: '「嘿 Siri，Aster 隨手記」說出花費，或在任何 App 按分享直接把文字送去記帳' },
 ] as const;
 
 type ShortcutDef = (typeof SHORTCUTS)[number];

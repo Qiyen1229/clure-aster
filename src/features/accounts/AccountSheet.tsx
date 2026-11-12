@@ -15,7 +15,36 @@ import { useSettings } from '@/stores/settings';
 import { useUI, ask } from '@/stores/ui';
 import { Sheet } from '@/ui/Sheet';
 import { Switch } from '@/ui/controls';
-import { CatIcon } from '@/ui/Icon';
+import { CatIcon, iconEmoji, EMOJI_TO_LUCIDE } from '@/ui/Icon';
+
+const ACCOUNT_ICONS: { key: string; label: string }[] = [
+  // 金融與日常支付
+  { key: 'landmark', label: '銀行' },
+  { key: 'credit-card', label: '信用卡' },
+  { key: 'banknote', label: '現金' },
+  { key: 'wallet', label: '錢包' },
+  { key: 'piggy-bank', label: '存錢筒' },
+  { key: 'coins', label: '零錢' },
+  { key: 'smartphone', label: '行動支付' },
+  { key: 'ticket', label: '儲值票證' },
+  // 投資與資產
+  { key: 'trending-up', label: '證券股票' },
+  { key: 'building', label: '不動產' },
+  { key: 'home', label: '房產房貸' },
+  { key: 'car', label: '車貸載具' },
+  { key: 'briefcase', label: '商務公帳' },
+  { key: 'handshake', label: '借貸往來' },
+  // 生活與專屬目標
+  { key: 'shield-check', label: '保險備用' },
+  { key: 'sparkles', label: '高利活存' },
+  { key: 'target', label: '目標儲蓄' },
+  { key: 'plane', label: '外幣旅遊' },
+  { key: 'gift', label: '禮金禮券' },
+  { key: 'laptop', label: '數位帳戶' },
+  { key: 'receipt', label: '載具帳單' },
+  { key: 'scale', label: '平衡調節' },
+  { key: 'folder', label: '綜合專戶' },
+];
 
 export function AccountSheet({ open, onClose, account }: { open: boolean; onClose: () => void; account?: Account }) {
   return open ? <Inner key={account?.id ?? 'new'} onClose={onClose} account={account} /> : <Sheet open={false} onClose={onClose}>{null}</Sheet>;
@@ -99,7 +128,6 @@ function Inner({ onClose, account }: { onClose: () => void; account?: Account })
       </div>
       <div className="list">
         <div className="field"><label htmlFor="acc-name">名稱</label><input id="acc-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={`例如：${info.label === '信用卡' ? '國泰 CUBE 卡' : info.label === '銀行' ? '台新 Richart' : info.label}`} maxLength={30} /></div>
-        <div className="field"><label htmlFor="acc-icon">圖示</label><input id="acc-icon" value={icon} onChange={(e) => setIcon([...e.target.value].slice(-2).join(''))} placeholder={info.icon} /></div>
         <div className="field">
           <label htmlFor="acc-cur">幣別</label>
           <select id="acc-cur" value={currency} onChange={(e) => setCurrency(e.target.value)} disabled={!!account}>
@@ -115,6 +143,43 @@ function Inner({ onClose, account }: { onClose: () => void; account?: Account })
           <div className="field"><span className="label" style={{ flex: 1 }}>期初為負數（透支）</span><Switch checked={initialNegative} onChange={setInitialNegative} label="期初為負數" /></div>
         )}
         <div className="field"><span className="label" style={{ flex: 1 }}>計入淨資產</span><Switch checked={include} onChange={setInclude} label="計入淨資產" /></div>
+      </div>
+
+      <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>圖示（Lucide 向量圖標）</span>
+        <span className="muted" style={{ fontSize: '0.75rem', fontWeight: 400 }}>點選立即切換</span>
+      </div>
+      <div className="acc-icon-grid" role="radiogroup" aria-label="帳戶圖示">
+        {ACCOUNT_ICONS.map((it) => {
+          const currentKey = icon || info.icon;
+          const isSelected = currentKey === it.key || EMOJI_TO_LUCIDE[currentKey] === it.key;
+          return (
+            <button
+              key={it.key}
+              type="button"
+              className={`acc-icon-btn${isSelected ? ' is-selected' : ''}`}
+              title={it.label}
+              aria-label={it.label}
+              aria-pressed={isSelected}
+              onClick={() => setIcon(it.key)}
+            >
+              <CatIcon icon={it.key} size={22} />
+              <span className="acc-icon-lbl">{it.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="list" style={{ marginTop: 6 }}>
+        <div className="field">
+          <label htmlFor="acc-icon">自訂圖示／Emoji</label>
+          <input
+            id="acc-icon"
+            value={icon}
+            onChange={(e) => setIcon(e.target.value.trim())}
+            placeholder={`預設：${info.icon}`}
+            maxLength={20}
+          />
+        </div>
       </div>
 
       {type === 'credit' && (
@@ -138,7 +203,7 @@ function Inner({ onClose, account }: { onClose: () => void; account?: Account })
               <label htmlFor="cc-pay">扣繳帳戶</label>
               <select id="cc-pay" value={autoPay} onChange={(e) => setAutoPay(e.target.value)}>
                 <option value="">（未設定）</option>
-                {allAccounts.filter((a) => ['bank', 'cash', 'epay', 'stored'].includes(a.type) && a.currency === currency).map((a) => <option key={a.id} value={a.id}>{a.icon} {a.name}</option>)}
+                {allAccounts.filter((a) => ['bank', 'cash', 'epay', 'stored'].includes(a.type) && a.currency === currency).map((a) => <option key={a.id} value={a.id}>{iconEmoji(a.icon)} {a.name}</option>)}
               </select>
             </div>
           </div>
@@ -174,7 +239,7 @@ function Inner({ onClose, account }: { onClose: () => void; account?: Account })
         </>
       )}
 
-      <div className="section-title">顏色</div>
+      <div className="section-title">顏色（20 色）</div>
       <div className="swatches" role="radiogroup" aria-label="顏色">
         {CATEGORY_COLORS.map((c) => (
           <button key={c} className="swatch" style={{ ['--c' as string]: c }} aria-pressed={color === c} aria-label={c} onClick={() => setColor(c)} />

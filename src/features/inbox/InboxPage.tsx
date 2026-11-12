@@ -23,7 +23,7 @@ import { useSettings } from '@/stores/settings';
 import { snackUndo, useUI, ask, askInput } from '@/stores/ui';
 import { AccountField, SwitchField } from '@/ui/form';
 import { EmptyState, SkeletonRows } from '@/ui/controls';
-import { AiMark, CatIcon, Icon } from '@/ui/Icon';
+import { AiMark, CatIcon, Icon, iconEmoji } from '@/ui/Icon';
 import { ShortcutWizard } from './ShortcutWizard';
 import { bookForecast, confirmRulePending, loadForecast, registerForecast, skipForecast, skipRulePending, type ForecastData } from '@/services/forecast';
 import type { ForecastItem } from '@/domain/forecast';
@@ -425,7 +425,7 @@ export default function InboxPage() {
                     update({ cardMap: map });
                   }}>
                   <option value="">（不指定，自動判斷）</option>
-                  {accounts.filter((a) => a.type !== 'loan').map((a) => <option key={a.id} value={a.id}>{a.icon} {a.name}</option>)}
+                  {accounts.filter((a) => a.type !== 'loan').map((a) => <option key={a.id} value={a.id}>{iconEmoji(a.icon)} {a.name}</option>)}
                 </select>
               </div>
             ))}

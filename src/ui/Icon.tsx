@@ -11,7 +11,7 @@
  * is hereby granted, provided that the above copyright notice and this permission notice appear in all copies.
  */
 import React, { useId } from 'react';
-export { CatIcon } from './CatIcon';
+export { CatIcon, iconEmoji, LUCIDE_NODES, LUCIDE_TO_EMOJI, EMOJI_TO_LUCIDE } from './CatIcon';
 
 const ICON_NODES: Record<string, React.ReactNode> = {
   plus: (

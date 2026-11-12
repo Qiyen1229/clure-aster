@@ -495,7 +495,9 @@ button img, a img, .cat-icon, .tab svg { -webkit-user-drag: none; }
 .row.with-icon + .row.with-icon::before { left: 64px; }
 button.row:active, a.row:active { background: var(--surface-2); }
 .row-main { flex: 1; min-width: 0; }
-.row-title { font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-title { font-size: 1rem; display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-title .hint-btn { width: 22px; height: 22px; margin: 0; }
+.row-title .hint-btn svg { width: 15px; height: 15px; }
 .row-sub { font-size: 0.8rem; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
 .row-end { text-align: right; flex: none; }
 .row-chev { color: var(--text-3); width: 18px; height: 18px; flex: none; }
@@ -1798,6 +1800,46 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
 .set-details { padding: 10px 16px 12px; border-top: 0.5px solid var(--sep); }
 .set-details summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; color: var(--text-2); font-size: 0.9rem; }
 .set-details p { margin: 6px 0 0; font-size: 0.82rem; line-height: 1.55; color: var(--text-2); }
+
+/* ---------- 帳戶 Lucide 圖示選取器 ---------- */
+.acc-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
+  gap: 8px;
+  margin: 6px 0 10px;
+}
+.acc-icon-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 8px 4px;
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+  border: 1px solid transparent;
+  color: var(--text-2);
+  transition: transform 160ms var(--spring), border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+  min-height: 56px;
+}
+.acc-icon-btn:active {
+  transform: scale(0.92);
+}
+.acc-icon-btn.is-selected {
+  background: var(--accent-subtle);
+  border-color: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+.acc-icon-lbl {
+  font-size: 0.68rem;
+  line-height: 1.1;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
 
 /* ---------- 現金流預測 ---------- */
 .cash-warn { border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent); background: color-mix(in srgb, var(--danger) 8%, var(--surface)); }

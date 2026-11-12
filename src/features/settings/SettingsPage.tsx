@@ -18,6 +18,7 @@ import type { AccentKey } from '@/db/repo/settings';
 import { Segmented, Switch } from '@/ui/controls';
 import { Icon, type IconName } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
+import { InfoModal } from '@/ui/Hint';
 import { NewMark } from '@/ui/NewMark';
 import { openWhatsNew } from '@/features/whatsnew/WhatsNew';
 import { AUTH_ENABLED, useAuth } from '@/stores/auth';
@@ -115,21 +116,42 @@ export const ACCENTS: { key: AccentKey; name: string; color: string }[] = [
   { key: 'gold', name: '金', color: '#FFD60A' },
 ];
 
-/** 設定列：左側色塊圖示 + 標題 + 簡短說明 */
-function Row({ label, children, onClick, sub, icon, tint, danger, newSince }: {
-  label: string; children?: React.ReactNode; onClick?: () => void; sub?: string; icon?: IconName; tint?: string; danger?: boolean; newSince?: string;
+/** 設定列：左側色塊圖示 + 標題 (+ ⓘ 浮窗) + 右側狀態/控制項 */
+function Row({ label, children, onClick, sub, hint, icon, tint, danger, newSince }: {
+  label: string; children?: React.ReactNode; onClick?: () => void; sub?: string; hint?: React.ReactNode; icon?: IconName; tint?: string; danger?: boolean; newSince?: string;
 }) {
+  const [infoOpen, setInfoOpen] = useState(false);
   const Tag = onClick ? 'button' : 'div';
   return (
-    <Tag className={`row${icon ? ' with-icon' : ''}`} onClick={onClick}>
-      {icon && <span className="set-tile" style={tint ? { ['--c' as string]: tint } : undefined} aria-hidden="true"><Icon name={icon} size={18} /></span>}
-      <div className="row-main">
-        <div className="row-title" style={danger ? { color: 'var(--danger)' } : undefined}>{newSince && <NewMark since={newSince} className="new-before" />}{label}</div>
-        {sub && <div className="row-sub" style={{ whiteSpace: 'normal' }}>{sub}</div>}
-      </div>
-      {children}
-      {onClick && !danger && <Icon name="chevronR" className="row-chev" />}
-    </Tag>
+    <>
+      <Tag className={`row${icon ? ' with-icon' : ''}`} onClick={onClick}>
+        {icon && <span className="set-tile" style={tint ? { ['--c' as string]: tint } : undefined} aria-hidden="true"><Icon name={icon} size={18} /></span>}
+        <div className="row-main">
+          <div className="row-title" style={danger ? { color: 'var(--danger)' } : undefined}>
+            {newSince && <NewMark since={newSince} className="new-before" />}
+            <span>{label}</span>
+            {hint && (
+              <button
+                type="button"
+                className="hint-btn"
+                aria-label={`${label}說明`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setInfoOpen(true);
+                }}
+              >
+                <Icon name="info" />
+              </button>
+            )}
+          </div>
+          {sub && <div className="row-sub" style={{ whiteSpace: 'normal' }}>{sub}</div>}
+        </div>
+        {children}
+        {onClick && !danger && <Icon name="chevronR" className="row-chev" />}
+      </Tag>
+      {infoOpen && hint && <InfoModal title={label} content={hint} onClose={() => setInfoOpen(false)} />}
+    </>
   );
 }
 
@@ -188,13 +210,13 @@ function AppearanceSheet({ open, onClose }: { open: boolean; onClose: () => void
             <span>午餐・便當</span><span className="num">$120</span>
           </div>
         </div>
-        <Row label="收支／漲跌顏色" sub={s.upColor === 'green' ? '支出／虧損紅，收入／獲利綠' : '支出／虧損綠，收入／獲利紅（台股習慣）'}>
+        <Row label="收支／漲跌顏色" hint="自訂支出與虧損顏色。預設為支出紅、收入綠；台股投資習慣可切換為支出綠、收入紅。">
           <div style={{ width: 128, flex: 'none' }}>
             <Segmented value={s.upColor} onChange={(v) => s.set('upColor', v)} ariaLabel="收支顏色"
               options={[{ value: 'green', label: <span style={{ color: 'var(--up-red)' }}>支紅</span> }, { value: 'red', label: <span style={{ color: 'var(--down-green)' }}>支綠</span> }]} />
           </div>
         </Row>
-        <Row icon="grip" tint="#FF9F0A" label="首頁快覽配置" sub="增減與自訂首頁快覽卡片的順序" onClick={() => navTo('/settings/widgets')} />
+        <Row icon="grip" tint="#FF9F0A" label="首頁快覽配置" hint="自由勾選並拖曳排序首頁出現的快覽卡片，包括資產概覽、本月收支、心願清單等。" onClick={() => navTo('/settings/widgets')} />
       </div>
     </Sheet>
   );
@@ -239,8 +261,8 @@ function PrefsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
           </select>
         </div>
         <div className="field"><span className="label" style={{ flex: 1 }}>千分位逗號</span><Switch checked={s.thousands} onChange={(v) => s.set('thousands', v)} label="千分位" /></div>
-        <Row icon="globe" tint="#0A84FF" label="幣別與即時匯率" onClick={() => navTo('/settings/fx')}
-          sub={fxAt ? `上次更新 ${new Date(fxAt).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : '查看即時匯率與手動更新'} />
+        <Row icon="globe" tint="#0A84FF" label="幣別與即時匯率" hint="查看各國貨幣即時匯率與手動更新，由伺服器向各大國際金融機構取得。" onClick={() => navTo('/settings/fx')}
+          sub={fxAt ? `上次更新 ${new Date(fxAt).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : undefined} />
       </div>
     </Sheet>
   );
@@ -252,10 +274,10 @@ function TaxonomyHubSheet({ open, onClose }: { open: boolean; onClose: () => voi
   return (
     <Sheet open={open} onClose={onClose} title="分類、標籤與規則">
       <div className="list">
-        <Row icon="tags" tint="#FF375F" label="支出／收入分類" sub="名稱、圖示、顏色、排序、封存" onClick={() => navTo('/settings/categories')} />
-        <Row icon="tag" tint="#BF5AF2" label="標籤管理" sub="跨分類維度標記（如：出差、出國、公費）" onClick={() => navTo('/settings/tags')} />
-        <Row icon="filter" tint="#30B0C7" label="自動分類規則" sub="依備註或商家名稱，自動帶入分類與標籤" onClick={() => navTo('/settings/rules')} />
-        <Row icon="pin" tint="#FF9F0A" label="常用項目（釘選）" sub="將常記的項目釘選在建議列，一鍵帶入" onClick={() => navTo('/settings/pinned')} />
+        <Row icon="tags" tint="#FF375F" label="支出／收入分類" onClick={() => navTo('/settings/categories')} />
+        <Row icon="tag" tint="#BF5AF2" label="標籤管理" hint="跨分類的獨立標記維度（如：出差、出國、公費、家庭分攤），方便跨類別交叉統計。" onClick={() => navTo('/settings/tags')} />
+        <Row icon="filter" tint="#30B0C7" label="自動分類規則" hint="依消費備註關鍵字或商家名稱，在記帳或匯入時自動帶入指定分類與標籤。" onClick={() => navTo('/settings/rules')} />
+        <Row icon="pin" tint="#FF9F0A" label="常用項目（釘選）" hint="將經常重複消費的項目釘選在記帳面板的建議列，點擊一鍵快速帶入。" onClick={() => navTo('/settings/pinned')} />
       </div>
     </Sheet>
   );
@@ -267,9 +289,9 @@ function AutoRecordHubSheet({ open, onClose }: { open: boolean; onClose: () => v
   return (
     <Sheet open={open} onClose={onClose} title="自動記帳與對帳">
       <div className="list">
-        <Row icon="inbox" tint="#30D158" label="自動記帳收件匣" sub="Apple Pay、簡訊、Siri 捷徑自動入帳" onClick={() => navTo('/inbox')} />
-        <Row icon="receipt" tint="#0A84FF" label="電子發票載具" sub="手機條碼載具、發票自動對獎與明細記帳" onClick={() => navTo('/settings/invoice')} />
-        <Row icon="check" tint="#FF9F0A" label="帳單對帳匯入" sub="用網銀信用卡對帳單比對帳本，補齊漏記" onClick={() => navTo('/settings/import?mode=reconcile')} />
+        <Row icon="inbox" tint="#30D158" label="自動記帳收件匣" hint="透過 iPhone 捷徑接收台灣 52 家銀行 App、LINE Pay、街口通知與 Apple Pay 刷卡交易，暫存於收件匣一鍵入帳。" onClick={() => navTo('/inbox')} />
+        <Row icon="receipt" tint="#0A84FF" label="電子發票載具" hint="綁定財政部手機條碼載具，自動同步發票明細、自動對獎並一鍵匯入記帳。" onClick={() => navTo('/settings/invoice')} />
+        <Row icon="check" tint="#FF9F0A" label="帳單對帳匯入" hint="匯入網銀信用卡 CSV 對帳單，比對現有帳本紀錄，快速抓出漏記或重複扣款。" onClick={() => navTo('/settings/import?mode=reconcile')} />
       </div>
     </Sheet>
   );
@@ -282,9 +304,9 @@ function AiHubSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
     <Sheet open={open} onClose={onClose} title="AI 助理與智慧偵測">
       <div className="list">
         {AUTH_ENABLED && (
-          <Row icon="slidersHorizontal" tint="#8E8E93" label="AI 功能設定與額度" sub="AI 總開關、送出內容去識別化、點數查詢" onClick={() => navTo('/settings/ai')} />
+          <Row icon="slidersHorizontal" tint="#8E8E93" label="AI 功能設定與額度" hint="管理 AI 助理總開關、送出內容去識別化隱私防護，以及查詢剩餘額度點數。" onClick={() => navTo('/settings/ai')} />
         )}
-        <Row icon="ai" tint="#17181c" label="消費異常與預算預警" sub="本機規則偵測重複扣款、訂閱漲價與超支預警" onClick={() => navTo('/ai')} />
+        <Row icon="ai" tint="#17181c" label="消費異常與預算預警" hint="由本機純離線規則自動偵測重複扣款、訂閱突然漲價、大額支出與各分類預算超支警示。" onClick={() => navTo('/ai')} />
       </div>
     </Sheet>
   );
@@ -300,13 +322,15 @@ function SecurityHubSheet({ open, onClose, onOpenEnc, onOpenPw }: { open: boolea
   return (
     <Sheet open={open} onClose={onClose} title="帳號安全與隱私">
       <div className="list">
-        <Row icon="shieldCheck" tint="#5E5CE6" label="端對端加密" onClick={() => { onClose(); onOpenEnc(); }}
-          sub={syncPhase === 'locked' ? '⚠️ 請輸入加密密碼以繼續同步' : syncE2ee?.enabled ? '已啟用：伺服器只保存密文' : '未啟用：啟用後伺服器無法窺探內容'} />
-        <Row icon="lock" tint="#30B0C7" label="App 鎖與隱私" onClick={() => navTo('/settings/security')}
-          sub={s.lock.enabled ? `App 鎖已啟用${s.lock.webauthn ? '（含 Face ID）' : ''}` : 'PIN 碼、Face ID、背景隱藏金額'} />
-        <Row icon="edit" tint="#8E8E93" label="變更登入密碼" onClick={() => { onClose(); onOpenPw(); }} sub="修改目前帳號的登入密碼" />
+        <Row icon="shieldCheck" tint="#5E5CE6" label="端對端加密" hint="資料在你的裝置加密後才同步至伺服器。即使伺服器或資料庫遭竊，任何人都無法解密你的帳目。" onClick={() => { onClose(); onOpenEnc(); }}>
+          <span className="row-value muted" style={{ fontSize: '0.85rem' }}>{syncPhase === 'locked' ? '⚠️ 需要解鎖' : syncE2ee?.enabled ? '已啟用' : '未啟用'}</span>
+        </Row>
+        <Row icon="lock" tint="#30B0C7" label="App 鎖與隱私" hint="設定 4 位數 PIN 碼、啟用 Face ID / Touch ID 生物辨識解鎖，以及在多工切換時自動模糊隱藏金額。" onClick={() => navTo('/settings/security')}>
+          <span className="row-value muted" style={{ fontSize: '0.85rem' }}>{s.lock.enabled ? '已啟用' : '未啟用'}</span>
+        </Row>
+        <Row icon="edit" tint="#8E8E93" label="變更登入密碼" onClick={() => { onClose(); onOpenPw(); }} />
         {auth.user?.role === 'admin' && (
-          <Row icon="users" tint="#FF9F0A" label="資安後台" sub="使用者管理、開放註冊、審計日誌" onClick={() => navTo('/admin')} />
+          <Row icon="users" tint="#FF9F0A" label="資安後台" hint="管理使用者帳號、開放註冊開關、審計日誌與系統診斷工具（僅管理員可見）。" onClick={() => navTo('/admin')} />
         )}
       </div>
     </Sheet>
@@ -326,17 +350,17 @@ function DataHubSheet({ open, onClose }: { open: boolean; onClose: () => void })
   return (
     <Sheet open={open} onClose={onClose} title="資料備份與維護">
       <div className="list">
-        <Row icon="database" tint="#0A84FF" label="備份、匯入與匯出" sub="本機備份檔還原、CSV、Excel、PDF 匯出" onClick={() => navTo('/settings/backup')} />
-        <Row icon="check" tint="#30D158" label="資料健康檢查" sub="自動修復帳目餘額與索引一致性" onClick={() => navTo('/settings/health')} />
+        <Row icon="database" tint="#0A84FF" label="備份、匯入與匯出" hint="支援本機完整備份還原（含 AES-256 加密）、匯出 CSV、Excel、PDF 報表與他家記帳軟體資料匯入。" onClick={() => navTo('/settings/backup')} />
+        <Row icon="check" tint="#30D158" label="資料健康檢查" hint="掃描本機 IndexedDB 與伺服器資料庫，自動修復帳目關聯、餘額快取不一致與損壞索引。" onClick={() => navTo('/settings/health')} />
         {sample ? (
-          <Row icon="sparkles" tint="#8E8E93" label="清除範例資料" sub="刪除 90 天展示用的帳戶與帳目">
+          <Row icon="sparkles" tint="#8E8E93" label="清除範例資料" hint="移除系統預先建立的 90 天展示用範例帳戶與帳目。">
             <button className="btn small danger" disabled={busy === 'sample'} onClick={() => run('sample', async () => {
               const n = await clearSampleData();
               snack(`已清除 ${n} 筆範例資料`);
             })}>清除</button>
           </Row>
         ) : (
-          <Row icon="sparkles" tint="#8E8E93" label="載入示範資料" sub="載入 90 天示範帳目，可隨時一鍵清除">
+          <Row icon="sparkles" tint="#8E8E93" label="載入示範資料" hint="建立 90 天完整的擬真生活帳目與帳戶，可隨時一鍵清除。">
             <button className="btn small tinted" disabled={busy === 'sample'} onClick={() => run('sample', async () => {
               await loadSampleData();
               snack('已載入示範資料');
@@ -357,7 +381,8 @@ function AboutHubSheet({ open, onClose }: { open: boolean; onClose: () => void }
   return (
     <Sheet open={open} onClose={onClose} title="關於 Aster">
       <div className="list">
-        <Row icon="info" tint="#8E8E93" label="版本" sub={`v${__APP_VERSION__} · 建置於 ${__BUILD_TIME__.slice(0, 10)}`}>
+        <Row icon="info" tint="#8E8E93" label="版本" hint={`當前版本 v${__APP_VERSION__}，建置於 ${__BUILD_TIME__.slice(0, 10)}。Aster 採用漸進式 PWA 與離線資料庫架構。`}>
+          <span className="row-value muted" style={{ fontSize: '0.85rem', marginRight: 8 }}>v{__APP_VERSION__}</span>
           <button className="pill" disabled={checking} onClick={async () => {
             setChecking(true);
             try {
@@ -368,8 +393,8 @@ function AboutHubSheet({ open, onClose }: { open: boolean; onClose: () => void }
             } catch { snack('無法連線到伺服器，請稍後再試'); } finally { setChecking(false); }
           }}>{checking ? '檢查中…' : '檢查更新'}</button>
         </Row>
-        <Row icon="sparkles" tint="#0A84FF" label="版本更新重點" sub="瀏覽各版本重點新功能與操作導引" onClick={() => { onClose(); openWhatsNew(); }} />
-        <Row icon="compass" tint="#FF9F0A" label="重新執行首次引導" sub="再次瀏覽 Aster 最強功能特色與基礎設定" onClick={() => { s.set('onboarded', false); navTo('/onboarding'); }} />
+        <Row icon="sparkles" tint="#0A84FF" label="版本更新重點" onClick={() => { onClose(); openWhatsNew(); }} />
+        <Row icon="compass" tint="#FF9F0A" label="重新執行首次引導" onClick={() => { s.set('onboarded', false); navTo('/onboarding'); }} />
         <Row icon="lock" tint="#30B0C7" label="隱私權政策" onClick={() => navTo('/privacy')} />
         <Row icon="note" tint="#8E8E93" label="服務條款與授權" onClick={() => navTo('/terms')} />
         <details className="set-details" style={{ margin: '8px 4px 4px' }}>
@@ -388,8 +413,8 @@ function IntegrationHubSheet({ open, onClose }: { open: boolean; onClose: () => 
   return (
     <Sheet open={open} onClose={onClose} title="通知與市場整合">
       <div className="list">
-        <Row icon="bell" tint="#FF3B30" label="通知與提醒中心" sub="記帳提醒、繳款通知、預算超支、到價推播" onClick={() => navTo('/settings/notifications')} />
-        <Row icon="trend" tint="#5E5CE6" label="股票行情資料源與 API Key" sub="Yahoo / FinMind / AlphaVantage 行情與手續費" onClick={() => navTo('/settings/invest')} />
+        <Row icon="bell" tint="#FF3B30" label="通知與提醒中心" hint="設定每日定時記帳提醒、信用卡繳款日通知、預算超支即時推播與股票到價警示。" onClick={() => navTo('/settings/notifications')} />
+        <Row icon="trend" tint="#5E5CE6" label="股票行情資料源與 API Key" hint="設定台股與美股即時報價來源（Yahoo Finance、FinMind、AlphaVantage）以及證券券商手續費折數。" onClick={() => navTo('/settings/invest')} />
       </div>
     </Sheet>
   );
@@ -559,29 +584,35 @@ export default function SettingsPage() {
 
       {/* 1. 記帳核心 */}
       <Group title="記帳與分類">
-        <Row icon="tags" tint="#FF375F" label="分類、標籤與規則" sub="收支分類、標籤、常用釘選、自動分類規則" onClick={() => setCatOpen(true)} />
-        <Row icon="slidersHorizontal" tint="#8E8E93" label="記帳格式與幣別" sub={`${s.baseCurrency}・每月 ${s.monthStartDay === 31 ? '最後一天' : `${s.monthStartDay} 日`}起算・一週從${s.weekStart === 0 ? '週日' : '週一'}`} onClick={() => setPrefsOpen(true)} />
+        <Row icon="tags" tint="#FF375F" label="分類、標籤與規則" onClick={() => setCatOpen(true)} />
+        <Row icon="slidersHorizontal" tint="#8E8E93" label="記帳格式與幣別" onClick={() => setPrefsOpen(true)}>
+          <span className="row-value muted" style={{ fontSize: '0.85rem' }}>{s.baseCurrency} · 每月 {s.monthStartDay === 31 ? '月底' : `${s.monthStartDay}日`}</span>
+        </Row>
       </Group>
 
       {/* 2. 智慧與自動化 */}
       <Group title="自動化與智慧">
-        <Row icon="receipt" tint="#30D158" label="自動記帳與對帳" sub="Apple Pay 收件匣、電子發票載具對獎、帳單核對" onClick={() => setAutoOpen(true)} />
-        <Row icon="ai" tint="#17181c" label="AI 助理與智慧偵測" sub="助理開關、送出內容設定、額度、異常與預算預警" onClick={() => setAiOpen(true)} />
+        <Row icon="receipt" tint="#30D158" label="自動記帳與對帳" onClick={() => setAutoOpen(true)} />
+        <Row icon="ai" tint="#17181c" label="AI 助理與智慧偵測" hint="開啟 AI 記帳與諮詢、送出內容去識別化隱私防護，以及本機純離線規則偵測重複扣款與預算超支警示。" onClick={() => setAiOpen(true)} />
       </Group>
 
       {/* 3. 介面與通知 */}
       <Group title="介面與通知">
-        <Row icon="palette" tint="#0A84FF" label="外觀與首頁版面" sub={`${s.theme === 'system' ? '跟隨系統' : s.theme === 'dark' ? '深色' : '淺色'}・${ACCENTS.find((a) => a.key === s.accent)?.name ?? ''}・首頁快覽配置`} onClick={() => setLookOpen(true)} />
-        <Row icon="bell" tint="#FF3B30" label="通知與市場整合" sub="記帳推播、繳款提醒、台美股行情資料源" onClick={() => setIntegOpen(true)} />
+        <Row icon="palette" tint="#0A84FF" label="外觀與首頁版面" onClick={() => setLookOpen(true)}>
+          <span className="row-value muted" style={{ fontSize: '0.85rem' }}>{s.theme === 'system' ? '跟隨系統' : s.theme === 'dark' ? '深色' : '淺色'} · {ACCENTS.find((a) => a.key === s.accent)?.name ?? ''}</span>
+        </Row>
+        <Row icon="bell" tint="#FF3B30" label="通知與市場整合" onClick={() => setIntegOpen(true)} />
       </Group>
 
       {/* 4. 系統與資料 */}
       <Group title="系統與資料">
         {account && (
-          <Row icon="shieldCheck" tint="#5E5CE6" label="帳號安全與隱私" sub="端對端加密、App 鎖 PIN/Face ID、變更密碼" onClick={() => setSecOpen(true)} />
+          <Row icon="shieldCheck" tint="#5E5CE6" label="帳號安全與隱私" onClick={() => setSecOpen(true)} />
         )}
-        <Row icon="database" tint="#0A84FF" label="資料備份與維護" sub="備份還原、匯出入、資料庫健康檢查、範例帳目" onClick={() => setDataOpen(true)} />
-        <Row icon="info" tint="#8E8E93" label="關於 Aster" sub={`v${__APP_VERSION__} · 檢查更新、版本更新重點、條款政策`} onClick={() => setAboutOpen(true)} />
+        <Row icon="database" tint="#0A84FF" label="資料備份與維護" onClick={() => setDataOpen(true)} />
+        <Row icon="info" tint="#8E8E93" label="關於 Aster" onClick={() => setAboutOpen(true)}>
+          <span className="row-value muted" style={{ fontSize: '0.85rem' }}>v{__APP_VERSION__}</span>
+        </Row>
       </Group>
 
       {/* 危險操作區 */}

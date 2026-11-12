@@ -20,7 +20,7 @@ import { useSettings } from '@/stores/settings';
 import { useUI, ask } from '@/stores/ui';
 import { ExplainButton } from '@/ui/Explain';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
-import { CatIcon, Icon } from '@/ui/Icon';
+import { CatIcon, Icon, iconEmoji } from '@/ui/Icon';
 import { AccountSheet } from './AccountSheet';
 import { lazy, Suspense } from 'react';
 import { usePortfolio } from '@/services/portfolio';
@@ -185,7 +185,7 @@ function LoanPanel({ account }: { account: Account }) {
           <div className="field">
             <label htmlFor="loan-from">扣款帳戶</label>
             <select id="loan-from" value={fromId} onChange={(e) => { setFrom(e.target.value); void updateAccount(account.id, { loan: { ...loan, payFromAccountId: e.target.value } }); }}>
-              {payers.map((a) => <option key={a.id} value={a.id}>{a.icon} {a.name}</option>)}
+              {payers.map((a) => <option key={a.id} value={a.id}>{iconEmoji(a.icon)} {a.name}</option>)}
             </select>
           </div>
           <button className="row accent" disabled={busy} onClick={async () => {

@@ -2,6 +2,7 @@
  * 表單共用元件（iOS 設定頁風格的列）：文字、金額、日期、下拉、帳戶、分類、開關。
  */
 import { LabelHint } from './Hint';
+import { iconEmoji } from './Icon';
 import { useId, type ReactNode } from 'react';
 import type { Account, Category, CategoryKind } from '@/db/types';
 import { buildTree } from '@/db/repo/categories';
@@ -90,7 +91,7 @@ export function AccountField({ label = '帳戶', value, onChange, accounts, allo
       <label htmlFor={id}>{label}</label>
       <select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
         {allowEmpty && <option value="">{emptyLabel}</option>}
-        {list.map((a) => <option key={a.id} value={a.id}>{a.icon} {a.name}（{a.currency}）</option>)}
+        {list.map((a) => <option key={a.id} value={a.id}>{iconEmoji(a.icon)} {a.name}（{a.currency}）</option>)}
       </select>
     </div>
   );

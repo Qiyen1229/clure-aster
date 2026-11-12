@@ -469,6 +469,27 @@ export const LUCIDE_NODES: Record<string, React.ReactNode> = {
       <circle cx="7.5" cy="7.5" r="1" fill="currentColor" />
     </>
   ),
+  wallet: (
+    <>
+      <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" />
+      <path d="M3 5v14a2 2 0 0 0 2 2h16v-5" />
+      <path d="M18 12a2 2 0 0 0 0 4h4v-4Z" />
+    </>
+  ),
+  'piggy-bank': (
+    <>
+      <path d="M19 5c-1.5 0-2.8 1.4-3 2-3.5-1.5-11-.3-11 5 0 1.8 0 3 2 4.5V20h4v-2h3v2h4v-4c1-.5 1.7-1 2-2h2v-4h-2c0-1-.5-1.5-1-2V5z" />
+      <path d="M2 9v1c0 1.1.9 2 2 2h1" />
+      <path d="M16 11h.01" />
+    </>
+  ),
+  'circle-dollar-sign': (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" />
+      <path d="M12 18V6" />
+    </>
+  ),
 };
 
 export const EMOJI_TO_LUCIDE: Record<string, string> = {
@@ -583,7 +604,91 @@ export const EMOJI_TO_LUCIDE: Record<string, string> = {
   '🎯': 'target',
   '🔮': 'sparkles',
   '🏷️': 'tag',
+  '👛': 'wallet',
+  '🐷': 'piggy-bank',
+  '🪙': 'coins',
 };
+
+export const LUCIDE_TO_EMOJI: Record<string, string> = {
+  utensils: '🍱',
+  coffee: '🥪',
+  cake: '🍰',
+  'cup-soda': '🧋',
+  apple: '🥬',
+  wine: '🍻',
+  shirt: '👕',
+  footprints: '👟',
+  'shopping-bag': '👜',
+  scissors: '💇',
+  home: '🏠',
+  key: '🔑',
+  landmark: '🏦',
+  lightbulb: '💡',
+  wifi: '📶',
+  building: '🏢',
+  package: '🧻',
+  armchair: '🛋️',
+  wrench: '🔧',
+  train: '🚇',
+  bus: '🚌',
+  car: '🚗',
+  fuel: '⛽',
+  'circle-parking': '🅿️',
+  hammer: '🛠️',
+  plane: '✈️',
+  'book-open': '📚',
+  'graduation-cap': '🎓',
+  presentation: '🧑‍🏫',
+  'file-text': '📝',
+  'gamepad-2': '🎮',
+  clapperboard: '🎬',
+  luggage: '🧳',
+  palette: '🎨',
+  dumbbell: '🏋️',
+  mic: '🎤',
+  stethoscope: '🩺',
+  hospital: '🏥',
+  pill: '💊',
+  heart: '❤️',
+  'shield-check': '🛡️',
+  'paw-print': '🐾',
+  repeat: '🔁',
+  tv: '📺',
+  headphones: '🎧',
+  cloud: '☁️',
+  ticket: '🎫',
+  gift: '🎁',
+  smartphone: '📲',
+  'shopping-cart': '🛒',
+  users: '👨‍👩‍👧',
+  baby: '🍼',
+  calculator: '🧮',
+  'trending-up': '📈',
+  sparkles: '✨',
+  briefcase: '💼',
+  banknote: '💵',
+  trophy: '🏆',
+  coins: '💰',
+  'credit-card': '💳',
+  handshake: '🤝',
+  folder: '🗂️',
+  scale: '⚖️',
+  pin: '📌',
+  target: '🎯',
+  clock: '⏰',
+  laptop: '🧑‍💻',
+  receipt: '🧾',
+  tag: '🏷️',
+  wallet: '👛',
+  'piggy-bank': '🐷',
+  'circle-dollar-sign': '🪙',
+};
+
+/** 當處於純文字環境（如原生 <select><option>）時，將 Lucide 代稱轉為對應 emoji，避免印出英文代稱 */
+export function iconEmoji(icon?: string): string {
+  if (!icon) return '';
+  return LUCIDE_TO_EMOJI[icon] || icon;
+}
 
 export function CatIcon({
   icon,

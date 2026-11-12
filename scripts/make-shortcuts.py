@@ -99,6 +99,11 @@ def multi_var_text(attachments: list[dict], sep: str = "\n") -> dict:
     return {"Value": {"string": s, "attachmentsByRange": ranges}, "WFSerializationType": "WFTextTokenString"}
 
 
+def variable(att: dict) -> dict:
+    """捷徑動作的變數參數包裝（如 Conditional WFInput）"""
+    return {"Type": "Variable", "Variable": {"Value": att, "WFSerializationType": "WFTextTokenAttachment"}}
+
+
 def output(uid: str, name: str) -> dict:
     return {"Type": "ActionOutput", "OutputUUID": uid, "OutputName": name}
 
@@ -226,14 +231,11 @@ def voice() -> dict:
              "GroupingIdentifier": cond_id,
              "WFCondition": 100,
              "WFControlFlowMode": 0,
-             "WFInput": {
-                 "Value": output(detect_id, "文字"),
-                 "WFSerializationType": "WFTextTokenAttachment",
-             },
+             "WFInput": variable(output(detect_id, "文字")),
          }},
         {"WFWorkflowActionIdentifier": "is.workflow.actions.detect.text",
          "WFWorkflowActionParameters": {
-             "WFInput": {"Value": output(detect_id, "文字"), "WFSerializationType": "WFTextTokenAttachment"},
+             "WFInput": variable(output(detect_id, "文字")),
          }},
         {"WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
          "WFWorkflowActionParameters": {

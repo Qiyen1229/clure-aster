@@ -722,14 +722,14 @@ function AddSheetInner({ open, onClose, prefill, editTxId, editTransferId }: {
           <div className="meta-row">
             {!(loan && !loanViaAccount) && (
               <button className="pill" onClick={() => setPicker('account')}>
-                {account ? <>{account.icon} {account.name}</> : '選擇帳戶'}
+                {account ? <><CatIcon icon={account.icon} size={15} style={{ verticalAlign: -2, marginRight: 4 }} />{account.name}</> : '選擇帳戶'}
               </button>
             )}
             {mode === 'transfer' && (
               <>
                 <span className="muted" style={{ alignSelf: 'center' }}>→</span>
                 <button className="pill" onClick={() => setPicker('toAccount')} aria-pressed={!toAccount}>
-                  {toAccount ? <>{toAccount.icon} {toAccount.name}</> : '轉入帳戶'}
+                  {toAccount ? <><CatIcon icon={toAccount.icon} size={15} style={{ verticalAlign: -2, marginRight: 4 }} />{toAccount.name}</> : '轉入帳戶'}
                 </button>
               </>
             )}
