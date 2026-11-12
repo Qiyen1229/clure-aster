@@ -2,7 +2,7 @@
 
 > 目的：讓接手的 AI（或新開發者）**不用逐檔翻程式碼**就知道「這個 App 能做什麼、每個功能怎麼運作、規則是什麼、程式在哪」。
 > 與 [PROJECT_OVERVIEW_FOR_AI.md](PROJECT_OVERVIEW_FOR_AI.md)（技術棧、架構、部署、檔案地圖）互補：那份偏「怎麼建」，這份偏「做了什麼」。
-> 版本：**4.1.28**（2026-11-12）。分支 `feature/v1.2`。逐版細節見 [CHANGELOG.md](CHANGELOG.md)；設計文件見 `docs/`。
+> 版本：**4.1.29**（2026-11-12）。分支 `feature/v1.2`。逐版細節見 [CHANGELOG.md](CHANGELOG.md)；設計文件見 `docs/`。
 > 慣例：金額內部一律用**整數最小單位**（TWD 的 1 元 = 100），不要用浮點數；使用者可見文字一律**繁體中文（台灣用語）**。
 
 ---
@@ -93,7 +93,7 @@
 2. **AI 與自動化**：AI 助理（智慧提醒與額度，`/ai`）、AI 設定與額度、**首頁 AI 小圓球**開關、自動記帳收件匣、電子發票、**帳單對帳**。
 3. **分類與規則**：支出／收入分類、標籤、自動分類規則。
 4. **通知與整合**：通知與提醒（頁內切換「系統與推播｜外部通道」）、股票資料源與 API Key。
-5. **顯示與格式**：**外觀與顯示**（深淺色、主題色、文字大小、紅漲綠跌——點開才出現的面板）、**記帳格式與起算日**（主幣別、月起算、一週起始、小數位數、千分位）、**首頁快覽**、幣別與匯率。
+5. **顯示與格式**：**外觀與首頁版面**（深淺色、石墨冰藍／霧白墨綠／暖灰琥珀完整配色、經典灰階八種點綴色、文字大小、紅漲綠跌——點開才出現的面板）、**記帳格式與起算日**（主幣別、月起算、一週起始、小數位數、千分位）、**首頁快覽**、幣別與匯率。
 6. **資料**：備份／匯入／匯出、資料健康檢查、範例資料。
 7. **關於**、帳號與資料管理（登出、清除所有資料）。
 - 說明文字用 ⓘ（`Hint`／`Intro`）折疊；署名「2026.02.03 · Qiyen 著」。
@@ -234,7 +234,7 @@ JSON 完整備份／還原（含照片）、**加密備份**（PBKDF2-SHA256 310
 ---
 
 ## 6. 測試與品質
-- 前端 Vitest **764 項**（`tests/unit/`，fake-indexeddb；含 `agent-actions`、`agent-intent`、`calc-history`、`forecast`、`inbox-refresh`、`shortcut-import`）＋後端 pytest **197 項**（`server/tests/`）＝ **961 項**；`npm run check` = 型態檢查 + ESLint（0 警告）+ 測試；CI 於 main 與 feature 分支每次推送執行。
+- 前端 Vitest **853 項**（`tests/unit/`，fake-indexeddb；含 `agent-actions`、`agent-intent`、`calc-history`、`forecast`、`inbox-refresh`、`shortcut-import`）＋後端 pytest **198 項**（`server/tests/`）＝ **1051 項**；`npm run check` = 型態檢查 + ESLint（0 警告）+ 測試；CI 於 main 與 feature 分支每次推送執行。
 - 純函式優先放 `src/domain/`（便於測試）；有副作用的放 `src/services/`；資料庫存取放 `src/db/repo/`。
 
 ## 7. 給修改者的注意事項（踩過的坑）

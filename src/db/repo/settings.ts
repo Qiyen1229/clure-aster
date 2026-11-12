@@ -6,7 +6,17 @@ import type { DecimalsMode } from '@/domain/money';
 import type { ImportProfile } from '@/services/importer';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
-export type ThemePalette = 'default' | 'oled' | 'slate' | 'forest' | 'ocean' | 'oat';
+export type ThemePalette = 'default' | 'graphite' | 'jade' | 'amber';
+
+export function normalizeThemePalette(value: unknown): ThemePalette {
+  switch (value) {
+    case 'graphite': case 'jade': case 'amber': case 'default': return value;
+    case 'oled': case 'slate': case 'ocean': return 'graphite';
+    case 'forest': return 'jade';
+    case 'oat': return 'amber';
+    default: return 'default';
+  }
+}
 /** 文字大小：'system' 跟隨 iPhone「文字大小」設定，數字為根字級（px） */
 export type FontSizePref = 'system' | number;
 export type AccentKey = 'cyan' | 'blue' | 'indigo' | 'purple' | 'pink' | 'orange' | 'green' | 'gold';
@@ -240,6 +250,7 @@ export async function loadSettings(): Promise<Settings> {
     await db.settings.put({ key: 'homeWidgets', value: s.homeWidgets });
   }
   if (!(await db.meta.get('homeWidgetsRestored'))) await db.meta.put({ key: 'homeWidgetsRestored', value: 1 });
+  s.themePalette = normalizeThemePalette(s.themePalette);
   return s as unknown as Settings;
 }
 

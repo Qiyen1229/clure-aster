@@ -3,7 +3,7 @@
  * 主題相關設定會即時套用到 <html> 的 data-* 屬性。
  */
 import { create } from 'zustand';
-import { DEFAULT_SETTINGS, saveSetting, type Settings } from '@/db/repo/settings';
+import { DEFAULT_SETTINGS, normalizeThemePalette, saveSetting, type Settings } from '@/db/repo/settings';
 import { setFontSizePreference } from '@/app/viewport';
 
 interface SettingsState extends Settings {
@@ -16,14 +16,15 @@ export const useSettings = create<SettingsState>((set) => ({
   ...DEFAULT_SETTINGS,
   ready: false,
   hydrate: (s) => {
-    set({ ...s, ready: true });
-    applyTheme(s);
+    const settings = { ...s, themePalette: normalizeThemePalette(s.themePalette) };
+    set({ ...settings, ready: true });
+    applyTheme(settings);
     setFontSizePreference(s.fontSize);
   },
   set: (key, value) => {
     set({ [key]: value } as Partial<SettingsState>);
     void saveSetting(key, value);
-    applyTheme(useSettings.getState());
+    if (key === 'theme' || key === 'themePalette' || key === 'accent' || key === 'upColor') applyTheme(useSettings.getState());
     if (key === 'fontSize') setFontSizePreference(value as Settings['fontSize']);
   },
 }));
@@ -35,14 +36,10 @@ export function applyTheme(s: Pick<Settings, 'theme' | 'accent' | 'upColor' | 't
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
   const dark = s.theme === 'dark' || (s.theme === 'system' && !!media?.matches);
-  const palette = s.themePalette || 'default';
   root.dataset.theme = dark ? 'dark' : 'light';
   root.dataset.accent = s.accent;
   root.dataset.updown = s.upColor;
-  root.dataset.palette = palette;
-  // 狀態列／瀏覽器 UI 顏色（配合全域風格主題）
-  const metaColor = dark
-    ? (palette === 'slate' ? '#0b0f14' : palette === 'forest' ? '#0b120e' : palette === 'ocean' ? '#090d16' : palette === 'oat' ? '#14110f' : '#000000')
-    : (palette === 'slate' ? '#eef2f6' : palette === 'forest' ? '#f1f5f2' : palette === 'ocean' ? '#f0f3f8' : palette === 'oat' ? '#f7f4ee' : '#F2F2F7');
+  root.dataset.palette = normalizeThemePalette(s.themePalette);
+  const metaColor = getComputedStyle(root).getPropertyValue('--bg').trim();
   document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute('content', metaColor));
 }

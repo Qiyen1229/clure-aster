@@ -25,6 +25,16 @@ export interface ReleaseNote {
 /** 新的在前 */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '4.1.29', date: '2026-11-12',
+    features: [
+      {
+        title: '三套完整主題',
+        intro: '石墨冰藍、霧白墨綠、暖灰琥珀正式取代原有五套主題。背景、卡片、文字與點綴色整套搭配，深淺色都能切換；經典灰階仍可自由選色。',
+        howto: '到「設定 → 介面與通知 → 外觀與首頁版面」選擇主題。舊主題偏好會轉為相近的新配色，其他設定與帳目不變。',
+      },
+    ],
+  },
+  {
     version: '4.1.28', date: '2026-11-12',
     features: [
       {

@@ -88,6 +88,12 @@ export const CANDIDATES: ShowcaseFeature[] = [
     bullets: ['手續費、證交稅自動算', '已實現／未實現損益、XIRR', '股利行事曆與到價提醒'],
     howto: '底部導覽列的「投資」',
   },
+  {
+    id: 'themes', icon: 'palette', title: '三套完整配色', since: '4.1.29', power: 1, novelty: 2,
+    pitch: '背景、卡片與點綴色一次搭配好',
+    bullets: ['石墨冰藍、霧白墨綠、暖灰琥珀', '支援深色、淺色與跟隨系統', '經典灰階保留自由選色'],
+    howto: '到「設定 → 介面與通知 → 外觀與首頁版面」',
+  },
 ];
 
 const vParts = (v: string) => v.split('.').map((n) => Number(n) || 0);
