@@ -47,4 +47,12 @@ describe('每日記帳提醒：已記帳就不通知', () => {
     await db.transfers.add({ id: 'tr', date: today } as never);
     expect(await hasLoggedOn(today)).toBe(true);
   });
+
+  it('備份提醒：push id 格式為 backup:YYYY-MM-DD，與本機通知 ID 規則一致', async () => {
+    useSettings.setState({ ...DEFAULT_SETTINGS, notify: { ...DEFAULT_SETTINGS.notify, backup: true, backupDays: 14 } } as never);
+    const items = await upcomingPushItems(14, new Date(`${today}T00:00:00`).getTime());
+    const backupItem = items.find((i) => i.id.startsWith('backup:'));
+    expect(backupItem).toBeDefined();
+    expect(backupItem?.id).toMatch(/^backup:\d{4}-\d{2}-\d{2}$/);
+  });
 });

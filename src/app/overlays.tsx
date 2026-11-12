@@ -142,45 +142,73 @@ export function InputHost() {
 
 /** Service Worker 更新提示：「有新版本，點擊更新」 */
 export function UpdatePrompt() {
-  const [update, setUpdate] = useState<null | ((reload?: boolean) => Promise<void>)>(null);
+  const [updateFn, setUpdateFn] = useState<null | ((reload?: boolean) => Promise<void>)>(null);
+  const [dismissed, setDismissed] = useState(false);
   const [offlineReady, setOfflineReady] = useState(false);
+  const dismissedAtRef = useRef<number | null>(null);
+
   useEffect(() => {
     if (!('serviceWorker' in navigator) || import.meta.env.DEV) return;
     let cancelled = false;
     let timer: any = null;
+    let intervalTimer: any = null;
     let onVis: (() => void) | null = null;
     import('virtual:pwa-register').then(({ registerSW }) => {
       if (cancelled) return;
       const updateSW = registerSW({
-        onNeedRefresh: () => setUpdate(() => updateSW),
+        onNeedRefresh: () => {
+          setUpdateFn(() => updateSW);
+          setDismissed(false);
+        },
         onOfflineReady: () => setOfflineReady(true),
         onRegisteredSW: (_url, reg) => {
-          // 每 30 分鐘、以及回到前景時檢查更新
+          // 每 30 分鐘檢查更新
           if (!reg) return;
           timer = setInterval(() => reg.update().catch(() => undefined), 30 * 60 * 1000);
-          onVis = () => {
-            if (document.visibilityState === 'visible') reg.update().catch(() => undefined);
-          };
-          document.addEventListener('visibilitychange', onVis);
         },
       });
+
+      // 回到前景時檢查 SW 更新並重設稍後狀態（重新提示）
+      onVis = () => {
+        if (document.visibilityState === 'visible') {
+          dismissedAtRef.current = null;
+          setDismissed(false);
+        }
+      };
+      document.addEventListener('visibilitychange', onVis);
+
+      // 每分鐘檢查 6 小時間隔是否已過
+      intervalTimer = setInterval(() => {
+        if (dismissedAtRef.current && Date.now() - dismissedAtRef.current >= 6 * 60 * 60 * 1000) {
+          dismissedAtRef.current = null;
+          setDismissed(false);
+        }
+      }, 60 * 1000);
     });
     return () => {
       cancelled = true;
       if (timer) clearInterval(timer);
+      if (intervalTimer) clearInterval(intervalTimer);
       if (onVis) document.removeEventListener('visibilitychange', onVis);
     };
   }, []);
+
+  const handleDismiss = () => {
+    dismissedAtRef.current = Date.now();
+    setDismissed(true);
+  };
+
   useEffect(() => {
     if (!offlineReady) return;
     useUI.getState().showSnack({ text: '已可離線使用 ✓' });
   }, [offlineReady]);
-  if (!update) return null;
+
+  if (!updateFn || dismissed) return null;
   return (
     <div className="banner" role="alert">
       <span>有新版本，點擊更新（更新後會跳出這次新增的功能說明）</span>
-      <button className="btn small" onClick={() => update(true)}>更新</button>
-      <button className="btn small secondary" onClick={() => setUpdate(null)}>稍後</button>
+      <button className="btn small" onClick={() => updateFn(true)}>更新</button>
+      <button className="btn small secondary" onClick={handleDismiss}>稍後</button>
     </div>
   );
 }

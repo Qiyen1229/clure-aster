@@ -14,7 +14,7 @@ import { refreshRates } from '@/services/fx';
 import { haptic } from '@/services/haptics';
 import { useSettings } from '@/stores/settings';
 import { useUI, ask, askInput } from '@/stores/ui';
-import type { AccentKey } from '@/db/repo/settings';
+import type { AccentKey, ThemePalette } from '@/db/repo/settings';
 import { Segmented, Switch } from '@/ui/controls';
 import { Icon, type IconName } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
@@ -116,6 +116,15 @@ export const ACCENTS: { key: AccentKey; name: string; color: string }[] = [
   { key: 'gold', name: '金', color: '#FFD60A' },
 ];
 
+export const PALETTES: { key: ThemePalette; name: string; desc: string; preview: string }[] = [
+  { key: 'default', name: '經典灰階', desc: '原生 iOS 質感風格', preview: '#141417' },
+  { key: 'oled', name: '極致純黑', desc: 'OLED 零漏光省電', preview: '#000000' },
+  { key: 'slate', name: '冷調極光', desc: '北歐冰岩霧灰藍', preview: '#141c26' },
+  { key: 'forest', name: '靜謐森林', desc: '深墨綠大自然韻味', preview: '#142019' },
+  { key: 'ocean', name: '深海夜航', desc: '深邃沉浸午夜藍', preview: '#111a2c' },
+  { key: 'oat', name: '暖陽燕麥', desc: '焙茶棕溫潤拿鐵', preview: '#241f1b' },
+];
+
 /** 設定列：左側色塊圖示 + 標題 (+ ⓘ 浮窗) + 右側狀態/控制項 */
 function Row({ label, children, onClick, sub, hint, icon, tint, danger, newSince }: {
   label: string; children?: React.ReactNode; onClick?: () => void; sub?: string; hint?: React.ReactNode; icon?: IconName; tint?: string; danger?: boolean; newSince?: string;
@@ -185,7 +194,48 @@ function AppearanceSheet({ open, onClose }: { open: boolean; onClose: () => void
             options={[{ value: 'system', label: '跟隨系統' }, { value: 'light', label: '淺色' }, { value: 'dark', label: '深色' }]} />
         </div>
         <div className="row set-stack">
-          <div className="row-title">主題色</div>
+          <div className="row-title">全域風格主題</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 4 }}>
+            {PALETTES.map((p) => {
+              const active = (s.themePalette ?? 'default') === p.key;
+              return (
+                <button
+                  key={p.key}
+                  type="button"
+                  onClick={() => s.set('themePalette', p.key)}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '10px 6px',
+                    borderRadius: 12,
+                    background: active ? 'var(--accent-soft)' : 'var(--surface-2)',
+                    border: active ? '1.5px solid var(--accent)' : '1px solid var(--glass-border)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 14,
+                      background: p.preview,
+                      border: '1.5px solid rgba(255,255,255,0.2)',
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+                    }}
+                  />
+                  <div style={{ fontSize: '0.8rem', fontWeight: active ? 600 : 500, color: active ? 'var(--accent-text)' : 'var(--text)' }}>
+                    {p.name}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="row set-stack">
+          <div className="row-title">點綴色（Accent）</div>
           <div className="swatches" role="radiogroup" aria-label="主題色">
             {ACCENTS.map((a) => (
               <button key={a.key} className="swatch" style={{ ['--c' as string]: a.color }} aria-pressed={s.accent === a.key}
@@ -599,7 +649,7 @@ export default function SettingsPage() {
       {/* 3. 介面與通知 */}
       <Group title="介面與通知">
         <Row icon="palette" tint="#0A84FF" label="外觀與首頁版面" onClick={() => setLookOpen(true)}>
-          <span className="row-value muted" style={{ fontSize: '0.85rem' }}>{s.theme === 'system' ? '跟隨系統' : s.theme === 'dark' ? '深色' : '淺色'} · {ACCENTS.find((a) => a.key === s.accent)?.name ?? ''}</span>
+          <span className="row-value muted" style={{ fontSize: '0.85rem' }}>{s.theme === 'system' ? '跟隨系統' : s.theme === 'dark' ? '深色' : '淺色'} · {PALETTES.find((p) => p.key === (s.themePalette ?? 'default'))?.name ?? '經典'} · {ACCENTS.find((a) => a.key === s.accent)?.name ?? ''}</span>
         </Row>
         <Row icon="bell" tint="#FF3B30" label="通知與市場整合" onClick={() => setIntegOpen(true)} />
       </Group>

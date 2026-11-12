@@ -62,6 +62,110 @@
   color-scheme: dark;
 }
 
+/* ==========================================================================
+   深度全域風格主題（Palettes）：完全變更整體背景、卡片、層次與毛玻璃色彩
+   ========================================================================== */
+
+/* 1. 極致純黑（OLED Black）- 專為 OLED 螢幕與純黑愛好者打造 */
+:root[data-palette='oled'][data-theme='dark'] {
+  --bg: #000000;
+  --bg-elev: #050505;
+  --surface: #0a0a0c;
+  --surface-2: #121215;
+  --surface-3: #1a1a20;
+  --glass: rgba(0, 0, 0, 0.88);
+  --glass-border: rgba(255, 255, 255, 0.09);
+  --sep: rgba(255, 255, 255, 0.12);
+}
+
+/* 2. 冷調極光（Slate Frost）- 北歐冰岩與霧灰藍調 */
+:root[data-palette='slate'] {
+  --bg: #eef2f6;
+  --bg-elev: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #e3e8ef;
+  --surface-3: #d5dde8;
+  --glass: rgba(238, 242, 246, 0.82);
+  --glass-border: rgba(30, 50, 80, 0.08);
+  --sep: rgba(50, 70, 95, 0.15);
+}
+:root[data-palette='slate'][data-theme='dark'] {
+  --bg: #0b0f14;
+  --bg-elev: #10161f;
+  --surface: #141c26;
+  --surface-2: #1b2633;
+  --surface-3: #243242;
+  --glass: rgba(14, 20, 28, 0.78);
+  --glass-border: rgba(120, 160, 210, 0.12);
+  --sep: rgba(80, 100, 125, 0.32);
+}
+
+/* 3. 靜謐森林（Forest Moss）- 自然森林深綠與墨綠大地氛圍 */
+:root[data-palette='forest'] {
+  --bg: #f1f5f2;
+  --bg-elev: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #e4ece6;
+  --surface-3: #d4e0d7;
+  --glass: rgba(241, 245, 242, 0.82);
+  --glass-border: rgba(20, 60, 30, 0.08);
+  --sep: rgba(50, 80, 60, 0.15);
+}
+:root[data-palette='forest'][data-theme='dark'] {
+  --bg: #0b120e;
+  --bg-elev: #101914;
+  --surface: #142019;
+  --surface-2: #1b2b22;
+  --surface-3: #25392e;
+  --glass: rgba(14, 24, 18, 0.78);
+  --glass-border: rgba(100, 180, 130, 0.12);
+  --sep: rgba(70, 100, 80, 0.32);
+}
+
+/* 4. 深海夜航（Ocean Midnight）- 深邃午夜藍海 */
+:root[data-palette='ocean'] {
+  --bg: #f0f3f8;
+  --bg-elev: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #e1e7f2;
+  --surface-3: #d1dceb;
+  --glass: rgba(240, 243, 248, 0.82);
+  --glass-border: rgba(20, 50, 100, 0.08);
+  --sep: rgba(50, 75, 120, 0.15);
+}
+:root[data-palette='ocean'][data-theme='dark'] {
+  --bg: #090d16;
+  --bg-elev: #0d1320;
+  --surface: #111a2c;
+  --surface-2: #17233a;
+  --surface-3: #20314f;
+  --glass: rgba(11, 17, 30, 0.78);
+  --glass-border: rgba(90, 150, 240, 0.12);
+  --sep: rgba(60, 90, 140, 0.32);
+}
+
+/* 5. 暖陽燕麥（Oat Latte）- 焙茶棕與溫潤暖米色 */
+:root[data-palette='oat'] {
+  --bg: #f7f4ee;
+  --bg-elev: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #ede8df;
+  --surface-3: #ded6c8;
+  --glass: rgba(247, 244, 238, 0.82);
+  --glass-border: rgba(80, 60, 40, 0.08);
+  --sep: rgba(100, 80, 60, 0.15);
+}
+:root[data-palette='oat'][data-theme='dark'] {
+  --bg: #14110f;
+  --bg-elev: #1c1815;
+  --surface: #241f1b;
+  --surface-2: #2e2823;
+  --surface-3: #3e362f;
+  --glass: rgba(24, 20, 17, 0.78);
+  --glass-border: rgba(210, 170, 130, 0.12);
+  --sep: rgba(120, 100, 80, 0.32);
+}
+
 /* 8 組主題色：--accent 用於圖示與框線；--accent-text 用於文字（淺色模式較深以達對比） */
 :root[data-accent='cyan']   { --accent: #0fb5d4; --accent-text: #006d83; }
 :root[data-accent='blue']   { --accent: #0a84ff; --accent-text: #0062cc; }

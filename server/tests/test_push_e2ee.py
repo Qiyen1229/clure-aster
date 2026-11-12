@@ -141,3 +141,46 @@ def test_same_reminder_from_several_devices_is_sent_once(api: Api, monkeypatch) 
     for s in dbmod.session_scope():
         PushService(s).deliver_due()
     assert len(sent) == 1
+
+
+def test_push_encryption_error_does_not_abort_batch(api: Api, monkeypatch) -> None:
+    # 1. 測試壞金鑰/加密錯誤時，webpush.send 回傳 SendResult(False, 0, ...) 不拋出例外
+    res = webpush.send("https://fcm.googleapis.com/fcm/send/x", "invalid-key", "invalid-auth", {"title": "hi"})
+    assert res.ok is False
+    assert res.retry is False
+    assert len(res.detail) > 0
+
+    # 2. 模擬多台裝置訂閱，其中一台加密拋錯，其他訂閱仍正常發送而不中斷
+    reg = api.register("charlie")
+    assert reg.status_code == 201
+    sub1 = {**_sub_body(), "device_id": "device-aaaa-0001", "endpoint": "https://fcm.googleapis.com/fcm/send/abc1"}
+    sub2 = {**_sub_body(), "device_id": "device-aaaa-0002", "endpoint": "https://fcm.googleapis.com/fcm/send/abc2"}
+    r1 = api.post("/api/push/subscribe", sub1)
+    r2 = api.post("/api/push/subscribe", sub2)
+    assert r1.status_code == 200, (r1.status_code, r1.text)
+    assert r2.status_code == 200, (r2.status_code, r2.text)
+
+    from app import db as dbmod
+    from app.model import User
+    from app.service.push_service import PushService
+
+    sent_count = 0
+    original_encrypt = webpush.encrypt
+
+    def mock_encrypt(payload: bytes, p256dh: str, auth: str) -> bytes:
+        nonlocal sent_count
+        sent_count += 1
+        if sent_count == 1:
+            raise ValueError("Corrupted public key")
+        return original_encrypt(payload, p256dh, auth)
+
+    monkeypatch.setattr(webpush, "encrypt", mock_encrypt)
+    monkeypatch.setattr(webpush.urllib.request, "urlopen", lambda req, timeout=10: type("R", (), {"status": 201, "__enter__": lambda s: s, "__exit__": lambda *a: None})())
+
+    for s in dbmod.session_scope():
+        u = s.query(User).filter_by(username="charlie").first()
+        rep = PushService(s).send_detailed(u.id, {"title": "test"})
+        assert rep.devices == 2
+        assert rep.ok == 1
+        assert len(rep.failed) == 1
+

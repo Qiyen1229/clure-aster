@@ -106,13 +106,13 @@ def default_subject() -> str:
 
 
 def send(endpoint: str, p256dh: str, auth: str, message: dict, subject: str | None = None, ttl: int = 86400) -> SendResult:
-    body = encrypt(json.dumps(message, ensure_ascii=False).encode(), p256dh, auth)
-    headers = {
-        "Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream", "TTL": str(ttl), "Urgency": "normal", "User-Agent": "Aster-WebPush/2",
-        **vapid_headers(endpoint, subject or default_subject()),
-    }
-    req = urllib.request.Request(endpoint, data=body, headers=headers, method="POST")
     try:
+        body = encrypt(json.dumps(message, ensure_ascii=False).encode(), p256dh, auth)
+        headers = {
+            "Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream", "TTL": str(ttl), "Urgency": "normal", "User-Agent": "Aster-WebPush/2",
+            **vapid_headers(endpoint, subject or default_subject()),
+        }
+        req = urllib.request.Request(endpoint, data=body, headers=headers, method="POST")
         with urllib.request.urlopen(req, timeout=10) as r:  # noqa: S310 — endpoint 來自瀏覽器的 Push 服務
             return SendResult(True, r.status, False)
     except urllib.error.HTTPError as e:
@@ -127,3 +127,7 @@ def send(endpoint: str, p256dh: str, auth: str, message: dict, subject: str | No
         log.warning("推播連線失敗 host=%s err=%s", _host(endpoint), e)
         _record_failure(endpoint, 0, str(e))
         return SendResult(False, 0, False, str(e), retry=True)
+    except Exception as e:  # noqa: BLE001
+        log.warning("推播加密或準備失敗 host=%s err=%s", _host(endpoint), e)
+        _record_failure(endpoint, 0, str(e))
+        return SendResult(False, 0, False, str(e), retry=False)

@@ -157,7 +157,7 @@ export async function runReminderChecks(now = new Date()) {
     const last = (await db.meta.get('lastBackupAt'))?.value as number | undefined;
     const txCount = await db.transactions.count();
     if (txCount > 20 && (!last || Date.now() - last > cfg.backupDays * 86400000)) {
-      await notify('💾 該備份囉', last ? `距離上次備份已 ${Math.floor((Date.now() - last) / 86400000)} 天` : '你還沒有備份過資料', '/settings/backup', 'backup', `backup:${today.slice(0, 7)}:${Math.floor(new Date().getDate() / cfg.backupDays)}`);
+      await notify('💾 該備份囉', last ? `距離上次備份已 ${Math.floor((Date.now() - last) / 86400000)} 天` : '你還沒有備份過資料', '/settings/backup', 'backup', `backup:${today}`);
     }
   }
 }

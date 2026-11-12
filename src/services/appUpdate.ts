@@ -35,3 +35,40 @@ export async function checkForUpdate(): Promise<UpdateResult> {
   activateAndReload(reg.waiting ?? next);
   return 'reloading';
 }
+
+/** 更新提示稍後管理：記錄 dismiss 時間，支援下次前景或 6 小時間隔重新提示 */
+export class UpdatePromptManager {
+  private hasPendingUpdate = false;
+  private dismissedAt: number | null = null;
+  readonly cooldownMs: number;
+
+  constructor(cooldownMs = 6 * 60 * 60 * 1000) {
+    this.cooldownMs = cooldownMs;
+  }
+
+  setPendingUpdate(pending: boolean) {
+    this.hasPendingUpdate = pending;
+  }
+
+  dismiss(now = Date.now()) {
+    this.dismissedAt = now;
+  }
+
+  onForeground(): boolean {
+    this.dismissedAt = null;
+    return this.shouldShow();
+  }
+
+  onInterval(now = Date.now()): boolean {
+    if (this.dismissedAt !== null && now - this.dismissedAt >= this.cooldownMs) {
+      this.dismissedAt = null;
+    }
+    return this.shouldShow(now);
+  }
+
+  shouldShow(now = Date.now()): boolean {
+    if (!this.hasPendingUpdate) return false;
+    if (this.dismissedAt === null) return true;
+    return now - this.dismissedAt >= this.cooldownMs;
+  }
+}

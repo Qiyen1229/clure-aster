@@ -17,6 +17,7 @@ export const TAG_KIND_MAP: Record<string, Reminder['kind']> = {
   sync: 'sync',
   insight: 'insight',
   invoice: 'invoice',
+  inbox: 'inbox',
 };
 
 export function tagToKind(tag: string): Reminder['kind'] {

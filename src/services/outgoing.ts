@@ -67,7 +67,7 @@ export async function refreshOutgoingActive(): Promise<boolean> {
 /** App 內通知的種類 → 對外通知的類型 */
 const KIND_EVENT: Record<Reminder['kind'], OutEvent> = {
   budget: 'budget', insight: 'anomaly', invoice: 'prize', daily_log: 'daily',
-  card_due: 'reminder', subscription: 'reminder', price_alert: 'reminder', backup: 'reminder', sync: 'reminder',
+  card_due: 'reminder', subscription: 'reminder', price_alert: 'reminder', backup: 'reminder', sync: 'reminder', inbox: 'reminder',
 };
 const GENERIC_TITLE: Record<OutEvent, string> = {
   anomaly: '偵測到需要留意的支出', budget: '預算提醒', weekly: '週報出爐', monthly: '月報出爐', reminder: '提醒', daily: '今天還沒記帳', prize: '統一發票中獎了',

@@ -31,12 +31,18 @@ export const useSettings = create<SettingsState>((set) => ({
 const media = typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 media?.addEventListener('change', () => applyTheme(useSettings.getState()));
 
-export function applyTheme(s: Pick<Settings, 'theme' | 'accent' | 'upColor'>) {
+export function applyTheme(s: Pick<Settings, 'theme' | 'accent' | 'upColor' | 'themePalette'>) {
+  if (typeof document === 'undefined') return;
   const root = document.documentElement;
   const dark = s.theme === 'dark' || (s.theme === 'system' && !!media?.matches);
+  const palette = s.themePalette || 'default';
   root.dataset.theme = dark ? 'dark' : 'light';
   root.dataset.accent = s.accent;
   root.dataset.updown = s.upColor;
-  // 狀態列／瀏覽器 UI 顏色
-  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute('content', dark ? '#000000' : '#F2F2F7'));
+  root.dataset.palette = palette;
+  // 狀態列／瀏覽器 UI 顏色（配合全域風格主題）
+  const metaColor = dark
+    ? (palette === 'slate' ? '#0b0f14' : palette === 'forest' ? '#0b120e' : palette === 'ocean' ? '#090d16' : palette === 'oat' ? '#14110f' : '#000000')
+    : (palette === 'slate' ? '#eef2f6' : palette === 'forest' ? '#f1f5f2' : palette === 'ocean' ? '#f0f3f8' : palette === 'oat' ? '#f7f4ee' : '#F2F2F7');
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute('content', metaColor));
 }

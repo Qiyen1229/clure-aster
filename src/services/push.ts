@@ -150,12 +150,10 @@ export async function upcomingPushItems(days = 14, now = Date.now()): Promise<Pu
   }
   if (cfg.backup) {
     const last = (await db.meta.get('lastBackupAt'))?.value as number | undefined;
-    if (last) {
-      const due = last + cfg.backupDays * 86400_000;
-      const d = new Date(Math.max(due, now + 60_000));
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      add({ id: `backup:${key}`, at: Math.max(at(key, '20:00'), now + 60_000), title: '💾 該備份囉', body: `距離上次備份已 ${cfg.backupDays} 天`, url: '/settings/backup' });
-    }
+    const due = last ? last + cfg.backupDays * 86400_000 : now + 60_000;
+    const d = new Date(Math.max(due, now + 60_000));
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    add({ id: `backup:${key}`, at: Math.max(at(key, '20:00'), now + 60_000), title: '💾 該備份囉', body: last ? `距離上次備份已 ${cfg.backupDays} 天` : '你還沒有備份過資料', url: '/settings/backup' });
   }
   return items.sort((a, b) => a.at - b.at).slice(0, 200);
 }

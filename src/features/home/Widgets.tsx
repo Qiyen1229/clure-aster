@@ -43,7 +43,10 @@ export function Widgets() {
       out.today = totals(await listStatTxs(today, today));
       out.month = totals(await listStatTxs(month.start, month.end));
     }
-    if (keys.includes('budget')) out.budget = (await computeBudgets(today)).find((b) => !b.budget.categoryId) ?? (await computeBudgets(today))[0];
+    if (keys.includes('budget')) {
+      const budgets = await computeBudgets(today);
+      out.budget = budgets.find((b) => !b.budget.categoryId) ?? budgets[0];
+    }
     if (keys.includes('networth')) out.nw = await accountsNetWorth();
     if (keys.includes('bills')) {
       const bills: { name: string; date: string; amount: number; currency: string }[] = [];

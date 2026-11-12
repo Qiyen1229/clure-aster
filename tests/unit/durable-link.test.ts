@@ -130,4 +130,15 @@ describe('到價提醒：只在穿越時通知一次', () => {
     await db.watchlist.add({ id: 'w1', stockId: 's1', sort: 0, alerts: [{ op: '<=', priceDec: '2300', enabled: true, lastTriggeredAt: Date.now() - 20 * 3600_000 }], createdAt: 1, updatedAt: 1 } as never);
     await price('2250'); expect(await checkPriceAlerts()).toHaveLength(0);
   });
+
+  it('到價提醒全域開關 notify.priceAlert 關閉時不觸發', async () => {
+    await setup({ op: '<=', priceDec: '2300' });
+    const { useSettings } = await import('@/stores/settings');
+    useSettings.getState().set('notify', { ...useSettings.getState().notify, priceAlert: false });
+    await price('2290');
+    expect(await checkPriceAlerts()).toHaveLength(0);
+    // 開啟後正常觸發
+    useSettings.getState().set('notify', { ...useSettings.getState().notify, priceAlert: true });
+    expect(await checkPriceAlerts()).toHaveLength(1);
+  });
 });

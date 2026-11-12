@@ -13,7 +13,7 @@ import { EmptyState } from '@/ui/controls';
 import { SwipeRow } from '@/ui/SwipeRow';
 import { Icon } from '@/ui/Icon';
 
-const ICON: Record<string, string> = { daily_log: '✍️', card_due: '💳', budget: '🎯', subscription: '🔁', price_alert: '📈', backup: '💾', sync: '☁️', insight: '💡' };
+const ICON: Record<string, string> = { daily_log: '✍️', card_due: '💳', budget: '🎯', subscription: '🔁', price_alert: '📈', backup: '💾', sync: '☁️', insight: '💡', invoice: '🧾', inbox: '📥' };
 
 export function useUnreadCount() {
   return useLiveQuery(() => db.reminders.where('done').equals(0).count(), []) ?? 0;

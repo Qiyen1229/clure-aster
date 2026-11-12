@@ -14,6 +14,7 @@ import { addTransaction, deleteTransactions, restoreTransactions } from './ledge
 import { currencyInfo, toMinor } from '@/domain/money';
 import type { StockMeta } from '@/services/quotes/search';
 import { getSetting } from './settings';
+import { useSettings } from '@/stores/settings';
 
 const now = () => Date.now();
 
@@ -183,6 +184,7 @@ export async function updateAlerts(id: string, alerts: WatchItem['alerts']) {
  * 再次跌破才會再通知。（舊資料沒有 triggered 欄位，但有觸發紀錄的，視為已觸發。）
  */
 export async function checkPriceAlerts(): Promise<{ id: string; title: string; body: string; url: string }[]> {
+  if (!useSettings.getState().notify.priceAlert) return [];
   const items = await db.watchlist.toArray();
   const hits: { id: string; title: string; body: string; url: string }[] = [];
   for (const w of items) {

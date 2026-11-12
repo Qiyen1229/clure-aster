@@ -79,9 +79,9 @@ export default defineConfig({
       filename: 'sw.ts',
       registerType: 'prompt',
       injectRegister: false,
+      includeManifestIcons: false,
       injectManifest: { globPatterns: ['**/*.{js,css,html,svg,png,webp,woff2}'], globIgnores: ['splash/**'] },
       devOptions: { enabled: false },
-      includeAssets: ['icons/*.png', 'icons/*.svg', '*.png'],
       manifest: {
         id: '/',
         name: 'Aster 記帳',
