@@ -4,7 +4,7 @@
  *   放開後的彈簧軌跡預先算好交給合成器播放（WAAPI），換頁掛載再重也不掉幀
  * - 中央按鈕與膠囊等高、圖示置中：
  *   - 主頁（/ 或 /ledger）：「＋」短按新增記帳，長按（0.35s）直接開啟語音記帳
- *   - 其他頁面：Logo，點擊回到今日記帳
+ *   - 其他頁面：品牌星芒標記，點擊回到今日記帳
  *   - 任何頁面往上滑：叫出 AI 對話（唯一全局入口）。對話會知道你正在看哪個畫面（「📍 目前畫面」標籤，可一鍵取消），
  *     所以停在投資頁、帳戶頁或報表時都能直接對眼前的東西下指令；一切都是手動觸發，不會自動呼叫 AI
  *   - 有待確認電子發票或未讀提醒時，右上角出現小光點
@@ -12,7 +12,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { makeSpring, projectEnd, sampleSpring, stepSpring, trackAt, type SpringTrack } from '@/domain/spring';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { Icon, Logo, type IconName } from '@/ui/Icon';
+import { Icon, type IconName } from '@/ui/Icon';
 import { holdGuard, openVoice, releaseVoice } from '@/services/voice';
 import { haptic } from '@/services/haptics';
 import { markDockNav } from './navSource';
@@ -430,9 +430,9 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
               <Icon name="plus" size={28} stroke={2.4} />
             </span>
 
-            {/* Logo 圖層 */}
+            {/* 品牌標記圖層：Lucide 星芒，與全 App 圖示同一線條語言 */}
             <span className={`fab-layer${plusMode ? ' off' : ''}`} aria-hidden="true">
-              <Logo />
+              <Icon name="asterisk" size={26} stroke={2.2} className="brand" />
             </span>
 
             {/* 智慧情境微光點 */}

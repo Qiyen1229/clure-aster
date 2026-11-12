@@ -20,6 +20,13 @@ const ICON_NODES: Record<string, React.ReactNode> = {
       <path d="M12 5v14" />
     </>
   ),
+  asterisk: (
+    <>
+      <path d="M12 6v12" />
+      <path d="M17.196 9 6.804 15" />
+      <path d="m6.804 9 10.392 6" />
+    </>
+  ),
   pin: (
     <>
       <line x1="12" x2="12" y1="17" y2="22" />
@@ -426,89 +433,6 @@ export function Icon({ name, size = 22, stroke = 1.8, className }: { name: IconN
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={stroke}
       strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className}>
       {node}
-    </svg>
-  );
-}
-
-/** App 3D 星軌草寫 A 品牌 Logo（與 App 圖標同源） */
-/** ★ 應用程式內 Logo（底部中央按鈕、載入畫面等）的位置微調：x 正數往右、y 正數往下（1024 畫布上的像素） */
-const LOGO_OFFSET = { x: 0, y: 0 };
-
-export function Logo({ className = 'logo' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 1024 1024" fill="none" aria-hidden="true">
-      <defs>
-        <linearGradient id="lg-script" x1="0.15" y1="0.9" x2="0.8" y2="0.1">
-          <stop offset="0%" stopColor="#2563EB" />
-          <stop offset="50%" stopColor="#38BDF8" />
-          <stop offset="100%" stopColor="#A855F7" />
-        </linearGradient>
-        <linearGradient id="lg-ring-front" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#60A5FA" />
-          <stop offset="50%" stopColor="#818CF8" />
-          <stop offset="100%" stopColor="#C084FC" />
-        </linearGradient>
-        <linearGradient id="lg-ring-back" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#1E3A8A" stopOpacity="0.7" />
-          <stop offset="100%" stopColor="#4C1D95" stopOpacity="0.7" />
-        </linearGradient>
-      </defs>
-
-      <g transform={`translate(${LOGO_OFFSET.x} ${LOGO_OFFSET.y})`}>
-      {/* 身後星軌 */}
-      <g transform="rotate(-26 512 512)">
-        <path d="M 96,512 A 420 140 0 0 1 928,512" stroke="url(#lg-ring-back)" strokeWidth="28" strokeLinecap="round" />
-        <path d="M 96,512 A 420 140 0 0 1 928,512" stroke="#60A5FA" strokeWidth="6" strokeOpacity="0.6" />
-      </g>
-
-      {/* 花體大寫 A 主幹 */}
-      <path
-        d="M 120,630 C 120,730 200,770 270,720 C 340,670 380,570 300,500 C 230,440 200,520 280,610 C 330,665 420,530 680,110"
-        stroke="url(#lg-script)"
-        strokeWidth="68"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M 680,110 C 650,220 540,560 480,750 C 470,780 440,780 435,740"
-        stroke="url(#lg-script)"
-        strokeWidth="62"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M 270,595 C 380,580 470,570 590,560 C 660,550 730,525 780,475"
-        stroke="url(#lg-script)"
-        strokeWidth="42"
-        strokeLinecap="round"
-      />
-
-      {/* 高光流線 */}
-      <path
-        d="M 120,630 C 120,730 200,770 270,720 C 340,670 380,570 300,500 C 230,440 200,520 280,610 C 330,665 420,530 680,110"
-        stroke="#FFFFFF"
-        strokeWidth="16"
-        strokeLinecap="round"
-        opacity="0.9"
-      />
-      <path
-        d="M 680,110 C 650,220 540,560 480,750 C 470,780 440,780 435,740"
-        stroke="#FFFFFF"
-        strokeWidth="14"
-        strokeLinecap="round"
-        opacity="0.9"
-      />
-
-      {/* 身前星軌 */}
-      <g transform="rotate(-26 512 512)">
-        <path d="M 96,512 A 420 140 0 0 0 928,512" stroke="url(#lg-ring-front)" strokeWidth="22" strokeLinecap="round" />
-        <path d="M 96,512 A 420 140 0 0 0 928,512" stroke="#FFFFFF" strokeWidth="4" strokeLinecap="round" opacity="0.9" />
-        <circle cx="760" cy="625" r="9" fill="#FFFFFF" />
-        <circle cx="260" cy="590" r="7" fill="#C084FC" />
-      </g>
-
-      <circle cx="680" cy="110" r="12" fill="#FFFFFF" />
-      </g>
     </svg>
   );
 }

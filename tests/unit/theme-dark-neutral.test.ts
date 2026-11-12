@@ -48,7 +48,7 @@ describe('深色模式中性灰底：三套主題共用表面色，色相只留�
   });
 });
 
-describe('中央 Logo 按鈕平面化（與首頁＋同一套霧面語言）', () => {
+describe('中央品牌按鈕平面化（與首頁＋同一套霧面語言）', () => {
   it('mode-logo 是 48px 霧面實色圓盤，沒有漸層與立體變體', () => {
     const body = ruleBody(/\.dynamic-fab\.mode-logo\s*\{([^}]*)\}/);
     expect(body).toContain('width: 48px');
@@ -58,10 +58,12 @@ describe('中央 Logo 按鈕平面化（與首頁＋同一套霧面語言）', (
     expect(css).not.toContain(":root:not([data-theme='dark']) .dynamic-fab.mode-logo");
   });
 
-  it('Logo 圖層縮小置中且去掉立體陰影', () => {
-    const body = ruleBody(/\.fab-layer \.logo\s*\{([^}]*)\}/);
-    expect(body).toContain('width: 30px');
+  it('品牌星芒圖層 26px、無立體陰影；圓盤顏色跟隨主題 accent', () => {
+    const body = ruleBody(/\.fab-layer \.brand\s*\{([^}]*)\}/);
+    expect(body).toContain('width: 26px');
     expect(body).not.toContain('drop-shadow');
+    expect(css).not.toContain('.fab-layer .logo');
+    expect(ruleBody(/\.dynamic-fab\.mode-logo\s*\{([^}]*)\}/)).toContain('color: var(--accent)');
   });
 
   it('按壓、滑動與長按手勢的回饋類別仍保留', () => {
