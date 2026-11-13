@@ -83,7 +83,7 @@ export default function InboxPage() {
 
   const firstTime = tokens !== null && tokens.length === 0 && !entries?.length;
   // 「全部記帳」不含很可能重複的：那些請一則一則確認
-  const ready = entries?.filter((e) => e.drafts.length && e.dup?.level !== 'strong') ?? [];
+  const ready = entries?.filter((e) => e.drafts.length && e.dup?.level !== 'strong' && !e.review) ?? [];
 
   const book = async (list: InboxEntry[]) => {
     setBusy(true);
@@ -308,6 +308,9 @@ export default function InboxPage() {
                       <span className="row-sub">{src.icon} {shortDate(d.date, today)} · {c?.name ?? '轉帳'} · {acc?.name ?? '?'}{e.item.card ? `（${e.item.card}）` : ''}</span>
                     </span>
                     <span className={`num ${d.kind === 'income' ? 'pos' : 'neg'}`}>{formatMoney(toMinor(d.amount, cur), cur)}</span>
+                    {i === e.drafts.length - 1 && e.review && (
+                      <p className="inbox-dup strong" role="note">⚠️ {e.review}</p>
+                    )}
                     {i === e.drafts.length - 1 && e.dup && (
                       <p className={`inbox-dup ${e.dup.level}`} role="note">
                         {e.dup.level === 'strong' ? '⚠️ 很可能重複：' : 'ℹ️ 金額相同：'}

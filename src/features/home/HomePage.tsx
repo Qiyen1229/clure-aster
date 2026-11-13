@@ -34,6 +34,7 @@ import { holdGuard, openVoice, releaseVoice } from '@/services/voice';
 import { LedgerRow } from '../ledger/LedgerRow';
 
 const Widgets = lazy(() => import('./Widgets').then((m) => ({ default: m.Widgets })));
+const HomeInbox = lazy(() => import('./HomeInbox'));
 const WEEK_NAMES = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
 const PTR_THRESHOLD = 58;
 
@@ -523,6 +524,9 @@ export default function HomePage() {
           )}
         </section>
       )}
+
+      {/* 收件匣：自動記帳的待確認項目，放在首頁隨時核對 */}
+      <Suspense fallback={null}><HomeInbox /></Suspense>
 
       {/* 下半部獨立區塊：快覽（今日可用、預算、淨資產…可在設定增減）；旅遊模式下隱藏一般日常快覽 */}
       {!travelProject && (

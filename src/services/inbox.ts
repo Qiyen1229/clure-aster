@@ -50,6 +50,43 @@ export interface InboxEntry {
   /** 解析出的帳目（Siri 一句話可能有多筆）；空陣列代表看不懂金額，需要手動記 */
   drafts: ResolvedDraft[];
   dup?: InboxDup;
+  /** 來源不夠可信（例如 LINE 聊天訊息裡剛好有金額）：只留在收件匣等你確認，絕不自動入帳 */
+  review?: string;
+}
+
+/** LINE 裡視為「官方帳號」的發送者：只有這些名稱出現在訊息裡、且像交易通知，才當作消費通知 */
+export const LINE_OFFICIAL_SENDERS = [
+  'LINE Pay', 'LINE Bank', '街口', '悠遊付', '悠遊卡', '一卡通', 'iPASS', 'icash', '全支付', '歐付寶',
+  '國泰世華', '國泰', '中國信託', '中信', '玉山', '台新', 'Richart', '富邦', '永豐', '聯邦', '兆豐', '第一銀行', '華南',
+  '合作金庫', '合庫', '彰化銀行', '彰銀', '凱基', '元大', '新光', '星展', '樂天', '渣打', '滙豐', '匯豐', '王道', '陽信', '遠東商銀', '郵局', '台灣Pay', '台灣 Pay',
+];
+const TXN_WORDS = /消費|刷卡|扣款|付款成功|支付成功|交易成功|交易通知|授權|繳費成功|入帳|轉帳|退款|退刷|代扣/;
+/** 官方通知通常有【標題】或稱呼「您／貴客」；朋友聊天通常沒有 */
+const OFFICIAL_STYLE = /[【\[][^】\]]{1,20}[】\]]|您|貴/;
+
+/** 這則通知是不是來自 LINE 聊天（而不是 LINE Pay、LINE Bank 這類支付 App） */
+export function isLineChat(card: string): boolean {
+  const app = card.split('\n').map((s) => s.trim()).filter(Boolean).pop() ?? '';
+  return /^line$/i.test(app) || (/\bLINE\b/i.test(app) && !/pay|bank|錢包|購物/i.test(app));
+}
+
+/** LINE 訊息是否為重點官方帳號的交易通知（發送者名稱＋交易字眼＋官方口吻，三者缺一不可） */
+export function isTrustedLineNotice(text: string): boolean {
+  const t = text.normalize('NFKC');
+  const lower = t.toLowerCase();
+  return LINE_OFFICIAL_SENDERS.some((n) => lower.includes(n.normalize('NFKC').toLowerCase())) && TXN_WORDS.test(t) && OFFICIAL_STYLE.test(t);
+}
+
+export type NoticeVerdict = { trust: 'ok' } | { trust: 'review'; reason: string } | { trust: 'drop' };
+
+/**
+ * 通知來源把關：銀行／支付 App 的通知照舊；LINE 聊天只放行重點官方帳號。
+ * 不是官方的 LINE 訊息：看不出金額的直接丟掉（聊天雜訊）；剛好有金額的留在收件匣等確認，不自動入帳。
+ */
+export function judgeNotice(it: Pick<InboxRaw, 'source' | 'card' | 'text' | 'merchant'>, hasDrafts: boolean): NoticeVerdict {
+  if (it.source !== 'notify' || !isLineChat(it.card ?? '')) return { trust: 'ok' };
+  if (isTrustedLineNotice(`${it.merchant ?? ''}\n${it.text ?? ''}`)) return { trust: 'ok' };
+  return hasDrafts ? { trust: 'review', reason: '這是 LINE 聊天訊息（不是官方帳號的消費通知），確認真的是消費再記' } : { trust: 'drop' };
 }
 
 export interface InboxToken { id: number; name: string; hint: string; created_at: string; last_used_at: string | null; use_count?: number }
@@ -301,7 +338,15 @@ export async function markDuplicates(entries: InboxEntry[], today = todayKey()):
 export async function loadInbox(): Promise<InboxEntry[]> {
   const [items, ctx, fallback] = await Promise.all([fetchInbox(), parseContext(), fallbackAccount()]);
   const out: InboxEntry[] = [];
-  for (const item of items) out.push({ item, drafts: await draftsFromItem(item, ctx, fallback).catch(() => []) });
+  const dropIds: number[] = [];
+  for (const item of items) {
+    const drafts = await draftsFromItem(item, ctx, fallback).catch(() => []);
+    const v = judgeNotice(item, drafts.length > 0);
+    if (v.trust === 'drop') { dropIds.push(item.id); continue; }
+    out.push({ item, drafts, ...(v.trust === 'review' ? { review: v.reason } : {}) });
+  }
+  // 非官方的 LINE 聊天雜訊：直接從收件匣清掉，不留紀錄
+  if (dropIds.length) await ackInbox(dropIds).catch(() => []);
   await markDuplicates(out, ctx.today).catch(() => undefined);
   return out;
 }
@@ -384,8 +429,9 @@ export async function processInboxOnStartup(): Promise<{ booked: number; pending
     if (e.dup?.certain && (await mergeDuplicate(e).catch(() => false))) merged++;
     else rest.push(e);
   }
-  const r = await bookInboxEntries(rest, { skipDuplicates: true });
-  const pending = rest.filter((e) => !e.drafts.length || e.dup?.level === 'strong').length;
+  // 來源不夠可信的（LINE 聊天裡剛好有金額）絕不自動入帳，留給使用者確認
+  const r = await bookInboxEntries(rest.filter((e) => !e.review), { skipDuplicates: true });
+  const pending = rest.filter((e) => !e.drafts.length || e.dup?.level === 'strong' || e.review).length;
   useInboxCount.getState().set(pending);
   return { booked: r.count, pending, merged };
 }

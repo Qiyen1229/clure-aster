@@ -25,6 +25,21 @@ export interface ReleaseNote {
 /** 新的在前 */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '4.1.34', date: '2026-11-13',
+    features: [
+      {
+        title: '首頁收件匣',
+        intro: '自動記帳送來的待確認項目，現在直接顯示在首頁，不用再點進收件匣才看得到。',
+        howto: '首頁下半部「收件匣」卡片：看到前三筆，直接按「記帳」或「略過」；點標題可看全部。',
+      },
+      {
+        title: 'LINE 誤記防護',
+        intro: 'LINE 聊天訊息裡剛好有金額，不會再被自動記成消費；只放行 LINE Pay、銀行等官方帳號的交易通知。',
+        howto: '不用設定。非官方的 LINE 聊天有金額時會留在收件匣標示提醒，確認後才記；沒有金額的聊天直接略過。',
+      },
+    ],
+  },
+  {
     version: '4.1.33', date: '2026-11-13',
     features: [
       {
