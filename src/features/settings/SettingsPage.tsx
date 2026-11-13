@@ -319,7 +319,7 @@ function AutoRecordHubSheet({ open, onClose }: { open: boolean; onClose: () => v
   return (
     <Sheet open={open} onClose={onClose} title="自動記帳與對帳">
       <div className="list">
-        <Row icon="inbox" tint="#30D158" label="自動記帳收件匣" hint="透過 iPhone 捷徑接收台灣 52 家銀行 App、LINE Pay、街口通知與 Apple Pay 刷卡交易，暫存於收件匣一鍵入帳。" onClick={() => navTo('/inbox')} />
+        <Row icon="zap" tint="#30D158" label="加入 iPhone 捷徑" hint="設定 iPhone 捷徑接收台灣 52 家銀行 App、LINE Pay、街口通知與 Apple Pay 刷卡交易自動送出。" onClick={() => navTo('/settings/shortcuts')} />
         <Row icon="receipt" tint="#0A84FF" label="電子發票載具" hint="綁定財政部手機條碼載具，自動同步發票明細、自動對獎並一鍵匯入記帳。" onClick={() => navTo('/settings/invoice')} />
         <Row icon="check" tint="#FF9F0A" label="帳單對帳匯入" onClick={() => navTo('/settings/import?mode=reconcile')} />
       </div>
