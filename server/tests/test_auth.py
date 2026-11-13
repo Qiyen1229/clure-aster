@@ -167,3 +167,16 @@ def test_cf_connecting_ip_header_recognized() -> None:
     req.headers = {"cf-connecting-ip": "203.0.113.195", "user-agent": "test"}
     c = client_info(req)
     assert c.ip == "203.0.113.195"
+
+
+def test_refresh_grace_period_allows_ip_change_and_keeps_replacement(api: Api) -> None:
+    api.register("graceuser")
+    old_refresh = api.c.cookies.get("clure_refresh", path="/api/auth")
+    assert api.post("/api/auth/refresh").status_code == 200
+    # 模擬同一支手機在寬限期內從 Wi-Fi 換到 5G（IP 變動但同 User-Agent），且並行請求帶到舊的 Refresh Token
+    other_ip = Api("10.8.8.8")
+    other_ip.c.cookies.set("clure_refresh", old_refresh, path="/api/auth")
+    other_ip.get("/api/auth/me")
+    assert other_ip.post("/api/auth/refresh").status_code == 200
+    # 先前成功拿到的新權杖也不會被撤銷
+    assert api.post("/api/auth/refresh").status_code == 200

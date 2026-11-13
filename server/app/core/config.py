@@ -19,8 +19,8 @@ class Settings(BaseSettings):
 
     jwt_secret: str = ""  # 空白時自動產生並保存在 data_dir/jwt_secret
     jwt_algorithm: str = "HS256"
-    access_token_minutes: int = Field(15, ge=1, le=120)
-    refresh_token_days: int = Field(14, ge=1, le=90)
+    access_token_minutes: int = Field(60, ge=1, le=120)
+    refresh_token_days: int = Field(30, ge=1, le=90)
 
     cookie_secure: Literal["auto", "true", "false"] = "auto"
     cookie_samesite: Literal["lax", "strict"] = "lax"

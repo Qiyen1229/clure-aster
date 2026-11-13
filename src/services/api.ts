@@ -12,8 +12,9 @@ export class ApiError extends Error {
 
 const BASE = '/api';
 const NO_AUTO_REFRESH = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/logout'];
+type RefreshResult = 'ok' | 'unauth' | 'transient';
 let onUnauthorized: (() => void) | null = null;
-let refreshing: Promise<boolean> | null = null;
+let refreshing: Promise<RefreshResult> | null = null;
 
 export function setUnauthorizedHandler(fn: () => void) {
   onUnauthorized = fn;
@@ -29,16 +30,29 @@ async function ensureCsrf(): Promise<void> {
   if (!csrfToken()) await fetch(`${BASE}/health`, { credentials: 'same-origin', cache: 'no-store' }).catch(() => undefined);
 }
 
-async function refreshOnce(): Promise<boolean> {
-  refreshing ??= (async () => {
+async function refreshOnce(): Promise<RefreshResult> {
+  refreshing ??= (async (): Promise<RefreshResult> => {
     try {
       await ensureCsrf();
-      const r = await fetch(`${BASE}/auth/refresh`, { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-Token': csrfToken() } });
-      return r.ok;
+      let r = await fetch(`${BASE}/auth/refresh`, { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'X-CSRF-Token': csrfToken() } });
+      if (r.status === 403) {
+        const data = await r.clone().json().catch(() => null);
+        if (typeof data?.detail === 'string' && data.detail.includes('安全驗證')) {
+          document.cookie = 'csrf_token=; Max-Age=0; path=/';
+          document.cookie = '__Host-csrf_token=; Max-Age=0; path=/; Secure';
+          await ensureCsrf();
+          r = await fetch(`${BASE}/auth/refresh`, { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'X-CSRF-Token': csrfToken() } });
+        }
+      }
+      if (r.ok) return 'ok';
+      // 5xx 或限流（429）屬於暫時性問題，不應把使用者強制登出
+      if (r.status >= 500 || r.status === 429) return 'transient';
+      return 'unauth';
     } catch {
-      return false;
+      // 斷網、逾時或 NAS 喚醒中：保留本機登入狀態，由離線模式接手
+      return 'transient';
     } finally {
-      setTimeout(() => { refreshing = null; }, 0);
+      refreshing = null;
     }
   })();
   return refreshing;
@@ -84,7 +98,9 @@ export async function api<T>(path: string, opts: RequestOptions = {}, retry = tr
     clearTimeout(timer);
   }
   if (res.status === 401 && retry && !NO_AUTO_REFRESH.includes(path)) {
-    if (await refreshOnce()) return api<T>(path, opts, false);
+    const ref = await refreshOnce();
+    if (ref === 'ok') return api<T>(path, opts, false);
+    if (ref === 'transient') throw new ApiError(0, '無法連線到伺服器，請檢查網路');
     onUnauthorized?.();
   }
   const data = await res.json().catch(() => null);
@@ -139,7 +155,9 @@ export async function apiSse<T>(
   }
   if (res.status === 401 && retry) {
     if (timer) clearTimeout(timer);
-    if (await refreshOnce()) return apiSse<T>(path, body, onEvent, false, idleTimeoutMs);
+    const ref = await refreshOnce();
+    if (ref === 'ok') return apiSse<T>(path, body, onEvent, false, idleTimeoutMs);
+    if (ref === 'transient') throw new ApiError(0, '無法連線到伺服器，請檢查網路');
     onUnauthorized?.();
   }
   if (!res.ok) {

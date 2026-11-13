@@ -27,7 +27,7 @@ from app.service.errors import ServiceError
 
 log = logging.getLogger("aster.auth")
 # 兩個分頁同時刷新時，舊權杖在這段時間內再次使用不視為遭竊
-REFRESH_REUSE_GRACE = timedelta(seconds=20)
+REFRESH_REUSE_GRACE = timedelta(seconds=30)
 
 
 @dataclass
@@ -283,10 +283,11 @@ class AuthService:
         if not row or str(row.user_id) != payload["sub"]:
             raise ServiceError(401, "登入已過期，請重新登入")
         if row.revoked_at:
-            same_client = (row.ip == client.ip and row.user_agent == (client.user_agent or "")[:512])
-            if row.replaced_by and now - row.revoked_at <= REFRESH_REUSE_GRACE and same_client:
-                # 良性重複刷新：撤銷先前發出的 replacement，避免多重有效分支
-                self.tokens.revoke_token(row.replaced_by, now)
+            ua = (client.user_agent or "")[:512]
+            same_device = (row.user_agent == ua) if (row.user_agent or ua) else (row.ip == client.ip)
+            if row.replaced_by and now - row.revoked_at <= REFRESH_REUSE_GRACE and same_device:
+                # 良性重複刷新（含行動網路切換 IP）：保留既有家族內的已發權杖，避免競態導致瀏覽器 Cookie 作廢
+                pass
             else:
                 self.tokens.revoke_family(row.family_id, now)
                 self.audit.record("auth.refresh_reuse", client, success=False, user_id=row.user_id, detail={"family": row.family_id[:8]})

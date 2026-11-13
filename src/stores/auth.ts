@@ -122,9 +122,14 @@ setUnauthorizedHandler(() => {
   }
 });
 
-// 恢復連線時重新驗證離線模式的身分
+// 恢復連線或回到前景時重新驗證離線模式的身分
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
     if (useAuth.getState().status === 'offline') void useAuth.getState().init();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && useAuth.getState().status === 'offline') {
+      void useAuth.getState().init();
+    }
   });
 }
