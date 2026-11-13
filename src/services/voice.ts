@@ -104,8 +104,13 @@ export function startListening() {
     set({ text: finalText + interim });
   };
   r.onerror = (e: any) => {
-    if (e.error === 'no-speech' || e.error === 'aborted') return;
+    if (e.error === 'no-speech' || e.error === 'aborted') {
+      if (rec === r) rec = null;
+      set({ listening: false });
+      return;
+    }
     want = false;
+    if (rec === r) rec = null;
     // 長按時被拒絕（iOS：手指按下的計時器不算手勢）：先不報錯，放開的那一刻再開始聽（releaseVoice）
     if (useVoice.getState().hold && !heard) { set({ listening: false }); return; }
     set({
@@ -116,6 +121,7 @@ export function startListening() {
     });
   };
   r.onend = () => {
+    if (rec === r) rec = null;
     set({ listening: false });
     // iOS 在 setTimeout 裡重啟語音會失去手勢資格而卡死，停止即可；桌面／Android 才自動續聽
     if (!want || isIOS()) { want = false; return; }
@@ -127,12 +133,15 @@ export function startListening() {
   try { r.start(); } catch { set({ hint: '無法開始語音辨識，請按鍵盤改用打字' }); }
 }
 
-/** 立刻停止（不等最後一段結果） */
+/** 立刻停止（iOS 改用 stop() 避免 abort() 鎖死 PWA 音訊引擎） */
 export function stopListening() {
   want = false;
   const r = rec;
   rec = null;
-  if (r) { r.onend = null; r.onerror = null; r.onresult = null; try { r.abort(); } catch { /* 已停止 */ } }
+  if (r) {
+    r.onend = null; r.onerror = null; r.onresult = null;
+    try { if (isIOS()) r.stop(); else r.abort(); } catch { /* 已停止 */ }
+  }
   set({ listening: false });
 }
 
