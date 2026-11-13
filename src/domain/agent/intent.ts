@@ -79,7 +79,8 @@ export function localView(text: string): ViewSpec | null {
 }
 
 import type { RawStep } from './plan';
-import { parseCnNumber, toHalfWidth } from '../nlp-amount';
+import { findAmounts, parseCnNumber, toHalfWidth } from '../nlp-amount';
+import { extractDate } from '../nlp-date';
 
 const LATEST = '(?:剛剛|剛才|上一筆|最後一筆|最後那筆|剛記的|剛剛記的|剛才記的)';
 const LEAD = '(?:幫我|請幫我|請|麻煩|可以)?\\s*';
@@ -113,4 +114,87 @@ export function localEditPlan(text: string): { summary: string; steps: RawStep[]
   else if (field === '金額' || (!field && num !== null && num !== undefined && Number.isFinite(num))) { if (!(num && num > 0)) return null; set.amount = num; }
   else set.category = v.replace(/(分類|類別|這一類|類)$/, '');
   return { summary: '修改剛剛記的那一筆', steps: [{ tool: 'edit_transaction', args: { match: { latest: true }, set } }] };
+}
+
+const DEBT_QUESTION_RE = /[？?]|多少|誰|幾筆|哪裡|怎麼|嗎$/;
+const DEBT_BANK_RE = /房貸|車貸|信貸|學貸|貸款|卡費|信用卡/;
+const DEBT_SETTLE_RE = /結清|還清/;
+
+/**
+ * 辨識人際借貸句型（例如「欠爸爸500蝦皮」「爸爸欠我500」「借給小明1000」「跟媽媽借2000」），
+ * 避免被當成一般支出／收入記帳；直接轉為 add_debt 預覽卡片（本機解析，不扣 AI 額度）。
+ */
+export function localDebtPlan(text: string, today: string): { summary: string; steps: RawStep[] } | null {
+  const raw = toHalfWidth(text).trim().replace(/[。.!！]+$/, '');
+  if (raw.length < 3 || raw.length > 60) return null;
+  if (DEBT_QUESTION_RE.test(raw) || DEBT_BANK_RE.test(raw) || DEBT_SETTLE_RE.test(raw)) return null;
+
+  const dateHit = extractDate(raw, today);
+  const date = dateHit.date ?? today;
+  const s = dateHit.rest.replace(/\s+/g, ' ').trim();
+
+  const amounts = findAmounts(s);
+  if (amounts.length !== 1 || !(amounts[0].value > 0)) return null;
+  const hit = amounts[0];
+  const before = s.slice(0, hit.index).trim();
+  const after = s.slice(hit.index + hit.length).trim();
+
+  let direction: 'i_owe_them' | 'they_owe_me' | null = null;
+  let person = '';
+  let note = after;
+
+  // 1. 「(我)欠爸爸 500 蝦皮」
+  let m = /^(?:我\s*)?欠\s*([^\s\d]+)$/.exec(before);
+  if (m) {
+    direction = 'i_owe_them';
+    person = m[1];
+  }
+
+  // 2. 「跟/向 爸爸 借 500 蝦皮」
+  if (!direction) {
+    m = /^(?:我\s*)?(?:跟|向)\s*([^\s\d]+?)\s*借(?:錢|入)?$/.exec(before);
+    if (m) {
+      direction = 'i_owe_them';
+      person = m[1];
+    }
+  }
+
+  // 3. 「爸爸欠我 500 蝦皮」
+  if (!direction) {
+    m = /^([^\s\d]+?)\s*欠我$/.exec(before);
+    if (m) {
+      direction = 'they_owe_me';
+      person = m[1];
+    }
+  }
+
+  // 4. 「借給小明 1000 買書」或「借小明 1000 買書」
+  if (!direction) {
+    m = /^(?:我\s*)?借(?:給)?\s*([^\s\d]+)$/.exec(before);
+    if (m && !/^(錢|入|出)$/.test(m[1])) {
+      direction = 'they_owe_me';
+      person = m[1];
+    }
+  }
+
+  // 5. 「借出 1000 小明」或「借入 500 爸爸」
+  if (!direction && /^(?:借出|借入)$/.test(before) && after) {
+    direction = before === '借出' ? 'they_owe_me' : 'i_owe_them';
+    const parts = after.split(/\s+/);
+    person = parts[0];
+    note = parts.slice(1).join(' ');
+  }
+
+  person = person.replace(/^(?:給|跟|向)|(?:的|錢)$/g, '').trim();
+  if (!direction || !person || person === '我' || person.length > 20) return null;
+  note = note.replace(/^[的，,、:：]+\s*/, '').trim();
+
+  const label = direction === 'they_owe_me' ? `${person} 欠我` : `我欠 ${person}`;
+  return {
+    summary: `記錄${direction === 'they_owe_me' ? '應收' : '應付'}：${label} ${hit.value}${note ? `（${note}）` : ''}`,
+    steps: [{
+      tool: 'add_debt',
+      args: { direction, person, amount: hit.value, date, ...(note ? { note } : {}) },
+    }],
+  };
 }

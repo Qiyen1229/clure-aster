@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { localEditPlan, localView, looksLikeOperation } from '@/domain/agent/intent';
+import { localDebtPlan, localEditPlan, localView, looksLikeOperation } from '@/domain/agent/intent';
 
 describe('操作意圖判斷（保守）', () => {
   it('整理帳本的說法會轉給操作助手', () => {
@@ -76,5 +76,34 @@ describe('localEditPlan 本機修改／刪除剛剛那筆', () => {
     expect(localEditPlan('剛剛那筆是午餐')?.steps[0].args).toEqual({ match: { latest: true }, set: { category: '午餐' } });
     expect(localEditPlan('最後那筆分類改成交通')?.steps[0].args).toEqual({ match: { latest: true }, set: { category: '交通' } });
     expect(localEditPlan('幫我把剛剛那筆的金額改成 250')?.steps[0].args).toEqual({ match: { latest: true }, set: { amount: 250 } });
+  });
+});
+
+describe('localDebtPlan 本機借貸（應收／應付）辨識', () => {
+  it('「欠爸爸500蝦皮」辨識為我欠爸爸 500（備註：蝦皮），不會當成一般支出', () => {
+    const p = localDebtPlan('欠爸爸500蝦皮', '2026-11-13');
+    expect(p).not.toBeNull();
+    expect(p!.steps[0]).toEqual({
+      tool: 'add_debt',
+      args: { direction: 'i_owe_them', person: '爸爸', amount: 500, date: '2026-11-13', note: '蝦皮' },
+    });
+  });
+
+  it('支援「爸爸欠我500」「借給小明1000買書」「跟媽媽借2000」', () => {
+    expect(localDebtPlan('爸爸欠我500', '2026-11-13')?.steps[0].args).toEqual({
+      direction: 'they_owe_me', person: '爸爸', amount: 500, date: '2026-11-13',
+    });
+    expect(localDebtPlan('借給小明1000買書', '2026-11-13')?.steps[0].args).toEqual({
+      direction: 'they_owe_me', person: '小明', amount: 1000, date: '2026-11-13', note: '買書',
+    });
+    expect(localDebtPlan('跟媽媽借2000', '2026-11-13')?.steps[0].args).toEqual({
+      direction: 'i_owe_them', person: '媽媽', amount: 2000, date: '2026-11-13',
+    });
+  });
+
+  it('問句、銀行貸款或結清不誤判為新增借貸', () => {
+    expect(localDebtPlan('我欠爸爸多少', '2026-11-13')).toBeNull();
+    expect(localDebtPlan('結清欠爸爸的500', '2026-11-13')).toBeNull();
+    expect(localDebtPlan('房貸 20000', '2026-11-13')).toBeNull();
   });
 });

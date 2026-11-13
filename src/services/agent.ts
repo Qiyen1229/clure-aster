@@ -9,7 +9,7 @@
  * （updatedAt 不同）就不動它並告知，避免蓋掉使用者之後的修改。寫回時間戳更新，所以其他裝置同步時也會跟著還原。
  */
 import { db, uid } from '@/db/schema';
-import { deleteBudget, saveBudget, saveGoal, saveRecurring, settleDebt, unsettleDebt } from '@/db/repo/plan';
+import { addLoan, deleteBudget, saveBudget, saveGoal, saveRecurring, settleDebt, unsettleDebt } from '@/db/repo/plan';
 import { addTransaction, addTransfer, deleteTransactions, deleteTransfers, restoreTransactions, updateTransaction, type TxInput } from '@/db/repo/ledger';
 import { addTrade, deleteTrade } from '@/db/repo/invest';
 import { twFeeConfig } from './portfolio';
@@ -156,6 +156,10 @@ export async function applyPlan(steps: ResolvedStep[], summary: string, idempote
       } else if (op.kind === 'transfer') {
         const tr = await addTransfer({ fromAccountId: op.input.fromAccountId, toAccountId: op.input.toAccountId, fromAmountMinor: op.input.amountMinor, toAmountMinor: op.input.amountMinor, feeMinor: 0, date: op.input.date, ts: Date.now(), note: op.input.note });
         log.changes.push({ table: 'transfers', id: tr.id, stamp: 0, undo: 'transfer' });
+      } else if (op.kind === 'debt') {
+        const res = await addLoan({ ...op.input, ts: Date.now() });
+        log.changes.push({ table: 'debts', id: res.debtId, stamp: 0 });
+        if (res.txId) log.changes.push({ table: 'transactions', id: res.txId, stamp: 0, undo: 'tx' });
       } else if (op.kind === 'settle') {
         const before = await db.debts.get(op.debtId);
         if (!before || before.settled) throw new Error('這筆欠款已經結清或不存在');

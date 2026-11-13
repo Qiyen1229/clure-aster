@@ -21,6 +21,7 @@ export function PlanPreview({ steps, summarySteps, off, onToggle }: { steps: Res
         {diff.txCreated > 0 && <span className="pill">新增 {diff.txCreated} 筆帳目</span>}
         {diff.accountsTouched > 0 && <span className="pill">動到 {diff.accountsTouched} 個帳戶餘額</span>}
         {diff.debtsSettled > 0 && <span className="pill">結清 {diff.debtsSettled} 筆欠款</span>}
+        {diff.debtsCreated > 0 && <span className="pill">新增 {diff.debtsCreated} 筆應收／應付</span>}
         {diff.accountsTouched === 0 && <span className="pill">帳戶餘額不變</span>}
       </div>
       {steps.map((s, i) => {

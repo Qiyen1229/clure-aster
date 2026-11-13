@@ -28,7 +28,7 @@ export const MAX_STEPS = 8;
 export const MAX_DELETE = 20;
 
 export type ToolName = 'reclassify' | 'set_budget' | 'add_recurring' | 'prepayment_sim' | 'add_goal' | 'add_rule'
-  | 'add_transaction' | 'transfer' | 'settle_debt' | 'goal_deposit' | 'buy_stock' | 'sell_stock' | 'show_view' | 'edit_transaction' | 'delete_transaction';
+  | 'add_transaction' | 'transfer' | 'add_debt' | 'settle_debt' | 'goal_deposit' | 'buy_stock' | 'sell_stock' | 'show_view' | 'edit_transaction' | 'delete_transaction';
 /** 對話裡可以嵌入的檢視卡 */
 export type ViewKind = 'fire' | 'tax' | 'cashflow' | 'spending';
 export const VIEW_KINDS: ViewKind[] = ['fire', 'tax', 'cashflow', 'spending'];
@@ -46,6 +46,7 @@ export type Op =
   | { kind: 'rule'; input: Omit<CategoryRule, 'id' | 'createdAt' | 'updatedAt' | 'hits'> }
   | { kind: 'tx'; input: { type: 'expense' | 'income'; accountId: string; categoryId: string; amountMinor: number; currency: string; date: string; note: string } }
   | { kind: 'transfer'; input: { fromAccountId: string; toAccountId: string; amountMinor: number; date: string; note: string } }
+  | { kind: 'debt'; input: { direction: 'i_owe_them' | 'they_owe_me'; personName: string; amountMinor: number; currency: string; date: string; note: string; accountId?: string } }
   | { kind: 'settle'; debtId: string; accountId?: string }
   | { kind: 'goal_deposit'; goalId: string; amountMinor: number }
   | { kind: 'trade'; input: { side: 'buy' | 'sell'; stockId: string; accountId: string; date: string; sharesDec: string; priceDec: string; feeMinor: number; taxMinor: number; cashAccountId: string } };
@@ -76,6 +77,7 @@ export interface StepPreview {
   accountIds?: string[];
   txCreated?: number;
   debtsSettled?: number;
+  debtsCreated?: number;
   /** 要在對話裡嵌入的檢視卡（只讀、不寫入） */
   view?: ViewSpec;
 }
@@ -460,6 +462,50 @@ function transferTool(a: Record<string, unknown>, d: AgentData, W: Work): Resolv
   };
 }
 
+function addDebtTool(a: Record<string, unknown>, d: AgentData, W: Work): ResolvedStep {
+  const title = '記錄應收／應付';
+  const direction = a.direction === 'they_owe_me' || a.direction === 'i_owe_them' ? a.direction : undefined;
+  const personName = str(a.person).slice(0, 30);
+  const amount = num(a.amount);
+  const date = dateOrNull(a.date) ?? d.today;
+  const note = str(a.note).slice(0, 80);
+  if (!direction || !personName || !(amount > 0)) return blockedStep('add_debt', title, '請說明對象、借貸方向與正確金額');
+  const acc = str(a.account) ? findAccount(d.accounts, str(a.account)) : undefined;
+  if (str(a.account) && !acc) return blockedStep('add_debt', title, `找不到帳戶「${str(a.account)}」`);
+  if (acc && !baseOnly(acc, d)) return blockedStep('add_debt', title, `「${acc.name}」是外幣帳戶，請到「記帳 → 應收／應付」記錄`);
+  const amountMinor = minorOf(amount, d.baseCurrency);
+  const warnings: string[] = [];
+  const label = direction === 'they_owe_me' ? `${personName} 欠我` : `我欠 ${personName}`;
+  const lines = [
+    `類型：${direction === 'they_owe_me' ? '應收（對方欠我）' : '應付（我欠對方）'}`,
+    `金額：${fmt(amountMinor, d.baseCurrency)}`,
+    `日期：${date}`,
+  ];
+  if (note) lines.push(`備註：${note}`);
+  if (acc) {
+    const delta = direction === 'they_owe_me' ? -amountMinor : amountMinor;
+    const before = W.balances.get(acc.id) ?? acc.balanceMinor;
+    const after = before + delta;
+    W.balances.set(acc.id, after);
+    lines.push(balanceLine(acc, before, after, warnings));
+  } else {
+    lines.push('不變動帳戶餘額（只記錄應收／應付，結清時再入帳）');
+  }
+  return {
+    op: { kind: 'debt', input: { direction, personName, amountMinor, currency: d.baseCurrency, date, note, accountId: acc?.id } },
+    preview: {
+      tool: 'add_debt',
+      title: `記錄${direction === 'they_owe_me' ? '應收' : '應付'}：${label} ${fmt(amountMinor, d.baseCurrency)}${note ? `（${note}）` : ''}`,
+      lines,
+      warnings,
+      debtsCreated: 1,
+      accountsTouched: acc ? 1 : 0,
+      accountIds: acc ? [acc.id] : [],
+      txCreated: acc ? 1 : 0,
+    },
+  };
+}
+
 function settleDebtTool(a: Record<string, unknown>, d: AgentData, W: Work): ResolvedStep {
   const title = '結清欠款';
   const person = str(a.person);
@@ -730,6 +776,7 @@ export function resolvePlan(steps: RawStep[], data: AgentData): ResolvedStep[] {
     else if (s.tool === 'add_rule') out.push(addRule(a, data, work));
     else if (s.tool === 'add_transaction') out.push(addTransactionTool(a, data, W));
     else if (s.tool === 'transfer') out.push(transferTool(a, data, W));
+    else if (s.tool === 'add_debt') out.push(addDebtTool(a, data, W));
     else if (s.tool === 'settle_debt') out.push(settleDebtTool(a, data, W));
     else if (s.tool === 'goal_deposit') out.push(goalDepositTool(a, data, W));
     else if (s.tool === 'buy_stock') out.push(tradeStockTool('buy', a, data, W));
@@ -742,11 +789,11 @@ export function resolvePlan(steps: RawStep[], data: AgentData): ResolvedStep[] {
   return out;
 }
 
-export interface PlanDiff { affectedTx: number; budgetChanges: number; rulesCreated: number; goalsCreated: number; autoRulesCreated: number; txCreated: number; accountsTouched: number; debtsSettled: number; executable: number; blocked: number; readonly: number }
+export interface PlanDiff { affectedTx: number; budgetChanges: number; rulesCreated: number; goalsCreated: number; autoRulesCreated: number; txCreated: number; accountsTouched: number; debtsSettled: number; debtsCreated: number; executable: number; blocked: number; readonly: number }
 
 /** 影響彙總（執行預覽卡最上面那排） */
 export function summarizePlan(steps: ResolvedStep[]): PlanDiff {
-  const d: PlanDiff = { affectedTx: 0, budgetChanges: 0, rulesCreated: 0, goalsCreated: 0, autoRulesCreated: 0, txCreated: 0, accountsTouched: 0, debtsSettled: 0, executable: 0, blocked: 0, readonly: 0 };
+  const d: PlanDiff = { affectedTx: 0, budgetChanges: 0, rulesCreated: 0, goalsCreated: 0, autoRulesCreated: 0, txCreated: 0, accountsTouched: 0, debtsSettled: 0, debtsCreated: 0, executable: 0, blocked: 0, readonly: 0 };
   const accountIds = new Set<string>();
   for (const s of steps) {
     if (s.preview.blocked) { d.blocked++; continue; }
@@ -759,6 +806,7 @@ export function summarizePlan(steps: ResolvedStep[]): PlanDiff {
     d.txCreated += s.preview.txCreated ?? 0;
     for (const id of s.preview.accountIds ?? []) accountIds.add(id);
     d.debtsSettled += s.preview.debtsSettled ?? 0;
+    d.debtsCreated += s.preview.debtsCreated ?? 0;
   }
   d.accountsTouched = accountIds.size;
   return d;

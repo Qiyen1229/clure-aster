@@ -13,7 +13,7 @@ import { db } from '@/db/schema';
 import { isQuestion, looksLikeAiQuestion } from '@/domain/nlquery';
 import { isAggregationQuestion } from '@/domain/search';
 import { formatMoney, toMinor } from '@/domain/money';
-import { localEditPlan, localView, looksLikeOperation } from '@/domain/agent/intent';
+import { localDebtPlan, localEditPlan, localView, looksLikeOperation } from '@/domain/agent/intent';
 import type { NlQuery } from '@/domain/nlquery';
 import { todayKey } from '@/domain/period';
 import { accountTalk, budgetTalk, debtTalk, durableTalk, goalTalk, projectTalk, recurringTalk } from '@/services/localTalk';
@@ -60,8 +60,8 @@ export async function respond(text: string, screen?: string, onPartial?: (text: 
   const view = localView(t);
   if (view) return { role: 'ai', kind: 'view', view };
 
-  // 修改／刪除「剛剛那筆」：本機就看得懂，不用 AI——直接進操作助手的預覽（確認才執行、可一鍵還原）
-  const quick = localEditPlan(t);
+  // 修改／刪除「剛剛那筆」或記錄應收／應付（例如「欠爸爸500蝦皮」）：本機就看得懂，不用 AI——直接進操作助手預覽
+  const quick = localEditPlan(t) ?? localDebtPlan(t, todayKey());
   if (quick) {
     try {
       const { previewPlan } = await import('@/services/agent');

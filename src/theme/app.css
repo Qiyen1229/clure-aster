@@ -83,18 +83,6 @@
 /* 亮色系主題色上的文字改用深色，確保對比度 ≥ 4.5（WCAG AA） */
 :root[data-accent='cyan'], :root[data-accent='gold'], :root[data-accent='orange'], :root[data-accent='green'] { --on-accent: #06181c; }
 
-/* 旅遊模式專屬輕快度假色彩：天際蔚藍 / 清爽度假感 */
-:root[data-mode='travel'] {
-  --accent: #0284c7;
-  --accent-text: #0369a1;
-  --accent-soft: rgba(2, 132, 199, 0.14);
-}
-:root[data-theme='dark'][data-mode='travel'] {
-  --accent: #38bdf8;
-  --accent-text: #7dd3fc;
-  --accent-soft: rgba(56, 189, 248, 0.18);
-}
-
 /* 旅遊模式看板樣式 */
 .travel-hero {
   padding: 16px 18px 18px;
@@ -259,6 +247,42 @@
 :root[data-palette='amber'][data-theme='dark'] {
   --accent: #d8b984;
   --on-accent: #302513;
+}
+
+/* 旅遊模式專屬輕快度假色彩：放在所有主題色之後確保覆蓋生效 */
+:root[data-mode='travel'] {
+  --bg: #eef7fb;
+  --bg-elev: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #e2f1f8;
+  --surface-3: #d2e7f2;
+  --glass: rgba(244, 250, 254, 0.84);
+  --glass-border: rgba(2, 132, 199, 0.14);
+  --text: #0f2537;
+  --text-2: #46657d;
+  --text-3: #7592a8;
+  --sep: #d4e5f0;
+  --accent: #0284c7;
+  --accent-text: #0369a1;
+  --accent-soft: #dff2fc;
+  --on-accent: #ffffff;
+}
+:root[data-theme='dark'][data-mode='travel'] {
+  --bg: #081520;
+  --bg-elev: #0e1e2c;
+  --surface: #112232;
+  --surface-2: #182f44;
+  --surface-3: #223f59;
+  --glass: rgba(14, 30, 44, 0.82);
+  --glass-border: rgba(56, 189, 248, 0.16);
+  --text: #edf6fc;
+  --text-2: #9bc0d9;
+  --text-3: #648ca8;
+  --sep: #223e54;
+  --accent: #38bdf8;
+  --accent-text: #7dd3fc;
+  --accent-soft: rgba(56, 189, 248, 0.18);
+  --on-accent: #062133;
 }
 
 /* 收支／漲跌顏色 */
@@ -681,6 +705,25 @@ a { color: inherit; text-decoration: none; }
 .field textarea { text-align: left; resize: none; }
 /* 值靠右。不能用 direction: rtl：會讓「3 天」顯示成「天 3」、「0 位」顯示成「位 0」 */
 .field select { direction: ltr; text-align: right; text-align-last: right; }
+/* Safari / WebKit 原生日期時間欄位不會自動繼承 text-align: right，強制縮至內容寬並靠右對齊 */
+.field input[type="date"],
+.field input[type="month"],
+.field input[type="time"],
+.field input[type="datetime-local"] {
+  flex: 0 1 auto;
+  min-width: 0;
+  width: auto;
+  margin-left: auto;
+  text-align: right;
+  display: inline-flex;
+  justify-content: flex-end;
+}
+input[type="date"]::-webkit-date-and-time-value,
+input[type="month"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value,
+input[type="datetime-local"]::-webkit-date-and-time-value {
+  text-align: right;
+}
 .input {
   width: 100%; min-height: 46px; padding: 0 14px; border-radius: 12px; border: 0;
   background: var(--surface-2); outline: none; font-size: 1rem;
@@ -1202,6 +1245,21 @@ a { color: inherit; text-decoration: none; }
   color: var(--text-3);
 }
 
+.pnl-list-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 0.5px solid var(--sep);
+  color: var(--text-2);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
 .day-pnl-list {
   display: flex;
   flex-direction: column;

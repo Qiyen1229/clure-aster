@@ -53,7 +53,7 @@ export default function DebtSection() {
               <span className="row-main row-title">{pmap.get(pid)?.name ?? '?'}</span>
               <div className="row-end">
                 {[...byCur].filter(([, v]) => v).map(([cur, v]) => (
-                  <div key={cur}><Amount minor={v} currency={cur} tone={v > 0 ? 'pos' : 'neg'} className="num" /> <span className="row-sub">{v > 0 ? '欠我' : '我欠'}</span></div>
+                  <div key={cur}><span className="row-sub">{v > 0 ? '欠我' : '我欠'}</span> <Amount minor={v} currency={cur} tone={v > 0 ? 'pos' : 'neg'} className="num" /></div>
                 ))}
               </div>
             </button>

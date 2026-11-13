@@ -46,7 +46,13 @@ export default function HomePage() {
     () => (travelModeProjectId ? db.projects.get(travelModeProjectId) : undefined),
     [travelModeProjectId]
   );
+  const travelProjects = useLiveQuery(
+    () => db.projects.filter((p) => !p.deletedAt && p.status === 'active' && !!p.isTravel).toArray(),
+    []
+  );
   const [calendarMode, setCalendarMode] = useState<'ledger' | 'pnl'>('ledger');
+  const [pnlListOpen, setPnlListOpen] = useState(true);
+  const effectiveCalendarMode = travelProject ? 'ledger' : calendarMode;
   const [monthOpen, setMonthOpen] = useState(false);
   const [remindersOpen, setRemindersOpen] = useState(false);
   const unread = useUnreadCount() + useInboxCount((x) => x.n + x.extra);
@@ -163,17 +169,30 @@ export default function HomePage() {
   const tags = useTags();
 
   const stat = useLiveQuery(async () => {
-    const [txs, trDays] = await Promise.all([
+    const travelId = travelProject?.id;
+    const [rawTxs, trDays] = await Promise.all([
       listStatTxs(gridStart, gridEnd),
-      db.transfers.where('date').between(gridStart, gridEnd, true, true).toArray().then((r) => r.filter((t) => !t.deletedAt)),
+      travelId
+        ? Promise.resolve([])
+        : db.transfers.where('date').between(gridStart, gridEnd, true, true).toArray().then((r) => r.filter((t) => !t.deletedAt)),
     ]);
+    const txs = travelId ? rawTxs.filter((t) => t.projectId === travelId) : rawTxs;
     const byDay = totalsByDay(txs);
     const days = new Set<string>([...txs.map((t) => t.date), ...trDays.map((t) => t.date)]);
     return { byDay, days };
-  }, [gridStart, gridEnd]);
+  }, [gridStart, gridEnd, travelProject?.id]);
 
-  const items = useLiveQuery(() => listLedger(selected, selected), [selected]);
-  const dayTotal = useLiveQuery(async () => totals(await listStatTxs(selected, selected)), [selected]);
+  const items = useLiveQuery(async () => {
+    const list = await listLedger(selected, selected);
+    return travelProject?.id
+      ? list.filter((it) => it.kind === 'tx' && it.tx.projectId === travelProject.id)
+      : list;
+  }, [selected, travelProject?.id]);
+  const dayTotal = useLiveQuery(async () => {
+    const raw = await listStatTxs(selected, selected);
+    const txs = travelProject?.id ? raw.filter((t) => t.projectId === travelProject.id) : raw;
+    return totals(txs);
+  }, [selected, travelProject?.id]);
 
   // 投資資料與盈虧日曆計算
   const invData = useLiveQuery(async () => {
@@ -285,6 +304,17 @@ export default function HomePage() {
         </button>
 
         <div className="home-topbar-actions">
+          {travelProjects && travelProjects.length > 0 && (
+            <button
+              className="chip-today-btn"
+              onClick={() => {
+                haptic('selection');
+                set('travelModeProjectId', travelProject ? null : travelProjects[0].id);
+              }}
+            >
+              {travelProject ? '一般模式' : '旅遊模式'}
+            </button>
+          )}
           {!isToday && (
             <button className="chip-today-btn" onClick={() => { haptic('light'); setSelected(todayKey()); }}>
               今天
@@ -305,7 +335,7 @@ export default function HomePage() {
         </div>
       </header>
 
-      {travelProject && calendarMode === 'ledger' ? (
+      {travelProject ? (
         <TravelHero
           project={travelProject}
           onSwitchNormal={() => set('travelModeProjectId', null)}
@@ -315,12 +345,12 @@ export default function HomePage() {
       ) : (
         <HomeHero
           selected={selected}
-          mode={calendarMode}
+          mode={effectiveCalendarMode}
           pnlSummary={pnlData.monthSummary}
         />
       )}
 
-      {/* 膠囊週曆（可平滑展開為全月，支援記帳與盈虧雙模式） */}
+      {/* 膠囊週曆（可平滑展開為全月，支援記帳與盈虧雙模式；旅遊模式下隱藏盈虧切換） */}
       <Calendar
         year={year}
         month0={month0}
@@ -329,7 +359,8 @@ export default function HomePage() {
         dayTotals={stat?.byDay ?? new Map()}
         daysWithRecords={stat?.days ?? new Set()}
         collapsed={calendarCollapsed}
-        mode={calendarMode}
+        mode={effectiveCalendarMode}
+        hidePnlToggle={!!travelProject}
         pnlDays={pnlData.days}
         monthPnlSummary={pnlData.monthSummary}
         onSelect={setSelected}
@@ -346,7 +377,7 @@ export default function HomePage() {
           <span className="weekday-text">{WEEK_NAMES[sel.getDay()]}</span>
           {isToday && <span className="today-badge">今天</span>}
         </div>
-        {calendarMode === 'ledger' ? (
+        {effectiveCalendarMode === 'ledger' ? (
           <div className="day-head-sum num">
             <span>支出 <Amount minor={expenseTotal} currency={baseCurrency} tone="none" opts={{ decimals: 0 }} /></span>
             {incomeTotal > 0 && <span>收入 <Amount minor={incomeTotal} currency={baseCurrency} tone="pos" opts={{ decimals: 0 }} /></span>}
@@ -375,7 +406,7 @@ export default function HomePage() {
             )}
           </div>
         )}
-        {calendarMode === 'ledger' ? (
+        {effectiveCalendarMode === 'ledger' ? (
           <button className="day-head-all" onClick={() => navigate('/ledger')} aria-label="全部帳目">
             全部 <Icon name="chevronR" size={14} />
           </button>
@@ -387,7 +418,7 @@ export default function HomePage() {
       </div>
 
       {/* 當日帳目明細清單 或 股票明細清單 */}
-      {calendarMode === 'ledger' ? (
+      {effectiveCalendarMode === 'ledger' ? (
         <section className="day-ledger-section" aria-label="當日帳目明細">
           {!items || cats.loading || accounts.loading ? (
             <SkeletonRows n={3} />
@@ -416,7 +447,18 @@ export default function HomePage() {
               action={<button className="btn tinted small" onClick={() => navigate('/invest')}>查看投資組合</button>}
             />
           ) : (
-            <div className="day-pnl-list">
+            <>
+              <button
+                type="button"
+                className="pnl-list-toggle"
+                aria-expanded={pnlListOpen}
+                onClick={() => { haptic('selection'); setPnlListOpen((v) => !v); }}
+              >
+                <span>當日持股明細（{selectedDayPnl.stocks.length}）</span>
+                <Icon name={pnlListOpen ? 'up' : 'chevronD'} size={14} />
+              </button>
+              {pnlListOpen && (
+                <div className="day-pnl-list">
               {selectedDayPnl.stocks.map((s) => {
                 const isPos = s.pnlMinor > 0;
                 const isNeg = s.pnlMinor < 0;
@@ -472,15 +514,19 @@ export default function HomePage() {
                   </button>
                 );
               })}
-            </div>
+                </div>
+              )}
+            </>
           )}
         </section>
       )}
 
-      {/* 下半部獨立區塊：快覽（今日可用、預算、淨資產…可在設定增減）；提醒與待處理事項統一在右上角鈴鐺，沒有快覽時整塊隱藏 */}
-      <div className="home-lower" aria-label="快覽">
-        {homeWidgets.length > 0 && <Suspense fallback={null}><Widgets /></Suspense>}
-      </div>
+      {/* 下半部獨立區塊：快覽（今日可用、預算、淨資產…可在設定增減）；旅遊模式下隱藏一般日常快覽 */}
+      {!travelProject && (
+        <div className="home-lower" aria-label="快覽">
+          {homeWidgets.length > 0 && <Suspense fallback={null}><Widgets /></Suspense>}
+        </div>
+      )}
 
       <MonthPicker open={monthOpen} onClose={() => setMonthOpen(false)} year={year} month0={month0} onPick={goMonth} />
       <RemindersSheet open={remindersOpen} onClose={() => setRemindersOpen(false)} />

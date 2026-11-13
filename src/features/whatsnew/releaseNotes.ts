@@ -25,6 +25,16 @@ export interface ReleaseNote {
 /** 新的在前 */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '4.1.32', date: '2026-11-13',
+    features: [
+      {
+        title: '旅遊與借貸優化',
+        intro: '旅遊模式套用專屬度假色彩並完全隔離日常帳目與快覽、移除月曆多餘下月整列、盈虧日曆股票明細可收合、AI 助理支援辨識人際借貸、修正日期欄位靠右對齊與借貸列表語法。',
+        howto: '有啟用中的旅遊專案時，可直接在首頁右上角切換「一般模式 / 旅遊模式」；在 AI 助理輸入「欠爸爸500蝦皮」即可記錄應付。',
+      },
+    ],
+  },
+  {
     version: '4.1.31', date: '2026-11-13',
     features: [
       {

@@ -15,6 +15,13 @@ import { Icon } from '@/ui/Icon';
 
 const SHORT_WEEK_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
 
+export function trimTrailingOutMonthRow(cells: CalendarCell[]): CalendarCell[] {
+  if (cells.length >= 42 && cells.slice(35, 42).every((c) => !c.inMonth)) {
+    return cells.slice(0, 35);
+  }
+  return cells;
+}
+
 export type CalendarMode = 'ledger' | 'pnl';
 
 interface Props {
@@ -26,6 +33,7 @@ interface Props {
   daysWithRecords: Set<string>;
   collapsed: boolean;
   mode?: CalendarMode;
+  hidePnlToggle?: boolean;
   pnlDays?: Map<string, DayPnlResult>;
   monthPnlSummary?: MonthPnlSummary;
   onSelect: (key: string) => void;
@@ -44,6 +52,7 @@ export function Calendar({
   daysWithRecords,
   collapsed,
   mode = 'ledger',
+  hidePnlToggle = false,
   pnlDays,
   monthPnlSummary,
   onSelect,
@@ -83,9 +92,9 @@ export function Calendar({
     const nM = n.getMonth();
 
     return {
-      prevMonthCells: monthGrid(pY, pM, weekStart),
-      currMonthCells: monthGrid(year, month0, weekStart),
-      nextMonthCells: monthGrid(nY, nM, weekStart),
+      prevMonthCells: trimTrailingOutMonthRow(monthGrid(pY, pM, weekStart)),
+      currMonthCells: trimTrailingOutMonthRow(monthGrid(year, month0, weekStart)),
+      nextMonthCells: trimTrailingOutMonthRow(monthGrid(nY, nM, weekStart)),
       prevLabel: `${pY} 年 ${pM + 1} 月`,
       currLabel: `${year} 年 ${month0 + 1} 月`,
       nextLabel: `${nY} 年 ${nM + 1} 月`,
@@ -186,7 +195,8 @@ export function Calendar({
     // 選取日那一列：展開時在新月曆裡，收合時在舊月曆（殘影）裡
     const idx = expanding ? currMonthCells.findIndex((x) => x.key === selected) : -1;
     const row = expanding ? Math.max(0, Math.floor(idx / 7)) : m.row;
-    const rowH = (expanding ? vp.offsetHeight : m.oldVpH) / 6;
+    const rows = Math.max(1, currMonthCells.length / 7);
+    const rowH = (expanding ? vp.offsetHeight : m.oldVpH) / rows;
     const dTop = m.oldTop - newTop;
     c.style.overflow = 'hidden';
     const hAnim = c.animate([{ height: `${m.oldH}px` }, { height: `${newH}px` }], { duration: D, easing: EASE });
@@ -468,6 +478,7 @@ export function Calendar({
       onWheel={handleWheel}
     >
       {/* 獨立切換列（記帳日曆 ⇄ 盈虧日曆）＋全月盈虧摘要 */}
+      {!hidePnlToggle && (
       <div className="cal-top-toolbar">
         <div className="cal-mode-segmented" role="tablist" aria-label="日曆檢視模式">
           <button
@@ -526,6 +537,7 @@ export function Calendar({
           </div>
         )}
       </div>
+      )}
 
       {!collapsed && (
         <div className="cal-week-header" aria-hidden="true">
