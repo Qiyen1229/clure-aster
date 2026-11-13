@@ -31,8 +31,11 @@ function matcher(q: NlQuery, cats: Map<string, Category>) {
   const catSet = new Set(q.categoryIds);
   for (const c of cats.values()) if (c.parentId && catSet.has(c.parentId)) catSet.add(c.id);
   const kw = q.keyword ? normText(q.keyword) : '';
+  // 旅遊模式：問句統計只算這次旅程的帳目
+  const travelId = useSettings.getState().travelModeProjectId;
   return (t: Transaction) => {
     if (!countsInStats(t) || t.transferId) return false;
+    if (travelId && t.projectId !== travelId) return false;
     if ((t.type === 'income') !== (q.kind === 'income')) return false;
     if (catSet.size && !catSet.has(t.categoryId)) return false;
     if (q.accountIds.length && !q.accountIds.includes(t.accountId)) return false;

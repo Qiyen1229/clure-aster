@@ -118,6 +118,17 @@
   color: var(--text);
   border-color: var(--text-3);
 }
+.travel-scope-banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+.travel-scope-text {
+  font-size: 0.8rem;
+  color: var(--text-2);
+}
 .travel-hero-equiv {
   font-size: 0.85rem;
   color: var(--text-2);

@@ -1,4 +1,5 @@
-# 持續整合：每次推送與 PR 都自動跑前端（型態檢查、ESLint、單元測試、正式建置）與後端（pytest）測試。
+# 持續整合：每次推送與 PR 都自動跑前端（型態檢查、ESLint、單元測試、正式建置）、
+# 後端（pytest）測試，與旅遊模式 headless 冒煙測試（e2e）。
 name: CI
 
 on:
@@ -35,3 +36,16 @@ jobs:
           cache-dependency-path: server/requirements*.txt
       - run: pip install -r requirements.txt -r requirements-dev.txt
       - run: python -m pytest -q
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: VITE_AUTH_MODE=off npm run build
+      # 腳本會自己起 vite preview 與 headless Chrome（runner 內建），跑完自動收尾
+      - run: node tests/e2e/travel-smoke.mjs

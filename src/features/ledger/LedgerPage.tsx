@@ -10,6 +10,7 @@ import { listLedger, type LedgerItem } from '@/db/repo/ledger';
 import { periodRange, shiftPeriod, todayKey, type PeriodUnit } from '@/domain/period';
 import { totals } from '@/domain/ledger';
 import { useAccounts, useCategories, useTags } from '@/app/hooks';
+import { TravelScopeBanner } from '@/app/TravelScopeBanner';
 import { useSettings } from '@/stores/settings';
 import { Icon } from '@/ui/Icon';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
@@ -47,9 +48,12 @@ export default function LedgerPage() {
 
   const filtered = useMemo(() => {
     if (!items) return undefined;
+    // 旅遊模式：只看這次旅程的帳目（與首頁時間軸一致，不含轉帳）
+    const travelId = settings.travelModeProjectId;
+    const scoped = travelId ? items.filter((it) => it.kind === 'tx' && it.tx.projectId === travelId) : items;
     const k = keyword.trim().toLowerCase();
     const nf = filterCount(filter);
-    const pre = !nf ? items : items.filter((it) => {
+    const pre = !nf ? scoped : scoped.filter((it) => {
       if (it.kind === 'tx') return matchFilter(it.tx, filter, children);
       // 轉帳只套用帳戶、專案、標籤、關鍵字條件；指定類型或分類時排除
       if (filter.types?.length || filter.categoryIds?.length) return false;
@@ -70,7 +74,7 @@ export default function LedgerPage() {
       }
       return it.tr.note.toLowerCase().includes(k) || '轉帳'.includes(k);
     });
-  }, [items, keyword, cats.map, accounts.map, tags.map, filter, children]);
+  }, [items, keyword, cats.map, accounts.map, tags.map, filter, children, settings.travelModeProjectId]);
 
   // 攤平成「日期標題 + 帳目」列，供虛擬捲動
   const { rows, sum } = useMemo(() => {
@@ -134,6 +138,8 @@ export default function LedgerPage() {
         <button className="icon-btn" aria-label="完成，回到首頁" onClick={() => navigate('/')}><Icon name="check" /></button>
       </header>
 
+      <TravelScopeBanner />
+
       <Segmented<Unit> value={unit} ariaLabel="期間"
         onChange={(u) => { setUnit(u); if (u !== 'custom') settings.set('ledgerUnit', u); }}
         options={[{ value: 'day', label: '日' }, { value: 'week', label: '週' }, { value: 'month', label: '月' }, { value: 'year', label: '年' }, { value: 'custom', label: '自訂' }]} />
@@ -171,7 +177,7 @@ export default function LedgerPage() {
       <FilterSheet open={filterOpen} onClose={() => setFilterOpen(false)} value={filter} onChange={setFilter} />
 
       {!filtered || cats.loading ? <SkeletonRows /> : rows.length === 0 ? (
-        <EmptyState emoji="📭" title={keyword ? '找不到符合的帳目' : '這段期間沒有帳目'} text={keyword ? '換個關鍵字試試看。' : '切換期間，或點 ＋ 開始記帳。'} />
+        <EmptyState emoji="📭" title={keyword ? '找不到符合的帳目' : '這段期間沒有帳目'} text={keyword ? '換個關鍵字試試看。' : settings.travelModeProjectId ? '這次旅程在這段期間還沒有帳目，點 ＋ 記一筆。' : '切換期間，或點 ＋ 開始記帳。'} />
       ) : (
         <div ref={listRef} style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
           {virtualizer.getVirtualItems().map((v) => {

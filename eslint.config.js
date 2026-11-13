@@ -9,7 +9,7 @@ export default tseslint.config(
   { ignores: ['dist/**', 'node_modules/**', 'server/**', 'public/**', 'aster-nas.zip', '.claude/**', '.playwright-mcp/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
-  { files: ['docker/**/*.mjs', 'scripts/**/*.mjs'], languageOptions: { globals: { ...globals.node } } },
+  { files: ['docker/**/*.mjs', 'scripts/**/*.mjs', 'tests/e2e/**/*.mjs'], languageOptions: { globals: { ...globals.node } } },
   {
     files: ['src/**/*.{ts,tsx}', 'tests/**/*.ts', 'proxy/**/*.ts', 'vite.config.ts'],
     languageOptions: { globals: { ...globals.browser, ...globals.node, __APP_VERSION__: 'readonly', __BUILD_TIME__: 'readonly' } },

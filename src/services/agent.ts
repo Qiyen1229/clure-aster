@@ -151,7 +151,8 @@ export async function applyPlan(steps: ResolvedStep[], summary: string, idempote
         await db.rules.add({ ...op.input, id, hits: 0, createdAt: now, updatedAt: now });
         log.changes.push({ table: 'rules', id, stamp: 0 });
       } else if (op.kind === 'tx') {
-        const t = await addTransaction({ ...op.input, ts: Date.now() });
+        // 旅遊模式：AI 記的帳預設歸入目前的旅遊專案
+        const t = await addTransaction({ ...op.input, ts: Date.now(), projectId: useSettings.getState().travelModeProjectId ?? undefined });
         log.changes.push({ table: 'transactions', id: t.id, stamp: 0, undo: 'tx' });
       } else if (op.kind === 'transfer') {
         const tr = await addTransfer({ fromAccountId: op.input.fromAccountId, toAccountId: op.input.toAccountId, fromAmountMinor: op.input.amountMinor, toAmountMinor: op.input.amountMinor, feeMinor: 0, date: op.input.date, ts: Date.now(), note: op.input.note });

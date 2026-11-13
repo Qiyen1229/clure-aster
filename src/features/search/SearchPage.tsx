@@ -10,6 +10,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useAccounts, useCategories, useProjects, useTags } from '@/app/hooks';
+import { TravelScopeBanner } from '@/app/TravelScopeBanner';
 import { describeTerm, parseSearch, preferPlainSearch } from '@/domain/search';
 import { todayKey } from '@/domain/period';
 import { searchLedger } from '@/services/search';
@@ -75,6 +76,8 @@ export default function SearchPage() {
           <span className="faint" style={{ position: 'absolute', left: 11, top: 12 }}><Icon name="search" size={20} /></span>
         </div>
       </header>
+
+      <TravelScopeBanner />
 
       {!dq ? (
         <>

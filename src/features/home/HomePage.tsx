@@ -540,8 +540,8 @@ export default function HomePage() {
         </>
       )}
 
-      {/* 收件匣：自動記帳的待確認項目，放在首頁隨時核對 */}
-      <Suspense fallback={null}><HomeInbox /></Suspense>
+      {/* 收件匣：自動記帳的待確認項目，放在首頁隨時核對；旅遊模式下隱藏（旅程帳目走時間軸） */}
+      {!travelProject && <Suspense fallback={null}><HomeInbox /></Suspense>}
 
       {/* 下半部獨立區塊：快覽（今日可用、預算、淨資產…可在設定增減）；旅遊模式下隱藏一般日常快覽 */}
       {!travelProject && (

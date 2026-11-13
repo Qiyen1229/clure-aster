@@ -4,7 +4,7 @@
  * 帳戶：文字中寫到的帳戶 → 規則指定的帳戶 → 同一個商家過去最常用的帳戶 → 上次使用的帳戶
  */
 import { db } from '@/db/schema';
-import type { Account } from '@/db/types';
+import type { Account, Project } from '@/db/types';
 import { parseEntries, type DraftEntry } from '@/domain/nlp';
 import { todayKey } from '@/domain/period';
 import { toMinor } from '@/domain/money';
@@ -14,9 +14,23 @@ import { suggestAccount, suggestCategory } from './autocat';
 export interface ResolvedDraft extends DraftEntry {
   accountId: string;
   categoryId?: string;
+  projectId?: string;
   tagIds: string[];
   categorySource: 'text' | 'rule' | 'memory' | 'default';
   accountSource: 'text' | 'rule' | 'memory' | 'default';
+}
+
+/** 旅遊模式下未明寫專案／幣別的草稿，預設歸入旅遊專案（與記帳面板同一套規則）；草稿有寫就照草稿 */
+export function travelDraftDefaults(
+  d: Pick<ResolvedDraft, 'projectId' | 'currency'>,
+  travel: Pick<Project, 'id' | 'currency'> | undefined,
+  accountCurrency: string,
+  baseCurrency: string,
+): { projectId?: string; currency: string } {
+  return {
+    projectId: d.projectId ?? travel?.id,
+    currency: d.currency ?? (travel && travel.currency !== baseCurrency ? travel.currency : accountCurrency),
+  };
 }
 
 const usable = (a: Account) => !a.archived && !a.deletedAt && a.type !== 'loan';
@@ -92,6 +106,8 @@ export async function draftsSmart(text: string): Promise<{ list: ResolvedDraft[]
 export async function bookDrafts(list: ResolvedDraft[]): Promise<{ txIds: string[]; transferIds: string[] }> {
   const { addTransaction, addTransfer } = await import('@/db/repo/ledger');
   const accounts = new Map((await db.accounts.toArray()).map((a) => [a.id, a]));
+  const st = useSettings.getState();
+  const travel = st.travelModeProjectId ? await db.projects.get(st.travelModeProjectId) : undefined;
   const txIds: string[] = [];
   const transferIds: string[] = [];
   const now = new Date();
@@ -108,10 +124,10 @@ export async function bookDrafts(list: ResolvedDraft[]): Promise<{ txIds: string
       const tr = await addTransfer({ fromAccountId: acc.id, toAccountId: to.id, fromAmountMinor: amt, toAmountMinor: amt, feeMinor: 0, date: d.date, ts, note: d.note });
       transferIds.push(tr.id);
     } else {
-      const currency = d.currency ?? acc.currency;
+      const { projectId, currency } = travelDraftDefaults(d, travel, acc.currency, st.baseCurrency);
       const tx = await addTransaction({
         type: d.kind, accountId: acc.id, categoryId: d.categoryId!, amountMinor: toMinor(d.amount, currency), currency,
-        date: d.date, ts, note: d.note, tagIds: d.tagIds,
+        date: d.date, ts, note: d.note, tagIds: d.tagIds, projectId,
       });
       txIds.push(tx.id);
     }

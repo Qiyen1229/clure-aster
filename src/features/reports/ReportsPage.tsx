@@ -53,10 +53,8 @@ export default function ReportsPage() {
     () => (travelModeProjectId ? db.projects.get(travelModeProjectId) : undefined),
     [travelModeProjectId]
   );
-  const allTravelProjects = useLiveQuery(
-    () => db.projects.filter((p) => !!p.isTravel).toArray(),
-    []
-  ) ?? [];
+  const allTravelProjectsRaw = useLiveQuery(() => db.projects.filter((p) => !!p.isTravel).toArray(), []);
+  const allTravelProjects = useMemo(() => allTravelProjectsRaw ?? [], [allTravelProjectsRaw]);
   const travelProjectStats = useLiveQuery(
     () => (travelProject ? projectStats(travelProject) : null),
     [travelProject]

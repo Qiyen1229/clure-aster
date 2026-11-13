@@ -62,7 +62,7 @@ export const LINE_OFFICIAL_SENDERS = [
 ];
 const TXN_WORDS = /消費|刷卡|扣款|付款成功|支付成功|交易成功|交易通知|授權|繳費成功|入帳|轉帳|退款|退刷|代扣/;
 /** 官方通知通常有【標題】或稱呼「您／貴客」；朋友聊天通常沒有 */
-const OFFICIAL_STYLE = /[【\[][^】\]]{1,20}[】\]]|您|貴/;
+const OFFICIAL_STYLE = /[【[][^】\]]{1,20}[】\]]|您|貴/;
 
 /** 這則通知是不是來自 LINE 聊天（而不是 LINE Pay、LINE Bank 這類支付 App） */
 export function isLineChat(card: string): boolean {

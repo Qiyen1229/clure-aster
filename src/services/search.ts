@@ -5,6 +5,7 @@
 import { db } from '@/db/schema';
 import type { LedgerItem } from '@/db/repo/ledger';
 import { dateBounds, matchItem, type MatchCtx, type ParsedSearch } from '@/domain/search';
+import { useSettings } from '@/stores/settings';
 
 export const SEARCH_LIMIT = 300;
 
@@ -20,13 +21,17 @@ export async function searchLedger(q: ParsedSearch, ctx: MatchCtx, limit = SEARC
     ranged ? db.transfers.where('date').between(lo, hi, true, true).toArray() : db.transfers.toArray(),
   ]);
   const out: LedgerItem[] = [];
+  // 旅遊模式：只找得到這次旅程的帳目（轉帳要有標專案才算）
+  const travelId = useSettings.getState().travelModeProjectId;
   // 帶 transferId 的帳目是轉帳手續費的附屬列，已由轉帳本身比對（手續費金額）
   for (const tx of txs) {
     if (tx.deletedAt || tx.transferId) continue;
+    if (travelId && tx.projectId !== travelId) continue;
     if (matchItem({ kind: 'tx', tx }, q, ctx)) out.push({ kind: 'tx', id: tx.id, date: tx.date, ts: tx.ts, tx });
   }
   for (const tr of trs) {
     if (tr.deletedAt) continue;
+    if (travelId && tr.projectId !== travelId) continue;
     if (matchItem({ kind: 'transfer', tr }, q, ctx)) out.push({ kind: 'transfer', id: tr.id, date: tr.date, ts: tr.ts, tr });
   }
   out.sort((a, b) => (a.date === b.date ? b.ts - a.ts : a.date < b.date ? 1 : -1));
