@@ -21,6 +21,7 @@ import { currentScreen, useScreen } from '@/stores/screenContext';
 import { ViewBubble } from '../ai/views/ViewBubble';
 import { aiDataEnabled, aiAsk, aiChatTalk, aiEnabledLocally, aiReceipt, quotaLabel, type ChatTurn } from '@/services/ai';
 import { ask, followUp } from '@/services/nlquery';
+import { resetVoiceAudio } from '@/services/voice';
 import { bookDrafts, draftsFromText, draftsSmart, fallbackAccount, isScheduled, resolveDraft, scheduleDrafts, type ResolvedDraft } from '@/services/quickentry';
 import { useSettings } from '@/stores/settings';
 import { askConfirm, snackUndo, useUI } from '@/stores/ui';
@@ -433,7 +434,16 @@ export function ChatPanel({ onLeave, autoFocus }: { onLeave?: () => void; autoFo
   const recRef = useRef<any>(null);
   useEffect(() => { if (open) end.current?.scrollIntoView({ block: 'end' }); }, [open, msgs]);
   useEffect(() => {
-    return () => { recRef.current?.abort(); };
+    return () => {
+      const r = recRef.current;
+      recRef.current = null;
+      if (r) {
+        r.onend = r.onerror = r.onresult = null;
+        // iOS 用 stop()：abort() 會鎖死 PWA 音訊引擎，連帶語音記帳也收不到聲音
+        try { r.stop(); } catch { /* 已停止 */ }
+        resetVoiceAudio();
+      }
+    };
   }, []);
   // 別處（搜尋頁、預算頁、舊連結）請對話框代送的一句話：對話視窗載入且閒置時自動送出
   useEffect(() => {
@@ -448,10 +458,17 @@ export function ChatPanel({ onLeave, autoFocus }: { onLeave?: () => void; autoFo
     recRef.current = rec;
     rec.lang = 'zh-TW'; rec.interimResults = false; rec.maxAlternatives = 1;
     rec.onresult = (e) => setQ((v) => `${v ? `${v} ` : ''}${e.results[0][0].transcript}`.slice(0, 300));
-    rec.onend = () => { setListening(false); recRef.current = null; inputRef.current?.focus(); };
-    rec.onerror = () => { setListening(false); recRef.current = null; useUI.getState().showSnack({ text: '語音辨識失敗，請確認已允許麥克風' }); };
+    rec.onend = () => { setListening(false); recRef.current = null; resetVoiceAudio(); inputRef.current?.focus(); };
+    rec.onerror = () => { setListening(false); recRef.current = null; resetVoiceAudio(); useUI.getState().showSnack({ text: '語音辨識失敗，請確認已允許麥克風' }); };
     setListening(true);
-    rec.start();
+    try {
+      rec.start();
+    } catch {
+      setListening(false);
+      recRef.current = null;
+      resetVoiceAudio();
+      useUI.getState().showSnack({ text: '語音引擎忙線中，請稍候再點一次麥克風' });
+    }
   };
   const chips = screenChips(fullScreen);
   const pickChip = (c: ScreenChip) => { if (c.fill) { setQ(c.text); inputRef.current?.focus(); } else go(c.text); };

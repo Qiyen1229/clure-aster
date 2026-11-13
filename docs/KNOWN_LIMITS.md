@@ -9,7 +9,7 @@
 | 主畫面 App 與 Safari 分頁儲存空間分開 | 兩邊資料不同步 | 文件與引導提醒固定使用主畫面 App；跨裝置用 JSON 備份／還原 |
 | 系統可能清除長期未使用的網站資料 | 資料遺失風險 | 啟動時要求 `navigator.storage.persist()`；備份提醒；健康檢查顯示持久化狀態 |
 | manifest `shortcuts` iOS 不支援 | 長按主畫面圖示沒有快捷選單 | 用「捷徑」App＋深層連結 `/add?...`（Android／桌面 Chrome 支援 manifest shortcuts） |
-| 語音辨識 | iOS standalone 模式部分版本不提供 Web Speech API | 不支援時隱藏麥克風按鈕；一句話記帳可改用鍵盤上的聽寫，或用 Siri 捷徑送到收件匣 |
+| 語音辨識 | iOS standalone 模式部分版本不提供 Web Speech API；iOS 的 assistantd 可能在辨識結束後仍佔用音訊階段，短時間內無法再次啟動 | 不支援時改用鍵盤聽寫。每輪辨識一律新建實例、結束後自動取放麥克風重置音訊階段；7 秒沒收到聲音自動停止並提示再點一次；進背景自動釋放。仍失敗時可改用鍵盤上的聽寫，或用 Siri 捷徑送到收件匣 |
 | 無法讀取 Apple 錢包、簡訊、銀行 App 推播 | 不能直接自動記帳 | 用 iPhone 捷徑的「交易」「訊息」自動化把內容送進收件匣；銀行 App 推播 iOS 無法讀取 |
 | Service Worker、通知、推播、Face ID 需 HTTPS | `http://NAS-IP:9122` 沒有離線、通知、推播、生物辨識 | 請用反向代理提供 HTTPS |
 
