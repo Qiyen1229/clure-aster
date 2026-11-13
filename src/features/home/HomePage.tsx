@@ -25,6 +25,7 @@ import { Calendar } from './Calendar';
 import { MonthPicker } from './MonthPicker';
 import { HomeHero } from './HomeHero';
 import { TravelHero } from './TravelHero';
+import { TravelTimeline } from './TravelTimeline';
 import { RemindersSheet, useUnreadCount } from './RemindersSheet';
 import { useInboxCount } from '@/services/inboxCount';
 import { syncNow } from '@/services/sync';
@@ -297,15 +298,23 @@ export default function HomePage() {
 
       {/* 頂部功能列：月份選取 + 動作按鈕 */}
       <header className="home-topbar">
-        <button
-          className="month-selector-btn"
-          aria-label={`選擇月份，目前 ${year} 年 ${month0 + 1} 月`}
-          aria-haspopup="dialog"
-          onClick={() => { haptic('selection'); setMonthOpen(true); }}
-        >
-          <span className="month-selector-text num">{year} 年 {month0 + 1} 月</span>
-          <Icon name="chevronD" size={14} className="month-selector-icon" />
-        </button>
+        {travelProject ? (
+          <span className="month-selector-text num travel-topbar-range" aria-label="旅程日期">
+            {Number(travelProject.start.slice(5, 7))}/{Number(travelProject.start.slice(8, 10))}
+            {' – '}
+            {travelProject.end ? `${Number(travelProject.end.slice(5, 7))}/${Number(travelProject.end.slice(8, 10))}` : '返程未定'}
+          </span>
+        ) : (
+          <button
+            className="month-selector-btn"
+            aria-label={`選擇月份，目前 ${year} 年 ${month0 + 1} 月`}
+            aria-haspopup="dialog"
+            onClick={() => { haptic('selection'); setMonthOpen(true); }}
+          >
+            <span className="month-selector-text num">{year} 年 {month0 + 1} 月</span>
+            <Icon name="chevronD" size={14} className="month-selector-icon" />
+          </button>
+        )}
 
         <div className="home-topbar-actions">
           {travelProjects && travelProjects.length > 0 && (
@@ -343,7 +352,7 @@ export default function HomePage() {
         <TravelHero
           project={travelProject}
           onSwitchNormal={() => set('travelModeProjectId', null)}
-          onAddTripExpense={() => openAdd({ date: selected, projectId: travelProject.id, currency: travelProject.currency })}
+          onAddTripExpense={() => openAdd({ date: todayKey(), projectId: travelProject.id, currency: travelProject.currency })}
           onViewProject={() => navigate(`/plan/projects/${travelProject.id}`)}
         />
       ) : (
@@ -354,6 +363,10 @@ export default function HomePage() {
         />
       )}
 
+      {travelProject ? (
+        <TravelTimeline project={travelProject} cats={cats.map} accounts={accounts.map} tags={tags.map} />
+      ) : (
+        <>
       {/* 膠囊週曆（可平滑展開為全月，支援記帳與盈虧雙模式；旅遊模式下隱藏盈虧切換） */}
       <Calendar
         year={year}
@@ -431,7 +444,7 @@ export default function HomePage() {
               emoji="🧾"
               title="這天尚無記帳紀錄"
               text="花 3 秒記一筆，養成清晰的財務好習慣。"
-              action={<button className="btn tinted small" onClick={() => openAdd({ date: selected, projectId: travelProject?.id, currency: travelProject?.currency })}>記一筆</button>}
+              action={<button className="btn tinted small" onClick={() => openAdd({ date: selected })}>記一筆</button>}
             />
           ) : (
             <div className="day-ledger-list">
@@ -523,6 +536,8 @@ export default function HomePage() {
             </>
           )}
         </section>
+      )}
+        </>
       )}
 
       {/* 收件匣：自動記帳的待確認項目，放在首頁隨時核對 */}

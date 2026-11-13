@@ -41,6 +41,20 @@ export function tripDayInfo(project: Pick<Project, 'start' | 'end'>, today: stri
 
 const shortDate = (key: string) => `${Number(key.slice(5, 7))}/${Number(key.slice(8, 10))}`;
 
+export interface TripAllowance {
+  allowance: number;
+  todaySpent: number;
+  remaining: number;
+  over: boolean;
+}
+
+/** 每日額度＝預算÷總天數；todaySpent 為今日已花（專案幣別） */
+export function tripAllowance(budgetMinor: number | undefined, totalDays: number | null, todaySpent: number): TripAllowance | null {
+  if (!budgetMinor || !totalDays || totalDays <= 0) return null;
+  const allowance = Math.round(budgetMinor / totalDays);
+  return { allowance, todaySpent, remaining: allowance - todaySpent, over: todaySpent > allowance };
+}
+
 interface TravelHeroProps {
   project: Project;
   onSwitchNormal: () => void;
@@ -57,6 +71,8 @@ export function TravelHero({ project, onSwitchNormal, onAddTripExpense, onViewPr
   const budgetMinor = project.budgetMinor;
   const pct = budgetMinor ? Math.round((spentMinor / budgetMinor) * 100) : null;
   const isOver = budgetMinor ? spentMinor > budgetMinor : false;
+  const todaySpent = stats?.byDay.get(todayKey()) ?? 0;
+  const allow = tripAllowance(budgetMinor, info.totalDays, todaySpent);
 
   const stampLabel = info.phase === 'before' ? '天後出發' : info.phase === 'after' ? '天・已完成' : info.totalDays ? `共 ${info.totalDays} 天` : '旅程進行中';
 
@@ -121,6 +137,44 @@ export function TravelHero({ project, onSwitchNormal, onAddTripExpense, onViewPr
                   }}
                 />
               </div>
+            </div>
+          ) : null}
+          {allow ? (
+            <div className={`travel-allowance${allow.over && info.phase === 'during' ? ' over' : ''}`}>
+              {info.phase === 'during' ? (
+                <>
+                  <div className="travel-allowance-row">
+                    <span>今日額度・已花 <Amount minor={allow.todaySpent} currency={project.currency} tone="none" opts={{ decimals: 0 }} /></span>
+                    <span className="travel-allowance-val num">
+                      日均 <Amount minor={allow.allowance} currency={project.currency} tone="none" opts={{ decimals: 0 }} />
+                    </span>
+                  </div>
+                  <div className="bar">
+                    <i style={{ width: `${Math.min(100, Math.round((allow.todaySpent / allow.allowance) * 100))}%` }} />
+                  </div>
+                  <div className={`travel-allowance-sub num${allow.over ? ' over' : ''}`}>
+                    {allow.over ? (
+                      <>今日超支 <Amount minor={-allow.remaining} currency={project.currency} tone="none" opts={{ decimals: 0 }} /></>
+                    ) : (
+                      <>今天還可花 <Amount minor={allow.remaining} currency={project.currency} tone="none" opts={{ decimals: 0 }} /></>
+                    )}
+                  </div>
+                </>
+              ) : info.phase === 'before' ? (
+                <div className="travel-allowance-row">
+                  <span>日均預算・出發後每天平均可花</span>
+                  <span className="travel-allowance-val num">
+                    <Amount minor={allow.allowance} currency={project.currency} tone="none" opts={{ decimals: 0 }} />
+                  </span>
+                </div>
+              ) : (
+                <div className="travel-allowance-row">
+                  <span>日均花費・共 {info.totalDays} 天</span>
+                  <span className="travel-allowance-val num">
+                    <Amount minor={info.totalDays ? Math.round(spentMinor / info.totalDays) : 0} currency={project.currency} tone="none" opts={{ decimals: 0 }} />
+                  </span>
+                </div>
+              )}
             </div>
           ) : null}
         </div>

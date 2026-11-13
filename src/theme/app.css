@@ -444,6 +444,291 @@
   color: var(--accent-text);
 }
 
+/* 登機證「每日額度」：預算÷天數的日均，與今日已花對比 */
+.travel-allowance {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--sep);
+}
+.travel-allowance-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.74rem;
+  color: var(--text-2);
+}
+.travel-allowance-val {
+  font-weight: 700;
+  color: var(--text);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.travel-allowance .bar {
+  margin-top: 6px;
+}
+.travel-allowance .bar > i {
+  background: linear-gradient(90deg, var(--tv-palm), var(--tv-mango));
+}
+.travel-allowance.over .bar > i {
+  background: var(--danger);
+}
+.travel-allowance-sub {
+  margin-top: 4px;
+  font-size: 0.7rem;
+  color: var(--text-2);
+}
+.travel-allowance-sub.over {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+/* 旅程時間軸：逐日明信片＋虛線航線rail；今天珊瑚框、未來日虛線淡色 */
+.travel-topbar-range {
+  font-weight: 700;
+  color: var(--text);
+  padding: 6px 2px;
+}
+.travel-timeline {
+  margin-top: 14px;
+}
+.travel-timeline-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 4px;
+  margin-bottom: 10px;
+}
+.travel-timeline-head h3 {
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+.travel-timeline-sub {
+  font-size: 0.74rem;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.tt-recap {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.tt-recap-cell {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--sep);
+  box-shadow: 0 2px 0 var(--tv-paper-edge);
+  border-radius: 14px;
+  padding: 10px 8px;
+  text-align: center;
+}
+.tt-recap-val {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--accent-text);
+}
+.tt-recap-label {
+  font-size: 0.68rem;
+  color: var(--text-2);
+  margin-top: 2px;
+}
+.tt-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tt-day {
+  position: relative;
+  padding-left: 26px;
+  margin-bottom: 10px;
+}
+.tt-rail {
+  position: absolute;
+  left: 8px;
+  top: 0;
+  bottom: -10px;
+  width: 2px;
+}
+.tt-day:last-child .tt-rail {
+  bottom: auto;
+  height: 30px;
+}
+.tt-rail::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-left: 2px dashed var(--tv-lagoon);
+  opacity: 0.5;
+}
+.tt-dot {
+  position: absolute;
+  left: -4px;
+  top: 24px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--tv-mango);
+  box-shadow: 0 0 0 2px var(--tv-mango);
+}
+.tt-day.today .tt-dot {
+  background: var(--tv-coral);
+  box-shadow: 0 0 0 2px var(--tv-coral);
+}
+.tt-day.future .tt-dot {
+  background: var(--surface-3);
+  box-shadow: 0 0 0 2px var(--sep);
+}
+.tt-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--sep);
+  border-radius: 16px;
+  box-shadow: 0 2px 0 var(--tv-paper-edge);
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.tt-day.today .tt-card {
+  border-color: var(--tv-coral);
+  box-shadow: 0 2px 0 var(--tv-paper-edge), 0 0 0 2px rgba(255, 107, 87, 0.25);
+}
+.tt-day.future .tt-card {
+  background: var(--glass);
+  border-style: dashed;
+  box-shadow: none;
+}
+.tt-stamp {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid var(--tv-hibiscus);
+  color: var(--tv-hibiscus);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.95rem;
+  transform: rotate(-6deg);
+  position: relative;
+}
+.tt-stamp::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border: 1px dashed currentColor;
+  border-radius: 50%;
+  opacity: 0.6;
+}
+.tt-day.today .tt-stamp {
+  background: var(--tv-coral);
+  border-color: var(--tv-coral);
+  color: #fff;
+}
+.tt-day.future .tt-stamp {
+  border-color: var(--text-3);
+  color: var(--text-3);
+}
+.tt-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.tt-date {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tt-week {
+  color: var(--text-2);
+  font-weight: 500;
+  font-size: 0.74rem;
+}
+.tt-tag {
+  font-style: normal;
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--tv-coral);
+  color: #fff;
+}
+.tt-tag.pre {
+  background: var(--tv-mango);
+  color: #4a2b00;
+}
+.tt-cats {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.9rem;
+  min-height: 1.2em;
+}
+.tt-cat {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--sep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+}
+.tt-note {
+  font-size: 0.72rem;
+  color: var(--text-3);
+}
+.tt-amt {
+  flex: none;
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+.tt-day.future .tt-amt {
+  color: var(--text-3);
+  font-weight: 600;
+}
+.tt-chev {
+  flex: none;
+  color: var(--text-3);
+  transition: transform 0.18s ease;
+}
+.tt-day.open .tt-chev {
+  transform: rotate(180deg);
+}
+.tt-detail {
+  margin-top: 8px;
+  background: var(--surface);
+  border: 1px solid var(--sep);
+  border-radius: 14px;
+  box-shadow: 0 2px 0 var(--tv-paper-edge);
+  padding: 6px 10px 10px;
+}
+.tt-detail-list {
+  display: flex;
+  flex-direction: column;
+}
+.tt-empty {
+  font-size: 0.78rem;
+  color: var(--text-2);
+  padding: 8px 4px;
+}
+.tt-detail .btn {
+  margin-top: 6px;
+}
+
 /* 完整配色放在自由點綴色之後，避免儲存的 Accent 覆蓋主題搭配。 */
 :root:is([data-palette='graphite'], [data-palette='jade'], [data-palette='amber']) {
   --bg-elev: var(--surface);

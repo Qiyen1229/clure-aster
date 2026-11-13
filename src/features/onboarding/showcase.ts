@@ -100,6 +100,12 @@ export const CANDIDATES: ShowcaseFeature[] = [
     bullets: ['已實現損益與未實現浮動收盤損益自動算', '台股、美股雙幣別自動分行顯示', '點選任一日即可複盤當日持股與交易明細'],
     howto: '在首頁日曆上方點選「盈虧日曆」即可切換',
   },
+  {
+    id: 'travel-journey', icon: 'compass', title: '旅程時間軸', since: '4.1.35', power: 3, novelty: 4,
+    pitch: '旅遊模式把月曆換成逐日明信片，登機證告訴你今天還可花多少',
+    bullets: ['每天一張明信片：天數戳章、分類戳章、當日花費，點開直接記這天', '每日額度＝預算÷天數，對比今日已花、超支轉紅', '行前消費標「行前」、返程後自動變旅程回顧'],
+    howto: '建立旅遊專案後，首頁右上角切到「旅遊模式」',
+  },
 ];
 
 const vParts = (v: string) => v.split('.').map((n) => Number(n) || 0);
