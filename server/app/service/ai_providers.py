@@ -144,6 +144,16 @@ def _record(name: str, ok: bool, latency_ms: int | None = None, error: str = "")
             log.warning("AI 供應商 %s 連續失敗，冷卻 %s 秒", name, COOLDOWN_SECONDS)
 
 
+AUDIO_MIME = {
+    "mp4": "audio/mp4",
+    "webm": "audio/webm",
+    "ogg": "audio/ogg",
+    "wav": "audio/wav",
+    "mp3": "audio/mp3",
+    "aac": "audio/aac",
+}
+
+
 def _post(p: Provider, payload: dict, timeout: int) -> dict:
     req = urllib.request.Request(
         p.base_url.rstrip("/") + "/chat/completions", data=json.dumps(payload).encode(), method="POST",
@@ -151,6 +161,39 @@ def _post(p: Provider, payload: dict, timeout: int) -> dict:
     )
     with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 — 網址來自管理員設定的環境變數
         return json.loads(r.read().decode("utf-8"))
+
+
+def _post_gemini_audio(p: Provider, system: str, user: str, b64: str, fmt: str, max_tokens: int, timeout: int) -> str:
+    """Gemini OpenAI 相容端點的 input_audio 僅支援 mp3/wav；改走 Gemini 原生 generateContent inlineData 以完整支援 iOS mp4 / webm / ogg。"""
+    root = p.base_url.rstrip("/")
+    if root.endswith("/openai"):
+        root = root[:-len("/openai")]
+    url = f"{root}/models/{p.model}:generateContent"
+    payload = {
+        "systemInstruction": {"parts": [{"text": system}]},
+        "contents": [{
+            "role": "user",
+            "parts": [
+                {"text": user},
+                {"inlineData": {"mimeType": AUDIO_MIME.get(fmt, f"audio/{fmt}"), "data": b64}},
+            ],
+        }],
+        "generationConfig": {
+            "temperature": 0,
+            "maxOutputTokens": max_tokens,
+            "responseMimeType": "application/json",
+        },
+    }
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode(),
+        method="POST",
+        headers={"Content-Type": "application/json", "x-goog-api-key": p.api_key},
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 — 網址來自管理員設定的環境變數
+        resp = json.loads(r.read().decode("utf-8"))
+    parts = resp["candidates"][0]["content"]["parts"]
+    return "".join(str(part.get("text", "")) for part in parts if isinstance(part, dict))
 
 
 def clean_content(content: object) -> str:
@@ -200,21 +243,28 @@ def complete_json(
     for p in plist:
         if not p.configured or cooling_down(p.name):
             continue
+        if audio and p.name == "nvidia":
+            continue  # NVIDIA 文字模型不支援 input_audio，避免誤打失敗連帶觸發 5 分鐘冷卻
         tried += 1
-        # 圖片／音訊放在使用者訊息裡
-        if audio:
-            b64, fmt = audio
-            content: object = [{"type": "text", "text": user}, {"type": "input_audio", "input_audio": {"data": b64, "format": fmt}}]
-        elif images:
-            content = [{"type": "text", "text": user}, *({"type": "image_url", "image_url": {"url": u}} for u in images)]
-        else:
-            content = user
-        payload = {"model": p.model, "temperature": 0, "max_tokens": max_tokens,
-                   "messages": [{"role": "system", "content": system}, {"role": "user", "content": content}], **p.extra}
         t0 = time.monotonic()
         try:
-            resp = _post(p, payload, s.ai_timeout_seconds)
-            data = extract_json(clean_content(resp["choices"][0]["message"].get("content")))
+            if audio and (p.name == "gemini" or "generativelanguage.googleapis.com" in p.base_url):
+                b64, fmt = audio
+                raw_text = _post_gemini_audio(p, system, user, b64, fmt, max_tokens, s.ai_timeout_seconds)
+                data = extract_json(clean_content(raw_text))
+            else:
+                # 圖片／音訊放在使用者訊息裡
+                if audio:
+                    b64, fmt = audio
+                    content: object = [{"type": "text", "text": user}, {"type": "input_audio", "input_audio": {"data": b64, "format": fmt}}]
+                elif images:
+                    content = [{"type": "text", "text": user}, *({"type": "image_url", "image_url": {"url": u}} for u in images)]
+                else:
+                    content = user
+                payload = {"model": p.model, "temperature": 0, "max_tokens": max_tokens,
+                           "messages": [{"role": "system", "content": system}, {"role": "user", "content": content}], **p.extra}
+                resp = _post(p, payload, s.ai_timeout_seconds)
+                data = extract_json(clean_content(resp["choices"][0]["message"].get("content")))
         except (urllib.error.URLError, TimeoutError, OSError, ValueError, KeyError, IndexError, TypeError) as e:
             reason = describe_error(e)
             log.warning("AI 供應商 %s 失敗：%s", p.name, reason)
