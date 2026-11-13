@@ -141,16 +141,16 @@ export function setVoiceText(text: string) {
   set({ text, hint: '' });
 }
 
-/** 打開語音彈窗。hold：長按進來的（放開＝完成）。要在手勢事件裡呼叫 */
-export function openVoice(hold = false) {
+/** 打開語音彈窗。hold：按住進來的（放開＝完成）；fromGesture：在 pointerdown 同步呼叫時 iOS 也能直接收音 */
+export function openVoice(hold = false, fromGesture = false) {
   const supported = voiceSupported();
   finalText = '';
   quickEnds = 0;
   heard = false;
   set({ open: true, hold: hold && supported, listening: false, keyboard: false, text: '', hint: '', busy: false, prompt: false });
   if (!supported) set({ keyboard: true, hint: '這個瀏覽器沒有語音辨識：請按鍵盤上的麥克風（聽寫）說出來' });
-  // iPhone：長按計時器裡啟動會假裝在聽卻什麼都收不到，所以長按時不啟動（放開後請使用者點一下麥克風，見 releaseVoice）
-  else if (!(hold && isIOS())) startListening();
+  // 若非同步手勢觸發（例如長按計時器）且為 iOS，無法啟動收音；由同步 pointerdown 觸發（fromGesture=true）則可直接啟動
+  else if (fromGesture || !(hold && isIOS())) startListening();
 }
 
 export function closeVoice() {
@@ -183,10 +183,14 @@ export async function submitVoice(): Promise<boolean> {
   } finally { set({ busy: false }); }
 }
 
-/** 長按放開：等最後一段辨識結果進來（最多 1.5 秒），然後直接入帳；沒聽到內容就關掉 */
-export async function releaseVoice() {
+/** 放開語音鈕：輕點（< 350ms）轉為一般聆聽模式；長按（>= 350ms）等最後辨識結果後直接入帳 */
+export async function releaseVoice(elapsedMs?: number) {
   const s = useVoice.getState();
   if (!s.open || !s.hold) return;
+  if (elapsedMs !== undefined && elapsedMs < 350) {
+    set({ hold: false });
+    return;
+  }
   // 長按時沒聽到聲音（辨識沒能開始）：改成一般模式。
   // iPhone：實測長按放開（pointerup／touchend）都不算使用者手勢，這時啟動會假裝在聽卻收不到聲音，
   //         只有真正的點一下（click）可以 → 不自動開始，請使用者點一下麥克風（和一般點開語音彈窗一樣）

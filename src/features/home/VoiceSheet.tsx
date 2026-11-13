@@ -15,19 +15,11 @@ import { closeVoice, setVoiceText, startListening, stopListening, submitVoice, u
 import { CatIcon, Icon } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
 
-const RIBBONS = [
-  { c1: '#8b5cf6', c2: '#3b82f6', f: [0.9, 1.7], s: [1.0, -0.6], p: 0.0, up: 1.0, dn: 0.35 },
-  { c1: '#22d3ee', c2: '#60a5fa', f: [1.3, 2.3], s: [-0.8, 1.1], p: 1.3, up: 0.55, dn: 0.95 },
-  { c1: '#ec4899', c2: '#8b5cf6', f: [0.7, 1.9], s: [0.7, 0.5], p: 2.4, up: 0.9, dn: 0.6 },
-  { c1: '#38bdf8', c2: '#a78bfa', f: [1.6, 2.8], s: [-1.2, 0.9], p: 3.6, up: 0.5, dn: 0.6 },
-  { c1: '#f59e0b', c2: '#ec4899', f: [1.1, 2.1], s: [0.9, -1.0], p: 4.7, up: 0.35, dn: 0.3 },
-];
-const DUST = ['#a78bfa', '#67e8f9', '#f9a8d4', '#93c5fd'];
+const BAR_COUNT = 21;
 
 /**
- * 科技感波浪：幾條半透明的漸層絲帶（上下不對稱、相位不同）用「疊加」混色互相透出，
- * 中間一條發光細線，周圍有飄動的光點。振幅追著 level（語音辨識有回報就拉高、之後自然衰減）。
- * 偏好減少動態時只畫一格靜態畫面。
+ * 極簡聲紋律動條：單色細膠囊直條隨語音音量柔順起伏，貼合 Aster 設計語言與當前主題色。
+ * 偏好減少動態時只繪製靜態一格。
  */
 function Wave({ active }: { active: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -45,74 +37,36 @@ function Wave({ active }: { active: boolean }) {
     cv.height = H * dpr;
     ctx.scale(dpr, dpr);
     const cy = H / 2;
-    const dust = Array.from({ length: 90 }, () => ({
-      x: Math.random() * W, off: (Math.random() + Math.random() + Math.random() - 1.5) * 1.2, v: 0.15 + Math.random() * 0.45,
-      r: 0.5 + Math.random() * 1.1, c: DUST[Math.floor(Math.random() * DUST.length)], ph: Math.random() * 6.28,
-    }));
-    const env = (x: number) => Math.pow(Math.sin((Math.PI * x) / W), 1.4);
-    const grads = RIBBONS.map((r) => {
-      const g = ctx.createLinearGradient(0, 0, W, 0);
-      g.addColorStop(0, r.c1); g.addColorStop(1, r.c2);
-      return g;
-    });
-    const line = ctx.createLinearGradient(0, 0, W, 0);
-    line.addColorStop(0, 'rgba(139,92,246,0)'); line.addColorStop(0.25, 'rgba(139,92,246,0.9)'); line.addColorStop(0.5, 'rgba(103,232,249,1)');
-    line.addColorStop(0.75, 'rgba(236,72,153,0.9)'); line.addColorStop(1, 'rgba(236,72,153,0)');
+    const barW = 2.5;
+    const step = Math.min(10, (W - 32) / BAR_COUNT);
+    const startX = (W - (BAR_COUNT - 1) * step) / 2;
     let t = 0;
-    let amp = 0.04;
+    let amp = 0.08;
     let raf = 0;
     const draw = () => {
-      const target = activeRef.current ? 0.14 + voiceLevel.current * 0.86 : 0.035;
-      amp += (target - amp) * 0.14;
-      voiceLevel.current *= 0.93;
-      t += 0.035 + amp * 0.09;
-      const A = amp * H * 0.5;
+      const target = activeRef.current ? 0.22 + voiceLevel.current * 0.78 : 0.08;
+      amp += (target - amp) * 0.16;
+      voiceLevel.current *= 0.92;
+      t += 0.055 + amp * 0.07;
+      const color = getComputedStyle(cv).color || '#0a84ff';
       ctx.clearRect(0, 0, W, H);
-      ctx.globalCompositeOperation = 'lighter';
-      RIBBONS.forEach((r, k) => {
-        const top: number[] = [];
-        const bot: number[] = [];
-        const xs: number[] = [];
-        for (let x = 0; x <= W; x += 4) {
-          const u = (x / W) * Math.PI * 2;
-          const a = 0.5 + 0.5 * (0.6 * Math.sin(u * r.f[0] + t * r.s[0] + r.p) + 0.4 * Math.sin(u * r.f[1] + t * r.s[1] + r.p * 1.7));
-          const b = 0.5 + 0.5 * (0.6 * Math.sin(u * r.f[1] + t * r.s[1] * 0.8 + r.p * 2.3) + 0.4 * Math.sin(u * r.f[0] - t * r.s[0] + r.p * 0.6));
-          const e = env(x);
-          xs.push(x);
-          top.push(cy - A * e * r.up * a);
-          bot.push(cy + A * e * r.dn * b);
-        }
+      ctx.fillStyle = color;
+      for (let i = 0; i < BAR_COUNT; i++) {
+        const norm = (i / (BAR_COUNT - 1)) * 2 - 1; // -1..1
+        const bell = Math.cos(norm * Math.PI * 0.5);
+        const wave = activeRef.current
+          ? 0.45 + 0.55 * (0.65 * Math.sin(t * 2.2 + i * 0.55) + 0.35 * Math.cos(t * 1.4 - i * 0.85))
+          : 0.2;
+        const maxH = H * 0.62;
+        const h = Math.max(4, maxH * amp * bell * (0.4 + 0.6 * wave));
+        const x = startX + i * step - barW / 2;
+        const y = cy - h / 2;
+        ctx.globalAlpha = activeRef.current ? 0.45 + 0.55 * bell : 0.25 + 0.15 * bell;
         ctx.beginPath();
-        xs.forEach((x, i) => (i ? ctx.lineTo(x, top[i]) : ctx.moveTo(x, top[i])));
-        for (let i = xs.length - 1; i >= 0; i--) ctx.lineTo(xs[i], bot[i]);
-        ctx.closePath();
-        ctx.globalAlpha = 0.2;
-        ctx.fillStyle = grads[k];
+        ctx.roundRect(x, y, barW, h, barW / 2);
         ctx.fill();
-        ctx.globalAlpha = 0.75;
-        ctx.lineWidth = 1.1;
-        ctx.strokeStyle = grads[k];
-        ctx.stroke();
-      });
-      // 中間發光細線
-      ctx.globalAlpha = 1;
-      ctx.lineWidth = 1.6;
-      ctx.strokeStyle = line;
-      ctx.shadowColor = 'rgba(103,232,249,0.9)';
-      ctx.shadowBlur = 8;
-      ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(W, cy); ctx.stroke();
-      ctx.shadowBlur = 0;
-      // 光點：集中在波峰附近，飄動閃爍
-      for (const d of dust) {
-        d.x += d.v * (0.4 + amp * 2);
-        if (d.x > W) d.x = 0;
-        const y = cy + d.off * A * 1.5 * env(d.x) + Math.sin(t * 2 + d.ph) * 2;
-        ctx.globalAlpha = (0.25 + 0.6 * Math.abs(Math.sin(t * 1.6 + d.ph))) * (0.35 + amp * 1.4) * Math.min(1, env(d.x) * 3);
-        ctx.fillStyle = d.c;
-        ctx.beginPath(); ctx.arc(d.x, y, d.r, 0, 6.283); ctx.fill();
       }
       ctx.globalAlpha = 1;
-      ctx.globalCompositeOperation = 'source-over';
       if (!reduce) raf = requestAnimationFrame(draw);
     };
     draw();

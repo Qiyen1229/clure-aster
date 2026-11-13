@@ -2224,11 +2224,36 @@ button.row:active, a.row:active { transform: scale(0.985); transition-duration: 
 html.voice-holding, html.voice-holding * { -webkit-user-select: none !important; user-select: none !important; -webkit-touch-callout: none !important; }
 html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: none; }
 
-.voice { display: flex; flex-direction: column; gap: 10px; padding-bottom: 4px; }
+.voice { display: flex; flex-direction: column; gap: 12px; padding-bottom: 4px; }
 .voice-wave {
-  width: 100%; height: 148px; display: block; border-radius: 18px;
-  background: radial-gradient(120% 140% at 50% 50%, #12183f 0%, #080b22 55%, #04060f 100%);
-  box-shadow: inset 0 0 0 1px rgba(139, 92, 246, 0.25);
+  width: 100%; height: 64px; display: block; border-radius: 16px;
+  background: var(--surface-2);
+  border: 0.5px solid var(--sep);
+  color: var(--accent);
+}
+.home-voice-fab {
+  position: fixed;
+  right: 16px;
+  bottom: calc(var(--tabbar-h) + var(--safe-b) + 14px);
+  z-index: 40;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
+  border: 0.5px solid var(--glass-border);
+  box-shadow: var(--shadow);
+  color: var(--accent-text);
+  cursor: pointer;
+  touch-action: none;
+  transition: transform 140ms var(--ease), box-shadow 140ms ease;
+}
+.home-voice-fab.pressing, .home-voice-fab:active {
+  transform: scale(0.91);
+  box-shadow: 0 0 0 4px var(--accent-soft), var(--shadow);
 }
 .voice-status { margin: -4px 0 0; text-align: center; font-size: 0.85rem; color: var(--text-2); min-height: 1.2em; }
 .voice-box { display: flex; gap: 8px; align-items: flex-end; background: var(--surface-2); border-radius: 16px; padding: 8px 8px 8px 12px; }
