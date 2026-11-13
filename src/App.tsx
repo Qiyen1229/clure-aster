@@ -9,6 +9,7 @@ import { TabBar } from './app/TabBar';
 import { ActionSheetHost, PrivacyShield, SnackbarHost, UpdatePrompt } from './app/overlays';
 import { WhatsNewHost } from './features/whatsnew/WhatsNew';
 import HomePage from './features/home/HomePage';
+import { TravelScenery } from './features/home/TravelScenery';
 import { useSettings } from './stores/settings';
 import { useUI, type AddMode } from './stores/ui';
 import { SkeletonRows } from './ui/controls';
@@ -244,6 +245,7 @@ function usePageStallGuard(pathname: string) {
 
 export default function App() {
   const onboarded = useSettings((s) => s.onboarded);
+  const travelModeProjectId = useSettings((s) => s.travelModeProjectId);
   const location = useLocation();
   useShortcuts();
   const locked = useLock((s) => s.locked);
@@ -269,6 +271,7 @@ export default function App() {
     <div className="app" data-nav={nav.dir} data-dock={nav.dock ? '1' : undefined}>
       {/* 鎖定時整個主畫面（頁面、導覽列、各種面板與提示）都不渲染：DOM 裡沒有任何餘額或帳目，Tab 鍵也移不進去 */}
       {!locked && (<>
+      {travelModeProjectId && <TravelScenery />}
       <RouteErrorBoundary>
         <Suspense fallback={<main className="page"><SkeletonRows n={5} /></main>}>
           <Routes>

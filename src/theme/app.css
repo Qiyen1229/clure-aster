@@ -83,21 +83,7 @@
 /* 亮色系主題色上的文字改用深色，確保對比度 ≥ 4.5（WCAG AA） */
 :root[data-accent='cyan'], :root[data-accent='gold'], :root[data-accent='orange'], :root[data-accent='green'] { --on-accent: #06181c; }
 
-/* 旅遊模式看板樣式 */
-.travel-hero {
-  padding: 16px 18px 18px;
-  border-radius: 18px;
-  background: var(--surface);
-  border: 1px solid var(--sep);
-  margin-bottom: 14px;
-}
-.travel-hero-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-  gap: 8px;
-}
+/* ---------- 旅遊模式「島嶼假期」：登機證看板＋島嶼天空背景＋明信片卡片 ---------- */
 .travel-mode-badge-group {
   display: flex;
   align-items: center;
@@ -106,17 +92,12 @@
 }
 .travel-mode-chip {
   font-size: 0.72rem;
-  font-weight: 600;
-  padding: 2px 7px;
-  border-radius: 6px;
-  background: var(--accent);
-  color: var(--on-accent, #ffffff);
-  letter-spacing: 0.02em;
-}
-.travel-hero-project-name {
-  font-size: 0.95rem;
   font-weight: 700;
-  color: var(--text);
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--tv-mango, #ffb020);
+  color: #4a2b00;
+  letter-spacing: 0.04em;
 }
 .travel-hero-day-sub {
   font-size: 0.78rem;
@@ -127,8 +108,8 @@
   color: var(--text-2);
   background: var(--surface-2);
   border: 1px solid var(--sep);
-  padding: 3px 8px;
-  border-radius: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.15s ease;
@@ -137,16 +118,13 @@
   color: var(--text);
   border-color: var(--text-3);
 }
-.travel-hero-main {
-  margin-bottom: 12px;
-}
 .travel-hero-equiv {
   font-size: 0.85rem;
   color: var(--text-2);
   margin-top: 2px;
 }
 .travel-budget-block {
-  margin-bottom: 14px;
+  margin-top: 10px;
   padding: 10px 12px;
   border-radius: 12px;
   background: var(--surface-2);
@@ -155,21 +133,315 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 8px;
   font-size: 0.8rem;
 }
-.travel-budget-label {
-  color: var(--text-2);
-}
-.travel-budget-val {
-  color: var(--text);
-  font-weight: 600;
+.travel-budget-label { color: var(--text-2); }
+.travel-budget-val { color: var(--text); font-weight: 600; }
+.travel-budget-block .bar > i {
+  background: linear-gradient(90deg, var(--tv-mango), var(--tv-coral));
 }
 .travel-hero-actions {
   display: flex;
   gap: 8px;
+  padding: 12px 16px 0;
 }
-.travel-hero-actions .btn {
+.travel-hero-actions .btn { flex: 1; }
+
+/* 登機證看板 */
+.travel-pass {
+  position: relative;
+  border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--tv-paper-edge);
+  box-shadow: 0 10px 24px -12px rgba(23, 59, 74, 0.35), 0 2px 0 var(--tv-paper-edge);
+}
+.travel-pass-head {
+  padding: 14px 16px 12px;
+  border-radius: 19px 19px 0 0;
+  background: linear-gradient(120deg, #085a66, #0a6470 55%, #0c7683);
+  color: #ffffff;
+}
+:root[data-theme='dark'] .travel-pass-head {
+  background: linear-gradient(120deg, #123c46, #14454f 55%, #0e6a74);
+}
+.travel-pass-titles {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.travel-pass-titles .travel-switch-btn {
+  margin-left: auto;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.38);
+}
+.travel-pass-titles .travel-switch-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+.travel-pass-head .travel-hero-day-sub { color: rgba(255, 255, 255, 0.92); }
+.travel-pass-name {
+  margin: 8px 0 10px;
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.travel-pass-route {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+}
+.travel-pass-endpoint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.travel-pass-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--tv-mango);
+  box-shadow: 0 0 0 3px rgba(255, 176, 32, 0.25);
+}
+.travel-pass-dot.to {
+  background: var(--tv-coral);
+  box-shadow: 0 0 0 3px rgba(255, 107, 87, 0.25);
+}
+.travel-pass-route-line {
+  position: relative;
   flex: 1;
+  height: 0;
+  border-top: 2px dashed rgba(255, 255, 255, 0.5);
+}
+.travel-pass-route-line svg {
+  position: absolute;
+  left: 50%; top: -9px;
+  width: 15px; height: 15px;
+  transform: translateX(-50%);
+  fill: #ffffff;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+}
+/* 撕線＋兩側截角（背景色與天空層頂部同色，形成打洞效果） */
+.travel-pass-tear {
+  position: relative;
+  margin: 0 14px;
+  border-top: 2px dashed var(--sep);
+}
+.travel-pass-tear::before,
+.travel-pass-tear::after {
+  content: '';
+  position: absolute;
+  top: -9px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: var(--bg);
+}
+.travel-pass-tear::before { left: -23px; }
+.travel-pass-tear::after { right: -23px; }
+.travel-pass-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px 4px;
+}
+.travel-pass-main { flex: 1; min-width: 0; }
+.travel-pass .hero-amount { font-size: clamp(1.9rem, 9vw, 2.6rem); }
+.travel-pass-stamp {
+  position: relative;
+  flex: none;
+  width: 78px; height: 78px;
+  margin-top: 4px;
+  border-radius: 50%;
+  border: 2px solid var(--tv-hibiscus);
+  color: var(--tv-hibiscus);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  transform: rotate(-8deg);
+}
+.travel-pass-stamp::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  border: 1px dashed var(--tv-hibiscus);
+  opacity: 0.7;
+}
+.travel-pass-stamp-day {
+  font-size: 1.45rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.travel-pass-stamp-label {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: center;
+  max-width: 64px;
+}
+.travel-pass-barcode {
+  height: 22px;
+  margin: 12px 16px 14px;
+  opacity: 0.45;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--text) 0 2px,
+    transparent 2px 5px,
+    var(--text) 5px 6px,
+    transparent 6px 10px
+  );
+}
+.travel-pass-name,
+.travel-pass-stamp-day,
+:root[data-mode='travel'] .hero-amount {
+  font-family: ui-rounded, 'SF Pro Rounded', -apple-system, 'PingFang TC', 'Noto Sans TC', sans-serif;
+}
+
+/* 島嶼天空背景層：固定、純裝飾、不攔截任何操作；頂部 40% 與 --bg 同色供撕線截角無縫接合 */
+.travel-scenery {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background: linear-gradient(180deg, #7ed0e8 0%, #7ed0e8 40%, #a8e4ec 56%, #ffe9c7 76%, #ffd9a8 100%);
+}
+:root[data-theme='dark'] .travel-scenery {
+  background: linear-gradient(180deg, #131b36 0%, #131b36 40%, #2a2c5e 58%, #6a3d7a 78%, #c96a4f 100%);
+}
+:root[data-mode='travel'] .app { z-index: 0; }
+.ts-sun {
+  position: absolute;
+  top: calc(var(--safe-t) + 30px);
+  right: 26px;
+  width: 74px; height: 74px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 35%, #ffe9a8, #ffb020 62%, #ff9d3d);
+  box-shadow: 0 0 44px 10px rgba(255, 176, 32, 0.45);
+}
+.ts-sun::after {
+  content: '';
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  border: 2px dashed rgba(255, 255, 255, 0.55);
+  animation: ts-spin 48s linear infinite;
+}
+:root[data-theme='dark'] .ts-sun {
+  width: 64px; height: 64px;
+  background: radial-gradient(circle at 38% 35%, #fff8ec, #e8dcc8 60%, #c9bed9);
+  box-shadow: 0 0 40px 8px rgba(255, 243, 226, 0.28);
+}
+:root[data-theme='dark'] .ts-sun::after { border-color: rgba(255, 243, 226, 0.35); }
+/* 手機直式：頂部空間被功能列佔滿，硬邊圓盤會被裁成色帶；改以柔光暈從右上角灑下，
+   完整圓盤＋光環保留給有開放天空的寬螢幕 */
+@media (max-width: 719px) {
+  .ts-sun {
+    top: calc(var(--safe-t) - 34px);
+    right: -34px;
+    width: 150px; height: 150px;
+    background: radial-gradient(circle, rgba(255, 233, 168, 0.95), rgba(255, 176, 32, 0.4) 42%, transparent 70%);
+    box-shadow: none;
+  }
+  .ts-sun::after { display: none; }
+  :root[data-theme='dark'] .ts-sun {
+    background: radial-gradient(circle, rgba(255, 248, 236, 0.75), rgba(201, 190, 217, 0.28) 42%, transparent 70%);
+    box-shadow: none;
+  }
+}
+.ts-cloud {
+  position: absolute;
+  left: 0;
+  width: 120px; height: 34px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  filter: blur(1px);
+}
+.ts-cloud::before {
+  content: '';
+  position: absolute;
+  left: 22px; top: -16px;
+  width: 46px; height: 30px;
+  border-radius: 50%;
+  background: inherit;
+}
+.ts-cloud.c1 { top: calc(var(--safe-t) + 14px); animation: ts-drift 75s linear infinite; animation-delay: -20s; }
+.ts-cloud.c2 { top: calc(var(--safe-t) + 40px); width: 84px; height: 24px; opacity: 0.75; animation: ts-drift 100s linear infinite; animation-delay: -55s; }
+.ts-cloud.c2::before { left: 15px; top: -11px; width: 32px; height: 21px; }
+:root[data-theme='dark'] .ts-cloud { background: rgba(255, 255, 255, 0.14); }
+.ts-plane {
+  position: absolute;
+  top: 0; left: 0;
+  width: 26px; height: 26px;
+  fill: #ffffff;
+  opacity: 0;
+  filter: drop-shadow(0 2px 3px rgba(23, 59, 74, 0.3));
+  animation: ts-fly 30s linear infinite;
+  animation-delay: -6s;
+}
+:root[data-theme='dark'] .ts-plane { fill: rgba(255, 243, 226, 0.8); }
+.ts-sea {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 15vh;
+  background: linear-gradient(180deg, rgba(14, 154, 167, 0.55), rgba(8, 90, 102, 0.75));
+}
+:root[data-theme='dark'] .ts-sea {
+  background: linear-gradient(180deg, rgba(20, 69, 79, 0.8), rgba(10, 16, 38, 0.95));
+}
+.ts-wave {
+  position: absolute;
+  left: 0;
+  width: 200%;
+  height: 22px;
+  animation: ts-wave 11s linear infinite;
+}
+.ts-wave path { fill: rgba(255, 249, 240, 0.5); }
+.ts-wave.w1 { bottom: calc(15vh - 10px); }
+.ts-wave.w2 { bottom: calc(15vh - 16px); opacity: 0.5; animation-duration: 17s; animation-direction: reverse; }
+:root[data-theme='dark'] .ts-wave path { fill: rgba(53, 196, 201, 0.3); }
+@keyframes ts-spin { to { transform: rotate(360deg); } }
+@keyframes ts-drift {
+  from { transform: translateX(-160px); }
+  to { transform: translateX(105vw); }
+}
+@keyframes ts-fly {
+  0% { transform: translate(-12vw, 42vh) rotate(-6deg); opacity: 0; }
+  6% { opacity: 0.9; }
+  90% { opacity: 0.9; }
+  100% { transform: translate(112vw, 26vh) rotate(-6deg); opacity: 0; }
+}
+@keyframes ts-wave { to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) {
+  .ts-sun::after, .ts-cloud.c1, .ts-cloud.c2, .ts-wave.w1, .ts-wave.w2 { animation: none; }
+  .ts-plane { display: none; }
+  .ts-cloud.c1 { left: 16%; }
+  .ts-cloud.c2 { left: 58%; }
+}
+
+/* 旅遊模式：卡片變明信片（暖紙＋硬邊陰影），登機證主按鈕換珊瑚色 */
+:root[data-mode='travel'] .card,
+:root[data-mode='travel'] .list {
+  border: 1px solid var(--sep);
+  box-shadow: 0 2px 0 var(--tv-paper-edge);
+}
+:root[data-mode='travel'] .travel-pass .btn.tinted {
+  background: var(--tv-coral);
+  color: #33150e;
+}
+:root[data-mode='travel'] .travel-pass .btn.secondary {
+  background: var(--accent-soft);
+  color: var(--accent-text);
 }
 
 /* 完整配色放在自由點綴色之後，避免儲存的 Accent 覆蓋主題搭配。 */
@@ -249,40 +521,65 @@
   --on-accent: #302513;
 }
 
-/* 旅遊模式專屬輕快度假色彩：放在所有主題色之後確保覆蓋生效 */
+/* 旅遊模式專屬主題「島嶼假期」：海空漸層背景＋暖紙明信片卡片＋珊瑚／芒果點綴。
+   放在所有主題色之後確保覆蓋生效；夜間自動切換為黃昏夜航版本。 */
 :root[data-mode='travel'] {
-  --bg: #eef7fb;
-  --bg-elev: #ffffff;
-  --surface: #ffffff;
-  --surface-2: #e2f1f8;
-  --surface-3: #d2e7f2;
-  --glass: rgba(244, 250, 254, 0.84);
-  --glass-border: rgba(2, 132, 199, 0.14);
-  --text: #0f2537;
-  --text-2: #46657d;
-  --text-3: #7592a8;
-  --sep: #d4e5f0;
-  --accent: #0284c7;
-  --accent-text: #0369a1;
-  --accent-soft: #dff2fc;
+  --bg: #7ed0e8;
+  --bg-elev: #fff9f0;
+  --surface: #fff9f0;
+  --surface-2: #fdeedc;
+  --surface-3: #f6dfc4;
+  --glass: rgba(255, 249, 240, 0.88);
+  --glass-border: rgba(23, 59, 74, 0.14);
+  --text: #173b4a;
+  --text-2: #4a6b78;
+  --text-3: #7c97a2;
+  --sep: #ecd9c0;
+  --accent: #0e9aa7;
+  --accent-text: #0b6e78;
+  --accent-soft: #d9f2f0;
   --on-accent: #ffffff;
+  --danger: #d64545;
+  --warning: #a36100;
+  --success: #2fa36b;
+  --up-red: #d64545;
+  --down-green: #2fa36b;
+  --tv-coral: #ff6b57;
+  --tv-mango: #ffb020;
+  --tv-hibiscus: #c2255c;
+  --tv-palm: #2fa36b;
+  --tv-lagoon: #0e9aa7;
+  --tv-paper-edge: rgba(23, 59, 74, 0.1);
+  color-scheme: light;
 }
 :root[data-theme='dark'][data-mode='travel'] {
-  --bg: #081520;
-  --bg-elev: #0e1e2c;
-  --surface: #112232;
-  --surface-2: #182f44;
-  --surface-3: #223f59;
-  --glass: rgba(14, 30, 44, 0.82);
-  --glass-border: rgba(56, 189, 248, 0.16);
-  --text: #edf6fc;
-  --text-2: #9bc0d9;
-  --text-3: #648ca8;
-  --sep: #223e54;
-  --accent: #38bdf8;
-  --accent-text: #7dd3fc;
-  --accent-soft: rgba(56, 189, 248, 0.18);
+  --bg: #131b36;
+  --bg-elev: #262038;
+  --surface: #262038;
+  --surface-2: #322a46;
+  --surface-3: #3e3556;
+  --glass: rgba(38, 32, 56, 0.86);
+  --glass-border: rgba(111, 224, 222, 0.16);
+  --text: #fff3e2;
+  --text-2: #c9bed9;
+  --text-3: #9a8fb0;
+  --sep: #3e3556;
+  --accent: #35c4c9;
+  --accent-text: #6fe0de;
+  --accent-soft: rgba(53, 196, 201, 0.16);
   --on-accent: #062133;
+  --danger: #ff7b72;
+  --warning: #ffc65c;
+  --success: #52d695;
+  --up-red: #ff7b72;
+  --down-green: #52d695;
+  --tv-coral: #ff8a70;
+  --tv-mango: #ffc65c;
+  --tv-hibiscus: #ff7baa;
+  --tv-palm: #52d695;
+  --tv-lagoon: #35c4c9;
+  --tv-paper-edge: rgba(0, 0, 0, 0.35);
+  color-scheme: dark;
 }
 
 /* 收支／漲跌顏色 */
@@ -1987,7 +2284,7 @@ button.stat.clickable:active {
 @media print {
   :root { --bg: #fff; --text: #000; --text-2: #444; --sep: #ccc; --surface-3: #eee; }
   html, body { background: #fff !important; color: #000; }
-  .no-print, .tabbar, .snackbar-wrap, .banner { display: none !important; }
+  .no-print, .tabbar, .snackbar-wrap, .banner, .travel-scenery { display: none !important; }
   .print-page { padding: 0; }
   .print-table tr { break-inside: avoid; }
   @page { margin: 14mm; }
