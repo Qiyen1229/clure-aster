@@ -22,7 +22,7 @@ from app.model import AiUsage, AppSetting, User
 from app.schema.ai import (
     AgentPlanRequest, AgentPlanResult, StatementEntry, StatementRequest, StatementResult, AiAdminOut, AiAdminUpdate, AiConsole, AiProviderInfo, AiStatus, AskRequest, AskResult, ChatRequest, BudgetPlanRequest, BudgetPlanResult, CategorizeItem,
     CategorizeRequest, CategorizeResult, ConsoleProvider, DayCount, InsightsRequest, InsightsResult, ParsedEntry, ParseEntryRequest,
-    ParseEntryResult, PriceCheckRequest, PriceCheckResult, ReceiptRequest, RecentCall, SearchPlanRequest, SearchPlanResult, ExplainRequest, TestResult, UsageTotals, UserUsage,
+    ParseEntryResult, PriceCheckRequest, PriceCheckResult, ReceiptRequest, RecentCall, SearchPlanRequest, SearchPlanResult, ExplainRequest, TestResult, TranscribeRequest, TranscribeResult, UsageTotals, UserUsage,
 )
 from app.service import ai_providers, ai_quota, ai_tasks
 from app.service.audit_service import AuditService
@@ -282,6 +282,14 @@ class AiService:
 
         entries = ai_tasks.run_task(self.db, user, "receipt", ai_tasks.RECEIPT, msg, validate, images=[body.image], fail_message="看不出這張照片的消費金額，請拍清楚一點或改用手動記帳")
         return ParseEntryResult(entries=entries, quota=self._quota(user))  # type: ignore[arg-type]
+
+    def transcribe(self, user: User, body: TranscribeRequest) -> TranscribeResult:
+        text = ai_tasks.run_task(
+            self.db, user, "transcribe", ai_tasks.TRANSCRIBE, "請將這段語音轉成繁體中文文字。",
+            ai_tasks.v_transcribe, audio=(body.audio_b64, body.format), prefer=("gemini",),
+            fail_message="語音辨識失敗，請再說一次或改用打字",
+        )
+        return TranscribeResult(text=str(text), quota=self._quota(user))  # type: ignore[arg-type]
 
     # ── 管理員 ──
 

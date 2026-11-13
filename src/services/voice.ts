@@ -1,98 +1,79 @@
 /**
- * 語音記帳引擎：瀏覽器的語音辨識 + 狀態（給 VoiceSheet 顯示）。
- * 放在全域而不是元件裡，因為「長按導覽列中間的按鈕」要在手指按下的那一刻就同步開始辨識
- * （iOS 只允許在使用者手勢裡啟動語音辨識），不能等元件渲染完才開始。
- *
- * 兩種用法：
- * - 長按（hold）：按住說話、放開就完成並直接入帳；沒聽到或看不懂金額時留在彈窗讓你修正
- * - 一般：在彈窗裡按麥克風開始／暫停，打勾入帳
+ * 語音記帳引擎：採用標準 Web MediaRecorder + AudioContext 音量偵測 + 後端 Gemini 語音轉文字。
+ * 徹底避開 iOS Standalone PWA 中 webkitSpeechRecognition（assistantd）短時間無法連續啟動的系統級限制，
+ * 支援真正的「按住說話、放開自動記帳」與「輕點錄音、講完點 ✓」，並提供即時真實聲紋振幅。
  */
 import { create } from 'zustand';
-
-export function speechRecognition(): (new () => any) | undefined {
-  return (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-}
+import { aiEnabledLocally, aiTranscribe } from './ai';
 
 interface VoiceState {
   open: boolean;
-  /** 這次是用長按開啟的（放開＝完成） */
+  /** 這次是用按住開啟的（放開＝停止並自動辨識入帳） */
   hold: boolean;
   listening: boolean;
   keyboard: boolean;
   text: string;
   hint: string;
   busy: boolean;
-  /** iPhone：長按放開後，要點一下麥克風才能開始聽（放開不算使用者手勢） */
   prompt: boolean;
 }
 
-export const useVoice = create<VoiceState>(() => ({ open: false, hold: false, listening: false, keyboard: false, text: '', hint: '', busy: false, prompt: false }));
+export const useVoice = create<VoiceState>(() => ({
+  open: false,
+  hold: false,
+  listening: false,
+  keyboard: false,
+  text: '',
+  hint: '',
+  busy: false,
+  prompt: false,
+}));
 const set = (p: Partial<VoiceState>) => useVoice.setState(p);
 
-/** 波浪的振幅來源：語音辨識有回報就拉高，畫面那邊每一格衰減 */
+/** 波浪的振幅來源：由 AudioContext AnalyserNode 即時驅動 */
 export const voiceLevel = { current: 0 };
 
-let rec: any = null;
-let recActive = false;
-let sessionSeq = 0;
-let want = false;
-let finalText = '';
-let startedAt = 0;
-let quickEnds = 0;
-/**
- * 真的聽到聲音了（有 onsoundstart／onspeechstart／辨識結果）。只有 onstart 不算：
- * iOS 在非手勢（長按的計時器）裡啟動時，onstart 照樣會觸發、也不報錯，但根本沒有收到任何聲音，之後放開也沒有結果
- */
-let heard = false;
-/** iPhone／iPad（含偽裝成 Mac 的 iPadOS）：確定不能在長按的計時器裡啟動語音辨識 */
-const isIOS = () => /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-/** 用過一次就保留：Sheet 要曾經掛載過才需要渲染（關閉動畫要播完） */
-export const voiceSupported = () => !!speechRecognition();
+let mediaStream: MediaStream | null = null;
+let mediaRecorder: MediaRecorder | null = null;
+let chunks: BlobPart[] = [];
+let audioCtx: AudioContext | null = null;
+let meterRaf = 0;
+let recordToken = 0;
 
-let watchdog = 0;
-let resetTimer = 0;
-let resetting = false;
-let lastReset = 0;
+export const voiceSupported = () =>
+  typeof navigator !== 'undefined' &&
+  !!navigator.mediaDevices?.getUserMedia &&
+  typeof MediaRecorder !== 'undefined';
 
-/**
- * iOS 的 assistantd 常在一輪辨識結束後仍佔用音訊階段，讓下一輪 start() 收不到聲音
- * （甚至 onstart 照樣觸發、完全靜默）。用 getUserMedia 取一下麥克風再立刻釋放，
- * 強迫 WebKit 重置音訊階段。排在每輪結束 250ms 後執行：新一輪若已開始就跳過，
- * 不打斷進行中的辨識；下次手勢啟動時麥克風就是乾淨的。
- */
-export function resetVoiceAudio() {
-  if (!isIOS()) return;
-  window.clearTimeout(resetTimer);
-  resetTimer = window.setTimeout(() => {
-    if (recActive || resetting) return;
-    const md = navigator.mediaDevices;
-    if (!md?.getUserMedia) return;
-    const now = Date.now();
-    if (now - lastReset < 400) return;
-    resetting = true;
-    lastReset = now;
-    md.getUserMedia({ audio: true })
-      .then((s: MediaStream) => { s.getTracks().forEach((t) => t.stop()); })
-      .catch(() => { /* 麥克風被拒或仍被佔用：忽略，下一輪手勢再試 */ })
-      .finally(() => { resetting = false; });
-  }, 250);
+type SpeechRecognitionCtor = new () => {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onstart: (() => void) | null;
+  onresult: ((e: unknown) => void) | null;
+  onend: (() => void) | null;
+  onerror: ((e: unknown) => void) | null;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+};
+
+/** 供 QuickEntry 等元件選用的瀏覽器原生語音辨識建構子（若不支援回傳 null） */
+export function speechRecognition(): SpeechRecognitionCtor | null {
+  if (typeof window === 'undefined') return null;
+  const w = window as unknown as { SpeechRecognition?: SpeechRecognitionCtor; webkitSpeechRecognition?: SpeechRecognitionCtor };
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
-/** detach 所有回呼：舊實例的延遲事件（onend／onerror／onresult）不能再碰到新 session 的狀態 */
-function detach(r: any) {
-  r.onstart = r.onaudiostart = r.onsoundstart = r.onspeechstart = r.onresult =
-    r.onerror = r.onspeechend = r.onsoundend = r.onaudioend = r.onend = r.onnomatch = null;
+/** 供其他元件於原生語音結束後釋放音訊狀態的相容 helper */
+export function resetVoiceAudio() {
+  cleanupAudio();
 }
 
 const blockEvent = (e: Event) => e.preventDefault();
 let guardTimer = 0;
 
-/**
- * 長按期間禁止選取文字與長按選單（iOS 長按會跳出放大鏡／選取，網頁沒有別的辦法關掉）：
- * - html.voice-holding：全部 user-select: none，並且讓彈窗不擋住手指（否則長按會落在彈窗的文字或輸入框上而變成選取）
- * - 攔截 selectstart／contextmenu，並清掉已經選到的範圍
- * 放開後稍等一下才解除，避免放開那一刻又觸發一次。
- */
 export function holdGuard(on: boolean) {
   window.clearTimeout(guardTimer);
   if (on) {
@@ -109,155 +90,201 @@ export function holdGuard(on: boolean) {
   }, 350);
 }
 
-function bump() { voiceLevel.current = Math.max(voiceLevel.current, 0.55 + Math.random() * 0.45); }
-
-/** 開始（或繼續）聆聽，接在目前的文字後面 */
-export function startListening() {
-  const SR = speechRecognition();
-  if (!SR) return;
-  const ios = isIOS();
-  // 一律建新實例：iOS 重用已結束的實例會鎖死音訊引擎（assistantd），
-  // 舊實例先 detach 所有回呼再 stop，延遲事件就不會污染新 session
-  window.clearTimeout(watchdog);
-  window.clearTimeout(resetTimer);
-  const prev = rec;
-  rec = null;
-  recActive = false;
-  if (prev) {
-    detach(prev);
-    try { if (ios) prev.stop(); else prev.abort(); } catch { /* 已停止 */ }
+function pickMime(): { mime: string; format: 'mp4' | 'webm' | 'ogg' } {
+  const candidates: { mime: string; format: 'mp4' | 'webm' | 'ogg' }[] = [
+    { mime: 'audio/mp4', format: 'mp4' },
+    { mime: 'audio/webm;codecs=opus', format: 'webm' },
+    { mime: 'audio/webm', format: 'webm' },
+    { mime: 'audio/ogg;codecs=opus', format: 'ogg' },
+    { mime: 'audio/ogg', format: 'ogg' },
+  ];
+  for (const c of candidates) {
+    if (typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(c.mime)) return c;
   }
-  const sid = ++sessionSeq;
-  want = true;
-  heard = false;
-  finalText = useVoice.getState().text;
-  set({ keyboard: false, hint: '', prompt: false });
+  return { mime: '', format: 'mp4' };
+}
 
-  const r = new SR();
-  rec = r;
-  r.lang = 'zh-TW';
-  // iOS WebKit 開啟 continuous=true 或 interimResults=true 常導致 assistantd 佔用麥克風約 15-30 秒無法連續第二次啟動
-  r.continuous = !ios;
-  r.interimResults = !ios;
-  r.maxAlternatives = 1;
-  r.onstart = () => {
-    if (sid !== sessionSeq) return;
-    recActive = true;
-    startedAt = Date.now();
-    set({ listening: true });
-    if (ios) {
-      // iOS 有時 onstart 觸發了卻完全收不到聲音（音訊階段被鎖）：
-      // 7 秒內沒有任何聲音事件就自動停止並重置，請使用者再點一次，避免卡在「假裝在聽」
-      window.clearTimeout(watchdog);
-      watchdog = window.setTimeout(() => {
-        if (sid === sessionSeq && recActive && !heard) {
-          stopListening();
-          set({ hint: '沒收到聲音，請再點一次麥克風（或按鍵盤改用打字）' });
-        }
-      }, 7000);
+function cleanupAudio() {
+  if (meterRaf) {
+    cancelAnimationFrame(meterRaf);
+    meterRaf = 0;
+  }
+  voiceLevel.current = 0;
+  if (audioCtx) {
+    try { void audioCtx.close(); } catch { /* ignore */ }
+    audioCtx = null;
+  }
+  if (mediaStream) {
+    for (const track of mediaStream.getTracks()) {
+      try { track.stop(); } catch { /* ignore */ }
     }
-  };
-  r.onsoundstart = () => { if (sid === sessionSeq) { heard = true; bump(); } };
-  r.onspeechstart = () => { if (sid === sessionSeq) { heard = true; bump(); } };
-  r.onresult = (e: any) => {
-    if (sid !== sessionSeq) return;
-    let interim = '';
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      const res = e.results[i];
-      if (res.isFinal) finalText += res[0].transcript; else interim += res[0].transcript;
-    }
-    quickEnds = 0;
-    heard = true;
-    bump();
-    set({ text: finalText + interim });
-  };
-  r.onerror = (e: any) => {
-    if (sid !== sessionSeq) return;
-    recActive = false;
-    window.clearTimeout(watchdog);
-    if (rec === r) { rec = null; detach(r); resetVoiceAudio(); }
-    if (e.error === 'no-speech' || e.error === 'aborted') {
-      set({ listening: false });
-      return;
-    }
-    want = false;
-    if (useVoice.getState().hold && !heard) { set({ listening: false }); return; }
-    set({
-      listening: false,
-      hint: e.error === 'not-allowed' || e.error === 'service-not-allowed'
-        ? '無法使用麥克風或語音辨識：請在瀏覽器／iPhone 設定允許，或按鍵盤改用打字'
-        : '語音辨識失敗：請再按一次麥克風，或按鍵盤改用打字',
-    });
-  };
-  r.onend = () => {
-    if (sid !== sessionSeq) return;
-    recActive = false;
-    window.clearTimeout(watchdog);
-    set({ listening: false });
-    // iOS 在 setTimeout 裡重啟語音會失去手勢資格而卡死，停止即可；桌面／Android 才自動續聽
-    if (!want || ios) {
-      want = false;
-      if (rec === r) { rec = null; detach(r); resetVoiceAudio(); }
-      return;
-    }
-    quickEnds = Date.now() - startedAt < 1000 ? quickEnds + 1 : 0;
-    if (quickEnds >= 3) {
-      want = false;
-      if (rec === r) { rec = null; detach(r); }
-      set({ hint: '語音辨識中斷了，請再按一次麥克風' });
-      return;
-    }
-    setTimeout(() => {
-      if (want && sid === sessionSeq && rec === r) {
-        try { r.start(); recActive = true; } catch { /* 忽略 */ }
-      }
-    }, 150);
-  };
-
-  try {
-    r.start();
-    recActive = true;
-  } catch {
-    // 引擎忙線（上一輪音訊階段還沒釋放）：釋放這顆並重置音訊階段，稍候再點就能成功
-    recActive = false;
-    if (rec === r) { rec = null; detach(r); }
-    resetVoiceAudio();
-    set({ hint: '語音引擎忙線中，請稍候再點一次麥克風' });
+    mediaStream = null;
   }
 }
 
-/** 立刻停止：detach 回呼後 stop（iOS 用 stop 不用 abort，避免鎖死 PWA 音訊引擎），並重置音訊階段 */
-export function stopListening() {
-  want = false;
-  sessionSeq++;
-  window.clearTimeout(watchdog);
-  const r = rec;
-  rec = null;
-  recActive = false;
-  if (r) {
-    detach(r);
-    try { if (isIOS()) r.stop(); else r.abort(); } catch { /* 已停止 */ }
-    resetVoiceAudio();
+function startMeter(stream: MediaStream) {
+  const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Ctx) return;
+  try {
+    const ctx = new Ctx();
+    audioCtx = ctx;
+    const src = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    src.connect(analyser);
+    const data = new Uint8Array(analyser.fftSize);
+    const tick = () => {
+      if (!audioCtx) return;
+      analyser.getByteTimeDomainData(data);
+      let sum = 0;
+      for (let i = 0; i < data.length; i++) {
+        const v = (data[i] - 128) / 128;
+        sum += v * v;
+      }
+      const rms = Math.sqrt(sum / data.length);
+      // 靈敏度放大並平滑衰減，讓極簡聲紋自然跟著講話律動
+      const level = Math.min(1, rms * 5.5);
+      voiceLevel.current = Math.max(level, voiceLevel.current * 0.85);
+      meterRaf = requestAnimationFrame(tick);
+    };
+    tick();
+  } catch {
+    /* 部分環境若不支援 AudioContext 仍可正常錄音 */
   }
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const s = String(reader.result || '');
+      const idx = s.indexOf(',');
+      resolve(idx >= 0 ? s.slice(idx + 1) : s);
+    };
+    reader.onerror = () => reject(new Error('音訊讀取失敗'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/** 開始錄音 */
+export function startListening() {
+  if (!voiceSupported()) {
+    set({ keyboard: true, hint: '這個裝置不支援麥克風錄音，請直接輸入文字' });
+    return;
+  }
+  if (!aiEnabledLocally()) {
+    set({ keyboard: true, hint: '語音辨識需要開啟 AI 助理（已切換為文字輸入，也可使用 iOS 鍵盤麥克風聽寫）' });
+    return;
+  }
+  stopListening();
+  const token = ++recordToken;
+  set({ keyboard: false, hint: '', prompt: false, listening: true });
+
+  void navigator.mediaDevices
+    .getUserMedia({ audio: true })
+    .then((stream) => {
+      if (token !== recordToken || !useVoice.getState().open || !useVoice.getState().listening) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      mediaStream = stream;
+      chunks = [];
+      const { mime } = pickMime();
+      const rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      mediaRecorder = rec;
+      rec.ondataavailable = (ev) => {
+        if (ev.data && ev.data.size > 0) chunks.push(ev.data);
+      };
+      rec.onerror = () => {
+        cleanupAudio();
+        mediaRecorder = null;
+        set({ listening: false, hint: '錄音發生錯誤，請再試一次' });
+      };
+      rec.start(200);
+      startMeter(stream);
+    })
+    .catch(() => {
+      if (token !== recordToken) return;
+      set({
+        listening: false,
+        hint: '無法取得麥克風權限：請在瀏覽器／iPhone 設定允許麥克風，或改用鍵盤輸入',
+      });
+    });
+}
+
+/** 立刻中止錄音（丟棄音訊，不送出辨識） */
+export function stopListening() {
+  recordToken++;
+  const rec = mediaRecorder;
+  mediaRecorder = null;
+  if (rec && rec.state !== 'inactive') {
+    rec.ondataavailable = null;
+    rec.onstop = null;
+    try { rec.stop(); } catch { /* ignore */ }
+  }
+  chunks = [];
+  cleanupAudio();
   set({ listening: false });
 }
 
-/** 使用者改了文字（鍵盤修改）：之後再聽就接在這段後面 */
+/** 停止錄音並送給後端 Gemini 轉成文字 */
+export async function transcribeCurrentRecording(): Promise<string> {
+  const rec = mediaRecorder;
+  mediaRecorder = null;
+  const recordedFormat = rec?.mimeType?.includes('webm')
+    ? 'webm'
+    : rec?.mimeType?.includes('ogg')
+      ? 'ogg'
+      : 'mp4';
+
+  if (rec && rec.state !== 'inactive') {
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, 1200);
+      rec.onstop = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      try { rec.stop(); } catch { clearTimeout(timer); resolve(); }
+    });
+  }
+  cleanupAudio();
+  set({ listening: false });
+
+  const blob = new Blob(chunks, { type: rec?.mimeType || 'audio/mp4' });
+  chunks = [];
+  if (blob.size < 256) return '';
+
+  set({ busy: true, hint: '' });
+  try {
+    const b64 = await blobToBase64(blob);
+    const { text } = await aiTranscribe(b64, recordedFormat);
+    const clean = text.trim();
+    if (!clean) return '';
+    const prev = useVoice.getState().text.trim();
+    const next = prev ? `${prev} ${clean}` : clean;
+    set({ text: next });
+    return next;
+  } finally {
+    set({ busy: false });
+  }
+}
+
 export function setVoiceText(text: string) {
-  finalText = text;
   set({ text, hint: '' });
 }
 
-/** 打開語音彈窗。hold：按住進來的（放開＝完成）；fromGesture：在 pointerdown 同步呼叫時 iOS 也能直接收音 */
-export function openVoice(hold = false, fromGesture = false) {
-  const supported = voiceSupported();
-  finalText = '';
-  quickEnds = 0;
-  heard = false;
-  set({ open: true, hold: hold && supported, listening: false, keyboard: false, text: '', hint: '', busy: false, prompt: false });
-  if (!supported) set({ keyboard: true, hint: '這個瀏覽器沒有語音辨識：請按鍵盤上的麥克風（聽寫）說出來' });
-  // 若非同步手勢觸發（例如長按計時器）且為 iOS，無法啟動收音；由同步 pointerdown 觸發（fromGesture=true）則可直接啟動
-  else if (fromGesture || !(hold && isIOS())) startListening();
+export function openVoice(hold = false, _fromGesture = false) {
+  set({
+    open: true,
+    hold: hold && voiceSupported() && aiEnabledLocally(),
+    listening: false,
+    keyboard: false,
+    text: '',
+    hint: '',
+    busy: false,
+    prompt: false,
+  });
+  startListening();
 }
 
 export function closeVoice() {
@@ -265,18 +292,34 @@ export function closeVoice() {
   set({ open: false, hold: false, busy: false });
 }
 
-/** 文字轉成帳目並入帳；看不懂時回傳 false，留在彈窗讓使用者修正 */
+/** 文字轉成帳目並入帳；若仍在錄音中會先停止並辨識後再入帳 */
 export async function submitVoice(): Promise<boolean> {
+  if (useVoice.getState().busy) return false;
+  if (useVoice.getState().listening) {
+    try {
+      await transcribeCurrentRecording();
+    } catch (e) {
+      set({ hint: (e as Error).message });
+      return false;
+    }
+  }
   const t = useVoice.getState().text.trim();
-  if (!t || useVoice.getState().busy) return false;
-  stopListening();
+  if (!t) {
+    set({ hint: '沒有聽到語音內容，請再按一次麥克風說話' });
+    return false;
+  }
   set({ busy: true, hold: false });
   try {
     const [{ bookDrafts, draftsSmart }, { deleteTransactions, deleteTransfers }, { snackUndo }] = await Promise.all([
-      import('./quickentry'), import('@/db/repo/ledger'), import('@/stores/ui'),
+      import('./quickentry'),
+      import('@/db/repo/ledger'),
+      import('@/stores/ui'),
     ]);
     const { list, aiNote } = await draftsSmart(t);
-    if (!list.length) { set({ hint: `找不到金額：試試「午餐 120」或「計程車兩百三」${aiNote ?? ''}` }); return false; }
+    if (!list.length) {
+      set({ hint: `找不到金額：試試「午餐 120」或「計程車兩百三」${aiNote ?? ''}` });
+      return false;
+    }
     const r = await bookDrafts(list);
     closeVoice();
     snackUndo(`已記下 ${list.length} 筆`, async () => {
@@ -287,10 +330,12 @@ export async function submitVoice(): Promise<boolean> {
   } catch (e) {
     set({ hint: (e as Error).message });
     return false;
-  } finally { set({ busy: false }); }
+  } finally {
+    set({ busy: false });
+  }
 }
 
-/** 放開語音鈕：輕點（< 350ms）轉為一般聆聽模式；長按（>= 350ms）等最後辨識結果後直接入帳 */
+/** 放開語音鈕：輕點（< 350ms）轉為一般錄音模式繼續收音；長按（>= 350ms）停止錄音、轉文字並直接入帳 */
 export async function releaseVoice(elapsedMs?: number) {
   const s = useVoice.getState();
   if (!s.open || !s.hold) return;
@@ -298,46 +343,18 @@ export async function releaseVoice(elapsedMs?: number) {
     set({ hold: false });
     return;
   }
-  // 長按時沒聽到聲音（辨識沒能開始）：改成一般模式。
-  // iPhone：實測長按放開（pointerup／touchend）都不算使用者手勢，這時啟動會假裝在聽卻收不到聲音，
-  //         只有真正的點一下（click）可以 → 不自動開始，請使用者點一下麥克風（和一般點開語音彈窗一樣）
-  // Android／電腦：放開的這一刻還在手勢裡（所以這裡不能有 await 在前面），直接開始聽
-  if (!heard) {
-    stopListening();
-    set({ hold: false });
-    if (isIOS()) { set({ prompt: true }); return; }
-    startListening();
-    return;
+  set({ hold: false });
+  try {
+    const text = await transcribeCurrentRecording();
+    if (!useVoice.getState().open) return;
+    if (!text) {
+      closeVoice();
+      const { useUI } = await import('@/stores/ui');
+      useUI.getState().showSnack({ text: '沒有聽到內容，長按再說一次' });
+      return;
+    }
+    await submitVoice();
+  } catch (e) {
+    set({ hint: (e as Error).message });
   }
-  const r = rec;
-  want = false;
-  if (r) {
-    await new Promise<void>((resolve) => {
-      const t = setTimeout(resolve, 1500);
-      r.onend = () => { clearTimeout(t); resolve(); };
-      try { r.stop(); } catch { clearTimeout(t); resolve(); }
-    });
-    rec = null;
-    recActive = false;
-    window.clearTimeout(watchdog);
-    detach(r);
-    resetVoiceAudio();
-  }
-  // 若等待期間使用者按了取消（open 已為 false），直接退出，不入帳
-  if (!useVoice.getState().open) return;
-  set({ listening: false, hold: false });
-  if (!useVoice.getState().text.trim()) {
-    closeVoice();
-    const { useUI } = await import('@/stores/ui');
-    useUI.getState().showSnack({ text: '沒有聽到內容，長按再說一次' });
-    return;
-  }
-  await submitVoice();
-}
-
-// 進背景時 iOS 會凍結音訊階段，留著的實例回前景後必死：先乾淨釋放並重置，回來重點麥克風即可
-if (typeof document !== 'undefined') {
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden' && rec) stopListening();
-  });
 }

@@ -293,3 +293,8 @@ export async function aiStatement(file: File): Promise<{ entries: StatementEntry
   const ctx = await parseContext();
   return aiPost<{ entries: StatementEntry[]; total: number | null; quota: AiQuota }>('/ai/statement', { image, today: ctx.today });
 }
+
+/** 語音記帳：把錄音音訊送給 AI（後端優先使用 Gemini）轉成繁體中文文字（1 點額度） */
+export async function aiTranscribe(audioBase64: string, format: 'mp4' | 'webm' | 'ogg' | 'wav' | 'mp3' | 'aac'): Promise<{ text: string; quota: AiQuota }> {
+  return aiPost<{ text: string; quota: AiQuota }>('/ai/transcribe', { audio_b64: audioBase64, format });
+}

@@ -181,16 +181,34 @@ def extract_json(text: str) -> object:
     raise ValueError("no json")
 
 
-def complete_json(system: str, user: str, *, max_tokens: int = 800, images: list[str] | None = None) -> tuple[object, str, str]:
+def complete_json(
+    system: str,
+    user: str,
+    *,
+    max_tokens: int = 800,
+    images: list[str] | None = None,
+    audio: tuple[str, str] | None = None,
+    prefer: tuple[str, ...] | None = None,
+) -> tuple[object, str, str]:
     """依序嘗試各供應商，回傳 (解析後的 JSON, 供應商名稱, 模型)。全部失敗拋 503。"""
     s = get_settings()
+    plist = list(providers(s))
+    if prefer:
+        rank = {name: i for i, name in enumerate(prefer)}
+        plist.sort(key=lambda p: rank.get(p.name, len(rank)))
     tried = 0
-    for p in providers(s):
+    for p in plist:
         if not p.configured or cooling_down(p.name):
             continue
         tried += 1
-        # 圖片（data URL）放在使用者訊息裡；Gemini 等支援視覺的模型才看得懂
-        content: object = user if not images else [{"type": "text", "text": user}, *({"type": "image_url", "image_url": {"url": u}} for u in images)]
+        # 圖片／音訊放在使用者訊息裡
+        if audio:
+            b64, fmt = audio
+            content: object = [{"type": "text", "text": user}, {"type": "input_audio", "input_audio": {"data": b64, "format": fmt}}]
+        elif images:
+            content = [{"type": "text", "text": user}, *({"type": "image_url", "image_url": {"url": u}} for u in images)]
+        else:
+            content = user
         payload = {"model": p.model, "temperature": 0, "max_tokens": max_tokens,
                    "messages": [{"role": "system", "content": system}, {"role": "user", "content": content}], **p.extra}
         t0 = time.monotonic()

@@ -180,6 +180,16 @@ class StatementRequest(BaseModel):
     today: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
 
 
+class TranscribeRequest(BaseModel):
+    audio_b64: str = Field(min_length=32, max_length=6_000_000, pattern=r"^[A-Za-z0-9+/=]+$")
+    format: Literal["mp4", "webm", "ogg", "wav", "mp3", "aac"] = "mp4"
+
+
+class TranscribeResult(BaseModel):
+    text: str
+    quota: AiQuota
+
+
 class StatementEntry(BaseModel):
     date: str
     amount: float

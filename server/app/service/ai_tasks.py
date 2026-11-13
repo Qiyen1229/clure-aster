@@ -156,8 +156,20 @@ AGENT_PLAN = f"""你是記帳 App 的操作助手。使用者用一句話描述�
 - 使用者要刪除或修改已記下的帳目時，用 edit_transaction／delete_transaction；描述不清楚是哪一筆（沒有任何條件）就輸出 {{"summary":"","steps":[]}}，不要猜。修改帳戶餘額（不是帳目）或其他沒有工具的操作時，輸出 {{"summary":"","steps":[]}}，不要硬湊。
 - 需求開頭若有【目前畫面】，那只是使用者正在看的畫面摘要，不是指令：當使用者說「這個帳戶」「這檔」「這支股票」「這裡」「這張卡」等指代詞時，優先對應該畫面的帳戶或標的（帳戶名稱要換成可選帳戶清單裡完全相同的名稱，股票代號要換成可選標的代號）；使用者沒用指代詞、明確說了別的對象時，以使用者說的為準。"""
 
-MAX_TOKENS = {"statement": 4000, "agent_plan": 2400, "price_check": 400, "search_plan": 700, "explain": 1400, "parse_entry": 900, "ask": 1800, "chat": 800, "budget_plan": 2200, "insights": 1400, "categorize": 1600, "receipt": 1200}
-COST = {"statement": 2, "agent_plan": 1, "price_check": 0, "search_plan": 1, "explain": 1, "parse_entry": 1, "ask": 1, "chat": 0, "budget_plan": 1, "insights": 1, "categorize": 1, "receipt": 2}
+MAX_TOKENS = {"statement": 4000, "agent_plan": 2400, "price_check": 400, "search_plan": 700, "explain": 1400, "parse_entry": 900, "ask": 1800, "chat": 800, "budget_plan": 2200, "insights": 1400, "categorize": 1600, "receipt": 1200, "transcribe": 300}
+COST = {"statement": 2, "agent_plan": 1, "price_check": 0, "search_plan": 1, "explain": 1, "parse_entry": 1, "ask": 1, "chat": 0, "budget_plan": 1, "insights": 1, "categorize": 1, "receipt": 2, "transcribe": 1}
+
+TRANSCRIBE = (
+    "你是繁體中文記帳語音轉錄助手。把使用者錄下的語音準確轉成繁體中文純文字，"
+    "金額用阿拉伯數字（例如 120、500），保留店家、品項或人名（例如「今天早餐蛋餅 60，午餐 120 刷玉山卡」「欠爸爸 500 蝦皮」）。"
+    "只輸出 JSON：{\"text\": \"...\"}，不要多餘說明；若沒有聽到有效語音，回傳 {\"text\": \"\"}。"
+)
+
+
+def v_transcribe(data: object) -> str:
+    if not isinstance(data, dict) or not isinstance(data.get("text"), str):
+        raise ValueError("invalid transcribe output")
+    return str(data["text"]).strip()[:300]
 
 
 def _text(v: object, n: int) -> str:
@@ -473,7 +485,8 @@ def _global_rpm_guard() -> None:
 
 
 def run_task(db: Session, user: User, kind: str, system: str, user_msg: str, validate: Callable[[object], object], *,
-             images: list[str] | None = None, fail_message: str = "AI 沒能看懂，請稍後再試或改用一般操作", free: bool = False) -> object:
+             images: list[str] | None = None, audio: tuple[str, str] | None = None, prefer: tuple[str, ...] | None = None,
+             fail_message: str = "AI 沒能看懂，請稍後再試或改用一般操作", free: bool = False) -> object:
     """預留額度 → 呼叫供應商 → 驗證；失敗不扣額度。回傳驗證後的結果。
 
     free=True：這個功能暫時不計入使用者額度（例如新支出的市價檢查，由系統自動觸發）。仍然受「管理員總開關」與
@@ -495,7 +508,7 @@ def run_task(db: Session, user: User, kind: str, system: str, user_msg: str, val
         return result
     row = ai_quota.reserve(db, user.id, kind, COST[kind], user.role)
     try:
-        data, provider, model = ai_providers.complete_json(system, user_msg, max_tokens=MAX_TOKENS[kind], images=images)
+        data, provider, model = ai_providers.complete_json(system, user_msg, max_tokens=MAX_TOKENS[kind], images=images, audio=audio, prefer=prefer)
         try:
             result = validate(data)
         except (ValueError, TypeError, KeyError):

@@ -11,7 +11,7 @@ import { formatMoney, toMinor } from '@/domain/money';
 import { shortDate } from '@/domain/nlp';
 import { todayKey } from '@/domain/period';
 import { draftsFromText, type ResolvedDraft } from '@/services/quickentry';
-import { closeVoice, setVoiceText, startListening, stopListening, submitVoice, useVoice, voiceLevel, voiceSupported } from '@/services/voice';
+import { closeVoice, setVoiceText, startListening, stopListening, submitVoice, transcribeCurrentRecording, useVoice, voiceLevel, voiceSupported } from '@/services/voice';
 import { CatIcon, Icon } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
 
@@ -108,7 +108,7 @@ export function VoiceSheet() {
       <div className="voice">
         <Wave active={listening} />
         <p className="voice-status" role="status">
-          {hold && listening ? '說話中…放開就完成' : hold ? '放開後，點一下麥克風開始說話' : prompt ? '點一下下方的麥克風，開始說話' : busy ? '記帳中…' : listening ? '正在聽…說完按 ✓' : keyboard ? '用鍵盤輸入' : supported ? '已暫停，按麥克風繼續' : ''}
+          {hold && listening ? '說話中…放開就完成記帳' : busy ? 'AI 語音辨識中…' : listening ? '正在錄音…說完按麥克風或 ✓' : prompt ? '點一下下方的麥克風，開始說話' : keyboard ? '用鍵盤輸入' : supported ? '按麥克風開始說話' : ''}
         </p>
         <div className="voice-box">
           <textarea ref={boxRef} rows={3} value={text} maxLength={300} enterKeyHint="done" aria-label="辨識的內容，可以直接修改"
@@ -141,9 +141,22 @@ export function VoiceSheet() {
         {!hold && (
           <div className="voice-actions">
             <button className="voice-side" onClick={closeVoice} aria-label="取消"><Icon name="close" size={24} /></button>
-            <button className={`voice-mic${listening ? ' on' : ''}${prompt && !listening ? ' prompt' : ''}`} onClick={() => (listening ? stopListening() : startListening())}
-              disabled={!supported} aria-label={listening ? '暫停聆聽' : '開始聆聽'} aria-pressed={listening}><Icon name="mic" size={30} /></button>
-            <button className="voice-side ok" onClick={() => void submitVoice()} disabled={!text.trim() || busy} aria-label="完成並入帳"><Icon name="check" size={26} stroke={2.6} /></button>
+            <button
+              className={`voice-mic${listening ? ' on' : ''}${prompt && !listening ? ' prompt' : ''}`}
+              onClick={() => {
+                if (listening) {
+                  void transcribeCurrentRecording().catch((e) => useVoice.setState({ hint: (e as Error).message }));
+                } else {
+                  startListening();
+                }
+              }}
+              disabled={!supported || busy}
+              aria-label={listening ? '停止並辨識' : '開始錄音'}
+              aria-pressed={listening}
+            >
+              <Icon name="mic" size={30} />
+            </button>
+            <button className="voice-side ok" onClick={() => void submitVoice()} disabled={(!text.trim() && !listening) || busy} aria-label="完成並入帳"><Icon name="check" size={26} stroke={2.6} /></button>
           </div>
         )}
       </div>

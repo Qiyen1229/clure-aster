@@ -25,6 +25,16 @@ export interface ReleaseNote {
 /** 新的在前 */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: '4.1.33', date: '2026-11-13',
+    features: [
+      {
+        title: '全新語音引擎',
+        intro: '改用標準原生錄音搭配後端 Gemini 語音辨識，徹底解決 iOS 網頁語音短時間無法連續使用的問題；支援即時真實聲紋、按住說話放開自動記帳與輕點錄音，同時保留原有文字 AI 供應商順位。',
+        howto: '按住首頁右下角麥克風講完放開即可自動記帳，或輕點一下持續錄音後按 ✓ 完成。',
+      },
+    ],
+  },
+  {
     version: '4.1.32', date: '2026-11-13',
     features: [
       {

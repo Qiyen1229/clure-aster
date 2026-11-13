@@ -11,7 +11,7 @@ from app.model import User
 from app.schema.ai import (
     AgentPlanRequest, AgentPlanResult, StatementRequest, StatementResult,
     AiStatus, AskRequest, AskResult, ChatRequest, BudgetPlanRequest, BudgetPlanResult, CategorizeRequest, CategorizeResult, ExplainRequest, InsightsRequest,
-    InsightsResult, ParseEntryRequest, ParseEntryResult, PriceCheckRequest, PriceCheckResult, ReceiptRequest, SearchPlanRequest, SearchPlanResult,
+    InsightsResult, ParseEntryRequest, ParseEntryResult, PriceCheckRequest, PriceCheckResult, ReceiptRequest, SearchPlanRequest, SearchPlanResult, TranscribeRequest, TranscribeResult,
 )
 from app.service.ai_service import AiService
 
@@ -118,3 +118,9 @@ def explain(body: ExplainRequest, user: User = Depends(get_current_user), db: Se
 def price_check(body: PriceCheckRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> PriceCheckResult:
     rate_limit(price_limiter, str(user.id))
     return AiService(db).price_check(user, body)
+
+
+@router.post("/transcribe", response_model=TranscribeResult, summary="語音記帳：音訊轉文字（扣 1 點額度，優先使用 Gemini）")
+def transcribe(body: TranscribeRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> TranscribeResult:
+    rate_limit(ai_limiter, str(user.id))
+    return AiService(db).transcribe(user, body)
