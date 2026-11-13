@@ -2236,8 +2236,8 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
   right: 16px;
   bottom: calc(var(--tabbar-h) + var(--safe-b) + 14px);
   z-index: 40;
-  width: 48px;
-  height: 48px;
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
   display: grid;
   place-items: center;

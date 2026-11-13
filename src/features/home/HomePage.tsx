@@ -561,7 +561,7 @@ export default function HomePage() {
         }}
         onContextMenu={(e) => e.preventDefault()}
       >
-        <Icon name="mic" size={20} />
+        <Icon name="mic" size={26} />
       </button>
 
       <MonthPicker open={monthOpen} onClose={() => setMonthOpen(false)} year={year} month0={month0} onPick={goMonth} />
