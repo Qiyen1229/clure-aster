@@ -85,7 +85,8 @@ export function startListening() {
   set({ keyboard: false, hint: '', prompt: false });
   const r = new SR();
   r.lang = 'zh-TW';
-  r.continuous = true;
+  // iOS WebKit 不支援穩定的 continuous=true，開啟反而常導致無聲或卡死
+  r.continuous = !isIOS();
   r.interimResults = true;
   r.maxAlternatives = 1;
   r.onstart = () => { startedAt = Date.now(); set({ listening: true }); };
@@ -116,8 +117,8 @@ export function startListening() {
   };
   r.onend = () => {
     set({ listening: false });
-    // 瀏覽器在安靜一陣子後會自動結束：還想聽的話就接著聽；連續秒結束代表有問題，不再重試
-    if (!want) return;
+    // iOS 在 setTimeout 裡重啟語音會失去手勢資格而卡死，停止即可；桌面／Android 才自動續聽
+    if (!want || isIOS()) { want = false; return; }
     quickEnds = Date.now() - startedAt < 1000 ? quickEnds + 1 : 0;
     if (quickEnds >= 3) { want = false; set({ hint: '語音辨識中斷了，請再按一次麥克風' }); return; }
     setTimeout(() => { if (want && rec === r) { try { r.start(); } catch { /* 忽略 */ } } }, 150);
