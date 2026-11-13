@@ -33,6 +33,8 @@ const set = (p: Partial<VoiceState>) => useVoice.setState(p);
 export const voiceLevel = { current: 0 };
 
 let rec: any = null;
+let recActive = false;
+let sessionSeq = 0;
 let want = false;
 let finalText = '';
 let startedAt = 0;
@@ -78,70 +80,100 @@ function bump() { voiceLevel.current = Math.max(voiceLevel.current, 0.55 + Math.
 export function startListening() {
   const SR = speechRecognition();
   if (!SR) return;
-  stopListening();
+  const ios = isIOS();
+  const sid = ++sessionSeq;
+  if (rec && recActive) {
+    try { if (ios) rec.stop(); else rec.abort(); } catch { /* 忽略 */ }
+    recActive = false;
+  }
   want = true;
   heard = false;
   finalText = useVoice.getState().text;
   set({ keyboard: false, hint: '', prompt: false });
-  const r = new SR();
-  r.lang = 'zh-TW';
-  // iOS WebKit 不支援穩定的 continuous=true，開啟反而常導致無聲或卡死
-  r.continuous = !isIOS();
-  r.interimResults = true;
-  r.maxAlternatives = 1;
-  r.onstart = () => { startedAt = Date.now(); set({ listening: true }); };
-  r.onsoundstart = () => { heard = true; bump(); };
-  r.onspeechstart = () => { heard = true; bump(); };
-  r.onresult = (e: any) => {
-    let interim = '';
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      const res = e.results[i];
-      if (res.isFinal) finalText += res[0].transcript; else interim += res[0].transcript;
-    }
-    quickEnds = 0;
-    heard = true;
-    bump();
-    set({ text: finalText + interim });
-  };
-  r.onerror = (e: any) => {
-    if (e.error === 'no-speech' || e.error === 'aborted') {
-      if (rec === r) rec = null;
+
+  const bind = (r: any) => {
+    r.lang = 'zh-TW';
+    // iOS WebKit 開啟 continuous=true 或 interimResults=true 常導致 assistantd 佔用麥克風約 15-30 秒無法連續第二次啟動
+    r.continuous = !ios;
+    r.interimResults = !ios;
+    r.maxAlternatives = 1;
+    r.onstart = () => {
+      if (sid !== sessionSeq) return;
+      recActive = true;
+      startedAt = Date.now();
+      set({ listening: true });
+    };
+    r.onsoundstart = () => { if (sid === sessionSeq) { heard = true; bump(); } };
+    r.onspeechstart = () => { if (sid === sessionSeq) { heard = true; bump(); } };
+    r.onresult = (e: any) => {
+      if (sid !== sessionSeq) return;
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const res = e.results[i];
+        if (res.isFinal) finalText += res[0].transcript; else interim += res[0].transcript;
+      }
+      quickEnds = 0;
+      heard = true;
+      bump();
+      set({ text: finalText + interim });
+    };
+    r.onerror = (e: any) => {
+      recActive = false;
+      if (sid !== sessionSeq) return;
+      if (e.error === 'no-speech' || e.error === 'aborted') {
+        set({ listening: false });
+        return;
+      }
+      want = false;
+      if (useVoice.getState().hold && !heard) { set({ listening: false }); return; }
+      set({
+        listening: false,
+        hint: e.error === 'not-allowed' || e.error === 'service-not-allowed'
+          ? '無法使用麥克風或語音辨識：請在瀏覽器／iPhone 設定允許，或按鍵盤改用打字'
+          : '語音辨識失敗：請再按一次麥克風，或按鍵盤改用打字',
+      });
+    };
+    r.onend = () => {
+      recActive = false;
+      if (sid !== sessionSeq) return;
       set({ listening: false });
-      return;
-    }
-    want = false;
-    if (rec === r) rec = null;
-    // 長按時被拒絕（iOS：手指按下的計時器不算手勢）：先不報錯，放開的那一刻再開始聽（releaseVoice）
-    if (useVoice.getState().hold && !heard) { set({ listening: false }); return; }
-    set({
-      listening: false,
-      hint: e.error === 'not-allowed' || e.error === 'service-not-allowed'
-        ? '無法使用麥克風或語音辨識：請在瀏覽器／iPhone 設定允許，或按鍵盤改用打字'
-        : '語音辨識失敗：請再按一次麥克風，或按鍵盤改用打字',
-    });
+      // iOS 在 setTimeout 裡重啟語音會失去手勢資格而卡死，停止即可；桌面／Android 才自動續聽
+      if (!want || ios) { want = false; return; }
+      quickEnds = Date.now() - startedAt < 1000 ? quickEnds + 1 : 0;
+      if (quickEnds >= 3) { want = false; set({ hint: '語音辨識中斷了，請再按一次麥克風' }); return; }
+      setTimeout(() => { if (want && sid === sessionSeq && rec === r) { try { r.start(); } catch { /* 忽略 */ } } }, 150);
+    };
   };
-  r.onend = () => {
-    if (rec === r) rec = null;
-    set({ listening: false });
-    // iOS 在 setTimeout 裡重啟語音會失去手勢資格而卡死，停止即可；桌面／Android 才自動續聽
-    if (!want || isIOS()) { want = false; return; }
-    quickEnds = Date.now() - startedAt < 1000 ? quickEnds + 1 : 0;
-    if (quickEnds >= 3) { want = false; set({ hint: '語音辨識中斷了，請再按一次麥克風' }); return; }
-    setTimeout(() => { if (want && rec === r) { try { r.start(); } catch { /* 忽略 */ } } }, 150);
-  };
+
+  // iOS 優先重用同一顆語音辨識實例，避免重建釋放延遲導致短時間內無法再次收音
+  const r = ios && rec ? rec : new SR();
   rec = r;
-  try { r.start(); } catch { set({ hint: '無法開始語音辨識，請按鍵盤改用打字' }); }
+  bind(r);
+  try {
+    r.start();
+    recActive = true;
+  } catch {
+    // 若舊實例尚未完全釋放（InvalidStateError），改建新實例重試一次
+    if (ios) {
+      const fresh = new SR();
+      rec = fresh;
+      bind(fresh);
+      try { fresh.start(); recActive = true; return; } catch { /* fallthrough */ }
+    }
+    recActive = false;
+    set({ hint: '語音引擎忙線中，請稍候再點一次麥克風' });
+  }
 }
 
-/** 立刻停止（iOS 改用 stop() 避免 abort() 鎖死 PWA 音訊引擎） */
+/** 立刻停止（保留 onend 清理，確保 iOS 音訊階段正常釋放） */
 export function stopListening() {
   want = false;
+  sessionSeq++;
   const r = rec;
-  rec = null;
-  if (r) {
-    r.onend = null; r.onerror = null; r.onresult = null;
+  if (r && recActive) {
     try { if (isIOS()) r.stop(); else r.abort(); } catch { /* 已停止 */ }
   }
+  recActive = false;
   set({ listening: false });
 }
 
