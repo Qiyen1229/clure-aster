@@ -34,7 +34,7 @@ export const ACTION_LABEL: Record<string, string> = {
   'admin.user_list_view': '查看使用者列表', 'admin.audit_view': '查看審計日誌', 'admin.stats_view': '查看系統統計',
   'admin.cli_create_admin': '建立管理員（指令列）', 'admin.cli_delete_user': '刪除使用者（指令列）',
   'sync.e2ee_on': '啟用端對端加密', 'sync.e2ee_off': '停用端對端加密', 'push.subscribe': '啟用背景推播',
-  'admin.user_freeze': '凍結帳號', 'admin.user_unfreeze': '啟用帳號', 'admin.force_logout': '強制登出', 'admin.password_reset': '重設密碼', 'admin.settings': '修改系統設定', 'admin.ai_test': 'AI 連線測試', 'admin.user_create': '管理員建立帳號', 'admin.backup_run': '立即備份資料庫', 'admin.mail_test': '寄測試信', 'auth.reset_request': '申請重設密碼', 'auth.reset_password': '用信件連結重設密碼',
+  'admin.user_freeze': '凍結帳號', 'admin.user_unfreeze': '啟用帳號', 'admin.force_logout': '強制登出', 'admin.password_reset': '重設密碼', 'admin.settings': '修改系統設定', 'admin.ai_test': 'Cilo 連線測試', 'admin.user_create': '管理員建立帳號', 'admin.backup_run': '立即備份資料庫', 'admin.mail_test': '寄測試信', 'auth.reset_request': '申請重設密碼', 'auth.reset_password': '用信件連結重設密碼',
 };
 
 /** 伺服器回傳 UTC（無時區）→ 本地時間字串 */
@@ -85,7 +85,7 @@ export default function AdminPage() {
       <nav className="admin-tabs" aria-label="後台功能">
         <NavLink to="/admin" end>總覽</NavLink>
         <NavLink to="/admin/users">使用者</NavLink>
-        <NavLink to="/admin/ai">AI 主控台</NavLink>
+        <NavLink to="/admin/ai">Cilo 主控台</NavLink>
         <NavLink to="/admin/audit">審計日誌</NavLink>
       </nav>
       <Routes>
@@ -250,6 +250,11 @@ function Overview() {
       <MailCard />
       <BackupCard />
       <ErrorLogCard />
+      <section className="card" style={{ marginBottom: 12 }}>
+        <div className="row-title">📈 股票資料源</div>
+        <div className="row-sub" style={{ whiteSpace: 'normal' }}>行情代理與權杖、API Key、資料源順序、盤中刷新與台股手續費設定。</div>
+        <button className="btn small tinted" style={{ marginTop: 8 }} onClick={() => navigate('/settings/invest')}>開啟設定</button>
+      </section>
       <div className="admin-grid">
         {cards.map((c) => (
           <button key={c.k} className={`admin-stat${c.warn ? ' warn' : ''}`} onClick={() => c.to && navigate(c.to)} disabled={!c.to}>

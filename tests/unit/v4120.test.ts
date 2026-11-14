@@ -90,7 +90,7 @@ describe('v4.1.20 設定頁面全面採用 Lucide 圖標', () => {
     }
   });
 
-  it('AI 助理圖標保留原創多面彩虹寶石（AiGem）', async () => {
+  it('Cilo 圖標保留原創多面彩虹寶石（AiGem）', async () => {
     const { Icon } = await import('@/ui/Icon');
     const html = renderToString(React.createElement(Icon, { name: 'ai' }));
     expect(html).toContain('<svg');

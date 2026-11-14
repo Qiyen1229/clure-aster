@@ -1,5 +1,5 @@
 /**
- * AI 主控台（/admin/ai）：供應商連線狀況（可即時測試）、用量、各使用者用量、最近呼叫，以及開關與額度設定。
+ * Cilo 主控台（/admin/ai）：供應商連線狀況（可即時測試）、用量、各使用者用量、最近呼叫，以及開關與額度設定。
  * API Key 只存在伺服器 .env；這裡只顯示最後 4 碼。連線狀況（成功／失敗次數、最近錯誤）記在記憶體，API 重啟會歸零。
  */
 import { useCallback, useEffect, useState } from 'react';
@@ -27,8 +27,8 @@ interface Console {
 interface TestResult { name: string; ok: boolean; latency_ms: number | null; detail: string }
 
 const KIND: Record<string, string> = {
-  search_plan: 'AI 搜尋', explain: '專案／帳戶解說', agent_plan: '操作助手', statement: '帳單對帳（截圖）',
-  parse_entry: '一句話記帳', price_check: '市價檢查（不計額度）', ask: '問 AI', budget_plan: '預算建議', insights: '白話解讀', categorize: '整理分類', receipt: '拍照記帳',
+  search_plan: 'Cilo 搜尋', explain: '專案／帳戶解說', agent_plan: '操作助手', statement: '帳單對帳（截圖）',
+  parse_entry: '一句話記帳', price_check: '市價檢查（不計額度）', ask: '問 Cilo', budget_plan: '預算建議', insights: '白話解讀', categorize: '整理分類', receipt: '拍照記帳',
 };
 const epoch = (t: number | null) => (t ? new Date(t * 1000).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : '—');
 const utc = (s: string) => new Date(s + 'Z').toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
@@ -74,18 +74,18 @@ export default function AiConsole() {
     try {
       await api('/admin/ai', { method: 'PATCH', body });
       setDraft({});
-      useUI.getState().showSnack({ text: '已更新 AI 設定' });
+      useUI.getState().showSnack({ text: '已更新 Cilo 設定' });
       await load();
     } catch (e) { useUI.getState().showSnack({ text: (e as Error).message }); } finally { setBusy(false); }
   };
 
-  if (err && !d) return <EmptyState emoji="⚠️" title="無法載入 AI 主控台" text={err} action={<button className="btn small" onClick={() => void load()}>重試</button>} />;
+  if (err && !d) return <EmptyState emoji="⚠️" title="無法載入 Cilo 主控台" text={err} action={<button className="btn small" onClick={() => void load()}>重試</button>} />;
   if (!d) return <SkeletonRows n={4} />;
   const { settings: st } = d;
   const ready = d.providers.filter((p) => p.configured);
   const healthy = ready.filter((p) => status(p).tone === 'ok').length;
   const summary = !ready.length ? { icon: '⚠️', text: '尚未設定任何供應商：到 NAS 的 .env 填入 API Key，再 docker compose up -d' }
-    : !st.enabled ? { icon: '⏸', text: 'AI 功能已由管理員關閉' }
+    : !st.enabled ? { icon: '⏸', text: 'Cilo 已由管理員關閉' }
     : { icon: healthy ? '✅' : '🔎', text: `${ready.length} 個供應商已設定，${healthy} 個確認正常${healthy ? '' : '（按「全部測試」確認 Key 是否有效）'}` };
   const limits: [string, string, number][] = [
     ['user_daily', '一般使用者・每人每日', st.user_daily], ['user_weekly', '一般使用者・每人每週', st.user_weekly], ['user_monthly', '一般使用者・每人每月', st.user_monthly],
@@ -198,8 +198,8 @@ export default function AiConsole() {
 
       <div className="section-title">開關與額度</div>
       <div className="list" style={{ marginBottom: 10 }}>
-        <SwitchField label="AI 功能" checked={st.enabled} onChange={(v) => { if (!busy) void save({ enabled: v }); }}
-          sub={st.overridden ? '關閉後所有使用者都不能用 AI（記帳規則解析不受影響）' : '額度目前沿用 .env 預設值；在這裡儲存後以後台為準'} />
+        <SwitchField label="Cilo" checked={st.enabled} onChange={(v) => { if (!busy) void save({ enabled: v }); }}
+          sub={st.overridden ? '關閉後所有使用者都不能用 Cilo（記帳規則解析不受影響）' : '額度目前沿用 .env 預設值；在這裡儲存後以後台為準'} />
       </div>
       <div className="quota-card">
         {([['user', '一般使用者', '每人'], ['admin', '管理員', '每人']] as const).map(([role, name, who]) => (

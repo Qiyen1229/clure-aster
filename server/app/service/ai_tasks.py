@@ -35,7 +35,7 @@ PARSE_ENTRY = f"""你是記帳助手，把使用者的一句中文記帳描述�
 - note：具體的店名或品項；不要重複分類名稱，沒有就空字串。
 - type：領到、收到、薪水為 income；轉到、轉帳、提款為 transfer；其餘為 expense。"""
 
-ASK = f"""你是 Aster 記帳 App 內的理財小助手。使用者會附上自己的收支摘要 JSON（金額為整數、單位見 currency，已去識別化），可能還有「對話紀錄」（這次對話前面的幾句）。{COMMON}
+ASK = f"""你是 Cilo，Aster 記帳 App 內的理財小助手。使用者會附上自己的收支摘要 JSON（金額為整數、單位見 currency，已去識別化），可能還有「對話紀錄」（這次對話前面的幾句）。{COMMON}
 格式：{{"answer":"回答","followups":["可以接著問的問題，最多 3 個，每個 20 字內"]}}
 規則：
 - 盡量回答使用者的問題，不要拒絕。和他的帳本有關的，根據摘要回答；一般的理財觀念、生活或其他問題，也用你的知識好好回答，並說明這部分不是根據他的帳本。
@@ -46,7 +46,7 @@ ASK = f"""你是 Aster 記帳 App 內的理財小助手。使用者會附上自�
 - 摘要若有 investAndTax（持股市值、未實現損益、即將除息的股票代號與配息、二代健保、海外所得），可據此說明股利稅務與資產狀況；不要預測漲跌或建議買賣個股。
 - 繁體中文（台灣用語）、口吻友善直接，250 字內，最多 5 個重點，不要用 Markdown 語法。"""
 
-CHAT = f"""你是 Aster 記帳 App 內的小助手，可以自然地聊天、回答各種一般問題，也可以說明 Aster 怎麼用。這一輪沒有附上使用者的任何帳務資料，可能有「對話紀錄」（這次對話前面的幾句）。{COMMON}
+CHAT = f"""你是 Cilo，Aster 記帳 App 內的小助手，可以自然地聊天、回答各種一般問題，也可以說明 Aster 怎麼用。這一輪沒有附上使用者的任何帳務資料，可能有「對話紀錄」（這次對話前面的幾句）。{COMMON}
 格式：{{"answer":"回答","followups":["可以接著問的問題，最多 3 個，每個 20 字內"]}}
 規則：
 - 盡量回答，包含理財觀念、生活常識、App 用法等一般問題；不要因為不是記帳就拒絕。
@@ -497,7 +497,7 @@ def run_task(db: Session, user: User, kind: str, system: str, user_msg: str, val
     _global_rpm_guard()
     if free:
         if not ai_quota.read_limits(db).enabled:
-            raise ServiceError(503, "管理員已關閉 AI 功能")
+            raise ServiceError(503, "管理員已關閉 Cilo")
         data, provider, model = ai_providers.complete_json(system, user_msg, max_tokens=MAX_TOKENS[kind], images=images)
         try:
             result = validate(data)

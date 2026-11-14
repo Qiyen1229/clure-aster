@@ -1,6 +1,6 @@
 /**
  * AI 輔助解析（選用）：一句話記帳規則看不懂時的後備。
- * - 預設關閉，使用者在「設定 → AI 輔助」手動開啟；只有明確送出（按下記帳／說完）才會呼叫，輸入中的即時預覽不會用到額度。
+ * - 預設關閉，使用者在「設定 → Cilo」手動開啟；只有明確送出（按下記帳／說完）才會呼叫，輸入中的即時預覽不會用到額度。
  * - 只送使用者輸入的那一句話與分類／帳戶「名稱」，不送帳目紀錄與餘額；伺服器端有每日／每週／每月額度。
  * - 端對端加密不涵蓋這個功能：內容會經過你的伺服器與 AI 供應商。
  *
@@ -26,7 +26,7 @@ export const aiEnabledLocally = () => AUTH_ENABLED && !!useSettings.getState().a
 
 export const getAiStatus = () => api<AiStatus>('/ai/status');
 
-/** 所有「把內容送去 AI」的呼叫都走這裡：送出前先在本機記下送了什麼（設定 → AI 設定 → 送出紀錄），再呼叫伺服器 */
+/** 所有「把內容送去 Cilo」的呼叫都走這裡：送出前先在本機記下送了什麼（設定 → Cilo設定 → 送出紀錄），再呼叫伺服器 */
 async function aiPost<T>(path: string, body: unknown): Promise<T> {
   await recordAiSend(path, body);
   return api<T>(path, { method: 'POST', body });
@@ -58,7 +58,7 @@ async function aiParseOnce(text: string): Promise<{ drafts: DraftEntry[]; quota:
 /** "剩 N 次" 的簡短說明（取最緊的那一層） */
 export function quotaLabel(q: AiQuota): string {
   const rem = [q.daily, q.weekly, q.monthly].filter((w) => w.remaining !== null).map((w) => w.remaining as number);
-  return rem.length ? `AI 額度剩 ${Math.min(...rem)} 次` : 'AI 額度不限';
+  return rem.length ? `Cilo 額度剩 ${Math.min(...rem)} 次` : 'Cilo 額度不限';
 }
 
 
@@ -224,7 +224,7 @@ const PRICE_TTL = 30 * 24 * 3600_000;
 
 /**
  * 請 AI 依台灣市價判斷這筆金額合不合理。只送這一筆的分類、備註（先去掉網址與長數字）、金額、幣別與日期，
- * 以及「你平常這個分類一筆約多少」；送出的原文都會記在「AI 送出紀錄」。
+ * 以及「你平常這個分類一筆約多少」；送出的原文都會記在「Cilo 送出紀錄」。
  * 同類型、同價位的結果快取 30 天，重複的消費不會再問。呼叫失敗或沒開 AI 時回傳 null（不影響記帳）。
  */
 export async function aiPriceCheck(input: PriceCheckInput): Promise<PriceVerdict | null> {

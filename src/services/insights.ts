@@ -134,7 +134,7 @@ export async function checkNewTransactions(ids: string[], today = todayKey()): P
         : null;
       if (v) aiCalls++;
       if (v?.verdict === 'high') {
-        const range = v.typical_min && v.typical_max ? `AI 查到一般行情約 ${input.fmt(toMinor(v.typical_min, st.baseCurrency))}～${input.fmt(toMinor(v.typical_max, st.baseCurrency))}` : 'AI 評估這個金額高於一般行情';
+        const range = v.typical_min && v.typical_max ? `Cilo 查到一般行情約 ${input.fmt(toMinor(v.typical_min, st.baseCurrency))}～${input.fmt(toMinor(v.typical_max, st.baseCurrency))}` : 'Cilo 評估這個金額高於一般行情';
         f = highFinding(input, t, j, `${range}${v.reason ? `（${v.reason}）` : ''}。`);
       } else if (!v && j.extreme) f = highFinding(input, t, j); // 沒有 AI 可問：只在離譜到極端時提醒
     }

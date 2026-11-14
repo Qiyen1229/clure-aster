@@ -1,5 +1,5 @@
 /**
- * 「AI 解說」卡片：專案、帳戶、週報／月報共用同一個殼（按鈕、載入、快取提示、結果排版）。
+ * 「Cilo 解說」卡片：專案、帳戶、週報／月報共用同一個殼（按鈕、載入、快取提示、結果排版）。
  *  - AiExplainCard：專案、帳戶等頁面；build() 回傳 domain/aisummary 整理的去識別化統計
  *  - AiInsightsCard：週報／月報；送出的是 domain/aisummary.periodToAi 整理的分類層級統計
  * 結果快取在本機，同樣的資料不會重複扣額度。
@@ -42,8 +42,8 @@ function ExplainShell({ title, hint, offHint, runLabel, run, resetKey, margin, f
   if (!enabled) {
     return (
       <section className="card" style={style}>
-        <Hint id="ai.explain" title={title} hint={`${offHint}需要先在設定允許 AI 分析收支統計。`} />
-        <button className="btn small tinted" style={{ marginTop: 8 }} onClick={() => navigate('/settings/ai')}>前往 AI 設定</button>
+        <Hint id="ai.explain" title={title} hint={`${offHint}需要先在設定允許 Cilo 分析收支統計。`} />
+        <button className="btn small tinted" style={{ marginTop: 8 }} onClick={() => navigate('/settings/ai')}>前往 Cilo設定</button>
       </section>
     );
   }
@@ -66,10 +66,10 @@ function ExplainShell({ title, hint, offHint, runLabel, run, resetKey, margin, f
 
 export function AiExplainCard({ subject, build, hint }: { subject: string; build: () => Promise<object>; hint?: string }) {
   if (!AUTH_ENABLED) return null;
-  const text = hint ?? '讓 AI 用幾句話說明重點與建議。';
+  const text = hint ?? '讓 Cilo 用幾句話說明重點與建議。';
   return (
-    <ExplainShell title={<><AiMark /> AI 解說</>} hint={`${text}同樣的資料結果會快取，不會重複扣額度。`} offHint={text} runLabel="請 AI 解說"
-      resetKey={subject} margin="bottom" footer="AI 的解說僅供參考。" run={async (force) => aiExplain(subject, await build(), force)} />
+    <ExplainShell title={<><AiMark /> Cilo 解說</>} hint={`${text}同樣的資料結果會快取，不會重複扣額度。`} offHint={text} runLabel="請 Cilo 解說"
+      resetKey={subject} margin="bottom" footer="Cilo 的解說僅供參考。" run={async (force) => aiExplain(subject, await build(), force)} />
   );
 }
 
@@ -77,8 +77,8 @@ export function AiInsightsCard({ unit, anchor }: { unit: SummaryUnit; anchor: Da
   const base = useSettings((s) => s.baseCurrency);
   const { map: cats } = useCategories();
   return (
-    <ExplainShell title={<><AiMark /> AI 白話解讀你的資產狀況</>} hint="讓 AI 用幾句話說明這一期的重點與建議；同一期結果會快取，不會重複扣額度。" offHint="讓 AI 用幾句話說明這一期的重點與建議。"
-      runLabel="請 AI 解讀" resetKey={`${unit}:${anchor}`} margin="top" footer="AI 的解讀僅供參考。"
+    <ExplainShell title={<><AiMark /> Cilo 白話解讀你的資產狀況</>} hint="讓 Cilo 用幾句話說明這一期的重點與建議；同一期結果會快取，不會重複扣額度。" offHint="讓 Cilo 用幾句話說明這一期的重點與建議。"
+      runLabel="請 Cilo 解讀" resetKey={`${unit}:${anchor}`} margin="top" footer="Cilo 的解讀僅供參考。"
       run={async (force) => {
         const sum = await loadSummary(unit, anchor, todayKey());
         const label = summaryTitle(unit, summaryRange(unit, anchor).range) + (unit === 'week' ? '（週）' : '');

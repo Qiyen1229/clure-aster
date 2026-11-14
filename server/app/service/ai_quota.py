@@ -129,7 +129,7 @@ def reserve(db: Session, user_id: int, kind: str, cost: int = 1, role: str = "us
     """預留額度；超過任何一層上限就拒絕（429），不會寫入。"""
     limits = read_limits(db)
     if not limits.enabled:
-        raise ServiceError(503, "管理員已關閉 AI 功能")
+        raise ServiceError(503, "管理員已關閉 Cilo")
     db.execute(delete(AiUsage).where(AiUsage.pending.is_(True), AiUsage.created_at < utcnow() - PENDING_TTL))
     row = AiUsage(user_id=user_id, kind=kind, cost=cost, pending=True)
     db.add(row)
@@ -139,10 +139,10 @@ def reserve(db: Session, user_id: int, kind: str, cost: int = 1, role: str = "us
     d, w, m = limits.for_role(role)
     for name, limit in (("daily", d), ("weekly", w), ("monthly", m)):
         if limit > 0 and _used(db, b[name][0], user_id) > limit:
-            over = f"{WINDOW_NAMES[name]} AI 額度已用完（{limit} 次），{_reset_text(b[name][1])} 重置"
+            over = f"{WINDOW_NAMES[name]} Cilo 額度已用完（{limit} 次），{_reset_text(b[name][1])} 重置"
             break
     if over is None and limits.global_daily > 0 and _used(db, b["daily"][0]) > limits.global_daily:
-        over = "今日全站 AI 額度已用完，明天 00:00 重置"
+        over = "今日全站 Cilo 額度已用完，明天 00:00 重置"
     if over:
         db.delete(row)
         db.commit()

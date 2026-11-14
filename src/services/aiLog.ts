@@ -1,5 +1,5 @@
 /**
- * 「AI 送出紀錄」：每次真的把內容送去 AI 時，在這台裝置記下「送了什麼」，讓使用者能親眼檢查。
+ * 「Cilo 送出紀錄」：每次真的把內容送去 Cilo 時，在這台裝置記下「送了什麼」，讓使用者能親眼檢查。
  * - 只記在本機 meta 表（不同步、不上傳），最多 25 筆，單筆內容最多 20,000 字元
  * - 快取命中、沒有真的送出的不會記
  * - 照片只記大小，不留存影像
@@ -20,8 +20,8 @@ const MAX_RECORDS = 25;
 const MAX_CHARS = 20_000;
 
 export const AI_FEATURE_LABEL: Record<string, string> = {
-  '/ai/parse-entry': '一句話記帳（規則看不懂時）', '/ai/ask': '問 AI', '/ai/ask/stream': '問 AI', '/ai/chat': '閒聊（不扣額度）', '/ai/chat/stream': '閒聊（不扣額度）', '/ai/agent-plan/stream': '操作助手（整理帳本）', '/ai/budget-plan': '下月預算建議', '/ai/insights': '白話解讀', '/ai/categorize': '整理「其他」分類',
-  '/ai/receipt': '拍照記帳', '/ai/search-plan': '用 AI 找', '/ai/explain': '專案／帳戶解說',
+  '/ai/parse-entry': '一句話記帳（規則看不懂時）', '/ai/ask': '問 Cilo', '/ai/ask/stream': '問 Cilo', '/ai/chat': '閒聊（不扣額度）', '/ai/chat/stream': '閒聊（不扣額度）', '/ai/agent-plan/stream': '操作助手（整理帳本）', '/ai/budget-plan': '下月預算建議', '/ai/insights': '白話解讀', '/ai/categorize': '整理「其他」分類',
+  '/ai/receipt': '拍照記帳', '/ai/search-plan': '用 Cilo 找', '/ai/explain': '專案／帳戶解說',
 };
 
 /** 把 data:image/... 換成「[照片約 NKB]」，其餘原樣 */

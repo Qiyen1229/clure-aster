@@ -9,7 +9,7 @@ import { accountTalk, debtTalk, durableTalk, goalTalk, projectTalk, recurringTal
 import { respond } from '@/features/home/AiChat';
 import { todayKey } from '@/domain/period';
 
-describe('AI 助理本機問答兼容性 (localTalk)', () => {
+describe('Cilo 本機問答兼容性 (localTalk)', () => {
   beforeEach(async () => {
     await db.delete();
     await db.open();

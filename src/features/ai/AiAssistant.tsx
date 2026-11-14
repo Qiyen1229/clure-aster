@@ -1,5 +1,5 @@
 /**
- * AI 助理（/ai）：智慧提醒（異常與訂閱偵測、預算預警，含目前的偵測結果）與 AI 額度。
+ * Cilo（/ai）：智慧提醒（異常與訂閱偵測、預算預警，含目前的偵測結果）與 Cilo 額度。
  * 對話不在這一頁：記帳、查帳、問 AI、整理帳本、拍照記帳全部走全站同一個對話視窗（中央圓球往上滑、非記帳頁長按，或首頁小圓球）。
  * 舊網址相容：?q=問題或需求、?agent=需求、?tool=budget 會開啟對話視窗並自動送出，再把網址參數清掉。
  * 所有 AI 輸出都只當純文字顯示。
@@ -32,7 +32,7 @@ export default function AiAssistant() {
     <header className="topbar">
       <button className="icon-btn" aria-label="返回" onClick={() => navigate(-1)}><Icon name="chevronL" /></button>
       <h1>智慧偵測與預警</h1>
-      <button className="icon-btn" aria-label="AI 設定" onClick={() => navigate('/settings/ai')}><Icon name="sliders" /></button>
+      <button className="icon-btn" aria-label="Cilo設定" onClick={() => navigate('/settings/ai')}><Icon name="sliders" /></button>
     </header>
   );
 

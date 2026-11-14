@@ -8,7 +8,7 @@ import { openAiChat, useChat } from './aiChatStore';
 export function AiOrb() {
   const hasHistory = useChat((s) => s.msgs.length > 0);
   return (
-    <button className={`ai-orb${hasHistory ? ' has-history' : ''}`} aria-label="AI 助理：說一句話記帳或問問題" onClick={openAiChat}>
+    <button className={`ai-orb${hasHistory ? ' has-history' : ''}`} aria-label="Cilo：說一句話記帳或問問題" onClick={openAiChat}>
       <Icon name="ai" size={32} />
     </button>
   );

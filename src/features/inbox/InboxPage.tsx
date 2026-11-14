@@ -85,7 +85,7 @@ export default function InboxPage() {
     setAiBusyId(e.item.id);
     try {
       const { drafts } = await aiParseText((e.item.text || e.item.merchant).trim());
-      if (!drafts.length) { snack('AI 也看不出金額，請手動記'); return; }
+      if (!drafts.length) { snack('Cilo 也看不出金額，請手動記'); return; }
       const fb = await fallbackAccount();
       const list = await Promise.all(drafts.map((d) => resolveDraft(d, fb)));
       setEntries((l) => l?.map((x) => (x.item.id === e.item.id ? { ...x, drafts: list } : x)) ?? null);
@@ -184,7 +184,7 @@ export default function InboxPage() {
                       <span className="row-sub" style={{ whiteSpace: 'normal' }}>{src.label} · 看不懂金額，請手動記</span>
                     </span>
                     <span className="inbox-actions">
-                      {aiEnabledLocally() && (e.item.text || e.item.merchant) && <button className="pill accent-pill" disabled={aiBusyId === e.item.id} onClick={() => void aiParse(e)}>{aiBusyId === e.item.id ? '解析中…' : <><AiMark /> AI 解析</>}</button>}
+                      {aiEnabledLocally() && (e.item.text || e.item.merchant) && <button className="pill accent-pill" disabled={aiBusyId === e.item.id} onClick={() => void aiParse(e)}>{aiBusyId === e.item.id ? '解析中…' : <><AiMark /> Cilo 解析</>}</button>}
                       <button className="pill" onClick={() => edit(e)}>手動記</button>
                       <button className="pill" onClick={() => void skip(e)} aria-label="略過">略過</button>
                     </span>

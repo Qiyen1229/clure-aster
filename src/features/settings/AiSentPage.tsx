@@ -1,5 +1,5 @@
 /**
- * AI 送出紀錄：親眼看看每次送去 AI 的內容到底是什麼。
+ * Cilo 送出紀錄：親眼看看每次送去 Cilo 的內容到底是什麼。
  * 只存在這台裝置（不同步、不上傳）；快取命中沒有真的送出的不會出現在這裡；照片只顯示大小。
  */
 import { useState } from 'react';
@@ -18,15 +18,15 @@ export default function AiSentPage() {
     <main className="page">
       <header className="topbar">
         <button className="icon-btn" aria-label="返回" onClick={() => navigate(-1)}><Icon name="chevronL" /></button>
-        <h1>AI 送出紀錄</h1>
+        <h1>Cilo 送出紀錄</h1>
         <div style={{ width: 44 }} />
       </header>
       <p className="muted" style={{ fontSize: '0.85rem', margin: '0 4px 12px' }}>
-        這台裝置每一次送去 AI 的原文。只存在這裡、不會同步，最多保留最近 25 筆。
+        這台裝置每一次送去 Cilo 的原文。只存在這裡、不會同步，最多保留最近 25 筆。
         命中快取（沒有真的送出）的查詢不會出現；照片只顯示大小，不留存影像。
       </p>
       {!log ? null : log.length === 0 ? (
-        <EmptyState emoji="🔒" title="還沒有送出過任何內容" text="使用 AI 功能時，送出的內容會記在這裡。" />
+        <EmptyState emoji="🔒" title="還沒有送出過任何內容" text="使用 Cilo 時，送出的內容會記在這裡。" />
       ) : (
         <>
           <div className="list">
@@ -45,7 +45,7 @@ export default function AiSentPage() {
               </div>
             ))}
           </div>
-          <button className="btn secondary" style={{ marginTop: 12 }} onClick={async () => { if (await ask('清除所有送出紀錄？（只影響這份檢視，不影響 AI 功能）')) void clearAiLog(); }}>清除紀錄</button>
+          <button className="btn secondary" style={{ marginTop: 12 }} onClick={async () => { if (await ask('清除所有送出紀錄？（只影響這份檢視，不影響 Cilo）')) void clearAiLog(); }}>清除紀錄</button>
         </>
       )}
     </main>

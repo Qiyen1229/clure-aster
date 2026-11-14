@@ -30,7 +30,7 @@ export function ExplainButton({ title, formula, rows, notes }: { title: string; 
             </div>
           )}
           {notes?.map((n, i) => <p key={i} className="muted explain-note">{n}</p>)}
-          <p className="muted explain-note">以上都是用你這台裝置上的資料直接計算，沒有送給任何 AI 或伺服器。</p>
+          <p className="muted explain-note">以上都是用你這台裝置上的資料直接計算，沒有送給 Cilo 或任何伺服器。</p>
         </div>
       </Sheet>
     </>

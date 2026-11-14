@@ -3158,7 +3158,7 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
 /* 設定頁各列的說明小字：最多顯示一行（點進去就有完整說明），整頁不會堆滿小字 */
 .settings-page button.row .row-sub { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; }
 
-/* AI 助理頁內嵌的對話：固定高度的對話區，輸入列貼在下方 */
+/* Cilo 頁內嵌的對話：固定高度的對話區，輸入列貼在下方 */
 .chat-wrap.embedded { height: min(66dvh, 560px); flex: none; }
 
 /* ───── v4.1.0 對話即介面：嵌在對話裡的檢視卡、畫面情境標籤、靈動島叫出 AI ───── */
@@ -3179,7 +3179,7 @@ html.voice-holding .sheet, html.voice-holding .sheet-backdrop { pointer-events: 
 .screen-chip.on { color: var(--accent-text, var(--accent)); background: var(--accent-soft, var(--surface-2)); }
 .view-chip { font-weight: 600; }
 
-/* ───── v4.1.1 後台 AI 主控台：用量區塊與額度表單 ───── */
+/* ───── v4.1.1 後台 Cilo 主控台：用量區塊與額度表單 ───── */
 .admin-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
 .admin-stat.compact { padding: 10px 12px; }
 .admin-stat.compact .v { font-size: 1.4rem; margin-top: 2px; }

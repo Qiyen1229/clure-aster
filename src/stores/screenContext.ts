@@ -1,7 +1,7 @@
 /**
  * 畫面情境（Screen Context）：App 目前停在哪個畫面、畫面上有什麼重點，讓 AI 對話框「看得到你正在看的東西」。
  *  - routeLabel：由路由自動推得（ScreenContextHost）；detail：頁面自己提供的一句摘要（只有名稱與統計數字，不含單筆帳目、備註）
- *  - 摘要只有在你開啟對話、且沒有按掉「📍 目前畫面」標籤時才會跟著問題一起送出，內容可在「AI 設定 → 查看送出過什麼」檢查
+ *  - 摘要只有在你開啟對話、且沒有按掉「📍 目前畫面」標籤時才會跟著問題一起送出，內容可在「Cilo設定 → 查看送出過什麼」檢查
  */
 import { useEffect } from 'react';
 import { create } from 'zustand';
@@ -47,6 +47,6 @@ const ROUTES: [RegExp, string][] = [
   [/^\/reports/, '報表'],
   [/^\/settings/, '設定'],
   [/^\/search/, '搜尋'],
-  [/^\/ai/, 'AI 助理'],
+  [/^\/ai/, 'Cilo'],
 ];
 export const labelForPath = (pathname: string): string => ROUTES.find(([re]) => re.test(pathname))?.[1] ?? '';

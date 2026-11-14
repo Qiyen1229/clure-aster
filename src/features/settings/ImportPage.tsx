@@ -161,11 +161,11 @@ export default function ImportPage() {
             </label>
             {aiEnabledLocally() ? (
               <label className="btn tinted" style={{ cursor: 'pointer', marginTop: 8 }} aria-disabled={busy}>
-                {busy ? 'AI 讀取中…' : '📷 用帳單截圖對帳（AI，每張 2 點額度）'}
+                {busy ? 'Cilo 讀取中…' : '📷 用帳單截圖對帳（Cilo，每張 2 點額度）'}
                 <input type="file" accept="image/*" multiple className="sr-only" disabled={busy} onChange={(e) => { const f = e.target.files; void onShot(f).finally(() => { e.target.value = ''; }); }} />
               </label>
-            ) : <p className="row-sub" style={{ marginBottom: 0, whiteSpace: 'normal' }}>開啟 AI 後也能直接拍帳單截圖對帳（設定 → AI 助理）。</p>}
-            <Intro id="import.recon">日期容差 ±3 天，金額與商家一起比對，全程在你的手機完成，補齊後可復原。截圖只送圖片給 AI 讀取（縮小後送出、不保存），讀到的加總會和帳單合計驗證；一次最多 4 張。</Intro>
+            ) : <p className="row-sub" style={{ marginBottom: 0, whiteSpace: 'normal' }}>開啟 Cilo 後也能直接拍帳單截圖對帳（設定 → Cilo）。</p>}
+            <Intro id="import.recon">日期容差 ±3 天，金額與商家一起比對，全程在你的手機完成，補齊後可復原。截圖只送圖片給 Cilo 讀取（縮小後送出、不保存），讀到的加總會和帳單合計驗證；一次最多 4 張。</Intro>
           </div>
         </>
       )}

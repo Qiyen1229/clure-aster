@@ -74,7 +74,7 @@ export async function respond(text: string, screen?: string, onPartial?: (text: 
 
   // 要整理帳本（批次改分類、設預算、建週期、提前還款、改／刪帳目）：交給操作助手——先預覽影響、你確認才執行、可一鍵還原
   if (looksLikeOperation(t)) {
-    if (!aiEnabledLocally()) return { role: 'ai', kind: 'text', text: '整理帳本的操作需要開啟 AI（它只負責規劃，執行前一定先給你預覽）。', link: { label: '前往 AI 設定', to: '/settings/ai' } };
+    if (!aiEnabledLocally()) return { role: 'ai', kind: 'text', text: '整理帳本的操作需要開啟 Cilo（它只負責規劃，執行前一定先給你預覽）。', link: { label: '前往 Cilo設定', to: '/settings/ai' } };
     // 直接在對話裡規劃並預覽：確認執行、一鍵還原都在這個泡泡完成（AI 只規劃；預覽與執行在本機）
     try {
       const [{ aiAgentPlan }, { previewPlan }] = await Promise.all([import('@/services/ai'), import('@/services/agent')]);
@@ -144,8 +144,8 @@ export async function respond(text: string, screen?: string, onPartial?: (text: 
       const r = await aiChatTalk(t, onPartial, history);
       return {
         role: 'ai', kind: 'text', text: r.answer, followups: r.followups,
-        sub: dataTalk ? '未開啟「允許 AI 分析收支統計」，僅能提供一般性回答。' : undefined,
-        link: dataTalk ? { label: '前往 AI 設定', to: '/settings/ai' } : undefined,
+        sub: dataTalk ? '未開啟「允許 Cilo 分析收支統計」，僅能提供一般性回答。' : undefined,
+        link: dataTalk ? { label: '前往 Cilo設定', to: '/settings/ai' } : undefined,
       };
     } catch (e) {
       return { role: 'ai', kind: 'text', text: (e as Error).message };
@@ -154,9 +154,9 @@ export async function respond(text: string, screen?: string, onPartial?: (text: 
   return {
     role: 'ai', kind: 'text',
     text: asking || dataTalk
-      ? '這個問題我用規則回答不了。到「設定 → AI 助理」開啟 AI 並允許分析收支統計，就可以問更複雜的問題。'
-      : '我沒有聽出金額。可以試試「午餐 120」「昨天計程車兩百三」，或問「上個月吃飯花多少」。開啟 AI 後也能聊天、問更複雜的問題。',
-    link: { label: '前往 AI 設定', to: '/settings/ai' },
+      ? '這個問題我用規則回答不了。到「設定 → Cilo」開啟 Cilo 並允許分析收支統計，就可以問更複雜的問題。'
+      : '我沒有聽出金額。可以試試「午餐 120」「昨天計程車兩百三」，或問「上個月吃飯花多少」。開啟 Cilo 後也能聊天、問更複雜的問題。',
+    link: { label: '前往 Cilo設定', to: '/settings/ai' },
   };
 }
 
@@ -191,11 +191,11 @@ async function sendImages(files: File[]) {
   const pending = nextSeq();
   const patchPending = (p: object) => useChat.getState().patch(pending, p as Partial<Msg>);
   if (!aiEnabledLocally()) {
-    useChat.setState((s) => ({ msgs: [...s.msgs.slice(-30), { id: nextSeq(), role: 'user', text: `📷 ${list.length > 1 ? `${list.length} 張收據` : list[0].name || '收據照片'}` }, { id: pending, role: 'ai', kind: 'text', text: '拍照記帳需要開啟 AI（照片縮小後送出，不會保存在伺服器）。', link: { label: '前往 AI 設定', to: '/settings/ai' } }] }));
+    useChat.setState((s) => ({ msgs: [...s.msgs.slice(-30), { id: nextSeq(), role: 'user', text: `📷 ${list.length > 1 ? `${list.length} 張收據` : list[0].name || '收據照片'}` }, { id: pending, role: 'ai', kind: 'text', text: '拍照記帳需要開啟 Cilo（照片縮小後送出，不會保存在伺服器）。', link: { label: '前往 Cilo設定', to: '/settings/ai' } }] }));
     return;
   }
   // 超過 2 張要先確認額度：一張 2 點，不要讓人不知不覺用掉一堆
-  if (list.length > 2 && !(await askConfirm({ title: `辨識 ${list.length} 張收據？`, message: `每張用 2 點 AI 額度，共 ${list.length * 2} 點。失敗的不扣額度。`, confirmText: '開始辨識', cancelText: '取消' }))) return;
+  if (list.length > 2 && !(await askConfirm({ title: `辨識 ${list.length} 張收據？`, message: `每張用 2 點 Cilo 額度，共 ${list.length * 2} 點。失敗的不扣額度。`, confirmText: '開始辨識', cancelText: '取消' }))) return;
   useChat.setState((s) => ({ busy: true, msgs: [...s.msgs.slice(-30), { id: nextSeq(), role: 'user', text: `📷 ${list.length > 1 ? `${list.length} 張收據` : list[0].name || '收據照片'}${files.length > list.length ? `（一次最多 ${MAX_BATCH} 張，其餘 ${files.length - list.length} 張略過）` : ''}` }, { id: pending, role: 'ai', kind: 'pending' }] }));
   const drafts: ResolvedDraft[] = [];
   const fails: string[] = [];
@@ -218,7 +218,7 @@ async function sendImages(files: File[]) {
     }
     const note = fails.length ? `\n沒有辨識到的：${fails.join('；')}` : '';
     patchPending(drafts.length
-      ? { role: 'ai', kind: 'entries', drafts, via: 'ai', sub: `${quota}　AI 可能看錯，建議先看過金額再記帳${list.length > 1 ? '；不要的那筆把開關關掉' : '，或「帶入記帳面板」確認'}。${note}` }
+      ? { role: 'ai', kind: 'entries', drafts, via: 'ai', sub: `${quota}　Cilo 可能看錯，建議先看過金額再記帳${list.length > 1 ? '；不要的那筆把開關關掉' : '，或「帶入記帳面板」確認'}。${note}` }
       : { role: 'ai', kind: 'text', text: list.length > 1 ? `這 ${list.length} 張都看不出消費金額，請拍清楚一點或改用打字記帳。${note}` : fails[0]?.split('：').slice(1).join('：') || '看不出這張照片的消費金額，請拍清楚一點或改用打字記帳。' });
   } catch (e) {
     patchPending({ role: 'ai', kind: 'text', text: (e as Error).message });
@@ -335,7 +335,7 @@ function EntriesBubble({ m }: { m: Extract<Msg, { kind: 'entries' }> }) {
   };
   return (
     <div>
-      <div>{m.via === 'ai' ? <><AiMark /> AI 幫你整理成這樣：</> : '看起來是這幾筆：'}</div>
+      <div>{m.via === 'ai' ? <><AiMark /> Cilo 幫你整理成這樣：</> : '看起來是這幾筆：'}</div>
       <div className="list" style={{ marginTop: 6 }}>
         {m.drafts.map((d, i) => (
           <div key={i} className="row" style={off.has(i) ? { opacity: 0.45 } : undefined}>
@@ -413,7 +413,7 @@ const SpeechCtor: (new () => SpeechRec) | undefined = typeof window === 'undefin
     ?? (window as unknown as { webkitSpeechRecognition?: new () => SpeechRec }).webkitSpeechRecognition;
 
 /**
- * 對話內容（首頁彈出的對話視窗與 AI 助理頁共用同一份對話）：
+ * 對話內容（首頁彈出的對話視窗與 Cilo 頁共用同一份對話）：
  * 記帳、查帳、問 AI、用說的整理帳本（先預覽、確認才執行、可一鍵還原）全部在同一個輸入框，由 respond() 分流。
  */
 export function ChatPanel({ onLeave, autoFocus }: { onLeave?: () => void; autoFocus?: boolean }) {
@@ -529,7 +529,7 @@ export function ChatPanel({ onLeave, autoFocus }: { onLeave?: () => void; autoFo
       )}
       {aiOn && screen && (
         <button className={`screen-chip${attach ? ' on' : ''}`} type="button" aria-pressed={attach} onClick={() => useChat.getState().setAttach(!attach)}
-          title={attach ? '問 AI 時會一併送出這段畫面摘要（只有名稱與統計數字）；點一下取消' : '點一下，問 AI 時附上目前畫面'}>
+          title={attach ? '問 Cilo 時會一併送出這段畫面摘要（只有名稱與統計數字）；點一下取消' : '點一下，問 Cilo 時附上目前畫面'}>
           📍 {attach ? `目前畫面：${screen}` : '不附上目前畫面'}{attach && <span aria-hidden="true"> ✕</span>}
         </button>
       )}

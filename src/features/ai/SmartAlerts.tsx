@@ -113,11 +113,11 @@ export function SmartAlerts({ aiStatus }: { aiStatus?: AiStatus | null }) {
               >
                 <Icon name="sparkles" size={17} />
               </span>
-              <span className="row-title">疑難支出請 AI 比對市價</span>
+              <span className="row-title">疑難支出請 Cilo 比對市價</span>
             </div>
             <Switch
               checked={insights.aiPrice && !!ai?.enabled}
-              label="請 AI 查市價"
+              label="請 Cilo 查市價"
               onChange={(v) => {
                 if (ai?.enabled) set('insights', { ...insights, aiPrice: v });
                 else navigate('/settings/ai');
@@ -127,10 +127,10 @@ export function SmartAlerts({ aiStatus }: { aiStatus?: AiStatus | null }) {
         )}
       </div>
 
-      {/* 3. AI 智慧延伸 */}
+      {/* 3. Cilo 智慧延伸 */}
       {AUTH_ENABLED && (
         <>
-          <div className="section-title">AI 智慧分析</div>
+          <div className="section-title">Cilo 智慧分析</div>
           <div className="list">
             {!ai?.enabled ? (
               <button type="button" className="row tap" onClick={() => navigate('/settings/ai')}>
@@ -149,7 +149,7 @@ export function SmartAlerts({ aiStatus }: { aiStatus?: AiStatus | null }) {
                   <Icon name="ai" size={17} />
                 </span>
                 <span className="row-main">
-                  <span className="row-title">AI 對話與進階財務分析</span>
+                  <span className="row-title">Cilo 對話與進階財務分析</span>
                   <span className="row-sub">目前未啟用 · 點擊前往設定開啟</span>
                 </span>
                 <Icon name="chevronR" className="row-chev" />
@@ -172,7 +172,7 @@ export function SmartAlerts({ aiStatus }: { aiStatus?: AiStatus | null }) {
                 </span>
                 <span className="row-main">
                   <span className="row-title">財務數據存取授權</span>
-                  <span className="row-sub">問 AI 與財務分析需要允許存取去識別化統計 · 點擊前往授權</span>
+                  <span className="row-sub">問 Cilo 與財務分析需要允許存取去識別化統計 · 點擊前往授權</span>
                 </span>
                 <Icon name="chevronR" className="row-chev" />
               </button>
@@ -193,11 +193,11 @@ export function SmartAlerts({ aiStatus }: { aiStatus?: AiStatus | null }) {
                   <Icon name="sparkles" size={17} />
                 </span>
                 <span className="row-main">
-                  <span className="row-title">AI 分析服務運作中</span>
+                  <span className="row-title">Cilo 分析服務運作中</span>
                   <span className="row-sub">
                     {aiStatus
                       ? `今日剩 ${aiStatus.quota.daily.remaining ?? '不限'} 次 · 本週剩 ${aiStatus.quota.weekly.remaining ?? '不限'} 次`
-                      : '點擊管理 AI 功能與查看額度點數'}
+                      : '點擊管理 Cilo 與查看額度點數'}
                   </span>
                 </span>
                 <Icon name="chevronR" className="row-chev" />

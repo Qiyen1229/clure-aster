@@ -42,20 +42,20 @@ export default function AiPage() {
     <main className="page">
       <header className="topbar">
         <button className="icon-btn" aria-label="返回" onClick={() => navigate(-1)}><Icon name="chevronL" /></button>
-        <h1>AI 設定</h1>
+        <h1>Cilo設定</h1>
         <div style={{ width: 44 }} />
       </header>
       <div className="list">
-        <SwitchField label="啟用 AI 功能" checked={!!ai?.enabled} onChange={(v) => set('ai', { ...ai, enabled: v })}
-          sub="對話框的操作助手（整理帳本）、拍照記帳、帳單截圖對帳、一句話記帳看不懂時請 AI 解析" />
-        <SwitchField label="允許 AI 分析我的收支統計" checked={!!ai?.enabled && !!ai?.allowData} onChange={(v) => set('ai', { ...ai, enabled: ai?.enabled || v, allowData: v, auto: v ? ai?.auto : false })}
-          sub="用於對話框問 AI、操作助手依你的花費規劃預算、報表／專案／帳戶的白話解說" />
+        <SwitchField label="啟用 Cilo" checked={!!ai?.enabled} onChange={(v) => set('ai', { ...ai, enabled: v })}
+          sub="對話框的操作助手（整理帳本）、拍照記帳、帳單截圖對帳、一句話記帳看不懂時請 Cilo 解析" />
+        <SwitchField label="允許 Cilo 分析我的收支統計" checked={!!ai?.enabled && !!ai?.allowData} onChange={(v) => set('ai', { ...ai, enabled: ai?.enabled || v, allowData: v, auto: v ? ai?.auto : false })}
+          sub="用於對話框問 Cilo、操作助手依你的花費規劃預算、報表／專案／帳戶的白話解說" />
         <SwitchField label="首頁自動顯示「上週重點」" checked={!!ai?.enabled && !!ai?.allowData && !!ai?.auto} onChange={(v) => set('ai', { ...ai, enabled: true, allowData: true, auto: v })}
-          sub="每週最多自動用 1 點額度；沒開的話只在你按下按鈕時才用 AI" />
+          sub="每週最多自動用 1 點額度；沒開的話只在你按下按鈕時才用 Cilo" />
       </div>
       <div className="list">
         <button className="row" onClick={() => navigate('/settings/ai/sent')}>
-          <span className="row-main"><span className="row-title">🔍 查看送出過什麼</span><span className="row-sub" style={{ display: 'block' }}>每一次送去 AI 的原文都記在這台裝置，隨時檢查</span></span>
+          <span className="row-main"><span className="row-title">🔍 查看送出過什麼</span><span className="row-sub" style={{ display: 'block' }}>每一次送去 Cilo 的原文都記在這台裝置，隨時檢查</span></span>
           <Icon name="chevronR" className="row-chev" />
         </button>
       </div>
@@ -68,7 +68,7 @@ export default function AiPage() {
             <Bar label="本週" w={st.quota.weekly} />
             <Bar label="本月" w={st.quota.monthly} />
           </div>
-          <Intro id="aipage.4">每日、每週一、每月 1 日 00:00（台北時間）重置；任何一層用完就暫停，不影響其他記帳功能。AI 失敗或看不懂不扣額度。額度由管理員設定，使用者與管理員分開計算。</Intro>
+          <Intro id="aipage.4">每日、每週一、每月 1 日 00:00（台北時間）重置；任何一層用完就暫停，不影響其他記帳功能。Cilo 失敗或看不懂不扣額度。額度由管理員設定，使用者與管理員分開計算。</Intro>
         </>
       )}
     </main>

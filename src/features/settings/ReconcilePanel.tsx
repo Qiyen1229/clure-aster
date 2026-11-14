@@ -116,7 +116,7 @@ export function ReconcilePanel({ csvRows, aiEntries, printedTotal, defaultAccoun
 
       {source === 'ai' && (
         <details className="card" style={{ marginTop: 8 }}>
-          <summary style={{ cursor: 'pointer' }}>AI 讀到的 {rows.length} 筆明細（可修改金額、刪除讀錯的）</summary>
+          <summary style={{ cursor: 'pointer' }}>Cilo 讀到的 {rows.length} 筆明細（可修改金額、刪除讀錯的）</summary>
           <div className="list" style={{ marginTop: 8 }}>
             {rows.map((r) => (
               <div key={`${r.id}:${cur}`} className="row" style={{ gap: 8 }}>

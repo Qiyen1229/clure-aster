@@ -7,9 +7,10 @@ import { useNavigate } from 'react-router-dom';
 import { providerById } from '@/services/quotes/providers';
 import { diagnoseSources, type SourceCheck } from '@/services/quotes/registry';
 import { proxied } from '@/services/quotes/http';
+import { AUTH_ENABLED, useAuth } from '@/stores/auth';
 import { useSettings } from '@/stores/settings';
 import { useUI } from '@/stores/ui';
-import { Segmented, Switch } from '@/ui/controls';
+import { EmptyState, Segmented, Switch } from '@/ui/controls';
 import { Icon } from '@/ui/Icon';
 import type { InvestSettings, QuoteSettings } from '@/db/repo/settings';
 
@@ -41,6 +42,7 @@ function Order({ title, value, onChange }: { title: string; value: string[]; onC
 export default function InvestSettingsPage() {
   const navigate = useNavigate();
   const s = useSettings();
+  const user = useAuth((st) => st.user);
   const q = s.quote;
   const inv = s.invest;
   const setQ = (patch: Partial<QuoteSettings>) => s.set('quote', { ...q, ...patch });
@@ -48,6 +50,16 @@ export default function InvestSettingsPage() {
   const [testing, setTesting] = useState(false);
   const [diag, setDiag] = useState<SourceCheck[] | null>(null);
   const [diagBusy, setDiagBusy] = useState(false);
+
+  // 股票資料源內含代理權杖與 API Key，改放資安後台：僅管理員可設定（未啟用登入的本機模式不受限）
+  if (AUTH_ENABLED && user?.role !== 'admin') {
+    return (
+      <main className="page">
+        <EmptyState emoji="⛔️" title="需要管理員權限" text="股票資料源已移至資安後台，只有系統管理員可以設定。"
+          action={<button className="btn small" onClick={() => navigate('/settings')}>回設定</button>} />
+      </main>
+    );
+  }
 
   const test = async () => {
     setTesting(true);
@@ -77,7 +89,7 @@ export default function InvestSettingsPage() {
     <main className="page">
       <header className="topbar">
         <button className="icon-btn" aria-label="返回" onClick={() => navigate(-1)}><Icon name="chevronL" /></button>
-        <h1>股票與資料源</h1>
+        <h1>股票資料源</h1>
         <div style={{ width: 44 }} />
       </header>
 

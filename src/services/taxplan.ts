@@ -140,8 +140,8 @@ export interface InvestTaxSummary {
 }
 
 /**
- * 給「問 AI」的去識別化投資與稅務統計：只有整數元合計、股票代號與日期；沒有持股也沒有除息事件時回傳 null（不多送一個空區塊）。
- * 使用者要先允許 AI 分析收支統計（ai.allowData）才會送出，內容也會出現在「AI 設定 → 查看送出過什麼」。
+ * 給「問 Cilo」的去識別化投資與稅務統計：只有整數元合計、股票代號與日期；沒有持股也沒有除息事件時回傳 null（不多送一個空區塊）。
+ * 使用者要先允許 Cilo 分析收支統計（ai.allowData）才會送出，內容也會出現在「Cilo設定 → 查看送出過什麼」。
  */
 export async function investTaxSummary(today = todayKey()): Promise<InvestTaxSummary | null> {
   const st = useSettings.getState();

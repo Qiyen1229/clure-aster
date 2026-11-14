@@ -68,7 +68,7 @@ describe('每新增一筆支出就檢查一次（先看習慣與分類市價，�
     expect(aiPriceCheck).toHaveBeenCalledTimes(1);
     expect(aiPriceCheck.mock.calls[0][0]).toMatchObject({ category: '其他', note: '不明消費', amount: 1600, currency: 'TWD' });
     const f = (await loadSnapshot())!.findings.find((x) => x.id === 'large:x1')!;
-    expect(f.why).toContain('AI 查到一般行情約 $200～$900');
+    expect(f.why).toContain('Cilo 查到一般行情約 $200～$900');
   });
 
   it('AI 說合理 → 不提醒；同一筆只問一次（再次檢查不會重複問，也不能手動重跑）', async () => {

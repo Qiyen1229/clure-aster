@@ -98,7 +98,7 @@ export async function draftsSmart(text: string): Promise<{ list: ResolvedDraft[]
     const fallback = await fallbackAccount();
     return { list: await Promise.all(drafts.map((d) => resolveDraft(d, fallback))), usedAi: true, quotaText: ai.quotaLabel(quota) };
   } catch (e) {
-    return { list, usedAi: false, aiNote: `（AI：${(e as Error).message}）` };
+    return { list, usedAi: false, aiNote: `（Cilo：${(e as Error).message}）` };
   }
 }
 

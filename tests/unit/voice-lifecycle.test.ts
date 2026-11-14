@@ -256,13 +256,13 @@ describe('語音生命週期：MediaRecorder + Gemini 語音轉文字', () => {
     expect(useVoice.getState().hint).toContain('無法取得麥克風權限');
   });
 
-  it('AI 助理未開啟 → 切換為鍵盤輸入並提示，不要求麥克風', () => {
+  it('Cilo 未開啟 → 切換為鍵盤輸入並提示，不要求麥克風', () => {
     aiEnabledLocallyMock.mockReturnValue(false);
     voice.openVoice(true, true);
 
     expect(useVoice.getState().keyboard).toBe(true);
     expect(useVoice.getState().hold).toBe(false);
-    expect(useVoice.getState().hint).toContain('需要開啟 AI 助理');
+    expect(useVoice.getState().hint).toContain('需要開啟 Cilo');
     expect(gum).not.toHaveBeenCalled();
   });
 

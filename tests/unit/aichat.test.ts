@@ -57,11 +57,11 @@ describe('對話框 respond（AI 關閉時）', () => {
     }
   });
 
-  it('規則看不懂的問題：說明如何開啟 AI（不呼叫任何 API）', async () => {
+  it('規則看不懂的問題：說明如何開啟 Cilo（不呼叫任何 API）', async () => {
     const r = await respond('怎麼存錢比較快？');
     expect(r.kind).toBe('text');
     if (r.kind === 'text') {
-      expect(r.text).toMatch(/AI/);
+      expect(r.text).toMatch(/Cilo/);
       expect(r.link?.to).toBe('/settings/ai');
     }
   });

@@ -93,11 +93,11 @@ class AiService:
         configured = any(p.configured for p in ai_providers.providers())
         quota = ai_quota.quota_for(self.db, user.id, user.role, lim)
         if not lim.enabled:
-            msg, available = "管理員已關閉 AI 功能", False
+            msg, available = "管理員已關閉 Cilo", False
         elif not configured:
             msg, available = "伺服器尚未設定 AI 供應商", False
         elif ai_quota.global_exhausted(self.db, lim):
-            msg, available = "今日全站 AI 額度已用完，明天 00:00 重置", False
+            msg, available = "今日全站 Cilo 額度已用完，明天 00:00 重置", False
         else:
             msg, available = "可以使用", True
         return AiStatus(role=user.role, enabled=lim.enabled, configured=configured, available=available, message=msg, quota=quota)

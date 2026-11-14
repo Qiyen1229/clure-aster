@@ -35,16 +35,16 @@ export const SHOWCASE_SIZE = 6;
 
 export const CANDIDATES: ShowcaseFeature[] = [
   {
-    id: 'ai-chat', icon: 'ai', title: 'AI 上滑對話', since: '4.1.0', power: 5, novelty: 5,
+    id: 'ai-chat', icon: 'ai', title: 'Cilo 上滑對話', since: '4.1.0', power: 5, novelty: 5,
     pitch: '任何頁面往上滑，直接跟 Aster 說話',
     bullets: ['記帳、查帳、問收支、聊天，都在同一個對話框', '記得這次對話，可以接著問「那上個月呢」', '要改或刪帳目、設預算，先給你預覽，確認才執行'],
-    howto: '在底部導覽列往上滑；先到「設定 → AI 助理」開啟',
+    howto: '在底部導覽列往上滑；先到「設定 → Cilo」開啟',
   },
   {
     id: 'agent', icon: 'sliders', title: '一句話整理帳本', since: '4.0.0', power: 5, novelty: 5,
     pitch: '用說的批次整理，先預覽、可以一鍵還原',
     bullets: ['「把上個月 Uber 都歸到交通」「剛剛那筆改成 180」', '最多 8 個步驟一起做：全部成功或全部不動', '執行後整包可還原，刪除的帳目也能救回來'],
-    howto: '在 AI 對話框直接說出你想整理的事',
+    howto: '在 Cilo 對話框直接說出你想整理的事',
   },
   {
     id: 'auto-record', icon: 'wallet', title: '自動記帳', since: '1.3.0', power: 5, novelty: 4,
@@ -56,31 +56,31 @@ export const CANDIDATES: ShowcaseFeature[] = [
     id: 'schedule', icon: 'clock', title: '排程記帳', since: '4.1.12', power: 4, novelty: 5,
     pitch: '「下週二下午三點半，午餐 200」說一句就排好',
     bullets: ['到時間通知你，可選擇確認後入帳，或直接幫你記', '看得懂後天、三天後、下個月 5 號、月底', '每月房租、訂閱用週期帳目，到期自動處理'],
-    howto: '在 AI 對話框說出日期與時間，按「排程提醒」',
+    howto: '在 Cilo 對話框說出日期與時間，按「排程提醒」',
   },
   {
     id: 'voice', icon: 'mic', title: '語音記帳', since: '1.3.0', power: 4, novelty: 4,
     pitch: '按住說一句話，帳就記好了',
-    bullets: ['「昨天晚餐 350 刷玉山卡」，日期、分類、帳戶一次抓出來', '一句話可以記好幾筆', '辨識出文字後用規則解析成帳目，不經過 AI'],
+    bullets: ['「昨天晚餐 350 刷玉山卡」，日期、分類、帳戶一次抓出來', '一句話可以記好幾筆', '辨識出文字後用規則解析成帳目，不經過 Cilo'],
     howto: '長按底部導覽列中間的按鈕（iPhone 放開後點麥克風開始說）',
   },
   {
     id: 'photo', icon: 'camera', title: '拍照記帳', since: '2.0.0', power: 4, novelty: 4,
     pitch: '收據、發票拍下來就變成帳目',
     bullets: ['一次最多 8 張，逐張辨識', '每一筆都可以取消勾選，確認後一次記下', '失敗的那張不影響其他張'],
-    howto: '在 AI 對話框點相機圖示；先到「設定 → AI 助理」開啟',
+    howto: '在 Cilo 對話框點相機圖示；先到「設定 → Cilo」開啟',
   },
   {
     id: 'fire', icon: 'trend', title: '財務自由與現金流', since: '1.2.0', power: 4, novelty: 3,
     pitch: '看見你的錢未來會怎樣',
     bullets: ['模擬幾歲能退休、每年要存多少', '預測未來 30～180 天的現金流', '直接在對話裡出圖，不用翻頁'],
-    howto: '在 AI 對話框說「財務自由」或「現金流」',
+    howto: '在 Cilo 對話框說「財務自由」或「現金流」',
   },
   {
     id: 'alerts', icon: 'bell', title: '智慧提醒', since: '3.5.0', power: 3, novelty: 4,
     pitch: '幫你盯著不對勁的扣款',
     bullets: ['沒登記的訂閱、漲價、疑似重複扣款', '預算「照目前花法會超支」就先警告', '完全在本機運算'],
-    howto: '「設定 → AI 助理 → 智慧提醒」',
+    howto: '「設定 → Cilo → 異常提醒」',
   },
   {
     id: 'invest', icon: 'pie', title: '投資組合', since: '1.0.0', power: 4, novelty: 2,
@@ -92,7 +92,7 @@ export const CANDIDATES: ShowcaseFeature[] = [
     id: 'themes', icon: 'palette', title: '三套完整配色', since: '4.1.29', power: 1, novelty: 2,
     pitch: '背景、卡片與點綴色一次搭配好',
     bullets: ['石墨冰藍、霧白墨綠、暖灰琥珀', '支援深色、淺色與跟隨系統', '經典灰階保留自由選色'],
-    howto: '到「設定 → 介面與通知 → 外觀與首頁版面」',
+    howto: '到「設定 → 主題」',
   },
   {
     id: 'pnl-calendar', icon: 'trend', title: '全新盈虧日曆', since: '4.1.30', power: 3, novelty: 4,

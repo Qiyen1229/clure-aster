@@ -173,7 +173,7 @@ export function startListening() {
     return;
   }
   if (!aiEnabledLocally()) {
-    set({ keyboard: true, hint: '語音辨識需要開啟 AI 助理（已切換為文字輸入，也可使用 iOS 鍵盤麥克風聽寫）' });
+    set({ keyboard: true, hint: '語音辨識需要開啟 Cilo（已切換為文字輸入，也可使用 iOS 鍵盤麥克風聽寫）' });
     return;
   }
   stopListening();

@@ -172,7 +172,7 @@ export async function applyPlan(steps: ResolvedStep[], summary: string, idempote
         const inv = useSettings.getState().invest;
         const t = await addTrade({
           stockId: op.input.stockId, accountId: op.input.accountId, type: op.input.side, date: op.input.date, ts: Date.now(), sharesDec: op.input.sharesDec, priceDec: op.input.priceDec,
-          feeMinor: op.input.feeMinor, taxMinor: op.input.taxMinor, fxRateDec: '1', isDCA: false, syncToLedger: true, cashAccountId: op.input.cashAccountId, note: '由 AI 操作助手記錄', costMethodSnapshot: inv.costMethod,
+          feeMinor: op.input.feeMinor, taxMinor: op.input.taxMinor, fxRateDec: '1', isDCA: false, syncToLedger: true, cashAccountId: op.input.cashAccountId, note: '由 Cilo 操作助手記錄', costMethodSnapshot: inv.costMethod,
         });
         log.changes.push({ table: 'stock_trades', id: t.id, stamp: 0, undo: 'trade' });
       } else {

@@ -52,7 +52,7 @@ export function QuickEntry({ initialText, accMap, catMap, onApply, onBooked }: {
         setDrafts([]);
         setOpen(false);
         setText('');
-        useUI.getState().showSnack({ text: usedAi ? `AI 已協助解析（${quotaText}），確認後按「完成」` : '已帶入，確認後按「完成」' });
+        useUI.getState().showSnack({ text: usedAi ? `Cilo 已協助解析（${quotaText}），確認後按「完成」` : '已帶入，確認後按「完成」' });
       } else setDrafts(list);
     } catch (e) {
       setHint((e as Error).message);
