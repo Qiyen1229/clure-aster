@@ -9,7 +9,7 @@
  *     所以停在投資頁、帳戶頁或報表時都能直接對眼前的東西下指令；一切都是手動觸發，不會自動呼叫 AI
  *   - 有待確認電子發票或未讀提醒時，右上角出現小光點
  */
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { startTransition, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { makeSpring, projectEnd, sampleSpring, stepSpring, trackAt, type SpringTrack } from '@/domain/spring';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Icon, type IconName } from '@/ui/Icon';
@@ -131,7 +131,7 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
     freeze(); stopRaf();
     if (!el || typeof el.animate !== 'function') { P.x.t = x; kick(); return; }
     // Q 彈：欠阻尼（ζ 0.6）會輕輕過衝再回來
-    const track = sampleSpring(P.x.p, x, P.x.v, 16, 0.6, 1.2, 120); // 120fps 取樣：高更新率螢幕上也不會有階梯感
+    const track = sampleSpring(P.x.p, x, P.x.v, 16, 0.6, 1.2, 60);
     if (track.pos.length < 3) { P.x.p = x; P.x.t = x; P.x.v = 0; paint(); return; }
     const frames = track.pos.map((p, i) => ({ transform: lensTransform(p, track.vel[i]) }));
     P.track = track; P.t0 = performance.now();
@@ -156,6 +156,8 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
     if (scrubTo) return;
     const r = activeTo ? rectOf(activeTo) : null;
     if (!r) { setLensShown(false); return; }
+    const P = phys.current;
+    if (P.placed && lensShown && Math.abs(P.x.t - (r.x - 2)) < 0.5) return;
     sizeLens();
     // 透鏡原本是隱藏的：先瞬間放到新位置再淡入，不要從舊位置飛過來
     aim(r.x - 2, !lensShown);
@@ -351,11 +353,15 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
     window.setTimeout(() => { swallowClick.current = false; }, 80);
     setScrubTo(null);
     const r = to && to !== HOME ? rectOf(to) : null;
-    if (r) aim(r.x - 2); // 從目前位置與速度繼續彈過去（合成器播放）
-    else setLensShown(false);
+    if (r) {
+      if (st.moved || cancelled) aim(r.x - 2); // 拖曳或取消才重新啟動彈簧；單純點按已在 onCapDown 起飛
+    } else setLensShown(false);
     if (!to || cancelled) return;
-    if (to === HOME) { if (pathname !== HOME) { markDockNav(); navigate(HOME); } return; }
-    if (to !== activeTo) { markDockNav(); navigate(to); }
+    if (to === HOME) {
+      if (pathname !== HOME) startTransition(() => { markDockNav(); navigate(HOME); });
+      return;
+    }
+    if (to !== activeTo) startTransition(() => { markDockNav(); navigate(to); });
   };
   const onCapUp = (e: React.PointerEvent<HTMLDivElement>) => finishScrub(e, false);
   const onCapCancel = (e: React.PointerEvent<HTMLDivElement>) => finishScrub(e, true);

@@ -65,6 +65,9 @@ def test_hook_notify_noise_filtering(api: Api) -> None:
     r2 = _hook(token, {"source": "notify", "card": "LINE Pay", "text": "在 50嵐 付款 NT$65 完成"})
     assert r2.status_code == 200 and r2.json()["message"] == "已送到 Aster，打開 App 確認記帳"
 
+    r3 = _hook(token, {"source": "siri", "text": "早餐 65 現金"})
+    assert r3.status_code == 200 and r3.json()["message"] == "已記進 Aster 收件匣：早餐 65 現金"
+
     # 2. 雜訊通知：回傳 200 但略過不寫入
     noise_samples = [
         "【玉山銀行】您的網路交易驗證碼(OTP)為 123456，請於2分鐘內輸入",
@@ -76,11 +79,12 @@ def test_hook_notify_noise_filtering(api: Api) -> None:
         rn = _hook(token, {"source": "notify", "card": "銀行", "text": noise})
         assert rn.status_code == 200 and rn.json()["message"] == "已略過非消費通知"
 
-    # 驗證收件匣只有那 2 筆真正交易
+    # 驗證收件匣只有那 3 筆真正交易
     items = api.get("/api/inbox/items").json()
-    assert len(items) == 2
-    assert items[0]["source"] == "notify" and items[0]["card"] == "LINE Pay"
-    assert items[1]["source"] == "notify" and items[1]["card"] == "國泰世華"
+    assert len(items) == 3
+    assert items[0]["source"] == "siri" and items[0]["text"] == "早餐 65 現金"
+    assert items[1]["source"] == "notify" and items[1]["card"] == "LINE Pay"
+    assert items[2]["source"] == "notify" and items[2]["card"] == "國泰世華"
 
 
 def test_hook_rejects_bad_token_and_isolates_users(admin_and_user) -> None:  # noqa: ANN001

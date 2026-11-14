@@ -116,9 +116,9 @@ export default function ShortcutsPage() {
         <summary><b>⚡ 什麼是 iPhone 自動記帳捷徑？</b></summary>
         <p className="muted">設定好後，刷卡、網購、LINE Pay 掃碼付款或收到銀行通知時，iPhone 會自動將消費送進 Aster 收件匣，方便你在首頁隨時核對記帳。</p>
         <ol className="inbox-steps">
-          <li><span>💳</span><div><b>照常付款</b><br />刷實體卡、網購、LINE Pay 掃碼，或對 Siri 說「記一筆，午餐 120」</div></li>
+          <li><span>💳</span><div><b>照常付款或呼叫 Siri</b><br />刷實體卡、網購、LINE Pay 掃碼，或先對 Siri 說「嘿 Siri，Aster 隨手記」，等 Siri 回應後再說「早餐 65 現金」</div></li>
           <li><span>📨</span><div><b>捷徑自動寄出</b><br />銀行或支付 App 跳通知時，自動把金額、商家送進 Aster</div></li>
-          <li><span>✅</span><div><b>首頁核對入帳</b><br />在首頁收件匣一鍵記帳，或開啟「看得懂的直接記帳」</div></li>
+          <li><span>✅</span><div><b>首頁核對入帳</b><br />在首頁收件匣一鍵記帳；若開啟「看得懂的直接記帳」，打開 App 會直接入帳到今日帳目</div></li>
         </ol>
       </details>
 

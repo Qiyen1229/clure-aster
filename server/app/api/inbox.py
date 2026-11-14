@@ -75,4 +75,6 @@ def hook(body: HookItem, client: ClientInfo = Depends(get_client), authorization
         PushService(db).send_to_user(user.id, {"title": "📥 收件匣有新項目", "body": "打開 Aster 確認記帳", "url": "/inbox", "tag": f"inbox:{item.id}"})
     except Exception:  # noqa: BLE001 — 推播失敗不能影響捷徑收件
         log.exception("收件匣推播失敗")
+    if body.source == "siri" and body.text:
+        return HookResult(message=f"已記進 Aster 收件匣：{body.text[:40]}")
     return HookResult(message="已送到 Aster，打開 App 確認記帳")
