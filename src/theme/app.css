@@ -894,9 +894,10 @@ html {
   background: var(--bg);
   color: var(--text);
   overscroll-behavior: none;
+  overflow-x: clip;
 }
 /* color 也要跟著主題：boot.css 依「系統」深淺色把 body 設成白／黑字，手動選的主題與系統不同時（系統深色、App 選淺色）會變成白底白字 */
-body { margin: 0; background: var(--bg); color: var(--text); min-height: 100dvh; overscroll-behavior-y: none; }
+body { margin: 0; background: var(--bg); color: var(--text); min-height: 100dvh; overscroll-behavior-y: none; overflow-x: clip; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { background: none; border: 0; padding: 0; cursor: pointer; }
 input, textarea, select { -webkit-appearance: none; appearance: none; }
@@ -924,7 +925,7 @@ button img, a img, .cat-icon, .tab svg { -webkit-user-drag: none; }
 }
 
 /* ---------- App 外框 ---------- */
-.app { position: relative; min-height: 100dvh; padding-left: var(--safe-l); padding-right: var(--safe-r); }
+.app { position: relative; min-height: 100dvh; padding-left: var(--safe-l); padding-right: var(--safe-r); overflow-x: clip; }
 .page {
   min-height: 100dvh;
   padding: calc(var(--safe-t) + 8px) 16px calc(var(--tabbar-h) + var(--safe-b) + 28px);
