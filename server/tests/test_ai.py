@@ -803,7 +803,7 @@ def test_agent_plan_new_tools_add_rule_and_goal(api: Api, monkeypatch) -> None: 
     steps = r.json()["steps"]
     assert [s["tool"] for s in steps] == ["add_rule", "add_goal", "add_goal"]
     assert steps[0]["args"] == {"pattern": "uber", "category": "通勤", "account": "玉山"}
-    assert steps[1]["args"] == {"name": "日本旅行", "target_amount": 50000, "deadline": "2026-12-31"}
+    assert steps[1]["args"] == {"name": "日本旅行", "target_amount": 50000, "deadline": "2026-12-31", "account": None}
     assert steps[2]["args"]["deadline"] is None
 
 

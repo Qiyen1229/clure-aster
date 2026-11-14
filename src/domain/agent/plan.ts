@@ -12,12 +12,14 @@
  * （後面的步驟看得到前面步驟的結果），並以 show_view 步驟指定要在對話裡嵌入哪張檢視卡（財務自由、稅務、現金流、花費）。
  * 這幾個會動到帳戶的工具目前只支援主幣別帳戶（外幣需要匯率，請用記帳面板）。
  */
-import type { Account, Budget, Category, CategoryRule, Goal, RecurringRule, Transaction } from '@/db/types';
+import type { Account, Budget, Category, CategoryRule, Dividend, Durable, Goal, Installment, Project, RecurringRule, Transaction, Transfer, Wish } from '@/db/types';
+import type { InboxEntry } from '@/services/inbox';
 import { statAmount } from '@/domain/ledger';
 import { formatMoney } from '@/domain/money';
 import { accountingMonth, addDays, type Range } from '@/domain/period';
 import { occurrences } from '@/domain/recurrence';
 import { loanStatus, simulatePrepayment } from '@/domain/loan';
+import { buildSchedule, periodTotal } from '@/domain/installment';
 import { twFee, twSellTax, twTaxRate, tradeValue, type TwFeeConfig } from '@/domain/invest/fees-tw';
 import { toMinor } from '@/domain/money';
 import Decimal from 'decimal.js';
@@ -28,7 +30,9 @@ export const MAX_STEPS = 8;
 export const MAX_DELETE = 20;
 
 export type ToolName = 'reclassify' | 'set_budget' | 'add_recurring' | 'prepayment_sim' | 'add_goal' | 'add_rule'
-  | 'add_transaction' | 'transfer' | 'add_debt' | 'settle_debt' | 'goal_deposit' | 'buy_stock' | 'sell_stock' | 'show_view' | 'edit_transaction' | 'delete_transaction';
+  | 'add_transaction' | 'transfer' | 'add_debt' | 'settle_debt' | 'goal_deposit' | 'buy_stock' | 'sell_stock' | 'show_view' | 'edit_transaction' | 'delete_transaction'
+  | 'add_installment' | 'add_project' | 'set_travel_mode' | 'manage_recurring' | 'manage_inbox' | 'add_category' | 'add_dividend'
+  | 'add_wish' | 'decide_wish' | 'manage_durable' | 'add_watch' | 'delete_transfer' | 'manage_debt' | 'edit_goal' | 'add_account';
 /** 對話裡可以嵌入的檢視卡 */
 export type ViewKind = 'fire' | 'tax' | 'cashflow' | 'spending';
 export const VIEW_KINDS: ViewKind[] = ['fire', 'tax', 'cashflow', 'spending'];
@@ -40,16 +44,33 @@ export type Op =
   | { kind: 'recat'; ids: string[]; categoryId: string }
   | { kind: 'budget'; id?: string; input: Omit<Budget, 'id' | 'createdAt' | 'updatedAt'> }
   | { kind: 'recurring'; input: Omit<RecurringRule, 'id' | 'createdAt' | 'updatedAt' | 'nextDue' | 'doneCount' | 'pendingDates'> }
-  | { kind: 'tx_edit'; id: string; set: { amountMinor?: number; categoryId?: string; accountId?: string; note?: string; date?: string } }
+  | { kind: 'tx_edit'; id: string; set: { amountMinor?: number; categoryId?: string; accountId?: string; note?: string; date?: string; projectId?: string; tagNames?: string[]; excludeFromBudget?: boolean; excludeFromStats?: boolean } }
   | { kind: 'tx_delete'; ids: string[] }
   | { kind: 'goal'; input: Omit<Goal, 'id' | 'createdAt' | 'updatedAt'> }
   | { kind: 'rule'; input: Omit<CategoryRule, 'id' | 'createdAt' | 'updatedAt' | 'hits'> }
-  | { kind: 'tx'; input: { type: 'expense' | 'income'; accountId: string; categoryId: string; amountMinor: number; currency: string; date: string; note: string } }
+  | { kind: 'tx'; input: { type: 'expense' | 'income'; accountId: string; categoryId: string; amountMinor: number; currency: string; date: string; note: string; projectId?: string; tagNames?: string[]; merchant?: string; excludeFromBudget?: boolean; excludeFromStats?: boolean; split?: { myShareMinor: number; personName: string } } }
   | { kind: 'transfer'; input: { fromAccountId: string; toAccountId: string; amountMinor: number; date: string; note: string } }
   | { kind: 'debt'; input: { direction: 'i_owe_them' | 'they_owe_me'; personName: string; amountMinor: number; currency: string; date: string; note: string; accountId?: string } }
   | { kind: 'settle'; debtId: string; accountId?: string }
   | { kind: 'goal_deposit'; goalId: string; amountMinor: number }
-  | { kind: 'trade'; input: { side: 'buy' | 'sell'; stockId: string; accountId: string; date: string; sharesDec: string; priceDec: string; feeMinor: number; taxMinor: number; cashAccountId: string } };
+  | { kind: 'trade'; input: { side: 'buy' | 'sell'; stockId: string; accountId: string; date: string; sharesDec: string; priceDec: string; feeMinor: number; taxMinor: number; cashAccountId: string } }
+  | { kind: 'category'; draftId: string; input: { name: string; kind: 'expense' | 'income'; parentId: string } }
+  | { kind: 'account'; draftId: string; input: { name: string; type: 'bank' | 'cash' | 'credit' | 'epay'; currency: string; initialBalanceMinor: number } }
+  | { kind: 'project'; draftId: string; input: Omit<Project, 'id' | 'createdAt' | 'updatedAt'> }
+  | { kind: 'travel'; projectId: string | null }
+  | { kind: 'installment'; input: Omit<Installment, 'id' | 'createdAt' | 'updatedAt' | 'schedule' | 'status'> }
+  | { kind: 'recurring_manage'; ruleId: string; action: 'confirm' | 'skip' | 'pause' | 'resume' | 'delete' | 'edit'; date?: string; amountMinor?: number; day?: number; mode?: 'auto' | 'confirm' }
+  | { kind: 'inbox'; action: 'book' | 'skip'; entries: InboxEntry[] }
+  | { kind: 'dividend'; input: Omit<Dividend, 'id' | 'createdAt' | 'updatedAt' | 'transactionId' | 'stockTradeId'> & { syncToLedger: boolean } }
+  | { kind: 'wish'; draftId: string; input: { name: string; priceMinor: number; currency: string; coolDays: number; categoryId?: string; note?: string; url?: string } }
+  | { kind: 'wish_decide'; wishId: string; decision: 'bought' | 'abandoned' | 'extend' }
+  | { kind: 'durable_add'; draftId: string; input: { name: string; costMinor: number; currency: string; purchaseDate: string; lifeYears?: number } }
+  | { kind: 'durable_use'; durableId: string }
+  | { kind: 'durable_sell'; durableId: string; endDate: string; saleMinor: number; income?: { accountId: string; categoryId: string } }
+  | { kind: 'watch'; stockId: string; priceDec: string | null; op: '>=' | '<=' | null }
+  | { kind: 'transfer_delete'; ids: string[] }
+  | { kind: 'debt_manage'; action: 'delete' | 'unsettle'; debtIds: string[] }
+  | { kind: 'goal_edit'; goalId: string; set: { targetMinor?: number; deadline?: string | null; linkedAccountIds?: string[]; status?: 'active' | 'archived' } };
 
 export interface StepPreview {
   tool: ToolName;
@@ -99,13 +120,22 @@ export interface AgentData {
   /** 候選帳目（近一年，未刪除）；預覽在這份的複本上模擬 */
   txs: Transaction[];
   defaultAccountId?: string;
-  debts?: { id: string; personName: string; direction: 'they_owe_me' | 'i_owe_them'; amountMinor: number; currency: string; note: string; settled: number }[];
+  debts?: { id: string; personName: string; direction: 'they_owe_me' | 'i_owe_them'; amountMinor: number; currency: string; note: string; settled: number; loanTxId?: string; settleTransferId?: string }[];
   /** 已有的投資標的（含最新報價）；買進只支援這份清單裡的標的 */
   stocks?: { id: string; symbol: string; name: string; market: string; currency: string; assetType: 'stock' | 'etf' | 'bond_etf'; lotSize: number; priceDec?: string; taxRateDec?: string }[];
   /** 目前各標的的持股股數（標的 id → 股數字串）；賣出用它檢查夠不夠賣 */
   holdings?: Record<string, string>;
   feeConfig?: TwFeeConfig;
   defaultBrokerageId?: string;
+  /** v4.1.39 全能助手：專案、願望、耐久財、轉帳、觀察清單、收件匣（預覽用，執行時以資料庫為準） */
+  projects?: Project[];
+  tags?: { id: string; name: string }[];
+  wishes?: Wish[];
+  durables?: Durable[];
+  transfers?: Transfer[];
+  watchlist?: { stockId: string; alerts: { priceDec: string; op: '>=' | '<='; enabled: boolean }[] }[];
+  inbox?: InboxEntry[];
+  travelProjectId?: string | null;
 }
 
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
@@ -336,8 +366,14 @@ function addGoal(a: Record<string, unknown>, d: AgentData): ResolvedStep {
   const cur = d.baseCurrency;
   const targetMinor = minorOf(amount, cur);
   const deadline = dateOrNull(a.deadline);
+  const acc = str(a.account) ? findAccount(d.accounts, str(a.account)) : undefined;
+  if (str(a.account) && !acc) return blocked(`找不到帳戶「${str(a.account)}」`);
   const warnings: string[] = [];
   const lines = [`目標金額 ${fmt(targetMinor, cur)}（已存 $0，之後可在「規劃 → 目標」連結帳戶或手動存入）`];
+  if (acc) {
+    lines[0] = `目標金額 ${fmt(targetMinor, cur)}，連結帳戶「${acc.name}」（目標進度＝帳戶餘額＋手動存入）`;
+    if (acc.currency !== cur) warnings.push(`「${acc.name}」是外幣帳戶，目標進度會依匯率換算成 ${cur}`);
+  }
   if (deadline && deadline > d.today) {
     const months = Math.max(1, Math.ceil((Date.parse(deadline) - Date.parse(d.today)) / 86_400_000 / 30.44));
     lines.push(`截止日 ${deadline}（約 ${months} 個月後），平均每月要存 ${fmt(Math.ceil(targetMinor / months), cur)}`);
@@ -348,7 +384,7 @@ function addGoal(a: Record<string, unknown>, d: AgentData): ResolvedStep {
   const dup = (d.goals ?? []).find((g) => g.status === 'active' && g.name.trim() === name);
   if (dup) warnings.push(`已經有一個同名的進行中目標「${dup.name}」，執行後會有兩個`);
   return {
-    op: { kind: 'goal', input: { start: d.today, name, icon: '🎯', color: '#0A84FF', targetMinor, currency: cur, deadline: deadline && deadline > d.today ? deadline : undefined, linkedAccountIds: [], manualSavedMinor: 0, status: 'active' } },
+    op: { kind: 'goal', input: { start: d.today, name, icon: '🎯', color: '#0A84FF', targetMinor, currency: cur, deadline: deadline && deadline > d.today ? deadline : undefined, linkedAccountIds: acc ? [acc.id] : [], manualSavedMinor: 0, status: 'active' } },
     preview: { tool: 'add_goal', title: `建立存錢目標「${name}」${fmt(targetMinor, cur)}`, lines: [...lines, '帳戶餘額：不受影響'], warnings, goalsCreated: 1 },
   };
 }
@@ -389,6 +425,14 @@ interface Work {
   settled: Set<string>;
   /** 這份計畫買賣之後的持股股數（標的 id → 股數） */
   shares: Map<string, Decimal>;
+  /** 這份計畫裡剛建立的專案（名稱 → op），set_travel_mode 可以直接切換過去 */
+  draftProjects: Map<string, Extract<Op, { kind: 'project' }>>;
+  /** 這份計畫裡已刪除的欠款 id */
+  removedDebts: Set<string>;
+  /** 這份計畫裡結清欠款時入帳的金額（欠款 id → 帳戶與增減），後面的取消結清／刪除要能退回 */
+  settleEffects: Map<string, { accountId: string; delta: number }>;
+  /** 草稿 id 流水號（分類／帳戶／專案／願望／耐久財共用，前綴不同） */
+  draftSeq: number;
 }
 
 const blockedStep = (tool: ToolName, title: string, why: string): ResolvedStep => ({ op: null, preview: { tool, title, lines: [], warnings: [], blocked: why } });
@@ -416,17 +460,33 @@ function addTransactionTool(a: Record<string, unknown>, d: AgentData, W: Work): 
   if (!cat) return blockedStep('add_transaction', title, str(a.category) ? `找不到${type === 'income' ? '收入' : '支出'}分類「${str(a.category)}」` : '請說明分類');
   const date = dateOrNull(a.date) ?? d.today;
   if (date > d.today) return blockedStep('add_transaction', title, '日期不能是未來（未來的固定收支請用週期帳目）');
+  const named = str(a.project) ? (d.projects ?? []).find((p) => p.name === str(a.project) && p.status === 'active') : undefined;
+  if (str(a.project) && !named) return blockedStep('add_transaction', title, `找不到專案「${str(a.project)}」（可以先說「建立專案 ${str(a.project)}」）`);
+  // 旅遊模式：沒明寫專案就自動歸入目前的旅遊專案（和執行層一致）
+  const project = named ?? (d.travelProjectId ? (d.projects ?? []).find((p) => p.id === d.travelProjectId && p.status === 'active') : undefined);
+  const tagNames = [...new Set((Array.isArray(a.tags) ? a.tags : []).map((t) => str(t).slice(0, 20)).filter(Boolean))].slice(0, 6);
   const amountMinor = minorOf(amount, acc.currency);
   const note = str(a.note).slice(0, 60) || cat.name;
+  // 分帳：我付我的份額，對方欠我剩下的（跟記帳面板的分帳一樣，會建立應收）
+  const sp = a.split && typeof a.split === 'object' ? (a.split as Record<string, unknown>) : null;
+  const myShare = sp ? num(sp.my_share) : NaN;
+  const person = sp ? str(sp.person).slice(0, 30) : '';
+  const split = sp && myShare > 0 && myShare < amount && person ? { myShareMinor: minorOf(myShare, acc.currency), personName: person } : undefined;
   const before = W.balances.get(acc.id) ?? acc.balanceMinor;
   const after = before + (type === 'income' ? amountMinor : -amountMinor);
   W.balances.set(acc.id, after);
   const warnings: string[] = [];
   const lines = [`${type === 'income' ? '收入' : '支出'}${fmt(amountMinor, acc.currency)}，分類「${cat.name}」，${date}`, balanceLine(acc, before, after, warnings)];
+  if (project) lines.push(`歸入專案「${project.name}」`);
+  if (tagNames.length) lines.push(`標籤：${tagNames.join('、')}${tagNames.some((t) => !(d.tags ?? []).some((x) => x.name === t)) ? '（不存在的名稱會自動建立）' : ''}`);
+  if (split) lines.push(`分帳：我付 ${fmt(split.myShareMinor, acc.currency)}，${split.personName} 欠我 ${fmt(amountMinor - split.myShareMinor, acc.currency)}（會建立一筆應收，帳目只算我的份額）`);
+  if (a.exclude_budget === true) lines.push('不計入預算');
+  if (a.exclude_stats === true) lines.push('不計入收支統計');
   if (!str(a.category)) warnings.push(`你沒有指定分類，先放在「${cat.name}」`);
+  if (sp && !split) warnings.push('分帳資訊不完整（我的份額要介於 0 和總金額之間、要有對象名字），這筆不分帳');
   return {
-    op: { kind: 'tx', input: { type, accountId: acc.id, categoryId: cat.id, amountMinor, currency: acc.currency, date, note } },
-    preview: { tool: 'add_transaction', title: `${type === 'income' ? '收入' : '支出'} ${fmt(amountMinor, acc.currency)}（${note}）→「${acc.name}」`, lines, warnings, txCreated: 1, accountsTouched: 1, accountIds: [acc.id] },
+    op: { kind: 'tx', input: { type, accountId: acc.id, categoryId: cat.id, amountMinor, currency: acc.currency, date, note, projectId: project?.id, tagNames: tagNames.length ? tagNames : undefined, merchant: str(a.merchant).slice(0, 30) || undefined, excludeFromBudget: a.exclude_budget === true || undefined, excludeFromStats: a.exclude_stats === true || undefined, split } },
+    preview: { tool: 'add_transaction', title: `${type === 'income' ? '收入' : '支出'} ${fmt(amountMinor, acc.currency)}（${note}）→「${acc.name}」`, lines, warnings, txCreated: 1, accountsTouched: 1, accountIds: [acc.id], debtsCreated: split ? 1 : 0 },
   };
 }
 
@@ -528,6 +588,7 @@ function settleDebtTool(a: Record<string, unknown>, d: AgentData, W: Work): Reso
     lines.push(`${theyPay ? `${x.personName} 還你` : `你還 ${x.personName}`} ${fmt(x.amountMinor, x.currency)}${x.note ? `（${x.note}）` : ''}`);
     total += theyPay ? x.amountMinor : -x.amountMinor;
     W.settled.add(x.id);
+    if (acc) W.settleEffects.set(x.id, { accountId: acc.id, delta: theyPay ? x.amountMinor : -x.amountMinor });
   }
   if (acc) {
     const before = W.balances.get(acc.id) ?? acc.balanceMinor, after = before + total;
@@ -677,6 +738,14 @@ function editTxTool(a: Record<string, unknown>, d: AgentData, work: Transaction[
     if (!nd) return blocked('日期格式不正確');
     set.date = nd;
   }
+  if (str(s.project)) {
+    const p = (d.projects ?? []).find((x) => x.name === str(s.project) && x.status === 'active');
+    if (!p) return blocked(`找不到專案「${str(s.project)}」`);
+    set.projectId = p.id;
+  }
+  if (Array.isArray(s.tags)) set.tagNames = [...new Set(s.tags.map((t) => str(t).slice(0, 20)).filter(Boolean))].slice(0, 6);
+  if (typeof s.exclude_budget === 'boolean') set.excludeFromBudget = s.exclude_budget;
+  if (typeof s.exclude_stats === 'boolean') set.excludeFromStats = s.exclude_stats;
   if (!Object.keys(set).length) return blocked('沒有要修改的內容');
   const needsOne = set.amountMinor !== undefined || set.accountId !== undefined || set.date !== undefined;
   if (hits.length > 1 && needsOne) return blocked(`符合條件的帳目有 ${hits.length} 筆，改金額、帳戶或日期必須明確指到一筆（例如說出日期或金額，或說「剛剛那筆」）`);
@@ -693,6 +762,10 @@ function editTxTool(a: Record<string, unknown>, d: AgentData, work: Transaction[
   if (set.accountId) pieces.push(`帳戶「${d.accounts.find((x) => x.id === t.accountId)?.name ?? ''}」→「${d.accounts.find((x) => x.id === set.accountId)?.name}」`);
   if (set.note !== undefined) pieces.push(`備註「${t.note}」→「${set.note}」`);
   if (set.date) pieces.push(`日期 ${t.date} → ${set.date}`);
+  if (set.projectId) pieces.push(`專案 →「${(d.projects ?? []).find((x) => x.id === set.projectId)?.name}」`);
+  if (set.tagNames !== undefined) pieces.push(set.tagNames.length ? `標籤 → ${set.tagNames.join('、')}` : '標籤 → 清空');
+  if (set.excludeFromBudget !== undefined) pieces.push(set.excludeFromBudget ? '不計入預算' : '計入預算');
+  if (set.excludeFromStats !== undefined) pieces.push(set.excludeFromStats ? '不計入收支統計' : '計入收支統計');
   lines.push(`符合條件：${label}`, `共 ${hits.length} 筆`, ...pieces);
   const delta = (set.amountMinor !== undefined ? set.amountMinor - t.amountMinor : 0) * (t.type === 'income' ? 1 : -1);
   lines.push(set.amountMinor !== undefined || set.accountId ? `帳戶餘額：${delta >= 0 ? '增加' : '減少'} ${fmt(Math.abs(delta), cur)}（${set.accountId ? '兩個帳戶都會跟著調整' : '依新金額重算'}）` : '帳戶餘額：不受影響');
@@ -704,6 +777,9 @@ function editTxTool(a: Record<string, unknown>, d: AgentData, work: Transaction[
     if (set.accountId) w.accountId = set.accountId;
     if (set.note !== undefined) w.note = set.note;
     if (set.date) w.date = set.date;
+    if (set.projectId) w.projectId = set.projectId;
+    if (set.excludeFromBudget !== undefined) w.excludeFromBudget = set.excludeFromBudget;
+    if (set.excludeFromStats !== undefined) w.excludeFromStats = set.excludeFromStats;
   }
   const ops: Op[] = hits.map((x) => ({ kind: 'tx_edit', id: x.id, set }));
   return {
@@ -754,36 +830,643 @@ function showViewTool(a: Record<string, unknown>): ResolvedStep {
   };
 }
 
+// ───────────── v4.1.39 全能助手：分期、專案、旅遊模式、週期管理、收件匣、分類、股利、願望、耐久財、觀察、刪轉帳、欠款管理、改目標、新帳戶 ─────────────
+
+const ACC_TYPE_LABEL: Record<string, string> = { bank: '銀行', cash: '現金', credit: '信用卡', epay: '電子支付' };
+const cur3 = (v: unknown): string | null => { const s = str(v).toUpperCase(); return /^[A-Z]{3}$/.test(s) ? s : null; };
+const findProject = (d: AgentData, name: string) => (d.projects ?? []).find((p) => p.name === name && p.status === 'active');
+
+function addCategoryTool(a: Record<string, unknown>, d: AgentData, W: Work): ResolvedStep {
+  const tool: ToolName = 'add_category';
+  const name = str(a.name).slice(0, 20);
+  const kind = a.kind === 'income' ? 'income' : 'expense';
+  if (!name) return blockedStep(tool, '新增分類', '請說明分類名稱');
+  if (findCategory(d.categories, name, kind)) return blockedStep(tool, '新增分類', `已經有${kind === 'income' ? '收入' : '支出'}分類「${name}」了`);
+  const parent = str(a.parent) ? findCategory(d.categories, str(a.parent), kind) : undefined;
+  if (str(a.parent) && !parent) return blockedStep(tool, '新增分類', `找不到主分類「${str(a.parent)}」`);
+  if (parent?.parentId) return blockedStep(tool, '新增分類', '子分類底下不能再建子分類');
+  const id = `draft-cat-${W.draftSeq++}`;
+  d.categories.push({ id, kind, parentId: parent?.id ?? '', name, icon: '🏷️', color: '#8E8E93', sort: 999, archived: 0, createdAt: 0, updatedAt: 0 });
+  return {
+    op: { kind: 'category', draftId: id, input: { name, kind, parentId: parent?.id ?? '' } },
+    preview: { tool, title: `新增${kind === 'income' ? '收入' : '支出'}分類「${name}」`, lines: [parent ? `放在「${parent.name}」底下` : '主分類', '之後記帳就可以選這個分類', '帳戶餘額：不受影響'], warnings: [] },
+  };
+}
+
+function addAccountTool(a: Record<string, unknown>, d: AgentData, W: Work): ResolvedStep {
+  const tool: ToolName = 'add_account';
+  const name = str(a.name).slice(0, 30);
+  const type = a.type === 'cash' || a.type === 'credit' || a.type === 'epay' ? a.type : a.type === 'bank' ? 'bank' : null;
+  if (!name || !type) return blockedStep(tool, '新增帳戶', '請說明帳戶名稱與類型（銀行／現金／信用卡／電子支付）');
+  if (findAccount(d.accounts, name)) return blockedStep(tool, '新增帳戶', `已經有帳戶「${name}」了`);
+  const currency = cur3(a.currency) ?? d.baseCurrency;
+  const initial = Math.max(0, num(a.initial_balance) || 0);
+  const initialMinor = minorOf(initial, currency);
+  const id = `draft-acc-${W.draftSeq++}`;
+  d.accounts.push({ id, name, icon: type === 'credit' ? '💳' : type === 'cash' ? '💵' : '🏦', color: '#0A84FF', type, currency, initialBalanceMinor: initialMinor, balanceMinor: initialMinor, includeInNetWorth: true, isLiability: type === 'credit', sort: 999, archived: 0, createdAt: 0, updatedAt: 0 });
+  W.balances.set(id, initialMinor);
+  const warnings: string[] = [];
+  if (type === 'credit') warnings.push('信用卡的結帳日、額度、年費請之後到帳戶頁補上');
+  if (currency !== d.baseCurrency) warnings.push(`這是外幣帳戶（${currency}），之後記外幣帳需要匯率`);
+  return {
+    op: { kind: 'account', draftId: id, input: { name, type, currency, initialBalanceMinor: initialMinor } },
+    preview: { tool, title: `新增${ACC_TYPE_LABEL[type]}帳戶「${name}」`, lines: [`幣別 ${currency}，期初餘額 ${fmt(initialMinor, currency)}`, '後面的步驟可以直接用這個帳戶記帳／轉帳'], warnings },
+  };
+}
+
+function addProjectTool(a: Record<string, unknown>, d: AgentData, W: Work): ResolvedStep {
+  const tool: ToolName = 'add_project';
+  const name = str(a.name).slice(0, 30);
+  if (!name) return blockedStep(tool, '建立專案', '請說明專案名稱');
+  const start = dateOrNull(a.start_date) ?? d.today;
+  const end = dateOrNull(a.end_date);
+  if (end && end < start) return blockedStep(tool, '建立專案', '結束日不能早於開始日');
+  const currency = cur3(a.currency) ?? d.baseCurrency;
+  const budget = num(a.budget);
+  const isTravel = a.is_travel === true;
+  const warnings: string[] = [];
+  if (findProject(d, name)) warnings.push(`已經有一個同名的進行中專案「${name}」，執行後會有兩個`);
+  const id = `draft-proj-${W.draftSeq++}`;
+  const input: Omit<Project, 'id' | 'createdAt' | 'updatedAt'> = { name, icon: isTravel ? '✈️' : '📁', color: '#0A84FF', start, end: end ?? undefined, currency, budgetMinor: budget > 0 ? minorOf(budget, currency) : undefined, status: 'active', isTravel: isTravel || undefined, note: str(a.note).slice(0, 60) || undefined };
+  d.projects = [...(d.projects ?? []), { ...input, id, createdAt: 0, updatedAt: 0 }];
+  const op: Extract<Op, { kind: 'project' }> = { kind: 'project', draftId: id, input };
+  W.draftProjects.set(name, op);
+  const lines = [`期間 ${start}${end ? `～${end}` : '（未設結束日）'}，幣別 ${currency}`];
+  if (budget > 0) lines.push(`專案預算 ${fmt(minorOf(budget, currency), currency)}`);
+  if (isTravel) lines.push('旅遊專案：建立後可以說「切換到旅遊模式」，首頁與記帳會改成旅遊版面');
+  lines.push('帳戶餘額：不受影響');
+  return { op, preview: { tool, title: `建立${isTravel ? '旅遊' : ''}專案「${name}」`, lines, warnings } };
+}
+
+function setTravelModeTool(a: Record<string, unknown>, d: AgentData): ResolvedStep {
+  const tool: ToolName = 'set_travel_mode';
+  const name = str(a.project);
+  const current = d.travelProjectId ? (d.projects ?? []).find((p) => p.id === d.travelProjectId) : undefined;
+  if (!name) {
+    d.travelProjectId = null;
+    return {
+      op: { kind: 'travel', projectId: null },
+      preview: { tool, title: '切回一般模式', lines: [current ? `離開「${current.name}」旅遊模式，首頁與記帳恢復一般版面` : '目前已經是一般模式', '已歸入專案的帳目不受影響'], warnings: [] },
+    };
+  }
+  const proj = findProject(d, name);
+  if (!proj) return blockedStep(tool, '切換旅遊模式', `找不到進行中的專案「${name}」（可以先說「建立專案 ${name}」）`);
+  if (!proj.isTravel) return blockedStep(tool, '切換旅遊模式', `「${name}」不是旅遊專案，請先到專案頁把它改成旅遊專案`);
+  const warnings: string[] = [];
+  if (current && current.id !== proj.id) warnings.push(`目前已在「${current.name}」旅遊模式，會改切到「${name}」`);
+  d.travelProjectId = proj.id;
+  return {
+    op: { kind: 'travel', projectId: proj.id },
+    preview: { tool, title: `切換到旅遊模式：「${name}」`, lines: ['首頁改成旅行版面，記帳未指定專案時自動歸入這個專案', `預設幣別 ${proj.currency}`, '隨時可以說「切回一般模式」'], warnings },
+  };
+}
+
+function manageRecurringTool(a: Record<string, unknown>, d: AgentData, W: Work): ResolvedStep {
+  const tool: ToolName = 'manage_recurring';
+  const title = '管理週期帳目';
+  const name = str(a.name);
+  const same = d.recurring.filter((r) => r.name.trim() === name);
+  if (!same.length) return blockedStep(tool, title, `找不到週期帳目「${name}」`);
+  if (same.length > 1) return blockedStep(tool, title, `有 ${same.length} 條同名的「${name}」，請先到「規劃 → 週期」改名`);
+  const r = same[0];
+  const action = a.action;
+  const cur = r.template.currency ?? d.baseCurrency;
+  const acc = d.accounts.find((x) => x.id === r.template.accountId);
+  const pending = [...r.pendingDates].sort();
+  const pickDate = (): string | null => {
+    const given = dateOrNull(a.date);
+    if (given) return pending.includes(given) ? given : null;
+    return pending[0] ?? null;
+  };
+  if (action === 'confirm' || action === 'skip') {
+    const date = pickDate();
+    if (!date) return blockedStep(tool, title, dateOrNull(a.date) ? `「${name}」沒有 ${dateOrNull(a.date)} 這期待確認` : `「${name}」目前沒有待確認的期數`);
+    const amtRaw = num(a.amount);
+    const amountMinor = action === 'confirm' && amtRaw > 0 ? minorOf(amtRaw, cur) : undefined;
+    if (action === 'skip') {
+      r.pendingDates = r.pendingDates.filter((x) => x !== date);
+      return {
+        op: { kind: 'recurring_manage', ruleId: r.id, action: 'skip', date },
+        preview: { tool, title: `略過「${name}」${date} 這期`, lines: ['這期不入帳，從待確認移除', '帳戶餘額：不受影響'], warnings: ['略過的那期不會自動補回；執行後可按「還原」救回'] },
+      };
+    }
+    const amt = amountMinor ?? r.template.amountMinor ?? 0;
+    const warnings: string[] = [];
+    const lines = [`${date} 這期入帳 ${fmt(amt, cur)}${amountMinor !== undefined ? `（原 ${fmt(r.template.amountMinor ?? 0, cur)}）` : ''}`];
+    if (acc) {
+      const before = W.balances.get(acc.id) ?? acc.balanceMinor;
+      const after = before + (r.template.type === 'income' ? amt : -amt);
+      W.balances.set(acc.id, after);
+      lines.push(balanceLine(acc, before, after, warnings));
+    }
+    if (r.kind === 'subscription' && amountMinor !== undefined && amountMinor !== r.template.amountMinor) {
+      lines.push(`訂閱價格更新為 ${fmt(amountMinor, cur)}，之後每期以新價格入帳（會記錄價格歷史）`);
+      r.template = { ...r.template, amountMinor };
+    }
+    r.pendingDates = r.pendingDates.filter((x) => x !== date);
+    return {
+      op: { kind: 'recurring_manage', ruleId: r.id, action: 'confirm', date, amountMinor },
+      preview: { tool, title: `確認入帳「${name}」${date}`, lines, warnings, txCreated: 1, accountsTouched: acc ? 1 : 0, accountIds: acc ? [acc.id] : [] },
+    };
+  }
+  if (action === 'pause' || action === 'resume') {
+    const pause = action === 'pause';
+    if (pause && !r.active) return blockedStep(tool, title, `「${name}」已經暫停了`);
+    if (!pause && r.active) return blockedStep(tool, title, `「${name}」已經是啟用狀態`);
+    r.active = pause ? 0 : 1;
+    return {
+      op: { kind: 'recurring_manage', ruleId: r.id, action },
+      preview: { tool, title: `${pause ? '暫停' : '恢復'}「${name}」`, lines: [pause ? '暫停後到期不會入帳、不會提醒，隨時可以恢復' : '恢復後到期會照常入帳／提醒', '帳戶餘額：現在不受影響'], warnings: [] },
+    };
+  }
+  if (action === 'delete') {
+    return {
+      op: { kind: 'recurring_manage', ruleId: r.id, action: 'delete' },
+      preview: { tool, title: `刪除週期帳目「${name}」`, lines: ['之後不會再產生新的期數', '已經入帳的帳目會保留', '執行後可按「還原」把規則整條救回來'], warnings: [] },
+    };
+  }
+  if (action === 'edit') {
+    const amtRaw = num(a.amount), dayRaw = num(a.day);
+    const amountMinor = amtRaw > 0 ? minorOf(amtRaw, cur) : undefined;
+    const day = dayRaw >= 1 && dayRaw <= 31 ? Math.round(dayRaw) : undefined;
+    const mode = a.mode === 'auto' || a.mode === 'confirm' ? a.mode : undefined;
+    if (amountMinor === undefined && day === undefined && !mode) return blockedStep(tool, title, '請說明要改什麼（金額、每月幾號、自動入帳或待確認）');
+    if (day !== undefined && r.rule.freq !== 'month') return blockedStep(tool, title, '這條不是每月週期，不能改「幾號」');
+    const lines: string[] = [];
+    if (amountMinor !== undefined) lines.push(`金額 ${fmt(r.template.amountMinor ?? 0, cur)} → ${fmt(amountMinor, cur)}`);
+    if (day !== undefined) lines.push(`每月 ${r.rule.freq === 'month' ? r.rule.byMonthDay ?? '（未設）' : ''} 號 → ${day} 號`);
+    if (mode) lines.push(mode === 'auto' ? '改成自動入帳：到期直接記帳，不再等確認' : '改成待確認：到期先通知，確認後才入帳');
+    lines.push('帳戶餘額：現在不受影響（下一期開始生效）');
+    return {
+      op: { kind: 'recurring_manage', ruleId: r.id, action: 'edit', amountMinor, day, mode },
+      preview: { tool, title: `修改週期帳目「${name}」`, lines, warnings: [] },
+    };
+  }
+  return blockedStep(tool, title, '不支援的操作');
+}
+
+function manageInboxTool(a: Record<string, unknown>, d: AgentData, W: Work): ResolvedStep {
+  const tool: ToolName = 'manage_inbox';
+  const title = '處理收件匣';
+  const all = d.inbox ?? [];
+  if (!all.length) return blockedStep(tool, title, '收件匣目前沒有待確認項目');
+  const action = a.action === 'skip' ? 'skip' : 'book';
+  const kw = str(a.keyword).toLowerCase();
+  const hits = kw ? all.filter((e) => `${e.item.merchant} ${e.item.text} ${e.drafts.map((x) => x.note).join(' ')}`.toLowerCase().includes(kw)) : all;
+  if (!hits.length) return blockedStep(tool, title, `收件匣裡找不到符合「${str(a.keyword)}」的項目`);
+  if (action === 'skip') {
+    const lines = hits.slice(0, 8).map((e) => {
+      const label = e.item.merchant || e.drafts[0]?.note || e.item.text.slice(0, 20);
+      const dr = e.drafts[0];
+      return dr ? `${label}　${fmt(toMinor(dr.amount, dr.currency ?? d.baseCurrency), dr.currency ?? d.baseCurrency)}` : label;
+    });
+    if (hits.length > 8) lines.push(`…還有 ${hits.length - 8} 筆`);
+    lines.push('帳戶餘額：不受影響');
+    return {
+      op: { kind: 'inbox', action: 'skip', entries: hits },
+      preview: { tool, title: `略過收件匣 ${hits.length} 筆`, lines, warnings: ['略過會直接從伺服器刪除這些項目，無法還原'] },
+    };
+  }
+  const bookable = hits.filter((e) => e.drafts.length && e.dup?.level !== 'strong');
+  const dupN = hits.filter((e) => e.dup?.level === 'strong').length;
+  const noDraft = hits.filter((e) => !e.drafts.length).length;
+  if (!bookable.length) return blockedStep(tool, title, '這些項目都看不懂金額或疑似重複，請到收件匣手動處理');
+  const warnings: string[] = ['記帳後項目會從伺服器移除；「還原」會刪掉記下的帳目，但項目不會回到收件匣'];
+  if (dupN) warnings.push(`${dupN} 筆疑似重複，會留在收件匣等你確認`);
+  if (noDraft) warnings.push(`${noDraft} 筆看不懂金額，需要到收件匣手動記`);
+  const lines: string[] = [];
+  const touched = new Set<string>();
+  for (const e of bookable) {
+    for (const dr of e.drafts) {
+      const acc = d.accounts.find((x) => x.id === dr.accountId);
+      if (!acc) continue;
+      const amt = minorOf(dr.amount, acc.currency);
+      const before = W.balances.get(acc.id) ?? acc.balanceMinor;
+      if (dr.kind === 'transfer') {
+        const to = d.accounts.find((x) => x.id === dr.toAccountId);
+        if (!to) continue;
+        W.balances.set(acc.id, before - amt);
+        const bTo = W.balances.get(to.id) ?? to.balanceMinor;
+        W.balances.set(to.id, bTo + amt);
+        lines.push(`${dr.date}　${dr.note}　${fmt(amt, acc.currency)}　「${acc.name}」→「${to.name}」`);
+        touched.add(acc.id); touched.add(to.id);
+      } else {
+        const after = before + (dr.kind === 'income' ? amt : -amt);
+        W.balances.set(acc.id, after);
+        lines.push(`${dr.date}　${dr.note}　${dr.kind === 'income' ? '＋' : '－'}${fmt(amt, acc.currency)}　→「${acc.name}」`);
+        touched.add(acc.id);
+      }
+    }
+  }
+  for (const id of touched) {
+    const acc = d.accounts.find((x) => x.id === id);
+    if (acc) lines.push(balanceLine(acc, acc.balanceMinor, W.balances.get(id) ?? acc.balanceMinor, warnings));
+  }
+  return {
+    op: { kind: 'inbox', action: 'book', entries: bookable },
+    preview: { tool, title: `把收件匣 ${bookable.length} 筆記帳`, lines, warnings, txCreated: bookable.reduce((s, e) => s + e.drafts.length, 0), accountsTouched: touched.size, accountIds: [...touched] },
+  };
+}
+
+function addInstallmentTool(a: Record<string, unknown>, d: AgentData, W: Work): ResolvedStep {
+  const tool: ToolName = 'add_installment';
+  const title = '建立分期付款';
+  const name = str(a.name).slice(0, 30);
+  const acc = findAccount(d.accounts, str(a.account));
+  const amount = num(a.amount);
+  const periods = Math.round(num(a.periods));
+  if (!name || !(amount > 0)) return blockedStep(tool, title, '請說明名稱與總金額');
+  if (!acc) return blockedStep(tool, title, str(a.account) ? `找不到帳戶「${str(a.account)}」` : '請說明扣款帳戶');
+  if (!baseOnly(acc, d)) return blockedStep(tool, title, '外幣分期請到「規劃 → 分期」建立（需要匯率）');
+  if (!(periods >= 2 && periods <= 60)) return blockedStep(tool, title, '期數要介於 2 到 60 期');
+  const apr = Math.max(0, num(a.apr) || 0);
+  if (apr > 50) return blockedStep(tool, title, '年利率不合理（超過 50%），請確認');
+  const fee = Math.max(0, num(a.fee) || 0);
+  const firstDate = dateOrNull(a.first_date) ?? d.today;
+  const cat = str(a.category) ? findCategory(d.categories, str(a.category), 'expense') : d.categories.find((c) => c.kind === 'expense' && usableCat(c) && /^其他/.test(c.name));
+  if (!cat) return blockedStep(tool, title, str(a.category) ? `找不到支出分類「${str(a.category)}」` : '請說明分類');
+  const principalMinor = minorOf(amount, acc.currency);
+  const schedule = buildSchedule({ principalMinor, periods, aprDec: String(apr), feeMinor: minorOf(fee, acc.currency), feeMode: 'first', firstDate });
+  const dueNow = schedule.filter((s) => s.date <= d.today);
+  const warnings: string[] = [];
+  const lines = [`總本金 ${fmt(principalMinor, acc.currency)}，${periods} 期，年利率 ${apr}%${fee > 0 ? `，手續費 ${fmt(minorOf(fee, acc.currency), acc.currency)}（第一期收取）` : ''}`,
+    `第一期 ${firstDate}，每期約 ${fmt(periodTotal(schedule[0]), acc.currency)}${apr > 0 ? '（本息平均攤還）' : ''}`];
+  if (dueNow.length) {
+    const amt = dueNow.reduce((s, x) => s + periodTotal(x), 0);
+    const before = W.balances.get(acc.id) ?? acc.balanceMinor;
+    W.balances.set(acc.id, before - amt);
+    lines.push(`已到期的 ${dueNow.length} 期會立刻入帳（共 ${fmt(amt, acc.currency)}）`, balanceLine(acc, before, before - amt, warnings));
+  } else lines.push('帳戶餘額：現在不受影響（第一期到期才入帳）');
+  lines.push('之後每期到期自動記帳，可在「規劃 → 分期」查看攤還表');
+  return {
+    op: { kind: 'installment', input: { name, accountId: acc.id, categoryId: cat.id, principalMinor, currency: acc.currency, periods, aprDec: String(apr), feeMinor: minorOf(fee, acc.currency), feeMode: 'first', firstDate } },
+    preview: { tool, title: `建立分期「${name}」${periods} 期`, lines, warnings, txCreated: dueNow.length, accountsTouched: dueNow.length ? 1 : 0, accountIds: dueNow.length ? [acc.id] : [] },
+  };
+}
+
+function addDividendTool(a: Record<string, unknown>, d: AgentData, W: Work): ResolvedStep {
+  const tool: ToolName = 'add_dividend';
+  const title = '記錄股利';
+  const symbol = str(a.symbol).toUpperCase();
+  const stock = (d.stocks ?? []).find((s) => s.symbol.toUpperCase() === symbol);
+  if (!stock) return blockedStep(tool, title, `投資頁裡沒有「${symbol || '（未說明）'}」這檔標的`);
+  if (stock.currency !== d.baseCurrency) return blockedStep(tool, title, '外幣標的的股利請到投資頁記錄（需要匯率）');
+  const per = num(a.per_share);
+  if (!(per > 0)) return blockedStep(tool, title, '請說明每股股利（或每股配股數）');
+  const held = new Decimal(W.shares.get(stock.id) ?? d.holdings?.[stock.id] ?? 0);
+  if (held.lte(0)) return blockedStep(tool, title, `目前沒有「${stock.symbol}」的持股，請先記錄買進`);
+  const kind = a.kind === 'stock' ? 'stock' : 'cash';
+  const payDate = dateOrNull(a.pay_date) ?? d.today;
+  const exDate = dateOrNull(a.ex_date) ?? payDate;
+  const status = payDate > d.today ? 'announced' : 'paid';
+  const broker = d.accounts.find((x) => x.id === d.defaultBrokerageId && usableAcc(x)) ?? d.accounts.find((x) => usableAcc(x) && x.type === 'brokerage');
+  const settle = broker?.brokerage?.settlementAccountId ? d.accounts.find((x) => x.id === broker.brokerage!.settlementAccountId && usableAcc(x)) : undefined;
+  const acc = (str(a.account) ? findAccount(d.accounts, str(a.account)) : undefined) ?? settle ?? broker ?? d.accounts.find((x) => usableAcc(x) && x.type === 'bank');
+  if (!acc) return blockedStep(tool, title, str(a.account) ? `找不到帳戶「${str(a.account)}」` : '請說明現金入帳帳戶');
+  if (acc.currency !== stock.currency) return blockedStep(tool, title, `入帳帳戶幣別和標的不同（需要匯率），請到投資頁記錄`);
+  const cur = stock.currency;
+  const gross = kind === 'cash' ? toMinor(new Decimal(per).mul(held), cur) : 0;
+  const withholding = cur === 'USD' ? Math.floor(gross * 0.3) : 0;
+  // 與 repo/invest 的 nhiSupplement 相同：台股單次 ≥ 2 萬扣 2.11% 二代健保
+  const nhi = cur === 'TWD' && gross >= 2_000_000 ? toMinor(new Decimal(gross).div(100).mul('0.0211').floor(), 'TWD') : 0;
+  const fee = cur === 'TWD' ? minorOf(10, cur) : 0;
+  const net = Math.max(0, gross - withholding - nhi - fee);
+  const warnings: string[] = [];
+  const lines: string[] = [];
+  const perD = new Decimal(per);
+  if (kind === 'cash') {
+    lines.push(`每股 ${per} × ${held.toString()} 股 = ${fmt(gross, cur)}`);
+    lines.push(`預扣 ${fmt(withholding, cur)}、二代健保 ${fmt(nhi, cur)}、匯費 ${fmt(fee, cur)} → 實拿 ${fmt(net, cur)}`);
+    if (status === 'paid' && net > 0) {
+      const before = W.balances.get(acc.id) ?? acc.balanceMinor;
+      W.balances.set(acc.id, before + net);
+      lines.push(balanceLine(acc, before, before + net, warnings));
+    }
+  } else {
+    const extra = perD.mul(held).floor();
+    lines.push(`每股配 ${per} 股 × ${held.toString()} 股 = 配 ${extra.toString()} 股（不足 1 股不記）`);
+    if (status === 'paid') W.shares.set(stock.id, (W.shares.get(stock.id) ?? held).plus(extra));
+    lines.push('帳戶餘額：不受影響（配股只增加持股）');
+  }
+  lines.push(`除息日 ${exDate}、發放日 ${payDate}${status === 'announced' ? '（還沒發放，先記為已宣告，不入帳）' : ''}`);
+  if (status === 'paid') warnings.push('預扣與健保是依常見規則估算，實際以券商為準；執行後可到投資頁修改');
+  return {
+    op: { kind: 'dividend', input: { stockId: stock.id, accountId: acc.id, kind, exDate, payDate, perShareDec: perD.toString(), sharesHeldDec: held.toString(), grossMinor: gross, withholdingTaxMinor: withholding, nhiSupplementMinor: nhi, feeMinor: fee, netMinor: kind === 'cash' ? net : 0, currency: cur, status, syncToLedger: true } },
+    preview: { tool, title: `${stock.symbol} ${kind === 'cash' ? '現金股利' : '股票股利'} ${kind === 'cash' ? fmt(net, cur) : `配 ${perD.mul(held).floor()} 股`}`, lines, warnings, txCreated: kind === 'cash' && status === 'paid' && net > 0 ? 1 : 0, accountsTouched: kind === 'cash' && status === 'paid' && net > 0 ? 1 : 0, accountIds: kind === 'cash' && status === 'paid' && net > 0 ? [acc.id] : [] },
+  };
+}
+
+function addWishTool(a: Record<string, unknown>, d: AgentData, W: Work): ResolvedStep {
+  const tool: ToolName = 'add_wish';
+  const name = str(a.name).slice(0, 30);
+  const price = num(a.price);
+  if (!name || !(price > 0)) return blockedStep(tool, '加入願望清單', '請說明想買什麼、多少錢');
+  const coolRaw = Math.round(num(a.cool_days));
+  const coolDays = coolRaw >= 1 && coolRaw <= 365 ? coolRaw : 30;
+  const cat = str(a.category) ? findCategory(d.categories, str(a.category), 'expense') : undefined;
+  if (str(a.category) && !cat) return blockedStep(tool, '加入願望清單', `找不到支出分類「${str(a.category)}」`);
+  const warnings: string[] = [];
+  if ((d.wishes ?? []).some((w) => w.status === 'waiting' && w.name === name)) warnings.push(`願望清單裡已經有「${name}」了，執行後會有兩筆`);
+  const url = str(a.url);
+  const priceMinor = minorOf(price, d.baseCurrency);
+  // 放進工作副本：同一份計畫後面的 decide_wish 用名稱就找得到（執行時再把草稿 id 換成真的 id）
+  const draftId = `draft-wish-${W.draftSeq++}`;
+  (d.wishes ??= []).push({ id: draftId, name, priceMinor, currency: d.baseCurrency, coolDays, addedOn: d.today, decideAt: addDays(d.today, coolDays), status: 'waiting', createdAt: 0, updatedAt: 0 });
+  return {
+    op: { kind: 'wish', draftId, input: { name, priceMinor, currency: d.baseCurrency, coolDays, categoryId: cat?.id, note: str(a.note).slice(0, 60) || undefined, url: /^https?:\/\//.test(url) ? url.slice(0, 200) : undefined } },
+    preview: { tool, title: `願望清單＋「${name}」${fmt(priceMinor, d.baseCurrency)}`, lines: [`先冷靜 ${coolDays} 天，${addDays(d.today, coolDays)} 再決定買或不買`, '帳戶餘額：不受影響（買了再記帳）'], warnings },
+  };
+}
+
+function decideWishTool(a: Record<string, unknown>, d: AgentData): ResolvedStep {
+  const tool: ToolName = 'decide_wish';
+  const name = str(a.name);
+  const wish = (d.wishes ?? []).find((w) => w.status === 'waiting' && w.name === name);
+  if (!wish) return blockedStep(tool, '決定願望', `願望清單裡找不到等待中的「${name}」`);
+  const decision = a.decision === 'bought' || a.decision === 'abandoned' || a.decision === 'extend' ? a.decision : null;
+  if (!decision) return blockedStep(tool, '決定願望', '請說明是買了、不買了，還是再冷靜一下');
+  wish.status = decision === 'extend' ? 'waiting' : decision;
+  const text = decision === 'bought' ? '標記為已買（不會自動記帳；有花錢請再說「記一筆…」）'
+    : decision === 'abandoned' ? `標記為不買了，${fmt(wish.priceMinor, wish.currency)} 計入「冷靜期幫你省下」`
+      : `冷靜期延長 7 天，${addDays(wish.decideAt > d.today ? wish.decideAt : d.today, 7)} 再決定`;
+  return { op: { kind: 'wish_decide', wishId: wish.id, decision }, preview: { tool, title: `願望「${name}」：${decision === 'bought' ? '買了' : decision === 'abandoned' ? '不買了' : '再冷靜 7 天'}`, lines: [text, '帳戶餘額：不受影響'], warnings: [] } };
+}
+
+function manageDurableTool(a: Record<string, unknown>, d: AgentData, W: Work): ResolvedStep {
+  const tool: ToolName = 'manage_durable';
+  const title = '管理耐久財';
+  const action = a.action;
+  const name = str(a.name).slice(0, 30);
+  if (!name) return blockedStep(tool, title, '請說明物品名稱');
+  if (action === 'add') {
+    const cost = num(a.cost);
+    if (!(cost > 0)) return blockedStep(tool, title, '請說明購入價');
+    const purchaseDate = dateOrNull(a.date) ?? d.today;
+    if (purchaseDate > d.today) return blockedStep(tool, title, '購入日不能是未來');
+    const lifeRaw = Math.round(num(a.life_years));
+    const lifeYears = lifeRaw >= 1 && lifeRaw <= 100 ? lifeRaw : undefined;
+    if ((d.durables ?? []).some((x) => x.status === 'active' && x.name === name)) return blockedStep(tool, title, `已經在追蹤「${name}」了`);
+    const costMinor = minorOf(cost, d.baseCurrency);
+    // 放進工作副本：同一份計畫後面的 use／sell 用名稱就找得到（執行時再把草稿 id 換成真的 id）
+    const draftId = `draft-dur-${W.draftSeq++}`;
+    (d.durables ??= []).push({ id: draftId, name, icon: '📦', purchaseDate, costMinor, currency: d.baseCurrency, lifeYears, status: 'active', uses: 0, createdAt: 0, updatedAt: 0 });
+    return {
+      op: { kind: 'durable_add', draftId, input: { name, costMinor, currency: d.baseCurrency, purchaseDate, lifeYears } },
+      preview: { tool, title: `開始追蹤「${name}」`, lines: [`購入價 ${fmt(costMinor, d.baseCurrency)}，${purchaseDate}${lifeYears ? `，預計用 ${lifeYears} 年` : ''}`, '追蹤每日持有成本；不會自動記帳（購入的支出請用「記一筆」）', '帳戶餘額：不受影響'], warnings: [] },
+    };
+  }
+  const item = (d.durables ?? []).find((x) => x.status === 'active' && x.name === name);
+  if (!item) return blockedStep(tool, title, `找不到追蹤中的「${name}」`);
+  if (action === 'use') {
+    const uses = (item.uses ?? 0) + 1;
+    item.uses = uses;
+    return { op: { kind: 'durable_use', durableId: item.id }, preview: { tool, title: `「${name}」用了一次`, lines: [`使用次數 ${uses - 1} → ${uses}，每次使用成本會跟著更新`, '帳戶餘額：不受影響'], warnings: [] } };
+  }
+  if (action === 'sell') {
+    const price = num(a.price);
+    if (!(price >= 0) || Number.isNaN(price)) return blockedStep(tool, title, '請說明賣出金額（淘汰填 0）');
+    const endDate = dateOrNull(a.date) ?? d.today;
+    if (endDate < item.purchaseDate) return blockedStep(tool, title, '處置日不能早於購入日');
+    const saleMinor = minorOf(price, item.currency);
+    const acc = str(a.account) ? findAccount(d.accounts, str(a.account)) : undefined;
+    if (str(a.account) && !acc) return blockedStep(tool, title, `找不到帳戶「${str(a.account)}」`);
+    if (acc && acc.currency !== item.currency) return blockedStep(tool, title, '入帳帳戶幣別和物品不同（需要匯率），請到耐久財頁處理');
+    const warnings: string[] = [];
+    const lines = [saleMinor > 0 ? `賣出 ${fmt(saleMinor, item.currency)}，結束追蹤` : '淘汰／送人，結束追蹤', `處置日 ${endDate}`];
+    if (saleMinor > 0 && acc) {
+      const before = W.balances.get(acc.id) ?? acc.balanceMinor;
+      W.balances.set(acc.id, before + saleMinor);
+      lines.push(`同時記一筆二手收入到「${acc.name}」`, balanceLine(acc, before, before + saleMinor, warnings));
+    } else if (saleMinor > 0) lines.push('沒有指定帳戶：只記錄殘值，不入帳');
+    item.status = saleMinor > 0 ? 'sold' : 'retired';
+    return {
+      op: { kind: 'durable_sell', durableId: item.id, endDate, saleMinor, income: saleMinor > 0 && acc ? { accountId: acc.id, categoryId: 'inc-other_inc' } : undefined },
+      preview: { tool, title: `${saleMinor > 0 ? '賣掉' : '淘汰'}「${name}」`, lines, warnings, txCreated: saleMinor > 0 && acc ? 1 : 0, accountsTouched: saleMinor > 0 && acc ? 1 : 0, accountIds: saleMinor > 0 && acc ? [acc.id] : [] },
+    };
+  }
+  return blockedStep(tool, title, '不支援的操作');
+}
+
+function addWatchTool(a: Record<string, unknown>, d: AgentData): ResolvedStep {
+  const tool: ToolName = 'add_watch';
+  const symbol = str(a.symbol).toUpperCase();
+  const stock = (d.stocks ?? []).find((s) => s.symbol.toUpperCase() === symbol);
+  if (!stock) return blockedStep(tool, '加入觀察清單', `投資頁裡沒有「${symbol || '（未說明）'}」這檔標的，請先新增一次交易`);
+  const price = num(a.price);
+  const op = a.op === '>=' || a.op === '<=' ? a.op : price > 0 ? '>=' : null;
+  const existing = (d.watchlist ?? []).find((w) => w.stockId === stock.id);
+  const lines = [existing ? `「${stock.symbol}」已經在觀察清單裡` : `把「${stock.symbol} ${stock.name}」加入觀察清單`];
+  if (price > 0 && op) lines.push(`到價提醒：${op === '>=' ? '漲到' : '跌到'} ${price} 時通知你`);
+  else lines.push('不設到價提醒');
+  lines.push('帳戶餘額：不受影響');
+  return {
+    op: { kind: 'watch', stockId: stock.id, priceDec: price > 0 ? String(price) : null, op: price > 0 ? op : null },
+    preview: { tool, title: `觀察「${stock.symbol}」${price > 0 && op ? `（${op === '>=' ? '≥' : '≤'} ${price} 提醒）` : ''}`, lines, warnings: [] },
+  };
+}
+
+function deleteTransferTool(a: Record<string, unknown>, d: AgentData, W: Work): ResolvedStep {
+  const tool: ToolName = 'delete_transfer';
+  const title = '刪除轉帳';
+  const m = (a.match && typeof a.match === 'object' ? a.match : {}) as Record<string, unknown>;
+  const from = str(m.from_account) ? findAccount(d.accounts, str(m.from_account)) : undefined;
+  const to = str(m.to_account) ? findAccount(d.accounts, str(m.to_account)) : undefined;
+  if (str(m.from_account) && !from) return blockedStep(tool, title, `找不到轉出帳戶「${str(m.from_account)}」`);
+  if (str(m.to_account) && !to) return blockedStep(tool, title, `找不到轉入帳戶「${str(m.to_account)}」`);
+  const ds = dateOrNull(m.date_start), de = dateOrNull(m.date_end);
+  const amount = num(m.amount);
+  const kws = (Array.isArray(m.keywords) ? m.keywords : []).map((k) => str(k).toLowerCase()).filter(Boolean).slice(0, 4);
+  if (!from && !to && !ds && !de && !(amount > 0) && !kws.length) return blockedStep(tool, title, '沒有任何條件，請說明是哪筆轉帳（例如「昨天轉到玉山的 5000」）');
+  const hits = (d.transfers ?? []).filter((t) => !t.deletedAt &&
+    (!from || t.fromAccountId === from.id) && (!to || t.toAccountId === to.id) &&
+    (!ds || t.date >= ds) && (!de || t.date <= de) &&
+    (!(amount > 0) || Math.abs(t.fromAmountMinor - minorOf(amount, d.baseCurrency)) < 1) &&
+    (!kws.length || kws.some((k) => t.note.toLowerCase().includes(k))));
+  if (!hits.length) return blockedStep(tool, title, '找不到符合條件的轉帳（候選範圍是最近一年）');
+  if (hits.length > MAX_DELETE) return blockedStep(tool, title, `符合的轉帳有 ${hits.length} 筆，一次最多刪 ${MAX_DELETE} 筆，請縮小範圍`);
+  const accName = (id: string) => d.accounts.find((x) => x.id === id)?.name ?? '';
+  const warnings: string[] = [];
+  const lines = hits.slice(0, 8).map((t) => `${t.date}　「${accName(t.fromAccountId)}」→「${accName(t.toAccountId)}」　${fmt(t.fromAmountMinor, d.baseCurrency)}${t.note ? `（${t.note}）` : ''}`);
+  if (hits.length > 8) lines.push(`…還有 ${hits.length - 8} 筆`);
+  const touched = new Set<string>();
+  for (const t of hits) {
+    const bFrom = W.balances.get(t.fromAccountId) ?? d.accounts.find((x) => x.id === t.fromAccountId)?.balanceMinor ?? 0;
+    const bTo = W.balances.get(t.toAccountId) ?? d.accounts.find((x) => x.id === t.toAccountId)?.balanceMinor ?? 0;
+    W.balances.set(t.fromAccountId, bFrom + t.fromAmountMinor);
+    W.balances.set(t.toAccountId, bTo - t.toAmountMinor);
+    touched.add(t.fromAccountId); touched.add(t.toAccountId);
+    if (t.feeMinor > 0 && t.feeAccountId) {
+      const bFee = W.balances.get(t.feeAccountId) ?? d.accounts.find((x) => x.id === t.feeAccountId)?.balanceMinor ?? 0;
+      W.balances.set(t.feeAccountId, bFee + t.feeMinor);
+      touched.add(t.feeAccountId);
+    }
+  }
+  for (const id of touched) {
+    const acc = d.accounts.find((x) => x.id === id);
+    if (acc) lines.push(balanceLine(acc, acc.balanceMinor, W.balances.get(id) ?? acc.balanceMinor, warnings));
+  }
+  lines.push('兩邊帳戶餘額會退回去；這是軟刪除，執行後可以按「還原」全部救回來');
+  return {
+    op: { kind: 'transfer_delete', ids: hits.map((t) => t.id) },
+    preview: { tool, title: hits.length === 1 ? `刪除轉帳：${accName(hits[0].fromAccountId)}→${accName(hits[0].toAccountId)} ${fmt(hits[0].fromAmountMinor, d.baseCurrency)}` : `刪除 ${hits.length} 筆轉帳`, lines, warnings: hits.length > 1 ? [`會一次刪 ${hits.length} 筆，請確認清單`, ...warnings] : warnings, affectedTx: hits.length, accountsTouched: touched.size, accountIds: [...touched] },
+  };
+}
+
+function manageDebtTool(a: Record<string, unknown>, d: AgentData, W: Work): ResolvedStep {
+  const tool: ToolName = 'manage_debt';
+  const title = '管理應收／應付';
+  const person = str(a.person);
+  const action = a.action === 'unsettle' ? 'unsettle' : a.action === 'delete' ? 'delete' : null;
+  if (!person || !action) return blockedStep(tool, title, '請說明對象與操作（刪除或取消結清）');
+  const wantDir = a.direction === 'they_owe_me' || a.direction === 'i_owe_them' ? a.direction : undefined;
+  const amount = num(a.amount);
+  let hits = (d.debts ?? []).filter((x) => !W.removedDebts.has(x.id) && x.personName === person && (!wantDir || x.direction === wantDir) && (action === 'delete' || x.settled || W.settled.has(x.id)));
+  if (amount > 0) hits = hits.filter((x) => x.amountMinor === minorOf(amount, x.currency));
+  if (!hits.length) return blockedStep(tool, title, action === 'unsettle' ? `找不到跟「${person}」的已結清欠款${amount > 0 ? `（金額 ${amount}）` : ''}` : `找不到跟「${person}」的欠款${amount > 0 ? `（金額 ${amount}）` : ''}`);
+  if (hits.length > 5) return blockedStep(tool, title, `跟「${person}」有 ${hits.length} 筆符合的欠款，請說明金額`);
+  const warnings: string[] = [];
+  const lines: string[] = [];
+  const touched = new Set<string>();
+  const reverseTx = (txId?: string) => {
+    if (!txId) return;
+    const t = d.txs.find((x) => x.id === txId && !x.deletedAt);
+    if (!t) return;
+    const effect = t.type === 'income' ? t.accountAmountMinor : -t.accountAmountMinor;
+    const before = W.balances.get(t.accountId) ?? d.accounts.find((x) => x.id === t.accountId)?.balanceMinor ?? 0;
+    W.balances.set(t.accountId, before - effect);
+    touched.add(t.accountId);
+    lines.push(`一併刪除關聯帳目：${t.date} ${t.note} ${fmt(t.amountMinor, t.currency)}（餘額退回）`);
+  };
+  // 這份計畫裡才剛結清的：結清帳目還不在候選帳目裡，直接退回結清時入帳的金額
+  const reverseSettle = (debtId: string) => {
+    const eff = W.settleEffects.get(debtId);
+    if (!eff) return;
+    const before = W.balances.get(eff.accountId) ?? d.accounts.find((x) => x.id === eff.accountId)?.balanceMinor ?? 0;
+    W.balances.set(eff.accountId, before - eff.delta);
+    touched.add(eff.accountId);
+    W.settleEffects.delete(debtId);
+    lines.push('一併退回這份計畫裡結清時入帳的金額');
+  };
+  for (const x of hits) {
+    lines.push(`${x.direction === 'they_owe_me' ? `${x.personName} 欠我` : `我欠 ${x.personName}`} ${fmt(x.amountMinor, x.currency)}${x.note ? `（${x.note}）` : ''}${x.settled || W.settled.has(x.id) ? '［已結清］' : ''}`);
+    if (action === 'delete') {
+      reverseTx(x.loanTxId);
+      reverseTx(x.settleTransferId);
+      reverseSettle(x.id);
+      W.removedDebts.add(x.id);
+    } else {
+      reverseTx(x.settleTransferId);
+      reverseSettle(x.id);
+      W.settled.delete(x.id);
+      x.settled = 0;
+    }
+  }
+  for (const id of touched) {
+    const acc = d.accounts.find((x) => x.id === id);
+    if (acc) lines.push(balanceLine(acc, acc.balanceMinor, W.balances.get(id) ?? acc.balanceMinor, warnings));
+  }
+  if (!touched.size) lines.push('帳戶餘額：不受影響');
+  if (action === 'delete') warnings.push('欠款紀錄會刪除（關聯帳目是軟刪除）；執行後可按「還原」救回');
+  else lines.push('取消結清後，這筆欠款變回未結清，可以重新結清');
+  return {
+    op: { kind: 'debt_manage', action, debtIds: hits.map((x) => x.id) },
+    preview: { tool, title: `${action === 'delete' ? '刪除' : '取消結清'} ${person} 的欠款（${hits.length} 筆）`, lines, warnings, accountsTouched: touched.size, accountIds: [...touched] },
+  };
+}
+
+function editGoalTool(a: Record<string, unknown>, d: AgentData, W: Work): ResolvedStep {
+  const tool: ToolName = 'edit_goal';
+  const title = '修改存錢目標';
+  const name = str(a.goal);
+  const s = (a.set && typeof a.set === 'object' ? a.set : {}) as Record<string, unknown>;
+  const target = num(s.target_amount);
+  // null＝取消截止日（要能傳到執行層）；undefined＝沒提到這項
+  const deadline = s.deadline === undefined ? undefined : s.deadline === null ? null : dateOrNull(s.deadline);
+  if (s.deadline !== undefined && s.deadline !== null && !deadline) return blockedStep(tool, title, '截止日格式不正確');
+  const acc = str(s.account) ? findAccount(d.accounts, str(s.account)) : undefined;
+  if (str(s.account) && !acc) return blockedStep(tool, title, `找不到帳戶「${str(s.account)}」`);
+  const status = s.status === 'active' || s.status === 'archived' ? s.status : undefined;
+  const set: Extract<Op, { kind: 'goal_edit' }>['set'] = {};
+  if (target > 0) set.targetMinor = minorOf(target, d.baseCurrency);
+  if (deadline !== undefined) set.deadline = deadline;
+  if (acc) set.linkedAccountIds = [acc.id];
+  if (status) set.status = status;
+  if (!Object.keys(set).length) return blockedStep(tool, title, '請說明要改什麼（目標金額、截止日、連結帳戶、封存）');
+  const draft = W.draftGoals.get(name);
+  if (draft) {
+    if (set.targetMinor !== undefined) draft.input.targetMinor = set.targetMinor;
+    if (set.deadline !== undefined) draft.input.deadline = set.deadline ?? undefined;
+    if (set.linkedAccountIds) draft.input.linkedAccountIds = set.linkedAccountIds;
+    if (set.status) draft.input.status = set.status;
+    return { op: null, preview: { tool, title: `修改目標「${name}」（併入上一步）`, lines: ['直接修改這份計畫裡剛建立的目標，一起建立'], warnings: [], readonly: true } };
+  }
+  const goal = (d.goals ?? []).find((g) => g.name === name);
+  if (!goal) return blockedStep(tool, title, `找不到目標「${name}」`);
+  const lines: string[] = [];
+  if (set.targetMinor !== undefined) lines.push(`目標金額 ${fmt(goal.targetMinor, goal.currency)} → ${fmt(set.targetMinor, goal.currency)}`);
+  if (set.deadline !== undefined) lines.push(`截止日 ${goal.deadline ?? '（未設）'} → ${set.deadline ?? '（取消）'}`);
+  if (set.linkedAccountIds) lines.push(`連結帳戶「${acc!.name}」：目標進度＝帳戶餘額＋手動存入`);
+  if (set.status) lines.push(set.status === 'archived' ? '封存目標（不再出現在進行中清單）' : '恢復為進行中');
+  lines.push('帳戶餘額：不受影響');
+  return { op: { kind: 'goal_edit', goalId: goal.id, set }, preview: { tool, title: `修改目標「${name}」`, lines, warnings: [] } };
+}
+
 // ───────────── 入口 ─────────────
 
 /** 驗證並模擬整份計畫。回傳每一步的預覽與要執行的操作；不修改傳入的資料（在複本上模擬） */
 export function resolvePlan(steps: RawStep[], data: AgentData): ResolvedStep[] {
+  // 工作副本：這份計畫裡新建的分類／帳戶／專案直接加進清單，後面的步驟用名稱就找得到（執行時再把草稿 id 換成真的 id）
+  const d: AgentData = {
+    ...data,
+    categories: [...data.categories],
+    accounts: [...data.accounts],
+    recurring: data.recurring.map((r) => ({ ...r, pendingDates: [...r.pendingDates], template: { ...r.template } })),
+    debts: (data.debts ?? []).map((x) => ({ ...x })),
+    projects: [...(data.projects ?? [])],
+    wishes: (data.wishes ?? []).map((w) => ({ ...w })),
+    durables: (data.durables ?? []).map((x) => ({ ...x })),
+  };
   const work = data.txs.map((t) => ({ ...t }));
   const draftBudgets = data.budgets.map((b) => ({ ...b }));
-  const W: Work = { balances: new Map(data.accounts.map((a) => [a.id, a.balanceMinor])), draftGoals: new Map(), settled: new Set(), shares: new Map() };
+  const W: Work = { balances: new Map(data.accounts.map((a) => [a.id, a.balanceMinor])), draftGoals: new Map(), settled: new Set(), shares: new Map(), draftProjects: new Map(), removedDebts: new Set(), settleEffects: new Map(), draftSeq: 0 };
   const out: ResolvedStep[] = [];
   for (const s of steps.slice(0, MAX_STEPS)) {
     const a = (s.args && typeof s.args === 'object' ? s.args : {}) as Record<string, unknown>;
-    if (s.tool === 'reclassify') out.push(reclassify(a, data, work));
-    else if (s.tool === 'set_budget') out.push(setBudget(a, data, work, draftBudgets));
-    else if (s.tool === 'add_recurring') out.push(addRecurring(a, data));
-    else if (s.tool === 'prepayment_sim') out.push(prepayment(a, data));
+    if (s.tool === 'reclassify') out.push(reclassify(a, d, work));
+    else if (s.tool === 'set_budget') out.push(setBudget(a, d, work, draftBudgets));
+    else if (s.tool === 'add_recurring') out.push(addRecurring(a, d));
+    else if (s.tool === 'prepayment_sim') out.push(prepayment(a, d));
     else if (s.tool === 'add_goal') {
-      const r = addGoal(a, data);
+      const r = addGoal(a, d);
       if (r.op?.kind === 'goal') W.draftGoals.set(r.op.input.name, r.op);
       out.push(r);
     }
-    else if (s.tool === 'add_rule') out.push(addRule(a, data, work));
-    else if (s.tool === 'add_transaction') out.push(addTransactionTool(a, data, W));
-    else if (s.tool === 'transfer') out.push(transferTool(a, data, W));
-    else if (s.tool === 'add_debt') out.push(addDebtTool(a, data, W));
-    else if (s.tool === 'settle_debt') out.push(settleDebtTool(a, data, W));
-    else if (s.tool === 'goal_deposit') out.push(goalDepositTool(a, data, W));
-    else if (s.tool === 'buy_stock') out.push(tradeStockTool('buy', a, data, W));
-    else if (s.tool === 'sell_stock') out.push(tradeStockTool('sell', a, data, W));
+    else if (s.tool === 'add_rule') out.push(addRule(a, d, work));
+    else if (s.tool === 'add_transaction') out.push(addTransactionTool(a, d, W));
+    else if (s.tool === 'transfer') out.push(transferTool(a, d, W));
+    else if (s.tool === 'add_debt') out.push(addDebtTool(a, d, W));
+    else if (s.tool === 'settle_debt') out.push(settleDebtTool(a, d, W));
+    else if (s.tool === 'goal_deposit') out.push(goalDepositTool(a, d, W));
+    else if (s.tool === 'buy_stock') out.push(tradeStockTool('buy', a, d, W));
+    else if (s.tool === 'sell_stock') out.push(tradeStockTool('sell', a, d, W));
     else if (s.tool === 'show_view') out.push(showViewTool(a));
-    else if (s.tool === 'edit_transaction') out.push(editTxTool(a, data, work));
-    else if (s.tool === 'delete_transaction') out.push(deleteTxTool(a, data, work));
+    else if (s.tool === 'edit_transaction') out.push(editTxTool(a, d, work));
+    else if (s.tool === 'delete_transaction') out.push(deleteTxTool(a, d, work));
+    else if (s.tool === 'add_category') out.push(addCategoryTool(a, d, W));
+    else if (s.tool === 'add_account') out.push(addAccountTool(a, d, W));
+    else if (s.tool === 'add_project') out.push(addProjectTool(a, d, W));
+    else if (s.tool === 'set_travel_mode') out.push(setTravelModeTool(a, d));
+    else if (s.tool === 'manage_recurring') out.push(manageRecurringTool(a, d, W));
+    else if (s.tool === 'manage_inbox') out.push(manageInboxTool(a, d, W));
+    else if (s.tool === 'add_installment') out.push(addInstallmentTool(a, d, W));
+    else if (s.tool === 'add_dividend') out.push(addDividendTool(a, d, W));
+    else if (s.tool === 'add_wish') out.push(addWishTool(a, d, W));
+    else if (s.tool === 'decide_wish') out.push(decideWishTool(a, d));
+    else if (s.tool === 'manage_durable') out.push(manageDurableTool(a, d, W));
+    else if (s.tool === 'add_watch') out.push(addWatchTool(a, d));
+    else if (s.tool === 'delete_transfer') out.push(deleteTransferTool(a, d, W));
+    else if (s.tool === 'manage_debt') out.push(manageDebtTool(a, d, W));
+    else if (s.tool === 'edit_goal') out.push(editGoalTool(a, d, W));
     else out.push({ op: null, preview: { tool: 'reclassify', title: '不支援的操作', lines: [], warnings: [], blocked: `不支援的操作「${String(s.tool).slice(0, 20)}」` } });
   }
   return out;

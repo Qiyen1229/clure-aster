@@ -186,6 +186,11 @@ export default function ShortcutsPage() {
       <div className="list">
         <SwitchField label="看得懂的直接記帳" sub="開啟 App 時自動記下有金額且明確的項目。Apple Pay 偶爾會送來空白或被拒絕的交易，建議先手動確認一陣子再開啟"
           checked={cfg.autoBook} onChange={(v) => update({ autoBook: v })} />
+        <button className="field" style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }} onClick={() => navigate('/settings/inbox-whitelist')}>
+          <span className="label" style={{ flex: 1 }}>白名單發送者{(cfg.whitelist ?? []).length ? `（${(cfg.whitelist ?? []).length}）` : ''}</span>
+          <span className="muted" style={{ fontSize: '0.8rem' }}>這些名稱的通知直接記帳，不用確認</span>
+          <Icon name="chevronR" />
+        </button>
         <AccountField label="判斷不出帳戶時" value={cfg.defaultAccountId} onChange={(v) => update({ defaultAccountId: v })} accounts={accounts}
           allowEmpty emptyLabel="上次記帳的帳戶" filter={(a) => a.type !== 'loan' && a.type !== 'brokerage'} />
       </div>

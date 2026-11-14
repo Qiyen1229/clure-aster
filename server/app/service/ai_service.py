@@ -49,6 +49,22 @@ def _clean_names(names: list[str]) -> list[str]:
     return seen
 
 
+def _agent_plan_payload(body: AgentPlanRequest) -> tuple[dict, dict]:
+    """操作助手共用的輸入：只送名稱清單（不送金額），空的清單不送。"""
+    cats, accs = _clean_names(body.categories), _clean_names(body.accounts)
+    people, goals, stocks = _clean_names(body.people), _clean_names(body.goals), _clean_names(body.stocks)
+    projects, recurring, tags = _clean_names(body.projects), _clean_names(body.recurring), _clean_names(body.tags)
+    wishes, durables, inbox = _clean_names(body.wishes), _clean_names(body.durables), _clean_names(body.inbox)
+    payload: dict = {"今天": body.today, "需求": body.text, "可選分類": cats, "可選帳戶": accs}
+    for key, names in (("可選對象", people), ("可選目標", goals), ("可選標的代號", stocks), ("可選專案", projects), ("可選週期", recurring),
+                       ("可選標籤", tags), ("可選願望", wishes), ("可選耐久財", durables), ("收件匣待確認", inbox)):
+        if names:
+            payload[key] = names
+    kwargs = {"people": people, "goals": goals, "stocks": stocks, "projects": projects, "recurring": recurring,
+              "wishes": wishes, "durables": durables, "inbox": inbox}
+    return payload, kwargs
+
+
 def _valid_date(v: object, today: date) -> str | None:
     if not isinstance(v, str):
         return None
@@ -151,15 +167,11 @@ class AiService:
 
     def agent_plan_sse(self, user_id: int, body: AgentPlanRequest) -> Iterator[str]:
         """操作助手的串流版：先把「規劃摘要」一邊生成一邊傳回（讓使用者知道它在做什麼），步驟要等完整驗證後才在 done 事件一次送出。"""
-        cats, accs = _clean_names(body.categories), _clean_names(body.accounts)
+        payload, kw = _agent_plan_payload(body)
         today = date.fromisoformat(body.today)
-        people, goals, stocks = _clean_names(body.people), _clean_names(body.goals), _clean_names(body.stocks)
-        payload: dict = {"今天": body.today, "需求": body.text, "可選分類": cats, "可選帳戶": accs}
-        for key, names in (("可選對象", people), ("可選目標", goals), ("可選標的代號", stocks)):
-            if names:
-                payload[key] = names
+        cats, accs = payload["可選分類"], payload["可選帳戶"]
         return self._sse(user_id, "agent_plan", ai_tasks.AGENT_PLAN, ai_tasks.dumps(payload),
-                         lambda d: ai_tasks.v_agent_plan(d, cats, accs, today, people=people, goals=goals, stocks=stocks), "summary",
+                         lambda d: ai_tasks.v_agent_plan(d, cats, accs, today, **kw), "summary",
                          "AI 沒有對應的操作可以做這件事，請換個說法，或到各功能頁手動操作")
 
     def _sse(self, user_id: int, kind: str, system: str, msg: str, validate: Callable[[object], dict], partial_key: str, fail_message: str) -> Iterator[str]:
@@ -245,17 +257,12 @@ class AiService:
 
     def agent_plan(self, user: User, body: AgentPlanRequest) -> AgentPlanResult:
         """把一句話整理成「工具＋參數」的步驟計畫。AI 只規劃，不執行；App 會在本機先預覽、使用者確認後才執行（可一鍵還原）。"""
-        cats, accs = _clean_names(body.categories), _clean_names(body.accounts)
+        payload, kw = _agent_plan_payload(body)
         today = date.fromisoformat(body.today)
-        people, goals, stocks = _clean_names(body.people), _clean_names(body.goals), _clean_names(body.stocks)
-        payload: dict = {"今天": body.today, "需求": body.text, "可選分類": cats, "可選帳戶": accs}
-        # 只在有資料時才送（沒有欠款、目標或標的就不必多送一個空清單）
-        for key, names in (("可選對象", people), ("可選目標", goals), ("可選標的代號", stocks)):
-            if names:
-                payload[key] = names
+        cats, accs = payload["可選分類"], payload["可選帳戶"]
         msg = ai_tasks.dumps(payload)
         r = ai_tasks.run_task(self.db, user, "agent_plan", ai_tasks.AGENT_PLAN, msg,
-                              lambda d: ai_tasks.v_agent_plan(d, cats, accs, today, people=people, goals=goals, stocks=stocks),
+                              lambda d: ai_tasks.v_agent_plan(d, cats, accs, today, **kw),
                               fail_message="AI 沒有對應的操作可以做這件事，請換個說法，或到各功能頁手動操作")
         return AgentPlanResult(**r, quota=self._quota(user))  # type: ignore[arg-type]
 

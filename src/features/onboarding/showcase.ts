@@ -43,7 +43,7 @@ export const CANDIDATES: ShowcaseFeature[] = [
   {
     id: 'agent', icon: 'sliders', title: '一句話整理帳本', since: '4.0.0', power: 5, novelty: 5,
     pitch: '用說的批次整理，先預覽、可以一鍵還原',
-    bullets: ['「把上個月 Uber 都歸到交通」「剛剛那筆改成 180」', '最多 8 個步驟一起做：全部成功或全部不動', '執行後整包可還原，刪除的帳目也能救回來'],
+    bullets: ['記帳改帳之外：分期、專案、訂閱、願望、耐用品、分帳都能用說的', '最多 8 個步驟一起做：全部成功或全部不動', '執行後整包可還原，刪除的帳目也能救回來'],
     howto: '在 Cilo 對話框直接說出你想整理的事',
   },
   {
@@ -117,6 +117,12 @@ export const CANDIDATES: ShowcaseFeature[] = [
     pitch: '列表左滑就刪，3 秒內隨時反悔',
     bullets: ['專案、預算、週期、目標、願望、分期、耐用品都適用', '列先收合消失、3 秒後才真正刪除', '通知附倒數條，點「復原」整列回來'],
     howto: '列表列上往左滑超過門檻放開；3 秒內點通知的「復原」',
+  },
+  {
+    id: 'inbox-whitelist', icon: 'shieldCheck', title: '白名單自動入帳', since: '4.1.39', power: 3, novelty: 2,
+    pitch: '信任的銀行或 LINE 帳號，通知直接記帳不用確認',
+    bullets: ['加入發送者名稱，通知含有它就直接入帳', '沒開全域自動入帳也生效，其餘通知照舊手動確認', '看不懂金額或疑似重複的項目仍留下來等你確認'],
+    howto: '收件匣右上角盾牌圖示，或 iPhone 捷徑頁的「自動入帳偏好」',
   },
 ];
 

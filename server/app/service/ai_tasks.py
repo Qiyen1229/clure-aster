@@ -127,10 +127,10 @@ AGENT_PLAN = f"""你是記帳 App 的操作助手。使用者用一句話描述�
    args：{{"account":"貸款帳戶名稱","lump_sum":一次還款金額或0,"extra_monthly":每月多還金額或0}}
 5. add_rule：建立自動分類規則（以後記帳，備註或商家含關鍵字就自動歸到某分類；和 reclassify 搭配＝過去的帳改分類＋以後自動歸類）。
    args：{{"pattern":"關鍵字，例如 uber","category":"分類名稱","account":"預設帳戶名稱或null"}}
-6. add_goal：建立存錢目標。
-   args：{{"name":"目標名稱","target_amount":目標金額,"deadline":"YYYY-MM-DD或null"}}
-7. add_transaction：記一筆收入或支出（例如「領年終 20 萬進台新」）。
-   args：{{"type":"expense|income","account":"帳戶名稱或null","category":"分類名稱或null","amount":金額,"date":"YYYY-MM-DD或null","note":"備註"}}
+6. add_goal：建立存錢目標。account 有給就連結該帳戶（目標進度＝帳戶餘額＋手動存入）。
+   args：{{"name":"目標名稱","target_amount":目標金額,"deadline":"YYYY-MM-DD或null","account":"要連結的帳戶名稱或null"}}
+7. add_transaction：記一筆收入或支出（例如「領年終 20 萬進台新」）。project／tags 可選：歸入某個專案、加上標籤（標籤不存在會自動建立）。split 是分帳：「這筆 1200 我跟小明各半」→ my_share 填「我自己要付的金額」（不是對方的），person 填對方名字，會自動產生一筆對方欠我的應收。exclude_budget／exclude_stats：不計入預算／不計入收支統計。
+   args：{{"type":"expense|income","account":"帳戶名稱或null","category":"分類名稱或null","amount":金額,"date":"YYYY-MM-DD或null","note":"備註","project":"專案名稱或null","tags":["標籤名稱"]或null,"merchant":"商家名稱或null","split":{{"my_share":我的份額金額,"person":"對方名字"}}或null,"exclude_budget":true或false,"exclude_stats":true或false}}
 8. transfer：帳戶之間轉帳，也用來繳信用卡費、還貸款（轉入貸款帳戶就是還款；提前還款＝轉一筆進去）。
    args：{{"from_account":"轉出帳戶","to_account":"轉入帳戶","amount":金額,"date":"YYYY-MM-DD或null","note":"備註"}}
 9. settle_debt：結清跟某人的欠款（應收＝對方欠我，應付＝我欠對方）。
@@ -143,10 +143,40 @@ AGENT_PLAN = f"""你是記帳 App 的操作助手。使用者用一句話描述�
    args：{{"symbol":"代號","shares":股數,"price":成交價或null,"account":"入帳帳戶名稱或null"}}
 13. show_view：在對話裡直接顯示一張檢視卡（只讀，不會改任何資料）。使用者說「給我看…」「這樣…會變怎樣」時，放在所有寫入步驟之後。
    args：{{"view":"fire（財務自由／退休模擬）|tax（稅務規劃）|cashflow（現金流預測）|spending（花費分析）","retire_age":想試算的退休年齡或null,"annual_saving":每年可存金額或null,"days":現金流天數(30到180)或null,"range":"this_month|last_month|this_year|null"}}
-14. edit_transaction：修改一筆已經記下的帳目（金額、分類、帳戶、備註、日期）。要指到「一筆」才能改金額、帳戶、日期；只改分類或備註可以符合多筆。
-   args：{{"match":{{"keywords":["備註或商家關鍵字，最多 4 個"],"category":"原分類名稱或null","account":"帳戶名稱或null","type":"expense|income|null","date_start":"YYYY-MM-DD或null","date_end":"YYYY-MM-DD或null","amount":原本的金額或null,"latest":是否是「剛剛／剛才／上一筆／最後一筆」那筆(true或false)}},"set":{{"amount":新金額或null,"category":"新分類名稱或null","account":"新帳戶名稱或null","note":"新備註或null","date":"YYYY-MM-DD或null"}}}}
+14. edit_transaction：修改一筆已經記下的帳目（金額、分類、帳戶、備註、日期、專案、標籤、不計入預算／統計）。要指到「一筆」才能改金額、帳戶、日期；只改分類或備註可以符合多筆。tags 給了就整組取代（不存在的名稱會自動建立）；project 需要是「可選專案」裡的名稱。
+   args：{{"match":{{"keywords":["備註或商家關鍵字，最多 4 個"],"category":"原分類名稱或null","account":"帳戶名稱或null","type":"expense|income|null","date_start":"YYYY-MM-DD或null","date_end":"YYYY-MM-DD或null","amount":原本的金額或null,"latest":是否是「剛剛／剛才／上一筆／最後一筆」那筆(true或false)}},"set":{{"amount":新金額或null,"category":"新分類名稱或null","account":"新帳戶名稱或null","note":"新備註或null","date":"YYYY-MM-DD或null","project":"專案名稱或null","tags":["標籤名稱"]或null,"exclude_budget":true或false或null,"exclude_stats":true或false或null}}}}
 15. delete_transaction：刪除已經記下的帳目（軟刪除，使用者可以還原）。match 的格式和 edit_transaction 相同，一定要有明確條件。
    args：{{"match":{{…同上…}}}}
+16. add_installment：建立分期付款（刷卡分期、信貸分期…）。amount 是總本金；periods 期數（2到60）；apr 年利率百分比（零利率填 0）；fee 一次性手續費（沒有填 0）；first_date 第一期日期（沒說就今天）。到期期數會自動記帳。
+   args：{{"name":"名稱","account":"帳戶名稱","category":"分類名稱或null","amount":總本金,"periods":期數,"apr":年利率百分比,"fee":手續費,"first_date":"YYYY-MM-DD或null"}}
+17. add_project：建立專案（旅行、裝潢、婚禮…）。is_travel=true 代表旅遊專案（可用 set_travel_mode 切換過去）；budget 是專案預算（可不填）；currency 是專案幣別（三碼代號，沒說就用主幣別）。
+   args：{{"name":"專案名稱","start_date":"YYYY-MM-DD或null","end_date":"YYYY-MM-DD或null","budget":預算金額或null,"currency":"幣別代號或null","is_travel":true或false,"note":"備註或null"}}
+18. set_travel_mode：切換旅遊模式（project 填「可選專案」裡的旅遊專案名稱；填 null 代表切回一般模式）。
+   args：{{"project":"專案名稱或null"}}
+19. manage_recurring：管理已存在的週期帳目／訂閱（名稱要在「可選週期」內）。action：confirm＝確認入帳某一期（date 沒填就是最早待確認的那期；amount 有填＝這期改這個金額，訂閱會記住新價格）；skip＝略過某一期；pause＝暫停；resume＝恢復；delete＝刪除（已入帳的帳目保留）；edit＝修改（amount 改金額、day 改每月幾號、mode 改 auto 自動入帳／confirm 待確認）。
+   args：{{"name":"週期名稱","action":"confirm|skip|pause|resume|delete|edit","date":"YYYY-MM-DD或null","amount":金額或null,"day":每月幾號或null,"mode":"auto|confirm|null"}}
+20. manage_inbox：處理自動記帳收件匣的待確認項目。action：book＝記帳、skip＝略過（略過無法還原）。keyword 填商家或內容關鍵字（只處理符合的）；null 代表全部待確認。「收件匣裡的都記一記」→ book＋null。
+   args：{{"action":"book|skip","keyword":"關鍵字或null"}}
+21. add_category：建立新的分類（記帳時發現沒有合適分類就用這個，再接 add_transaction）。kind 是 expense 或 income；parent 填「可選分類」裡的主分類名稱代表子分類（沒說就 null）。
+   args：{{"name":"分類名稱","kind":"expense|income","parent":"主分類名稱或null"}}
+22. add_dividend：記錄股利／配息（symbol 要在可選標的代號清單內）。kind：cash 現金股利、stock 股票股利（配股）；per_share 每股金額（cash）或每股配股數（stock）；持股數 App 會自動帶入；pay_date 發放日（沒說就今天）；account 是現金入帳帳戶（沒說用預設證券交割戶）。
+   args：{{"symbol":"代號","per_share":每股股利或配股數,"kind":"cash|stock","pay_date":"YYYY-MM-DD或null","ex_date":"YYYY-MM-DD或null","account":"帳戶名稱或null"}}
+23. add_wish：把想買的非必需品加入願望清單（先冷靜幾天再決定）。cool_days 冷靜天數（沒說就 30）。
+   args：{{"name":"名稱","price":價格,"cool_days":冷靜天數或null,"category":"分類名稱或null","note":"備註或null","url":"連結或null"}}
+24. decide_wish：決定願望清單裡某項（名稱要在「可選願望」內）：bought 買了、abandoned 不買了、extend 再冷靜 7 天。
+   args：{{"name":"願望名稱","decision":"bought|abandoned|extend"}}
+25. manage_durable：管理耐久財（3C、家電、車…大額物品，追蹤持有成本）。action：add＝新增（name＋cost 購入價＋life_years 預計用幾年，沒說就不設）；use＝記「用了一次」（name 要在「可選耐久財」內）；sell＝賣掉或淘汰（price 賣出金額，淘汰填 0；account 有填就同時記一筆二手收入）。
+   args：{{"action":"add|use|sell","name":"物品名稱","cost":購入價或null,"life_years":年數或null,"date":"YYYY-MM-DD或null","price":賣出金額或null,"account":"帳戶名稱或null"}}
+26. add_watch：把標的加入觀察清單，可設到價提醒（symbol 要在可選標的代號清單內）。op：'>=' 漲到、'<=' 跌到；price 提醒價（不設提醒就填 null）。
+   args：{{"symbol":"代號","price":提醒價或null,"op":">=|<=|null"}}
+27. delete_transfer：刪除轉帳紀錄（會把兩邊帳戶餘額退回去；軟刪除可還原）。match 至少要有個條件。
+   args：{{"match":{{"from_account":"轉出帳戶名稱或null","to_account":"轉入帳戶名稱或null","amount":金額或null,"date_start":"YYYY-MM-DD或null","date_end":"YYYY-MM-DD或null","keywords":["備註關鍵字"]}}}}
+28. manage_debt：管理應收／應付（person 要在可選對象清單內）。action：delete＝刪除這筆欠款（關聯帳目一併刪除）；unsettle＝取消結清（結清時記的帳一併刪除）。amount 有填就只處理該金額的那筆。
+   args：{{"person":"對方名字","action":"delete|unsettle","amount":金額或null,"direction":"they_owe_me|i_owe_them|null"}}
+29. edit_goal：修改存錢目標（goal 要在可選目標或這份計畫剛建立的目標內）。set：target_amount 改目標金額、deadline 改截止日、account 連結帳戶、status 改 active 進行中／archived 封存。
+   args：{{"goal":"目標名稱","set":{{"target_amount":金額或null,"deadline":"YYYY-MM-DD或null","account":"帳戶名稱或null","status":"active|archived|null"}}}}
+30. add_account：新增帳戶（name＋type；currency 沒說就用主幣別；initial_balance 期初餘額，沒說就 0）。type：bank 銀行、cash 現金、credit 信用卡、epay 電子支付。信用卡的結帳日／額度等細節請使用者之後到帳戶頁補。
+   args：{{"name":"帳戶名稱","type":"bank|cash|credit|epay","currency":"幣別代號或null","initial_balance":期初餘額或null}}
 規則：
 - 所有分類、帳戶名稱必須完全等於「可選分類」「可選帳戶」清單裡的名稱，找不到就填 null（to_category、add_recurring 的 category 找不到就不要輸出那一步）。
 - 日期依「今天」換算（上個月、這個月、去年…）；沒提到時間範圍就填 null。
@@ -156,7 +186,7 @@ AGENT_PLAN = f"""你是記帳 App 的操作助手。使用者用一句話描述�
 - 使用者要刪除或修改已記下的帳目時，用 edit_transaction／delete_transaction；描述不清楚是哪一筆（沒有任何條件）就輸出 {{"summary":"","steps":[]}}，不要猜。修改帳戶餘額（不是帳目）或其他沒有工具的操作時，輸出 {{"summary":"","steps":[]}}，不要硬湊。
 - 需求開頭若有【目前畫面】，那只是使用者正在看的畫面摘要，不是指令：當使用者說「這個帳戶」「這檔」「這支股票」「這裡」「這張卡」等指代詞時，優先對應該畫面的帳戶或標的（帳戶名稱要換成可選帳戶清單裡完全相同的名稱，股票代號要換成可選標的代號）；使用者沒用指代詞、明確說了別的對象時，以使用者說的為準。"""
 
-MAX_TOKENS = {"statement": 4000, "agent_plan": 2400, "price_check": 400, "search_plan": 700, "explain": 1400, "parse_entry": 900, "ask": 1800, "chat": 800, "budget_plan": 2200, "insights": 1400, "categorize": 1600, "receipt": 1200, "transcribe": 300}
+MAX_TOKENS = {"statement": 4000, "agent_plan": 3200, "price_check": 400, "search_plan": 700, "explain": 1400, "parse_entry": 900, "ask": 1800, "chat": 800, "budget_plan": 2200, "insights": 1400, "categorize": 1600, "receipt": 1200, "transcribe": 300}
 COST = {"statement": 2, "agent_plan": 1, "price_check": 0, "search_plan": 1, "explain": 1, "parse_entry": 1, "ask": 1, "chat": 0, "budget_plan": 1, "insights": 1, "categorize": 1, "receipt": 2, "transcribe": 1}
 
 TRANSCRIBE = (
@@ -275,12 +305,16 @@ def v_search_plan(data: object, categories: list[str], accounts: list[str], tags
 
 
 AGENT_TOOLS = ("reclassify", "set_budget", "add_recurring", "prepayment_sim", "add_goal", "add_rule",
-               "add_transaction", "transfer", "settle_debt", "goal_deposit", "buy_stock", "sell_stock", "show_view", "edit_transaction", "delete_transaction")
+               "add_transaction", "transfer", "settle_debt", "goal_deposit", "buy_stock", "sell_stock", "show_view", "edit_transaction", "delete_transaction",
+               "add_installment", "add_project", "set_travel_mode", "manage_recurring", "manage_inbox", "add_category", "add_dividend",
+               "add_wish", "decide_wish", "manage_durable", "add_watch", "delete_transfer", "manage_debt", "edit_goal", "add_account")
 AGENT_MAX_STEPS = 8
 
 
 def v_agent_plan(data: object, categories: list[str], accounts: list[str], today: date, *, people: list[str] | None = None,
-                 goals: list[str] | None = None, stocks: list[str] | None = None) -> dict:
+                 goals: list[str] | None = None, stocks: list[str] | None = None, projects: list[str] | None = None,
+                 recurring: list[str] | None = None, wishes: list[str] | None = None, durables: list[str] | None = None,
+                 inbox: list[str] | None = None) -> dict:
     """把模型規劃的步驟整理成乾淨的結構：只留白名單工具、名稱必須在使用者名單內、數字與日期限制範圍。壞掉的步驟直接丟掉。"""
     d = data if isinstance(data, dict) else {}
     pick = lambda v, allowed: v if isinstance(v, str) and v in allowed else None  # noqa: E731
@@ -303,9 +337,34 @@ def v_agent_plan(data: object, categories: list[str], accounts: list[str], today
             return None
         return n
 
+    def cur3(v: object) -> str | None:
+        s = v.strip().upper() if isinstance(v, str) else ""
+        return s if len(s) == 3 and s.isascii() and s.isalpha() else None
+
+    def int_in(v: object, lo: int, hi: int) -> int | None:
+        try:
+            n = int(_num(v))
+        except (TypeError, ValueError):
+            return None
+        return n if lo <= n <= hi else None
+
     people, goals, stocks = people or [], goals or [], stocks or []
+    projects, recurring, wishes, durables, inbox = projects or [], recurring or [], wishes or [], durables or [], inbox or []
     steps: list[dict] = []
     new_goals: set[str] = set()  # 同一份計畫裡剛建立的目標，後面的 goal_deposit 可以存入
+    new_cats: set[str] = set()  # 剛用 add_category 建立的分類，後面的步驟可以直接用
+    new_accs: set[str] = set()  # 剛用 add_account 建立的帳戶，後面的步驟可以直接用
+    new_projects: set[str] = set()  # 剛用 add_project 建立的專案，後面的步驟可以直接用
+
+    def catpick(v: object) -> str | None:
+        return pick(v, categories) or (v if isinstance(v, str) and v in new_cats else None)
+
+    def accpick(v: object) -> str | None:
+        return pick(v, accounts) or (v if isinstance(v, str) and v in new_accs else None)
+
+    def projpick(v: object) -> str | None:
+        return pick(v, projects) or (v if isinstance(v, str) and v in new_projects else None)
+
     for raw in (d.get("steps") if isinstance(d.get("steps"), list) else [])[:20]:
         if len(steps) >= AGENT_MAX_STEPS:
             break
@@ -314,7 +373,7 @@ def v_agent_plan(data: object, categories: list[str], accounts: list[str], today
         a, tool = raw["args"], raw["tool"]
         args: dict | None = None
         if tool == "reclassify":
-            to = pick(a.get("to_category"), categories)
+            to = catpick(a.get("to_category"))
             kws = _texts(a.get("keywords"), 4, 20)
             ds, de = day(a.get("date_start")), day(a.get("date_end"))
             if ds and de and ds > de:
@@ -326,15 +385,15 @@ def v_agent_plan(data: object, categories: list[str], accounts: list[str], today
                         "date_start": ds, "date_end": de, "to_category": to}
         elif tool == "set_budget":
             amt = money(a.get("amount"))
-            cat = a.get("category")
-            if amt is not None and (cat is None or cat in categories):
+            cat = catpick(a.get("category"))
+            if amt is not None and (cat is not None or a.get("category") in (None, "")):
                 try:
                     pct = int(_num(a.get("alert_percent")))
                 except (TypeError, ValueError):
                     pct = 80
                 args = {"category": cat, "amount": amt, "alert_percent": min(100, max(1, pct)) if 1 <= pct <= 100 else 80}
         elif tool == "add_recurring":
-            amt, cat, name = money(a.get("amount")), pick(a.get("category"), categories), _text(a.get("name"), 30)
+            amt, cat, name = money(a.get("amount")), catpick(a.get("category")), _text(a.get("name"), 30)
             freq = a.get("freq")
             # 分類可以是 None（使用者沒說）：前端會自動帶「訂閱」或「其他」並在預覽提醒；有給但不在名單內的名稱仍視為壞資料
             if amt is not None and name and freq in ("month", "week", "year") and (cat or a.get("category") in (None, "")):
@@ -343,7 +402,7 @@ def v_agent_plan(data: object, categories: list[str], accounts: list[str], today
                 except (TypeError, ValueError):
                     dom = 0
                 args = {"name": name, "amount": amt, "freq": freq, "day": dom if freq == "month" and 1 <= dom <= 31 else None, "category": cat,
-                        "account": pick(a.get("account"), accounts), "kind": a.get("kind") if a.get("kind") in ("expense", "subscription", "income") else "expense",
+                        "account": accpick(a.get("account")), "kind": a.get("kind") if a.get("kind") in ("expense", "subscription", "income") else "expense",
                         "start_date": day(a.get("start_date"))}
         elif tool == "prepayment_sim":
             acc = pick(a.get("account"), accounts)
@@ -351,22 +410,27 @@ def v_agent_plan(data: object, categories: list[str], accounts: list[str], today
             if acc and (lump > 0 or extra > 0):
                 args = {"account": acc, "lump_sum": lump, "extra_monthly": extra}
         elif tool == "add_rule":
-            pat, cat = _text(a.get("pattern"), 20), pick(a.get("category"), categories)
+            pat, cat = _text(a.get("pattern"), 20), catpick(a.get("category"))
             if len(pat) >= 2 and cat:
-                args = {"pattern": pat, "category": cat, "account": pick(a.get("account"), accounts)}
+                args = {"pattern": pat, "category": cat, "account": accpick(a.get("account"))}
         elif tool == "add_goal":
             amt, gname = money(a.get("amount") if a.get("target_amount") is None else a.get("target_amount")), _text(a.get("name"), 30)
             dl = day(a.get("deadline"))
             if amt is not None and gname:
-                args = {"name": gname, "target_amount": amt, "deadline": dl if dl and dl >= today.isoformat() else None}
+                args = {"name": gname, "target_amount": amt, "deadline": dl if dl and dl >= today.isoformat() else None, "account": accpick(a.get("account"))}
                 new_goals.add(gname)
         elif tool == "add_transaction":
             amt, kind = money(a.get("amount")), a.get("type")
-            cat = pick(a.get("category"), categories)
+            cat = catpick(a.get("category"))
             if amt is not None and kind in ("expense", "income") and a.get("category") in (None, "", cat):
-                args = {"type": kind, "account": pick(a.get("account"), accounts), "category": cat, "amount": amt, "date": day(a.get("date")), "note": _text(a.get("note"), 60)}
+                split = a.get("split") if isinstance(a.get("split"), dict) else None
+                my_share, person = (money(split.get("my_share")), _text(split.get("person"), 30)) if split else (None, "")
+                args = {"type": kind, "account": accpick(a.get("account")), "category": cat, "amount": amt, "date": day(a.get("date")), "note": _text(a.get("note"), 60),
+                        "project": projpick(a.get("project")), "tags": _texts(a.get("tags"), 6, 20) or None, "merchant": _text(a.get("merchant"), 30) or None,
+                        "split": {"my_share": my_share, "person": person} if my_share is not None and person and my_share <= amt else None,
+                        "exclude_budget": a.get("exclude_budget") is True, "exclude_stats": a.get("exclude_stats") is True}
         elif tool == "transfer":
-            amt, frm, to = money(a.get("amount")), pick(a.get("from_account"), accounts), pick(a.get("to_account"), accounts)
+            amt, frm, to = money(a.get("amount")), accpick(a.get("from_account")), accpick(a.get("to_account"))
             if amt is not None and frm and to and frm != to:
                 args = {"from_account": frm, "to_account": to, "amount": amt, "date": day(a.get("date")), "note": _text(a.get("note"), 60)}
         elif tool == "settle_debt":
@@ -374,7 +438,7 @@ def v_agent_plan(data: object, categories: list[str], accounts: list[str], today
             amt = money(a.get("amount")) if a.get("amount") not in (None, "") else None
             if who:
                 args = {"person": who, "direction": a.get("direction") if a.get("direction") in ("they_owe_me", "i_owe_them") else None,
-                        "amount": amt, "account": pick(a.get("account"), accounts)}
+                        "amount": amt, "account": accpick(a.get("account"))}
         elif tool == "goal_deposit":
             amt, gname = money(a.get("amount")), a.get("goal")
             if amt is not None and isinstance(gname, str) and (gname in goals or gname in new_goals):
@@ -384,7 +448,7 @@ def v_agent_plan(data: object, categories: list[str], accounts: list[str], today
             shares = money(a.get("shares"))
             price = money(a.get("price")) if a.get("price") not in (None, "") else None
             if sym and shares is not None and shares <= 1e8:
-                args = {"symbol": sym, "shares": shares, "price": price, "account": pick(a.get("account"), accounts)}
+                args = {"symbol": sym, "shares": shares, "price": price, "account": accpick(a.get("account"))}
         elif tool == "show_view":
             view = a.get("view")
             if view in ("fire", "tax", "cashflow", "spending"):
@@ -413,10 +477,105 @@ def v_agent_plan(data: object, categories: list[str], accounts: list[str], today
                 s = a.get("set") if isinstance(a.get("set"), dict) else {}
                 new_amt = money(s.get("amount"))
                 note = s.get("note")
-                new = {"amount": new_amt, "category": pick(s.get("category"), categories), "account": pick(s.get("account"), accounts),
-                       "note": _text(note, 60) if isinstance(note, str) else None, "date": day(s.get("date"))}
+                new = {"amount": new_amt, "category": catpick(s.get("category")), "account": accpick(s.get("account")),
+                       "note": _text(note, 60) if isinstance(note, str) else None, "date": day(s.get("date")),
+                       "project": projpick(s.get("project")), "tags": _texts(s.get("tags"), 6, 20) if isinstance(s.get("tags"), list) else None,
+                       "exclude_budget": s.get("exclude_budget") if isinstance(s.get("exclude_budget"), bool) else None,
+                       "exclude_stats": s.get("exclude_stats") if isinstance(s.get("exclude_stats"), bool) else None}
                 if has_cond and any(v is not None for v in new.values()):
                     args = {"match": match, "set": new}
+        elif tool == "add_installment":
+            name, acc, amt = _text(a.get("name"), 30), accpick(a.get("account")), money(a.get("amount"))
+            periods = int_in(a.get("periods"), 2, 60)
+            if name and acc and amt is not None and periods:
+                args = {"name": name, "account": acc, "category": catpick(a.get("category")), "amount": amt, "periods": periods,
+                        "apr": money(a.get("apr"), allow_zero=True) or 0, "fee": money(a.get("fee"), allow_zero=True) or 0, "first_date": day(a.get("first_date"))}
+        elif tool == "add_project":
+            name = _text(a.get("name"), 30)
+            ds, de = day(a.get("start_date")), day(a.get("end_date"))
+            if ds and de and ds > de:
+                ds, de = de, ds
+            if name:
+                args = {"name": name, "start_date": ds, "end_date": de, "budget": money(a.get("budget")), "currency": cur3(a.get("currency")),
+                        "is_travel": a.get("is_travel") is True, "note": _text(a.get("note"), 60) or None}
+                new_projects.add(name)
+        elif tool == "set_travel_mode":
+            proj = projpick(a.get("project"))
+            if proj or a.get("project") in (None, ""):
+                args = {"project": proj}
+        elif tool == "manage_recurring":
+            name, action = pick(a.get("name"), recurring), a.get("action")
+            if name and action in ("confirm", "skip", "pause", "resume", "delete", "edit"):
+                amt, dom = money(a.get("amount")), int_in(a.get("day"), 1, 31)
+                mode = a.get("mode") if a.get("mode") in ("auto", "confirm") else None
+                if action != "edit" or amt is not None or dom is not None or mode:
+                    args = {"name": name, "action": action, "date": day(a.get("date")), "amount": amt, "day": dom, "mode": mode}
+        elif tool == "manage_inbox":
+            action = a.get("action")
+            if inbox and action in ("book", "skip"):
+                args = {"action": action, "keyword": _text(a.get("keyword"), 20) or None}
+        elif tool == "add_category":
+            name, kind = _text(a.get("name"), 20), a.get("kind")
+            if name and kind in ("expense", "income") and name not in categories and name not in new_cats:
+                args = {"name": name, "kind": kind, "parent": pick(a.get("parent"), categories)}
+                new_cats.add(name)
+        elif tool == "add_dividend":
+            sym, per = pick(a.get("symbol"), stocks), money(a.get("per_share"))
+            kind = a.get("kind") if a.get("kind") in ("cash", "stock") else "cash"
+            if sym and per is not None:
+                args = {"symbol": sym, "per_share": per, "kind": kind, "pay_date": day(a.get("pay_date")), "ex_date": day(a.get("ex_date")), "account": accpick(a.get("account"))}
+        elif tool == "add_wish":
+            name, price = _text(a.get("name"), 30), money(a.get("price"))
+            url = _text(a.get("url"), 200)
+            if name and price is not None:
+                args = {"name": name, "price": price, "cool_days": int_in(a.get("cool_days"), 1, 365), "category": catpick(a.get("category")),
+                        "note": _text(a.get("note"), 60) or None, "url": url if url.startswith(("http://", "https://")) else None}
+        elif tool == "decide_wish":
+            name, decision = pick(a.get("name"), wishes), a.get("decision")
+            if name and decision in ("bought", "abandoned", "extend"):
+                args = {"name": name, "decision": decision}
+        elif tool == "manage_durable":
+            action, name = a.get("action"), _text(a.get("name"), 30)
+            if name and action in ("add", "use", "sell"):
+                if action == "add":
+                    cost = money(a.get("cost"))
+                    if cost is not None:
+                        args = {"action": action, "name": name, "cost": cost, "life_years": int_in(a.get("life_years"), 1, 100), "date": day(a.get("date")), "price": None, "account": None}
+                elif name in durables:
+                    price = money(a.get("price"), allow_zero=True) if action == "sell" else None
+                    if action == "use" or price is not None:
+                        args = {"action": action, "name": name, "cost": None, "life_years": None, "date": day(a.get("date")), "price": price, "account": accpick(a.get("account")) if action == "sell" else None}
+        elif tool == "add_watch":
+            sym = pick(a.get("symbol"), stocks)
+            price = money(a.get("price"))
+            if sym:
+                args = {"symbol": sym, "price": price, "op": (a.get("op") if a.get("op") in (">=", "<=") else ">=") if price is not None else None}
+        elif tool == "delete_transfer":
+            m = a.get("match") if isinstance(a.get("match"), dict) else {}
+            ds, de = day(m.get("date_start")), day(m.get("date_end"))
+            if ds and de and ds > de:
+                ds, de = de, ds
+            frm, to, amt = pick(m.get("from_account"), accounts), pick(m.get("to_account"), accounts), money(m.get("amount"))
+            kws = _texts(m.get("keywords"), 4, 20)
+            if frm or to or amt is not None or ds or de or kws:
+                args = {"match": {"from_account": frm, "to_account": to, "amount": amt, "date_start": ds, "date_end": de, "keywords": kws}}
+        elif tool == "manage_debt":
+            who, action = pick(a.get("person"), people), a.get("action")
+            if who and action in ("delete", "unsettle"):
+                args = {"person": who, "action": action, "amount": money(a.get("amount")), "direction": a.get("direction") if a.get("direction") in ("they_owe_me", "i_owe_them") else None}
+        elif tool == "edit_goal":
+            gname = a.get("goal")
+            s = a.get("set") if isinstance(a.get("set"), dict) else {}
+            if isinstance(gname, str) and (gname in goals or gname in new_goals):
+                new = {"target_amount": money(s.get("target_amount")), "deadline": day(s.get("deadline")), "account": accpick(s.get("account")),
+                       "status": s.get("status") if s.get("status") in ("active", "archived") else None}
+                if any(v is not None for v in new.values()):
+                    args = {"goal": gname, "set": new}
+        elif tool == "add_account":
+            name, typ = _text(a.get("name"), 30), a.get("type")
+            if name and typ in ("bank", "cash", "credit", "epay") and name not in accounts and name not in new_accs:
+                args = {"name": name, "type": typ, "currency": cur3(a.get("currency")), "initial_balance": money(a.get("initial_balance"), allow_zero=True) or 0}
+                new_accs.add(name)
         if args is not None:
             steps.append({"tool": tool, "args": args})
     if not steps:

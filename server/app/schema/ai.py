@@ -213,6 +213,13 @@ class AgentPlanRequest(BaseModel):
     people: list[str] = Field(default_factory=list, max_length=60)
     goals: list[str] = Field(default_factory=list, max_length=40)
     stocks: list[str] = Field(default_factory=list, max_length=80)  # 已在投資頁的標的代號
+    # v4.1.39 全能助手：專案／週期／標籤／願望／耐久財名稱，與收件匣待確認項目標籤（只送名稱，不送金額）
+    projects: list[str] = Field(default_factory=list, max_length=40)
+    recurring: list[str] = Field(default_factory=list, max_length=60)
+    tags: list[str] = Field(default_factory=list, max_length=60)
+    wishes: list[str] = Field(default_factory=list, max_length=40)
+    durables: list[str] = Field(default_factory=list, max_length=60)
+    inbox: list[str] = Field(default_factory=list, max_length=30)
     today: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
 
 

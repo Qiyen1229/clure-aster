@@ -114,6 +114,7 @@ export default function InboxPage() {
       <header className="topbar">
         <button className="icon-btn" aria-label="返回" onClick={() => navigate(-1)}><Icon name="chevronL" /></button>
         <h1>收件匣</h1>
+        <button className="icon-btn" aria-label="自動記帳白名單" title="自動記帳白名單" onClick={() => navigate('/settings/inbox-whitelist')}><Icon name="shieldCheck" /></button>
         <button className="icon-btn" aria-label="重新整理" onClick={() => void reload()}><Icon name="repeat" /></button>
       </header>
 

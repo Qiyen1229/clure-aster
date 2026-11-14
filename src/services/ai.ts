@@ -17,6 +17,7 @@ import { db } from '@/db/schema';
 import { api, apiSse, StreamUnsupported } from './api';
 import { recordAiSend } from './aiLog';
 import { parseContext } from './quickentry';
+import { loadInboxReadOnly } from './inbox';
 
 export interface AiQuotaWindow { limit: number; used: number; remaining: number | null; resets_at: string }
 export interface AiQuota { daily: AiQuotaWindow; weekly: AiQuotaWindow; monthly: AiQuotaWindow }
@@ -252,7 +253,10 @@ export interface AgentPlanValue { summary: string; steps: { tool: string; args: 
  * 只送這一句話與分類／帳戶名稱，不送任何帳目；AI 不能執行任何事，結果在本機預覽並由使用者確認才會寫入。
  */
 export async function aiAgentPlan(text: string, screen?: string, onPartial?: (summary: string) => void): Promise<{ plan: AgentPlanValue; quota: AiQuota }> {
-  const [cats, accs, ctx, debts, people, goals, stocks] = await Promise.all([db.categories.toArray(), db.accounts.toArray(), parseContext(), db.debts.toArray(), db.people.toArray(), db.goals.toArray(), db.stocks.toArray()]);
+  const [cats, accs, ctx, debts, people, goals, stocks, projects, recurring, tags, wishes, durables] = await Promise.all([
+    db.categories.toArray(), db.accounts.toArray(), parseContext(), db.debts.toArray(), db.people.toArray(), db.goals.toArray(), db.stocks.toArray(),
+    db.projects.toArray(), db.recurring_rules.toArray(), db.tags.toArray(), db.wishes.toArray(), db.durables.toArray(),
+  ]);
   const uniq = (xs: string[]) => [...new Set(xs.map((x) => x.trim()).filter(Boolean))];
   const owing = new Set(debts.filter((d) => !d.deletedAt && !d.settled).map((d) => d.personId));
   // 使用者主動附上「目前畫面」時，把摘要放在需求前面（只有名稱與統計數字，內容會出現在「查看送出過什麼」）
@@ -263,6 +267,13 @@ export async function aiAgentPlan(text: string, screen?: string, onPartial?: (su
     people: uniq(people.filter((p) => !p.deletedAt && owing.has(p.id)).map((p) => p.name)).slice(0, 60),
     goals: uniq(goals.filter((g) => !g.deletedAt && g.status === 'active').map((g) => g.name)).slice(0, 40),
     stocks: uniq(stocks.filter((x) => !x.deletedAt).map((x) => x.symbol)).slice(0, 80),
+    projects: uniq(projects.filter((p) => !p.deletedAt && p.status === 'active').map((p) => p.name)).slice(0, 40),
+    recurring: uniq(recurring.filter((r) => !r.deletedAt).map((r) => r.name)).slice(0, 60),
+    tags: uniq(tags.map((t) => t.name)).slice(0, 60),
+    wishes: uniq(wishes.filter((w) => !w.deletedAt && w.status === 'waiting').map((w) => w.name)).slice(0, 40),
+    durables: uniq(durables.filter((x) => !x.deletedAt && x.status === 'active').map((x) => x.name)).slice(0, 60),
+    // 提到收件匣才送待確認項目的標籤（只送商家／備註，不送金額）
+    inbox: /收件[匣夾]/.test(text) ? (await loadInboxReadOnly().catch(() => [])).slice(0, 30).map((e) => (e.item.merchant || e.drafts[0]?.note || e.item.text.slice(0, 20)).slice(0, 30)) : [],
   };
   if (onPartial) {
     // 串流版：規劃摘要（「我打算做什麼」）一邊生成一邊回報；步驟要等完整驗證後才在最後一次送出

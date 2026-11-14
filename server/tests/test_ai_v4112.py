@@ -26,7 +26,9 @@ def test_delete_and_edit_validation() -> None:
     ])
     assert [s["tool"] for s in ok] == ["delete_transaction", "edit_transaction"]
     assert ok[0]["args"]["match"]["keywords"] == ["午餐"] and ok[0]["args"]["match"]["date_start"] == "2026-11-08"
-    assert ok[1]["args"]["match"]["latest"] is True and ok[1]["args"]["set"] == {"amount": 180.0, "category": "飲料", "account": None, "note": "拿鐵", "date": None}
+    assert ok[1]["args"]["match"]["latest"] is True and ok[1]["args"]["set"] == {
+        "amount": 180.0, "category": "飲料", "account": None, "note": "拿鐵", "date": None,
+        "project": None, "tags": None, "exclude_budget": None, "exclude_stats": None}
 
 
 def test_delete_and_edit_reject_unsafe_or_empty() -> None:

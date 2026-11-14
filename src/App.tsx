@@ -95,6 +95,7 @@ const SummaryPage = lazy(() => import('./features/reports/SummaryPage'));
 const AdminPage = lazy(() => import('./features/admin/AdminPage'));
 const InboxPage = lazy(() => import('./features/inbox/InboxPage'));
 const ShortcutsPage = lazy(() => import('./features/settings/ShortcutsPage'));
+const InboxWhitelistPage = lazy(() => import('./features/settings/InboxWhitelistPage'));
 
 /** 不顯示底部 Tab Bar 的全螢幕頁面 */
 const FULLSCREEN = [/^\/onboarding/, /^\/reports\/review/, /^\/reports\/print/];
@@ -324,6 +325,7 @@ export default function App() {
             <Route path="/settings/ai" element={<AiPage />} />
             <Route path="/settings/ai/sent" element={<AiSentPage />} />
             <Route path="/settings/shortcuts" element={<ShortcutsPage />} />
+            <Route path="/settings/inbox-whitelist" element={<InboxWhitelistPage />} />
             <Route path="/ai" element={<AiAssistant />} />
             <Route path="/inbox" element={<InboxPage />} />
             <Route path="/insights" element={<Navigate to="/ai" replace />} />
