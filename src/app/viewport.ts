@@ -78,22 +78,30 @@ export function installViewportTracking(): () => void {
   window.addEventListener('focusin', schedule);
   window.addEventListener('focusout', onFocusOut);
   // 回到 App（可能在「設定」改了文字大小、或背景休眠喚醒）時重新計算字級與視窗狀態
+  const visTimers: number[] = [];
+  const clearVisTimers = () => { while (visTimers.length) clearTimeout(visTimers.pop()); };
+  const syncAfterWake = () => {
+    clampRootFontSize();
+    update();
+    if (!isTextInput(document.activeElement)) {
+      root.classList.remove('kb-open');
+      root.style.setProperty('--kb', '0px');
+      if (vv && vv.offsetTop > 0) {
+        window.scrollTo(0, 0);
+      }
+    }
+  };
   const onVisible = () => {
     if (document.visibilityState === 'visible') {
-      clampRootFontSize();
-      update();
-      if (!isTextInput(document.activeElement)) {
-        root.classList.remove('kb-open');
-        root.style.setProperty('--kb', '0px');
-        if (vv && vv.offsetTop > 0) {
-          window.scrollTo(0, 0);
-        }
-      }
+      syncAfterWake();
+      clearVisTimers();
+      visTimers.push(window.setTimeout(syncAfterWake, 120), window.setTimeout(syncAfterWake, 360));
     }
   };
   document.addEventListener('visibilitychange', onVisible);
   update();
   return () => {
+    clearVisTimers();
     vv?.removeEventListener('resize', schedule);
     vv?.removeEventListener('scroll', schedule);
     window.removeEventListener('focusin', schedule);

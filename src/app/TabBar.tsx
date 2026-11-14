@@ -61,6 +61,7 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
   const activeTo = [...LEFT, ...RIGHT].find((t) => pathname === t.to || pathname.startsWith(`${t.to}/`))?.to ?? null;
   const [scrubTo, setScrubTo] = useState<string | null>(null);
   const [lensShown, setLensShown] = useState(false);
+  const [resumeKey, setResumeKey] = useState(0);
   const shownTo = scrubTo === HOME ? null : (scrubTo ?? activeTo); // 滑到中間首頁時透鏡淡出，由圓珠自己發光
   const phys = useRef({
     x: makeSpring(), raf: 0, last: 0, dragging: false, placed: false,
@@ -150,7 +151,7 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
     if (el && first) el.style.width = `${first.getBoundingClientRect().width + 4}px`;
   };
 
-  // 目前分頁改變（點選、返回、程式導覽）：透鏡彈到新分頁；沒有對應分頁（首頁）就淡出
+  // 目前分頁改變（點選、返回、程式導覽，或背景喚醒重建導覽列）：透鏡彈到新分頁；沒有對應分頁（首頁）就淡出
   useLayoutEffect(() => {
     if (scrubTo) return;
     const r = activeTo ? rectOf(activeTo) : null;
@@ -160,8 +161,8 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
     aim(r.x - 2, !lensShown);
     setLensShown(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTo, scrubTo]);
-  // 視窗或膠囊大小改變（旋轉、字級）時重新對位
+  }, [activeTo, scrubTo, resumeKey]);
+  // 視窗或膠囊大小改變（旋轉、字級、背景喚醒重建）時重新對位
   useLayoutEffect(() => {
     const cap = capRef.current;
     if (!cap) return;
@@ -178,7 +179,7 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
     ro.observe(cap);
     return () => ro.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shownTo]);
+  }, [shownTo, resumeKey]);
   // 卸載（含開發模式 StrictMode 的模擬卸載）時停掉動畫迴圈，並把 raf 歸零，否則之後 kick() 會以為迴圈還在跑而永遠不再啟動
   useEffect(() => () => {
     const P = phys.current;
@@ -189,61 +190,92 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
   // ── iOS 背景閒置過久或喚醒時的自動重校準 ──
   // 解決 WebKit 在背景休眠後，固定圖層（position: fixed）偶爾脫離視窗底端、位移至螢幕中央的 Bug
   const navRef = useRef<HTMLElement>(null);
+  const hiddenAtRef = useRef(0);
+  const resumeTimers = useRef<number[]>([]);
   useEffect(() => {
-    const onResume = () => {
-      if (document.visibilityState === 'hidden') {
-        // 進入背景：立刻凍結動畫、清除 rAF 與拖曳狀態，避免計時器時間差暴增
-        freeze();
-        stopRaf();
-        scrub.current = null;
-        held.current = false;
-        setPressing(false);
-        setAiHold(false);
-        window.clearTimeout(timer.current);
-        return;
-      }
-
-      // 回到前景：重設手勢與物理動畫
+    const clearResumeTimers = () => {
+      while (resumeTimers.current.length) window.clearTimeout(resumeTimers.current.pop());
+    };
+    const reanchorNav = () => {
+      const el = navRef.current;
+      if (!el || hidden || document.documentElement.classList.contains('kb-open')) return;
+      // 強制 WebKit 卸除並重建 fixed 合成圖層（ScrollingTreeFixedNode）
+      el.style.display = 'none';
+      void el.offsetHeight;
+      el.style.display = '';
+      sizeLens();
+      const r = shownTo ? rectOf(shownTo) : null;
+      if (r && !phys.current.dragging) aim(r.x - 2, true);
+    };
+    const resetGestures = () => {
       scrub.current = null;
       held.current = false;
       setPressing(false);
       setAiHold(false);
       window.clearTimeout(timer.current);
-
       const P = phys.current;
       P.dragging = false;
+      freeze();
       stopRaf();
-      if (P.anim) {
-        P.anim.onfinish = null;
-        P.anim.cancel();
-        P.anim = null;
-        P.track = null;
+    };
+    const onHide = () => {
+      hiddenAtRef.current = Date.now();
+      clearResumeTimers();
+      resetGestures();
+    };
+    const onResume = () => {
+      if (document.visibilityState === 'hidden') {
+        onHide();
+        return;
       }
 
-      // 重設導覽列 fixed 圖層位置，強迫 WebKit 重新錨定到底部
-      if (navRef.current) {
-        navRef.current.style.transform = 'translate3d(0, 0, 0)';
-        void navRef.current.offsetHeight;
+      clearResumeTimers();
+      resetGestures();
+
+      if (hiddenAtRef.current > 0) {
+        hiddenAtRef.current = 0;
+        phys.current.placed = false;
+        setResumeKey((k) => k + 1);
       }
 
-      // 下一幀重新對齊膠囊尺寸與透鏡位置
-      requestAnimationFrame(() => {
-        sizeLens();
-        const r = shownTo ? rectOf(shownTo) : null;
-        if (r && !phys.current.dragging) aim(r.x - 2, true);
-      });
+      reanchorNav();
+      resumeTimers.current.push(
+        window.setTimeout(reanchorNav, 100),
+        window.setTimeout(reanchorNav, 360),
+      );
+    };
+    const onViewportResize = () => {
+      if (hidden || document.documentElement.classList.contains('kb-open')) return;
+      reanchorNav();
+    };
+    const onViewportScroll = () => {
+      const el = navRef.current;
+      if (!el || hidden || document.documentElement.classList.contains('kb-open')) return;
+      if (Math.abs(window.innerHeight - el.getBoundingClientRect().bottom) > 2) {
+        reanchorNav();
+      }
     };
 
+    const vv = window.visualViewport;
     document.addEventListener('visibilitychange', onResume);
+    window.addEventListener('pagehide', onHide);
     window.addEventListener('pageshow', onResume);
     window.addEventListener('focus', onResume);
+    window.addEventListener('resize', onViewportResize);
+    vv?.addEventListener('resize', onViewportResize);
+    vv?.addEventListener('scroll', onViewportScroll);
     return () => {
+      clearResumeTimers();
       document.removeEventListener('visibilitychange', onResume);
+      window.removeEventListener('pagehide', onHide);
       window.removeEventListener('pageshow', onResume);
       window.removeEventListener('focus', onResume);
+      window.removeEventListener('resize', onViewportResize);
+      vv?.removeEventListener('resize', onViewportResize);
+      vv?.removeEventListener('scroll', onViewportScroll);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shownTo]);
+  }, [shownTo, hidden]);
 
   // ── 手指在導覽列上：一按下透鏡就彈到那個分頁（Apple 的做法），按住左右滑動會跟著手指（帶慣性），放開才前往 ──
   const scrub = useRef<{ x: number; moved: boolean; id: number; lastX: number; lastT: number; v: number; to: string } | null>(null);
@@ -381,7 +413,7 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
   );
 
   return (
-    <nav ref={navRef} className={`tabbar${hidden ? ' tabbar-off' : ''}`} aria-label="主要導覽" aria-hidden={hidden || undefined}>
+    <nav key={resumeKey} ref={navRef} className={`tabbar${hidden ? ' tabbar-off' : ''}`} aria-label="主要導覽" aria-hidden={hidden || undefined}>
       <div className="tabbar-capsule" ref={capRef} onPointerDown={onCapDown} onPointerMove={onCapMove} onPointerUp={onCapUp} onPointerCancel={onCapCancel}>
         {/* 玻璃透鏡（目前分頁的選取泡泡）：位置與大小由彈簧物理直接寫入 style */}
         <span ref={lensRef} className={`dock-lens${lensShown && shownTo ? '' : ' hidden'}`} aria-hidden="true"><span className="dock-lens-in" /></span>
