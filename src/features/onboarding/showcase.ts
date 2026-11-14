@@ -106,6 +106,18 @@ export const CANDIDATES: ShowcaseFeature[] = [
     bullets: ['每天一張明信片：天數戳章、分類戳章、當日花費，點開直接記這天', '每日額度＝預算÷天數，對比今日已花、超支轉紅', '行前消費標「行前」、返程後自動變旅程回顧'],
     howto: '建立旅遊專案後，首頁右上角切到「旅遊模式」',
   },
+  {
+    id: 'desktop-home', icon: 'keyboard', title: '電腦寬屏記帳', since: '4.1.38', power: 4, novelty: 3,
+    pitch: '寬屏雙欄首頁＋側邊導覽，電腦記帳跟手機一樣順',
+    bullets: ['左邊整月月曆＋當日帳目，右邊本月看板，一屏看完', '側邊導覽常駐記一筆／語音／Cilo，鍵盤 N、/、1–5 捷徑', '記帳改置中對話框、Cilo 改右下角面板，不再整屏抽屜'],
+    howto: '用電腦瀏覽器開啟 Aster，視窗寬於 1024px 自動切換',
+  },
+  {
+    id: 'swipe-undo', icon: 'trash', title: '左滑刪除可復原', since: '4.1.38', power: 3, novelty: 2,
+    pitch: '列表左滑就刪，3 秒內隨時反悔',
+    bullets: ['專案、預算、週期、目標、願望、分期、耐用品都適用', '列先收合消失、3 秒後才真正刪除', '通知附倒數條，點「復原」整列回來'],
+    howto: '列表列上往左滑超過門檻放開；3 秒內點通知的「復原」',
+  },
 ];
 
 const vParts = (v: string) => v.split('.').map((n) => Number(n) || 0);

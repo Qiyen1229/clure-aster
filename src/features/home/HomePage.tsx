@@ -15,7 +15,7 @@ import { listLedger, listStatTxs } from '@/db/repo/ledger';
 import { addDays, fromDateKey, monthGrid, toDateKey, todayKey } from '@/domain/period';
 import { totals, totalsByDay } from '@/domain/ledger';
 import { computePnlCalendar, type DayPnlResult, type MonthPnlSummary } from '@/domain/invest/pnlCalendar';
-import { useAccounts, useCategories, useTags } from '@/app/hooks';
+import { useAccounts, useCategories, useTags, useMediaQuery } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
 import { useUI } from '@/stores/ui';
 import { Icon } from '@/ui/Icon';
@@ -41,6 +41,7 @@ const PTR_THRESHOLD = 58;
 
 export default function HomePage() {
   const navigate = useNavigate();
+  const desktop = useMediaQuery('(min-width: 1024px)');
   const selected = useUI((s) => s.selectedDate);
   const setSelected = useUI((s) => s.setSelectedDate);
   const openAdd = useUI((s) => s.openAdd);
@@ -348,6 +349,8 @@ export default function HomePage() {
         </div>
       </header>
 
+      {/* 桌機寬屏：右側看板（hero＋收件匣＋快覽）sticky；手機用 display:contents＋order 維持原本直向順序 */}
+      <div className="home-side">
       {travelProject ? (
         <TravelHero
           project={travelProject}
@@ -363,6 +366,18 @@ export default function HomePage() {
         />
       )}
 
+      {/* 收件匣：自動記帳的待確認項目，放在首頁隨時核對；旅遊模式下隱藏（旅程帳目走時間軸） */}
+      {!travelProject && <Suspense fallback={null}><HomeInbox /></Suspense>}
+
+      {/* 快覽（今日可用、預算、淨資產…可在設定增減）；旅遊模式下隱藏一般日常快覽 */}
+      {!travelProject && (
+        <div className="home-lower" aria-label="快覽">
+          {homeWidgets.length > 0 && <Suspense fallback={null}><Widgets /></Suspense>}
+        </div>
+      )}
+      </div>
+
+      <div className="home-main">
       {travelProject ? (
         <TravelTimeline project={travelProject} cats={cats.map} accounts={accounts.map} tags={tags.map} />
       ) : (
@@ -375,7 +390,7 @@ export default function HomePage() {
         weekStart={weekStart}
         dayTotals={stat?.byDay ?? new Map()}
         daysWithRecords={stat?.days ?? new Set()}
-        collapsed={calendarCollapsed}
+        collapsed={desktop ? false : calendarCollapsed}
         mode={effectiveCalendarMode}
         hidePnlToggle={!!travelProject}
         pnlDays={pnlData.days}
@@ -539,16 +554,7 @@ export default function HomePage() {
       )}
         </>
       )}
-
-      {/* 收件匣：自動記帳的待確認項目，放在首頁隨時核對；旅遊模式下隱藏（旅程帳目走時間軸） */}
-      {!travelProject && <Suspense fallback={null}><HomeInbox /></Suspense>}
-
-      {/* 下半部獨立區塊：快覽（今日可用、預算、淨資產…可在設定增減）；旅遊模式下隱藏一般日常快覽 */}
-      {!travelProject && (
-        <div className="home-lower" aria-label="快覽">
-          {homeWidgets.length > 0 && <Suspense fallback={null}><Widgets /></Suspense>}
-        </div>
-      )}
+      </div>
 
       {/* 右下角獨立語音記帳按鈕：MediaRecorder 同步啟動錄音，長按講完放開自動辨識入帳，輕點則持續錄音 */}
       <button

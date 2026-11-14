@@ -16,6 +16,8 @@ import { snackUndo, useUI, ask } from '@/stores/ui';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { AmountField, CategoryField, SelectField, TextField } from '@/ui/form';
 import { Sheet } from '@/ui/Sheet';
+import { SwipeRow } from '@/ui/SwipeRow';
+import { useSwipeDelete } from '@/ui/useSwipeDelete';
 import { SectionHead } from './PlanPage';
 
 export function daysUntil(dateKey: string, today = todayKey()): number {
@@ -27,11 +29,12 @@ export default function WishlistSection() {
   const [adding, setAdding] = useState(false);
   const [tab, setTab] = useState<'waiting' | 'done'>('waiting');
   const wishes = useLiveQuery(() => db.wishes.toArray(), []);
+  const { pendingIds, requestDelete } = useSwipeDelete();
   const openAdd = useUI((s) => s.openAdd);
 
   const saved = (wishes ?? []).filter((w) => w.status === 'abandoned' && w.currency === base).reduce((a, w) => a + w.priceMinor, 0);
-  const waiting = (wishes ?? []).filter((w) => w.status === 'waiting').sort((a, b) => (a.decideAt < b.decideAt ? -1 : 1));
-  const done = (wishes ?? []).filter((w) => w.status !== 'waiting').sort((a, b) => (b.decidedAt ?? 0) - (a.decidedAt ?? 0));
+  const waiting = (wishes ?? []).filter((w) => w.status === 'waiting' && !pendingIds.has(w.id)).sort((a, b) => (a.decideAt < b.decideAt ? -1 : 1));
+  const done = (wishes ?? []).filter((w) => w.status !== 'waiting' && !pendingIds.has(w.id)).sort((a, b) => (b.decidedAt ?? 0) - (a.decidedAt ?? 0));
 
   const buy = (w: Wish) => {
     void decideWish(w.id, 'bought');
@@ -61,39 +64,43 @@ export default function WishlistSection() {
           const total = Math.max(1, w.coolDays);
           const pct = Math.min(100, ((total - Math.max(0, left)) / total) * 100);
           return (
-            <div key={w.id} className="card">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div className="row-main">
-                  <div style={{ fontWeight: 600 }}>{w.name}</div>
-                  <div className="row-sub">{left > 0 ? `冷靜期剩 ${left} 天（${w.decideAt.slice(5).replace('-', '/')}）` : '冷靜期結束，你還想買嗎？'}{w.note ? ` · ${w.note}` : ''}</div>
+            <SwipeRow key={w.id} collapse onDelete={() => requestDelete(w.id, w.name, () => db.wishes.delete(w.id))}>
+              <div className="card">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div className="row-main">
+                    <div style={{ fontWeight: 600 }}>{w.name}</div>
+                    <div className="row-sub">{left > 0 ? `冷靜期剩 ${left} 天（${w.decideAt.slice(5).replace('-', '/')}）` : '冷靜期結束，你還想買嗎？'}{w.note ? ` · ${w.note}` : ''}</div>
+                  </div>
+                  <Amount minor={w.priceMinor} currency={w.currency} tone="none" className="num" />
                 </div>
-                <Amount minor={w.priceMinor} currency={w.currency} tone="none" className="num" />
+                <div className="bar" style={{ margin: '10px 0' }}><i style={{ width: `${pct}%`, ['--c' as string]: left > 0 ? 'var(--accent)' : 'var(--warning)' }} /></div>
+                <div className="btn-row">
+                  <button className="btn small secondary" style={{ flex: 1 }} onClick={() => void extendWish(w.id, 7)}>再冷靜 7 天</button>
+                  <button className="btn small tinted" style={{ flex: 1 }} onClick={() => abandon(w)}>放棄購買</button>
+                  <button className="btn small" style={{ flex: 1 }} onClick={async () => {
+                    if (left > 0 && !await ask(`冷靜期還有 ${left} 天，確定現在就買？`)) return;
+                    buy(w);
+                  }}>買了</button>
+                </div>
+                {w.url && /^https?:\/\//.test(w.url) && <a className="accent" style={{ fontSize: '0.8rem' }} href={w.url} target="_blank" rel="noopener noreferrer">商品連結</a>}
               </div>
-              <div className="bar" style={{ margin: '10px 0' }}><i style={{ width: `${pct}%`, ['--c' as string]: left > 0 ? 'var(--accent)' : 'var(--warning)' }} /></div>
-              <div className="btn-row">
-                <button className="btn small secondary" style={{ flex: 1 }} onClick={() => void extendWish(w.id, 7)}>再冷靜 7 天</button>
-                <button className="btn small tinted" style={{ flex: 1 }} onClick={() => abandon(w)}>放棄購買</button>
-                <button className="btn small" style={{ flex: 1 }} onClick={async () => {
-                  if (left > 0 && !await ask(`冷靜期還有 ${left} 天，確定現在就買？`)) return;
-                  buy(w);
-                }}>買了</button>
-              </div>
-              {w.url && /^https?:\/\//.test(w.url) && <a className="accent" style={{ fontSize: '0.8rem' }} href={w.url} target="_blank" rel="noopener noreferrer">商品連結</a>}
-            </div>
+            </SwipeRow>
           );
         })
       ) : (
         done.length === 0 ? <EmptyState emoji="📭" title="還沒有決定過的心願" /> : (
           <div className="list" style={{ marginTop: 12 }}>
             {done.map((w) => (
-              <div key={w.id} className="row">
-                <div className="row-main">
-                  <div className="row-title">{w.name}</div>
-                  <div className="row-sub">{w.status === 'abandoned' ? '✅ 放棄購買，省下了' : '🛍️ 買了'} · {w.decidedAt ? new Date(w.decidedAt).toLocaleDateString('zh-TW') : ''}</div>
+              <SwipeRow key={w.id} flat collapse onDelete={() => requestDelete(w.id, w.name, () => db.wishes.delete(w.id))}>
+                <div className="row">
+                  <div className="row-main">
+                    <div className="row-title">{w.name}</div>
+                    <div className="row-sub">{w.status === 'abandoned' ? '✅ 放棄購買，省下了' : '🛍️ 買了'} · {w.decidedAt ? new Date(w.decidedAt).toLocaleDateString('zh-TW') : ''}</div>
+                  </div>
+                  <Amount minor={w.priceMinor} currency={w.currency} tone="none" className="num" />
+                  <button className="icon-btn plain" aria-label={`刪除 ${w.name}`} onClick={() => requestDelete(w.id, w.name, () => db.wishes.delete(w.id))}>✕</button>
                 </div>
-                <Amount minor={w.priceMinor} currency={w.currency} tone="none" className="num" />
-                <button className="icon-btn plain" aria-label={`刪除 ${w.name}`} onClick={() => void db.wishes.delete(w.id)}>✕</button>
-              </div>
+              </SwipeRow>
             ))}
           </div>
         )

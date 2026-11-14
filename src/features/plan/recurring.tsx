@@ -17,6 +17,8 @@ import { useUI, ask } from '@/stores/ui';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { AccountField, AmountField, CategoryField, DateField, SelectField, TextField } from '@/ui/form';
 import { Sheet } from '@/ui/Sheet';
+import { SwipeRow } from '@/ui/SwipeRow';
+import { useSwipeDelete } from '@/ui/useSwipeDelete';
 import { CatIcon } from '@/ui/Icon';
 import { SectionHead } from './PlanPage';
 
@@ -35,6 +37,7 @@ export default function RecurringSection() {
   const [edit, setEdit] = useState<RecurringRule | 'new' | 'newsub' | null>(null);
   const [kind, setKind] = useState<'all' | 'subscription'>('all');
   const rules = useLiveQuery(() => db.recurring_rules.toArray(), []);
+  const { pendingIds, requestDelete } = useSwipeDelete();
   const rates = useLiveQuery(async () => new Map((await db.exchange_rates.toArray()).map((r) => [`${r.base}>${r.quote}`, r])), []);
   const base = useSettings((s) => s.baseCurrency);
   const cats = useCategories();
@@ -42,7 +45,7 @@ export default function RecurringSection() {
   const [confirming, setConfirming] = useState<{ rule: RecurringRule; date: string } | null>(null);
 
   const pending = (rules ?? []).flatMap((r) => r.pendingDates.map((d) => ({ rule: r, date: d }))).sort((a, b) => (a.date < b.date ? -1 : 1));
-  const shown = (rules ?? []).filter((r) => (kind === 'all' || r.kind === 'subscription')).sort((a, b) => (b.active - a.active) || (a.nextDue < b.nextDue ? -1 : 1));
+  const shown = (rules ?? []).filter((r) => !pendingIds.has(r.id) && (kind === 'all' || r.kind === 'subscription')).sort((a, b) => (b.active - a.active) || (a.nextDue < b.nextDue ? -1 : 1));
   const toBase = (r: RecurringRule) => {
     const amt = r.template.amountMinor ?? 0;
     const cur = r.template.currency ?? base;
@@ -92,17 +95,20 @@ export default function RecurringSection() {
             const c = r.template.categoryId ? cats.map.get(r.template.categoryId) : undefined;
             const soon = r.active && r.nextDue <= todayKey().slice(0, 8) + '31' && r.nextDue >= todayKey();
             return (
-              <button key={r.id} className="row with-icon" onClick={() => setEdit(r)} style={{ opacity: r.active ? 1 : 0.5 }}>
-                <span className="cat-icon sm" style={{ ['--c' as string]: c?.color }} aria-hidden="true"><CatIcon icon={r.kind === 'subscription' ? 'tv' : c?.icon ?? 'repeat'} size={16} /></span>
-                <div className="row-main">
-                  <div className="row-title">{r.name}{r.kind === 'subscription' && <span className="chip" style={{ marginLeft: 6 }}>訂閱</span>}</div>
-                  <div className="row-sub">{describeRule(r.rule)} · {r.mode === 'auto' ? '自動入帳' : '需確認'} · {accounts.map.get(r.template.accountId ?? '')?.name ?? '帳戶已刪除'}</div>
+              <SwipeRow key={r.id} flat collapse onTap={() => setEdit(r)}
+                onDelete={() => requestDelete(r.id, r.name, () => db.recurring_rules.delete(r.id))}>
+                <div className="row with-icon" style={{ opacity: r.active ? 1 : 0.5 }}>
+                  <span className="cat-icon sm" style={{ ['--c' as string]: c?.color }} aria-hidden="true"><CatIcon icon={r.kind === 'subscription' ? 'tv' : c?.icon ?? 'repeat'} size={16} /></span>
+                  <div className="row-main">
+                    <div className="row-title">{r.name}{r.kind === 'subscription' && <span className="chip" style={{ marginLeft: 6 }}>訂閱</span>}</div>
+                    <div className="row-sub">{describeRule(r.rule)} · {r.mode === 'auto' ? '自動入帳' : '需確認'} · {accounts.map.get(r.template.accountId ?? '')?.name ?? '帳戶已刪除'}</div>
+                  </div>
+                  <div className="row-end">
+                    <Amount minor={r.template.type === 'income' ? r.template.amountMinor ?? 0 : -(r.template.amountMinor ?? 0)} currency={r.template.currency ?? base} tone="auto" className="num" />
+                    <div className="row-sub" style={{ color: soon ? 'var(--warning)' : undefined }}>{r.active ? `下次 ${r.nextDue.slice(5).replace('-', '/')}` : '已結束'}</div>
+                  </div>
                 </div>
-                <div className="row-end">
-                  <Amount minor={r.template.type === 'income' ? r.template.amountMinor ?? 0 : -(r.template.amountMinor ?? 0)} currency={r.template.currency ?? base} tone="auto" className="num" />
-                  <div className="row-sub" style={{ color: soon ? 'var(--warning)' : undefined }}>{r.active ? `下次 ${r.nextDue.slice(5).replace('-', '/')}` : '已結束'}</div>
-                </div>
-              </button>
+              </SwipeRow>
             );
           })}
         </div>

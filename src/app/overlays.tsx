@@ -24,6 +24,9 @@ export function SnackbarHost() {
         {snack.actionLabel && (
           <button onClick={() => { snack.onAction?.(); dismiss(); }}>{snack.actionLabel}</button>
         )}
+        {snack.actionLabel && snack.duration && (
+          <i className="snack-timer" style={{ animationDuration: `${snack.duration}ms` }} aria-hidden="true" />
+        )}
       </div>
     </div>
   );
@@ -209,6 +212,17 @@ export function UpdatePrompt() {
       <span>有新版本，點擊更新（更新後會跳出這次新增的功能說明）</span>
       <button className="btn small" onClick={() => updateFn(true)}>更新</button>
       <button className="btn small secondary" onClick={handleDismiss}>稍後</button>
+    </div>
+  );
+}
+
+/** 手機橫向時的全屏提醒：Aster 以直向設計，請轉回來（純 CSS 媒體查詢偵測，平板橫向不受影響） */
+export function OrientationGuard() {
+  return (
+    <div className="orientation-guard" role="alert">
+      <div className="orientation-phone" aria-hidden="true">📱</div>
+      <div className="orientation-title">請轉回直向</div>
+      <p>Aster 以直向使用設計，把手機轉回直向就能繼續。</p>
     </div>
   );
 }

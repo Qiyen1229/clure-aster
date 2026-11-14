@@ -16,12 +16,15 @@ import { useUI, ask } from '@/stores/ui';
 import { Amount, EmptyState, SkeletonRows } from '@/ui/controls';
 import { AmountField, CurrencyField, DateField, Ring, TextField } from '@/ui/form';
 import { Sheet } from '@/ui/Sheet';
+import { SwipeRow } from '@/ui/SwipeRow';
+import { useSwipeDelete } from '@/ui/useSwipeDelete';
 import { SectionHead } from './PlanPage';
 
 const ICONS = ['🐷', '🏝️', '🏠', '🚗', '💍', '🎓', '💻', '🛟', '👶', '📷', '🎸', '✈️'];
 
 export default function GoalSection() {
   const [edit, setEdit] = useState<Goal | 'new' | null>(null);
+  const { pendingIds, requestDelete } = useSwipeDelete();
   const goals = useLiveQuery(() => db.goals.toArray(), []);
   const balances = useLiveQuery(() => db.accounts.toArray(), []);
   const saved = useLiveQuery(async () => {
@@ -37,23 +40,26 @@ export default function GoalSection() {
         <EmptyState emoji="🐷" title="還沒有存錢目標" text="旅行基金、緊急預備金、頭期款…設定金額與期限，自動算出每月要存多少。"
           action={<button className="btn small" onClick={() => setEdit('new')}>建立目標</button>} />
       ) : (
-        goals.sort((a, b) => (a.status === 'active' ? -1 : 1) - (b.status === 'active' ? -1 : 1)).map((g) => {
+        goals.filter((g) => !pendingIds.has(g.id)).sort((a, b) => (a.status === 'active' ? -1 : 1) - (b.status === 'active' ? -1 : 1)).map((g) => {
           const s = saved?.get(g.id) ?? 0;
           const p = goalProgress(g.targetMinor, s, todayKey(), g.deadline);
           return (
-            <button key={g.id} className="card" style={{ display: 'flex', gap: 16, alignItems: 'center', width: '100%', textAlign: 'left', opacity: g.status === 'archived' ? 0.5 : 1 }} onClick={() => setEdit(g)}>
-              <Ring pct={p.pct} size={72} color={p.done ? 'var(--success)' : g.color}>{p.done ? '🎉' : `${Math.round(p.pct)}%`}</Ring>
-              <div className="row-main">
-                <div style={{ fontWeight: 600 }}>{g.icon} {g.name}</div>
-                <div className="row-sub num"><Amount minor={s} currency={g.currency} tone="none" /> / <Amount minor={g.targetMinor} currency={g.currency} tone="none" /></div>
-                {p.done ? <div className="row-sub" style={{ color: 'var(--success)' }}>已達成！</div> :
-                  p.monthly !== null ? (
-                    <div className="row-sub" style={{ color: p.overdue ? 'var(--danger)' : undefined }}>
-                      {p.overdue ? '已過期限・' : ''}每月需存 <b style={{ color: 'var(--text)' }}><Amount minor={p.monthly} currency={g.currency} tone="none" /></b>（剩 {p.monthsLeft} 個月）
-                    </div>
-                  ) : <div className="row-sub">還差 <Amount minor={p.left} currency={g.currency} tone="none" /></div>}
+            <SwipeRow key={g.id} collapse onTap={() => setEdit(g)}
+              onDelete={() => requestDelete(g.id, g.name, () => db.goals.delete(g.id))}>
+              <div className="card" style={{ display: 'flex', gap: 16, alignItems: 'center', width: '100%', textAlign: 'left', opacity: g.status === 'archived' ? 0.5 : 1 }}>
+                <Ring pct={p.pct} size={72} color={p.done ? 'var(--success)' : g.color}>{p.done ? '🎉' : `${Math.round(p.pct)}%`}</Ring>
+                <div className="row-main">
+                  <div style={{ fontWeight: 600 }}>{g.icon} {g.name}</div>
+                  <div className="row-sub num"><Amount minor={s} currency={g.currency} tone="none" /> / <Amount minor={g.targetMinor} currency={g.currency} tone="none" /></div>
+                  {p.done ? <div className="row-sub" style={{ color: 'var(--success)' }}>已達成！</div> :
+                    p.monthly !== null ? (
+                      <div className="row-sub" style={{ color: p.overdue ? 'var(--danger)' : undefined }}>
+                        {p.overdue ? '已過期限・' : ''}每月需存 <b style={{ color: 'var(--text)' }}><Amount minor={p.monthly} currency={g.currency} tone="none" /></b>（剩 {p.monthsLeft} 個月）
+                      </div>
+                    ) : <div className="row-sub">還差 <Amount minor={p.left} currency={g.currency} tone="none" /></div>}
+                </div>
               </div>
-            </button>
+            </SwipeRow>
           );
         })
       )}

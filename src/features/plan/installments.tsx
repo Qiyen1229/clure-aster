@@ -17,6 +17,8 @@ import { resolveRate } from '@/services/fx';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { AccountField, AmountField, CategoryField, DateField, SelectField, TextField } from '@/ui/form';
 import { Sheet } from '@/ui/Sheet';
+import { SwipeRow } from '@/ui/SwipeRow';
+import { useSwipeDelete } from '@/ui/useSwipeDelete';
 import { SectionHead } from './PlanPage';
 
 export default function InstallmentSection() {
@@ -30,7 +32,8 @@ export default function InstallmentSection() {
   }, []);
   const accounts = useAccounts(true);
   const base = useSettings((s) => s.baseCurrency);
-  const shown = (list ?? []).filter((i) => i.status === status);
+  const { pendingIds, requestDelete } = useSwipeDelete();
+  const shown = (list ?? []).filter((i) => i.status === status && !pendingIds.has(i.id));
   const { futureMinor, nextMonthDueMinor, missingRates } = useMemo(() => {
     const rateMap = rates ?? new Map();
     return computeInstallmentSummary(list ?? [], base, (from, to) => resolveRate(rateMap, from, to));
@@ -62,17 +65,20 @@ export default function InstallmentSection() {
             const r = remaining(i.schedule);
             const paid = i.periods - r.periodsLeft;
             return (
-              <button key={i.id} className="row" onClick={() => setView(i)}>
-                <div className="row-main">
-                  <div className="row-title">{i.name}</div>
-                  <div className="row-sub">{accounts.map.get(i.accountId)?.name ?? '?'} · 已繳 {paid}/{i.periods} 期{Number(i.aprDec) ? ` · 年利率 ${i.aprDec}%` : ' · 0 利率'}</div>
-                  <div className="bar" style={{ marginTop: 6 }}><i style={{ width: `${(paid / i.periods) * 100}%` }} /></div>
+              <SwipeRow key={i.id} flat collapse onTap={() => setView(i)}
+                onDelete={() => requestDelete(i.id, i.name, () => deleteInstallment(i.id))}>
+                <div className="row">
+                  <div className="row-main">
+                    <div className="row-title">{i.name}</div>
+                    <div className="row-sub">{accounts.map.get(i.accountId)?.name ?? '?'} · 已繳 {paid}/{i.periods} 期{Number(i.aprDec) ? ` · 年利率 ${i.aprDec}%` : ' · 0 利率'}</div>
+                    <div className="bar" style={{ marginTop: 6 }}><i style={{ width: `${(paid / i.periods) * 100}%` }} /></div>
+                  </div>
+                  <div className="row-end">
+                    <Amount minor={r.futureMinor} currency={i.currency} tone="none" className="num" />
+                    <div className="row-sub">剩 {r.periodsLeft} 期</div>
+                  </div>
                 </div>
-                <div className="row-end">
-                  <Amount minor={r.futureMinor} currency={i.currency} tone="none" className="num" />
-                  <div className="row-sub">剩 {r.periodsLeft} 期</div>
-                </div>
-              </button>
+              </SwipeRow>
             );
           })}
         </div>

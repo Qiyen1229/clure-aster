@@ -18,12 +18,15 @@ import { snackUndo, useUI, ask } from '@/stores/ui';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { AmountField, CategoryField, DateField, SelectField, SwitchField, TextField } from '@/ui/form';
 import { Sheet } from '@/ui/Sheet';
+import { SwipeRow } from '@/ui/SwipeRow';
+import { useSwipeDelete } from '@/ui/useSwipeDelete';
 import { CatIcon } from '@/ui/Icon';
 import { SectionHead } from './PlanPage';
 import { useScreenDetail } from '@/stores/screenContext';
 
 export default function BudgetSection() {
   const [edit, setEdit] = useState<Budget | 'new' | null>(null);
+  const { pendingIds, requestDelete } = useSwipeDelete();
   const monthStartDay = useSettings((s) => s.monthStartDay);
   const tick = useLiveQuery(() => db.transactions.count(), []);
   const budgets = useLiveQuery(() => db.budgets.toArray(), []);
@@ -53,18 +56,24 @@ export default function BudgetSection() {
               <button className="btn small secondary" onClick={() => setEdit('new')}>自己設定</button>
             </span>
           )} />
-      ) : views.map((v) => (
+      ) : views.filter((v) => !pendingIds.has(v.budget.id)).map((v) => (
         <div key={v.budget.id}>
-          <BudgetCard v={v} onEdit={() => setEdit(v.budget)} />
+          <SwipeRow collapse onTap={() => setEdit(v.budget)}
+            onDelete={() => requestDelete(v.budget.id, v.budget.name, () => deleteBudget(v.budget.id))}>
+            <BudgetCard v={v} />
+          </SwipeRow>
           <BudgetWarnNote v={v} />
         </div>
       ))}
-      {budgets && budgets.some((b) => !b.active) && (
+      {budgets && budgets.some((b) => !b.active && !pendingIds.has(b.id)) && (
         <>
           <div className="section-title">已停用</div>
           <div className="list">
-            {budgets.filter((b) => !b.active).map((b) => (
-              <button key={b.id} className="row" onClick={() => setEdit(b)}><span className="row-main">{b.name}</span><span className="muted">停用中</span></button>
+            {budgets.filter((b) => !b.active && !pendingIds.has(b.id)).map((b) => (
+              <SwipeRow key={b.id} flat collapse onTap={() => setEdit(b)}
+                onDelete={() => requestDelete(b.id, b.name, () => deleteBudget(b.id))}>
+                <div className="row"><span className="row-main">{b.name}</span><span className="muted">停用中</span></div>
+              </SwipeRow>
             ))}
           </div>
         </>
@@ -88,13 +97,13 @@ function BudgetWarnNote({ v }: { v: BudgetView }) {
   );
 }
 
-function BudgetCard({ v, onEdit }: { v: BudgetView; onEdit: () => void }) {
+function BudgetCard({ v }: { v: BudgetView }) {
   const { status: s, budget: b } = v;
   const cats = useCategories();
   const color = s.level === 'over' ? 'var(--danger)' : s.level === 'warn' ? 'var(--warning)' : 'var(--accent)';
   const cat = b.categoryId ? cats.map.get(b.categoryId) : undefined;
   return (
-    <button className="card" style={{ display: 'block', width: '100%', textAlign: 'left' }} onClick={onEdit}>
+    <div className="card" style={{ display: 'block', width: '100%', textAlign: 'left' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
         <span className="cat-icon sm" style={{ ['--c' as string]: cat?.color }} aria-hidden="true"><CatIcon icon={cat?.icon ?? 'target'} size={16} /></span>
         <div className="row-main">
@@ -135,7 +144,7 @@ function BudgetCard({ v, onEdit }: { v: BudgetView; onEdit: () => void }) {
         </p>
       )}
       {s.level === 'over' && <p style={{ margin: '8px 0 0', fontSize: '0.8rem', color: 'var(--danger)' }}>已超出預算 <Amount minor={-s.remaining} currency={b.currency} tone="none" /></p>}
-    </button>
+    </div>
   );
 }
 

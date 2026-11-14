@@ -17,6 +17,8 @@ import { Amount, EmptyState, Segmented, SkeletonRows, Switch } from '@/ui/contro
 import { AmountField, CurrencyField, DateField, TextField } from '@/ui/form';
 import { CatIcon, Icon } from '@/ui/Icon';
 import { Sheet } from '@/ui/Sheet';
+import { SwipeRow } from '@/ui/SwipeRow';
+import { useSwipeDelete } from '@/ui/useSwipeDelete';
 import { LedgerRow } from '../ledger/LedgerRow';
 import { SectionHead } from './PlanPage';
 import { exportCSV, exportXLSX } from '@/services/backup';
@@ -26,13 +28,14 @@ export default function ProjectSection() {
   const [edit, setEdit] = useState<Project | 'new' | null>(null);
   const [status, setStatus] = useState<'active' | 'done'>('active');
   const list = useLiveQuery(() => db.projects.toArray(), []);
+  const { pendingIds, requestDelete } = useSwipeDelete();
   const totals = useLiveQuery(async () => {
     const m = new Map<string, number>();
     for (const p of list ?? []) m.set(p.id, (await projectStats(p)).expense);
     return m;
   }, [list]);
 
-  const shown = (list ?? []).filter((p) => (status === 'active' ? p.status === 'active' : p.status !== 'active')).sort((a, b) => (a.start < b.start ? 1 : -1));
+  const shown = (list ?? []).filter((p) => !pendingIds.has(p.id) && (status === 'active' ? p.status === 'active' : p.status !== 'active')).sort((a, b) => (a.start < b.start ? 1 : -1));
   return (
     <>
       <SectionHead title="專案／旅行" onAdd={() => setEdit('new')} />
@@ -46,19 +49,25 @@ export default function ProjectSection() {
             const spent = totals?.get(p.id) ?? 0;
             const pct = p.budgetMinor ? (spent / p.budgetMinor) * 100 : 0;
             return (
-              <button key={p.id} className="row with-icon" onClick={() => navigate(`/plan/projects/${p.id}`)}>
-                <span className="cat-icon" style={{ ['--c' as string]: p.color }} aria-hidden="true"><CatIcon icon={p.icon} /></span>
-                <div className="row-main">
-                  <div className="row-title">{p.name}</div>
-                  <div className="row-sub">{p.start.replace(/-/g, '/')}{p.end ? ` – ${p.end.slice(5).replace('-', '/')}` : ' 起'} · {p.currency}</div>
-                  {p.budgetMinor ? <div className="bar" style={{ marginTop: 6 }}><i style={{ width: `${Math.min(100, pct)}%`, ['--c' as string]: pct > 100 ? 'var(--danger)' : p.color }} /></div> : null}
+              <SwipeRow key={p.id} flat collapse onTap={() => navigate(`/plan/projects/${p.id}`)}
+                onDelete={() => requestDelete(p.id, p.name, async () => {
+                  if (useSettings.getState().travelModeProjectId === p.id) useSettings.getState().set('travelModeProjectId', null);
+                  await deleteProject(p.id);
+                })}>
+                <div className="row with-icon">
+                  <span className="cat-icon" style={{ ['--c' as string]: p.color }} aria-hidden="true"><CatIcon icon={p.icon} /></span>
+                  <div className="row-main">
+                    <div className="row-title">{p.name}</div>
+                    <div className="row-sub">{p.start.replace(/-/g, '/')}{p.end ? ` – ${p.end.slice(5).replace('-', '/')}` : ' 起'} · {p.currency}</div>
+                    {p.budgetMinor ? <div className="bar" style={{ marginTop: 6 }}><i style={{ width: `${Math.min(100, pct)}%`, ['--c' as string]: pct > 100 ? 'var(--danger)' : p.color }} /></div> : null}
+                  </div>
+                  <div className="row-end">
+                    <Amount minor={spent} currency={p.currency} tone="none" className="num" />
+                    {p.budgetMinor ? <div className="row-sub">/ <Amount minor={p.budgetMinor} currency={p.currency} tone="none" /></div> : null}
+                  </div>
+                  <Icon name="chevronR" className="row-chev" />
                 </div>
-                <div className="row-end">
-                  <Amount minor={spent} currency={p.currency} tone="none" className="num" />
-                  {p.budgetMinor ? <div className="row-sub">/ <Amount minor={p.budgetMinor} currency={p.currency} tone="none" /></div> : null}
-                </div>
-                <Icon name="chevronR" className="row-chev" />
-              </button>
+              </SwipeRow>
             );
           })}
         </div>

@@ -2,9 +2,22 @@
  * 共用資料 hooks：以 Dexie liveQuery 為單一真相來源，資料變更時自動重新渲染。
  */
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { db } from '@/db/schema';
 import type { Account, Category, Project, Tag } from '@/db/types';
+
+/** 媒體查詢（例如桌機寬屏 (min-width: 1024px)）：SSR 安全、視窗變化時即時更新 */
+export function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() => typeof window !== 'undefined' && window.matchMedia(query).matches);
+  useEffect(() => {
+    const mql = window.matchMedia(query);
+    const onChange = (e: MediaQueryListEvent) => setMatches(e.matches);
+    setMatches(mql.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, [query]);
+  return matches;
+}
 
 export function useAccounts(includeArchived = false) {
   const list = useLiveQuery(() => db.accounts.orderBy('sort').toArray(), []);

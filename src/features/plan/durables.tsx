@@ -8,17 +8,19 @@ import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
 import type { Durable } from '@/db/types';
-import { addDurable, addUse, deleteDurable, reopenDurable, restoreDurable, sellDurable, updateDurable } from '@/db/repo/durables';
+import { addDurable, addUse, deleteDurable, reopenDurable, sellDurable, updateDurable } from '@/db/repo/durables';
 import { durableStats, lifeLabel, totalDailyBurn } from '@/domain/durable';
 import { evaluate } from '@/domain/calc-expr';
 import { currencyInfo, formatMoney, fromMinor, toMinor } from '@/domain/money';
 import { todayKey } from '@/domain/period';
 import { useAccounts, useCategories } from '@/app/hooks';
 import { useSettings } from '@/stores/settings';
-import { snackUndo, useUI, ask } from '@/stores/ui';
+import { useUI } from '@/stores/ui';
 import { Amount, EmptyState, Segmented, SkeletonRows } from '@/ui/controls';
 import { AccountField, AmountField, CategoryField, DateField, SelectField, SwitchField, TextField } from '@/ui/form';
 import { Sheet } from '@/ui/Sheet';
+import { SwipeRow } from '@/ui/SwipeRow';
+import { useSwipeDelete } from '@/ui/useSwipeDelete';
 import { SectionHead } from './PlanPage';
 import { LifeSpanSheet } from './LifeSpanSheet';
 
@@ -39,19 +41,14 @@ export default function DurableSection() {
   const [form, setForm] = useState<{ edit?: Durable } | null>(null);
   const [selling, setSelling] = useState<Durable | null>(null);
   const list = useLiveQuery(() => db.durables.filter((d) => !d.deletedAt).toArray(), []);
+  const { pendingIds, requestDelete } = useSwipeDelete();
   const today = todayKey();
 
-  const active = (list ?? []).filter((d) => d.status === 'active').sort((a, b) => (a.purchaseDate < b.purchaseDate ? -1 : 1));
-  const done = (list ?? []).filter((d) => d.status !== 'active').sort((a, b) => ((b.endDate ?? '') < (a.endDate ?? '') ? -1 : 1));
+  const active = (list ?? []).filter((d) => d.status === 'active' && !pendingIds.has(d.id)).sort((a, b) => (a.purchaseDate < b.purchaseDate ? -1 : 1));
+  const done = (list ?? []).filter((d) => d.status !== 'active' && !pendingIds.has(d.id)).sort((a, b) => ((b.endDate ?? '') < (a.endDate ?? '') ? -1 : 1));
   const burn = totalDailyBurn(active, today, base);
 
-  const handleDelete = async (d: Durable) => {
-    if (!await ask(`刪除「${d.name}」？已記的帳目不受影響。`)) return;
-    await deleteDurable(d.id);
-    snackUndo('已刪除耐用品', async () => {
-      await restoreDurable(d.id);
-    });
-  };
+  const handleDelete = (d: Durable) => requestDelete(d.id, d.name, () => deleteDurable(d.id));
 
   return (
     <>
@@ -71,22 +68,24 @@ export default function DurableSection() {
           <EmptyState emoji="🧰" title="還沒有耐用品" text="買了大件的東西，記帳時選「耐用品」，或在這裡新增。之後每天都看得到它攤了多少錢。"
             action={<button className="btn small" onClick={() => setForm({})}>新增耐用品</button>} />
         ) : active.map((d) => (
-          <ActiveCard
-            key={d.id}
-            d={d}
-            today={today}
-            onEdit={() => setForm({ edit: d })}
-            onSell={() => setSelling(d)}
-            onDelete={() => void handleDelete(d)}
-          />
+          <SwipeRow key={d.id} collapse onDelete={() => handleDelete(d)}>
+            <ActiveCard
+              d={d}
+              today={today}
+              onEdit={() => setForm({ edit: d })}
+              onSell={() => setSelling(d)}
+              onDelete={() => handleDelete(d)}
+            />
+          </SwipeRow>
         ))
       ) : done.length === 0 ? <EmptyState emoji="📭" title="還沒有賣掉或淘汰的物品" /> : done.map((d) => (
-        <DoneCard
-          key={d.id}
-          d={d}
-          onReopen={() => void reopenDurable(d.id).then((r) => useUI.getState().showSnack({ text: r.removedSale ? '已改回還在用，並刪除當時記的二手賣出收入（可在「最近刪除」復原）' : '已改回還在用' }))}
-          onDelete={() => void handleDelete(d)}
-        />
+        <SwipeRow key={d.id} collapse onDelete={() => handleDelete(d)}>
+          <DoneCard
+            d={d}
+            onReopen={() => void reopenDurable(d.id).then((r) => useUI.getState().showSnack({ text: r.removedSale ? '已改回還在用，並刪除當時記的二手賣出收入（可在「最近刪除」復原）' : '已改回還在用' }))}
+            onDelete={() => handleDelete(d)}
+          />
+        </SwipeRow>
       ))}
 
       <Sheet open={!!form} onClose={() => setForm(null)} title={form?.edit ? '編輯耐用品' : '新增耐用品'}>

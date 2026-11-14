@@ -6,7 +6,9 @@ import { isDockNav } from './app/navSource';
 import { Component, lazy, Suspense, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { TabBar } from './app/TabBar';
-import { ActionSheetHost, PrivacyShield, SnackbarHost, UpdatePrompt } from './app/overlays';
+import { SideNav } from './app/SideNav';
+import { useMediaQuery } from './app/hooks';
+import { ActionSheetHost, OrientationGuard, PrivacyShield, SnackbarHost, UpdatePrompt } from './app/overlays';
 import { WhatsNewHost } from './features/whatsnew/WhatsNew';
 import HomePage from './features/home/HomePage';
 import { TravelScenery } from './features/home/TravelScenery';
@@ -249,9 +251,15 @@ export default function App() {
   const location = useLocation();
   useShortcuts();
   const locked = useLock((s) => s.locked);
+  const desktop = useMediaQuery('(min-width: 1024px)');
   const isOnboarding = location.pathname === '/onboarding';
   const fullscreen = FULLSCREEN.some((r) => r.test(location.pathname));
   const nav = useNavDirection(location.pathname);
+
+  // html.is-desktop：Sheet 等 portal 到 body 的浮層也要知道現在是寬屏（置中對話框而非底部抽屜）
+  useEffect(() => {
+    document.documentElement.classList.toggle('is-desktop', desktop);
+  }, [desktop]);
 
   // 開啟 App 時的補算任務與前景循環（動態載入，不影響首屏）
   useEffect(() => {
@@ -268,7 +276,7 @@ export default function App() {
   if (!onboarded && !isOnboarding) return <Navigate to="/onboarding" replace />;
 
   return (
-    <div className="app" data-nav={nav.dir} data-dock={nav.dock ? '1' : undefined}>
+    <div className={`app${desktop ? ' desktop' : ''}`} data-nav={nav.dir} data-dock={nav.dock ? '1' : undefined}>
       {/* 鎖定時整個主畫面（頁面、導覽列、各種面板與提示）都不渲染：DOM 裡沒有任何餘額或帳目，Tab 鍵也移不進去 */}
       {!locked && (<>
       {travelModeProjectId && <TravelScenery />}
@@ -325,7 +333,7 @@ export default function App() {
         </Suspense>
       </RouteErrorBoundary>
       {/* 全螢幕頁面（年度回顧、列印、導覽）只是隱藏導覽列、不卸載：返回時不必重新建立玻璃導覽列（backdrop-filter 圖層） */}
-      <TabBar hidden={fullscreen} />
+      {desktop ? <SideNav hidden={fullscreen} /> : <TabBar hidden={fullscreen} />}
       <AddSheetHost />
       <VoiceHost />
       <ChatHost />
@@ -337,6 +345,7 @@ export default function App() {
       </>)}
       <PrivacyShield />
       <LockScreen />
+      <OrientationGuard />
     </div>
   );
 }
