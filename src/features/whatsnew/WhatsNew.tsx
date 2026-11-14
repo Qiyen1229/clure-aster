@@ -9,7 +9,7 @@ import { create } from 'zustand';
 import { useSettings } from '@/stores/settings';
 import { haptic } from '@/services/haptics';
 import { Icon } from '@/ui/Icon';
-import { RELEASE_NOTES, featuresBetween, type ReleaseNote, type WhatsNewItem } from './releaseNotes';
+import { RELEASE_NOTES, condenseHighlights, featuresBetween, type ReleaseNote, type WhatsNewItem } from './releaseNotes';
 
 const KEY = 'aster.seenVersion';
 /** 這個機制上線前的最後一版：已經在用、但還沒有紀錄的使用者，視為從這一版更新上來 */
@@ -52,9 +52,9 @@ export function planWhatsNew(opts: { current: string; onboarded: boolean; read: 
   if (!onboarded) { write(current); return null; } // 全新安裝：引導裡已經介紹過，不跳
   const seen = read() ?? LEGACY_BASELINE;
   if (seen === current) return null;
-  const items = featuresBetween(seen, current);
-  if (!items.length) { write(current); return null; } // 只有小修正：靜默記下
-  return { seen, items };
+  const raw = featuresBetween(seen, current);
+  if (!raw.length) { write(current); return null; } // 只有小修正：靜默記下
+  return { seen, items: condenseHighlights(raw) };
 }
 
 export function WhatsNewHost() {

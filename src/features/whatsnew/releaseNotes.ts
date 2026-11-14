@@ -684,10 +684,28 @@ export function cmpVersion(a: string, b: string): number {
 
 export interface WhatsNewItem extends ReleaseFeature { version: string; date: string }
 
+export const MAX_WHATSNEW_ITEMS = 10;
+
 /** 從 seen（上次看過的版本，不含）到 current（含）之間所有版本的功能，新的在前；同一版的功能維持寫的順序 */
 export function featuresBetween(seen: string, current: string, notes: readonly ReleaseNote[] = RELEASE_NOTES): WhatsNewItem[] {
   return [...notes]
     .filter((n) => cmpVersion(n.version, seen) > 0 && cmpVersion(n.version, current) <= 0)
     .sort((a, b) => cmpVersion(b.version, a.version))
     .flatMap((n) => n.features.map((f) => ({ ...f, version: n.version, date: n.date })));
+}
+
+/** 超過 10 項時自動濃縮為 10 個精華：保留最新 3 項，其餘依版本跨度均勻抽樣（維持由新到舊順序） */
+export function condenseHighlights(items: readonly WhatsNewItem[], max = MAX_WHATSNEW_ITEMS): WhatsNewItem[] {
+  if (items.length <= max) return [...items];
+  const headCount = Math.min(3, max);
+  const tailSlots = max - headCount;
+  const head = items.slice(0, headCount);
+  const rest = items.slice(headCount);
+  if (tailSlots <= 0 || rest.length === 0) return head;
+  const picked: WhatsNewItem[] = [];
+  for (let i = 0; i < tailSlots; i++) {
+    const idx = Math.floor((i * rest.length) / tailSlots);
+    picked.push(rest[idx]);
+  }
+  return [...head, ...picked];
 }

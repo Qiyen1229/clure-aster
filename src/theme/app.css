@@ -2683,13 +2683,18 @@ body:has(.sheet) .snackbar { animation-name: snack-in-top; }
 /* 頁面轉場：依導覽方向滑入（App 根元素的 data-nav） */
 .app[data-nav='right'] .page { animation-name: page-in-right; }
 .app[data-nav='left'] .page { animation-name: page-in-left; }
-/* 靈動島切換分頁專屬：輕量平滑橫移（只動 transform／opacity，避免縮放與逐列動畫拖累導覽列） */
-.app[data-dock='1'][data-nav='right'] .page { animation-name: dock-in-right; animation-duration: 240ms; animation-timing-function: var(--ease); }
-.app[data-dock='1'][data-nav='left'] .page { animation-name: dock-in-left; animation-duration: 240ms; animation-timing-function: var(--ease); }
+/* 靈動島切換分頁專屬：絲滑彈簧過渡（純 GPU translate3d／opacity 合成，獨立合成層不重繪） */
+.app[data-dock='1'][data-nav='right'] .page,
+.app[data-dock='1'][data-nav='left'] .page {
+  will-change: transform, opacity;
+  contain: layout style;
+}
+.app[data-dock='1'][data-nav='right'] .page { animation-name: dock-in-right; animation-duration: 420ms; animation-timing-function: var(--spring-linear, var(--ease)); }
+.app[data-dock='1'][data-nav='left'] .page { animation-name: dock-in-left; animation-duration: 420ms; animation-timing-function: var(--spring-linear, var(--ease)); }
 @keyframes page-in-right { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
 @keyframes page-in-left { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
-@keyframes dock-in-right { from { opacity: 0; transform: translate3d(20px, 0, 0); } to { opacity: 1; transform: none; } }
-@keyframes dock-in-left { from { opacity: 0; transform: translate3d(-20px, 0, 0); } to { opacity: 1; transform: none; } }
+@keyframes dock-in-right { from { opacity: 0; transform: translate3d(28px, 0, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
+@keyframes dock-in-left { from { opacity: 0; transform: translate3d(-28px, 0, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
 
 /* 清單、卡片、小工具：進場時依序淡入上移（前 12 項，之後的不延遲；靈動島切換分頁時停用以保持流暢） */
 @keyframes item-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }

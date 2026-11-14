@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import pkg from '../../package.json';
-import { RELEASE_NOTES, cmpVersion, featuresBetween, type ReleaseNote } from '@/features/whatsnew/releaseNotes';
+import { RELEASE_NOTES, cmpVersion, condenseHighlights, featuresBetween, type ReleaseNote, type WhatsNewItem } from '@/features/whatsnew/releaseNotes';
 import { LEGACY_BASELINE, planWhatsNew } from '@/features/whatsnew/WhatsNew';
 import { isNewAttention } from '@/features/home/AttentionCard';
 
@@ -50,6 +50,20 @@ describe('featuresBetween：從舊版到新版中途所有功能', () => {
   it('版本號用數字比較（1.10.0 比 1.9.0 新）', () => {
     expect(cmpVersion('1.10.0', '1.9.0')).toBeGreaterThan(0);
   });
+  it('condenseHighlights：10 項以內原樣保留，超過 10 項自動濃縮為 10 個精華（保留最新 3 項並跨版本抽樣）', () => {
+    const mk = (n: number): WhatsNewItem[] => Array.from({ length: n }, (_, i) => ({
+      version: `4.1.${n - i}`, date: '2026-11-14', title: `F${n - i}`, intro: 'i', howto: 'h',
+    }));
+    expect(condenseHighlights(mk(8))).toHaveLength(8);
+    expect(condenseHighlights(mk(10))).toHaveLength(10);
+    const condensed = condenseHighlights(mk(25));
+    expect(condensed).toHaveLength(10);
+    expect(condensed.slice(0, 3).map((x) => x.title)).toEqual(['F25', 'F24', 'F23']);
+    // 由新到舊順序不變
+    for (let i = 1; i < condensed.length; i++) {
+      expect(cmpVersion(condensed[i - 1].version, condensed[i].version)).toBeGreaterThan(0);
+    }
+  });
 });
 
 describe('planWhatsNew：什麼時候跳視窗', () => {
@@ -59,19 +73,20 @@ describe('planWhatsNew：什麼時候跳視窗', () => {
     expect(planWhatsNew({ current: pkg.version, onboarded: false, read: s.read, write: s.write })).toBeNull();
     expect(s.m.get('k')).toBe(pkg.version);
   });
-  it('★ 已在用的使用者、有舊版紀錄 → 列出舊版到現在的所有功能；還沒按「知道了」前不改紀錄', () => {
+  it('★ 已在用的使用者、有舊版紀錄 → 列出舊版到現在的精華（最多 10 項）；還沒按「知道了」前不改紀錄', () => {
     const s = store(); s.m.set('k', '4.1.8');
     const p = planWhatsNew({ current: pkg.version, onboarded: true, read: s.read, write: s.write })!;
     expect(p.seen).toBe('4.1.8');
-    const versions = new Set(p.items.map((i) => i.version));
-    expect(versions.has('4.1.9') && versions.has('4.1.12') && versions.has('4.1.14') && versions.has('4.1.15') && versions.has('4.1.16')).toBe(true);
-    expect(versions.has('4.1.8')).toBe(false);
+    expect(p.items.length).toBeGreaterThan(0);
+    expect(p.items.length).toBeLessThanOrEqual(10);
+    expect(p.items.every((i) => cmpVersion(i.version, '4.1.8') > 0)).toBe(true);
     expect(s.m.get('k')).toBe('4.1.8');
   });
-  it('沒有任何紀錄的既有使用者，視為從機制上線前的最後一版更新上來', () => {
+  it('沒有任何紀錄的既有使用者，視為從機制上線前的最後一版更新上來，且最多濃縮為 10 個精華', () => {
     const s = store();
     const p = planWhatsNew({ current: pkg.version, onboarded: true, read: s.read, write: s.write })!;
     expect(p.seen).toBe(LEGACY_BASELINE);
+    expect(p.items.length).toBeLessThanOrEqual(10);
     expect(p.items.every((i) => cmpVersion(i.version, LEGACY_BASELINE) > 0)).toBe(true);
   });
   it('已經是最新、或這段更新只有小修正（沒有新功能）→ 不跳；小修正會靜默記下版本', () => {

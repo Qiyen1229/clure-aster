@@ -28,7 +28,14 @@ function AddSheetHost() {
   const used = useUI((s) => s.add.seq > 0);
   useEffect(() => {
     const w = window as Window & { requestIdleCallback?: (cb: () => void) => number };
-    const run = () => void loadAddSheet().catch(() => undefined);
+    const run = () => {
+      void loadAddSheet().catch(() => undefined);
+      // 預先載入主導覽分頁，切換標籤時不經 Suspense 骨架閃爍與二次掛載
+      void loadAccountsPage().catch(() => undefined);
+      void loadPlanPage().catch(() => undefined);
+      void loadReportsPage().catch(() => undefined);
+      void loadSettingsPage().catch(() => undefined);
+    };
     if (w.requestIdleCallback) w.requestIdleCallback(run);
     else setTimeout(run, 1500);
   }, []);
@@ -54,12 +61,17 @@ function VoiceHost() {
   return used.current ? <Suspense fallback={null}><VoiceSheet /></Suspense> : null;
 }
 
+const loadAccountsPage = () => import('./features/accounts/AccountsPage');
+const loadPlanPage = () => import('./features/plan/PlanPage');
+const loadReportsPage = () => import('./features/reports/ReportsPage');
+const loadSettingsPage = () => import('./features/settings/SettingsPage');
+
 const LedgerPage = lazy(() => import('./features/ledger/LedgerPage'));
-const AccountsPage = lazy(() => import('./features/accounts/AccountsPage'));
-const AccountDetailPage = lazy(() => import('./features/accounts/AccountsPage').then((m) => ({ default: m.AccountDetailPage })));
-const PlanPage = lazy(() => import('./features/plan/PlanPage'));
-const ReportsPage = lazy(() => import('./features/reports/ReportsPage'));
-const SettingsPage = lazy(() => import('./features/settings/SettingsPage'));
+const AccountsPage = lazy(loadAccountsPage);
+const AccountDetailPage = lazy(() => loadAccountsPage().then((m) => ({ default: m.AccountDetailPage })));
+const PlanPage = lazy(loadPlanPage);
+const ReportsPage = lazy(loadReportsPage);
+const SettingsPage = lazy(loadSettingsPage);
 const CategoriesPage = lazy(() => import('./features/settings/CategoriesPage'));
 const TagsPage = lazy(() => import('./features/settings/TagsPage'));
 const PinnedPage = lazy(() => import('./features/settings/PinnedPage'));

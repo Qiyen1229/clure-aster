@@ -129,9 +129,10 @@ export function TabBar({ hidden = false }: { hidden?: boolean } = {}) {
     }
     if (P.dragging) { P.x.t = x; kick(); return; }
     freeze(); stopRaf();
-    if (!el || typeof el.animate !== 'function') { P.x.t = x; kick(); return; }
+    P.x.t = x;
+    if (!el || typeof el.animate !== 'function') { kick(); return; }
     // Q 彈：欠阻尼（ζ 0.6）會輕輕過衝再回來
-    const track = sampleSpring(P.x.p, x, P.x.v, 16, 0.6, 1.2, 60);
+    const track = sampleSpring(P.x.p, x, P.x.v, 16, 0.6, 1.2, 120); // 120fps 取樣：ProMotion 高更新率螢幕上維持絲滑無階梯感
     if (track.pos.length < 3) { P.x.p = x; P.x.t = x; P.x.v = 0; paint(); return; }
     const frames = track.pos.map((p, i) => ({ transform: lensTransform(p, track.vel[i]) }));
     P.track = track; P.t0 = performance.now();
